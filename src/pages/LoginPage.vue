@@ -5,31 +5,34 @@
       <div class="row no-wrap card-row">
         <!-- LEFT SIDE: Logo / Image (hidden on mobile) -->
         <div class="col-md-6 left-panel flex flex-center gt-sm">
-          <div class="left-content text-center">
+          <!-- <div class="left-content text-center">
             <img
-              src="~src/assets/images/lms-logo.png"
+              src="~src/assets/images/LEAVE-MONITORING-SYSTEM-LOGO WHITE.png"
               alt="LMS Logo"
               class="brand-image"
             />
-            <h5 class="text-white q-mt-lg q-mb-xs text-weight-bold">Leave Management System</h5>
             <p class="text-white-7 text-body2 brand-subtitle">
               Streamline your leave requests, approvals, and tracking — all in one place.
             </p>
-          </div>
+          </div> -->
         </div>
 
         <!-- RIGHT SIDE: Login Form -->
         <div class="col-12 col-md-6 right-panel flex flex-center">
           <div class="form-wrapper">
-            <div class="text-center q-mb-lg">
-              <div class="login-logo q-mb-md">
-                <q-icon name="badge" size="42px" color="primary" />
+            <div class="login-header q-mb-lg">
+              <div class="login-logo">
+                <img
+                  src="~src/assets/images/LEAVE-MONITORING-SYSTEM-LOGO copy.png"
+                  alt="LMS Logo"
+                  class="login-logo-img"
+                />  
               </div>
-              <h5 class="q-mt-none q-mb-xs text-weight-bold text-dark">Welcome back</h5>
+              <h5 class="q-mt-md q-mb-xs text-weight-bold text-dark">Welcome back</h5>
               <p class="text-grey-6 q-mb-none text-body2">Sign in to your LMS account</p>
             </div>
 
-            <q-form class="q-gutter-md" @submit.prevent="onSubmit">
+            <q-form class="q-gutter-y-md" @submit.prevent="onSubmit">
               <div>
                 <label class="input-label">Username</label>
                 <q-input
@@ -74,7 +77,13 @@
 
               <div class="row items-center justify-between q-mt-sm">
                 <q-checkbox v-model="remember" label="Remember me" dense color="primary" />
-                <router-link to="/forgot-password" class="text-primary text-body2 text-weight-medium forgot-link">Forgot password?</router-link>
+                <a
+                  href="#"
+                  class="text-primary text-body2 text-weight-medium forgot-link"
+                  @click.prevent="forgotPasswordDialog = true"
+                >
+                  Forgot password?
+                </a>
               </div>
 
               <q-btn
@@ -92,14 +101,116 @@
             <div class="text-center q-mt-lg">
               <p class="text-grey-6 text-body2 q-mb-none">
                 Don't have an account?
-                <a href="#" class="text-primary text-weight-medium forgot-link">Contact your administrator</a>
+                <a
+                  href="#"
+                  class="text-primary text-weight-medium forgot-link"
+                  @click.prevent="contactAdminDialog = true"
+                >
+                Please go to the HR Office 
+                </a>
               </p>
             </div>
+
+            <!-- Forgot password info (UI only) -->
+            <q-dialog v-model="forgotPasswordDialog" persistent>
+              <q-card style="width: 520px; max-width: 92vw; border-radius: 12px">
+                <q-card-section class="row items-center q-pb-none">
+                  <div class="text-h6 text-weight-bold">Password reset</div>
+                  <q-space />
+                  <q-btn icon="close" flat round dense v-close-popup aria-label="Close" />
+                </q-card-section>
+
+                <q-card-section class="q-pt-sm">
+                  <div class="text-body1 text-grey-9">
+                    Online password reset is not available for this system.
+                  </div>
+                  <div class="text-body2 text-grey-7 q-mt-sm">
+                    To reset your password, please go to the <span class="text-weight-medium">HR Office</span>.
+                  </div>
+
+                  <q-separator class="q-my-md" />
+
+                  <div class="text-body2 text-grey-8">
+                    You may need the following:
+                    <ul class="q-mt-sm q-mb-none">
+                      <li>Your employee ID / company ID</li>
+                      <li>A valid government or company-issued ID (if required)</li>
+                      <li>Your department / position details (if requested)</li>
+                    </ul>
+                  </div>
+
+                  <div class="text-body2 text-grey-8 q-mt-md">
+                    HR Office details (edit as needed):
+                    <ul class="q-mt-sm q-mb-none">
+                      <li><span class="text-weight-medium">Location:</span> HR Office (Building/Room: ________)</li>
+                      <li><span class="text-weight-medium">Office hours:</span> ________</li>
+                      <li><span class="text-weight-medium">Contact:</span> ________</li>
+                    </ul>
+                  </div>
+                </q-card-section>
+
+                <q-card-actions align="right">
+                  <q-btn color="primary" unelevated no-caps label="OK" v-close-popup />
+                </q-card-actions>
+              </q-card>
+            </q-dialog>
+
+            <!-- Contact administrator info (UI only) -->
+            <q-dialog v-model="contactAdminDialog" persistent>
+              <q-card style="width: 520px; max-width: 92vw; border-radius: 12px">
+                <q-card-section class="row items-center q-pb-none">
+                  <div class="text-h6 text-weight-bold">Request login credentials</div>
+                  <q-space />
+                  <q-btn icon="close" flat round dense v-close-popup aria-label="Close" />
+                </q-card-section>
+
+                <q-card-section class="q-pt-sm">
+                  <div class="text-body1 text-grey-9">
+                    Account creation / credential generation is handled by HR.
+                  </div>
+                  <div class="text-body2 text-grey-7 q-mt-sm">
+                    Please go to the <span class="text-weight-medium">HR Office</span> and request your login credentials.
+                  </div>
+
+                  <q-separator class="q-my-md" />
+
+                  <div class="text-body2 text-grey-8">
+                    You may need the following:
+                    <ul class="q-mt-sm q-mb-none">
+                      <li>Your full name and employee ID / company ID</li>
+                      <li>Your department / position</li>
+                      <li>A valid government or company-issued ID (if required)</li>
+                    </ul>
+                  </div>
+
+                  <div class="text-body2 text-grey-8 q-mt-md">
+                    HR Office details (edit as needed):
+                    <ul class="q-mt-sm q-mb-none">
+                      <li><span class="text-weight-medium">Location:</span> HR Office (Building/Room: ________)</li>
+                      <li><span class="text-weight-medium">Office hours:</span> ________</li>
+                      <li><span class="text-weight-medium">Contact:</span> ________</li>
+                    </ul>
+                  </div>
+                </q-card-section>
+
+                <q-card-actions align="right">
+                  <q-btn color="primary" unelevated no-caps label="OK" v-close-popup />
+                </q-card-actions>
+              </q-card>
+            </q-dialog>
           </div>
         </div>
       </div>
     </q-card>
+      <!-- <div class="absolute-bottom text-center w-full q-pb-sm text-grey-6 text-body2">
+        &copy; {{ new Date().getFullYear() }} Developed by
+        <router-link to="/development-team" class="text-primary text-weight-medium">
+          DNSC Interns
+        </router-link>
+        · All rights reserved.
+      </div> -->
   </q-page>
+
 </template>
 
 <script setup>
@@ -109,6 +220,7 @@ import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/auth-store'
 import { useLeaveStore } from 'stores/leave-store'
 import { api } from 'boot/axios'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const router = useRouter()
 const leaveStore = useLeaveStore()
@@ -120,10 +232,13 @@ const password = ref('')
 const remember = ref(false)
 const showPassword = ref(false)
 const loading = ref(false)
+const forgotPasswordDialog = ref(false)
+const contactAdminDialog = ref(false)
 
 async function onSubmit() {
   loading.value = true
   try {
+    console.log(api.defaults.baseURL)
     const { data } = await api.post('/login', {
       username: username.value,
       password: password.value,
@@ -138,10 +253,10 @@ async function onSubmit() {
       message: 'Logged in successfully!',
       position: 'top',
     })
-    const route = data.redirect_to || data.dashboard_route || '/employee/dashboard'
+    const route = data.redirect_to || data.dashboard_route || '/admin/dashboard'
     router.push(route)
   } catch (err) {
-    const msg = err.response?.data?.message || err.response?.data?.errors?.username?.[0] || 'Login failed'
+    const msg = resolveApiErrorMessage(err, 'Unable to sign in. Please check your credentials and try again.')
     $q.notify({
       type: 'negative',
       message: msg,
@@ -176,22 +291,22 @@ async function onSubmit() {
 
 /* ---- LEFT PANEL (Logo / Image) ---- */
 .left-panel {
-  background: linear-gradient(160deg, #388e3c 0%, #1b5e20 100%);
   position: relative;
   overflow: hidden;
   padding: 40px;
+  background-image: url('../assets/images/City-Hall-of-Tagum.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-.left-panel::before {
-  content: '';
-  position: absolute;
-  top: -100px;
-  right: -100px;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-}
+// .left-panel::before {
+//   content: '';
+//   position: absolute;
+//   inset: 0;
+//   background: linear-gradient(160deg, rgba(56, 142, 60, 0.75) 0%, rgba(27, 94, 32, 0.85) 100%);
+//   z-index: 0;
+// }
 
 .left-panel::after {
   content: '';
@@ -202,6 +317,7 @@ async function onSubmit() {
   height: 240px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.04);
+  z-index: 0;
 }
 
 .left-content {
@@ -210,10 +326,17 @@ async function onSubmit() {
 }
 
 .brand-image {
-  width: 160px;
+  max-width: 100%;
+  max-height: 100%;
+  width: 400px;
   height: auto;
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25));
-  border-radius: 16px;
+  object-fit: contain;
+  filter: none;
+  border-radius: 20px;
+  // outline: 1px solid white;
+  padding: 20px;
+  // background-color: white;
+  box-shadow: rgba(255, 255, 255, 0.04);
 }
 
 .text-white-7 {
@@ -237,15 +360,21 @@ async function onSubmit() {
   max-width: 360px;
 }
 
+.login-header {
+  text-align: left;
+}
+
 .login-logo {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(46, 125, 50, 0.08);
-  border-radius: 14px;
+  justify-content: flex-start;
+}
+
+.login-logo-img {
+  max-width: 240px;
+  max-height: 120px;
+  height: auto;
+  object-fit: contain;
 }
 
 .input-label {

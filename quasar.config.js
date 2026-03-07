@@ -2,8 +2,62 @@
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
 import { defineConfig } from '#q-app/wrappers'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const rootDir = fileURLToPath(new URL('.', import.meta.url))
+
+const readEnvValueFromFile = (filename, key) => {
+  const filePath = resolve(rootDir, filename)
+  if (!existsSync(filePath)) return ''
+
+  for (const rawLine of readFileSync(filePath, 'utf8').split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (line === '' || line.startsWith('#')) continue
+
+    const separatorIndex = line.indexOf('=')
+    if (separatorIndex <= 0) continue
+
+    const currentKey = line.slice(0, separatorIndex).trim()
+    if (currentKey !== key) continue
+
+    let value = line.slice(separatorIndex + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+
+    return value.trim()
+  }
+
+  return ''
+}
+
+const resolveProxyTarget = () => {
+  const localFileValue = readEnvValueFromFile('.env.local', 'VITE_DEV_PROXY_TARGET')
+  if (localFileValue !== '') return localFileValue
+
+  const envFileValue = readEnvValueFromFile('.env', 'VITE_DEV_PROXY_TARGET')
+  if (envFileValue !== '') return envFileValue
+
+  const shellValue = (process.env.VITE_DEV_PROXY_TARGET || '').trim()
+  if (shellValue !== '') return shellValue
+
+  return ''
+}
 
 export default defineConfig((/* ctx */) => {
+  const apiProxyTarget = resolveProxyTarget()
+
+  if (!/^https?:\/\//i.test(apiProxyTarget)) {
+    throw new Error(
+      `Invalid VITE_DEV_PROXY_TARGET: "${apiProxyTarget || '<empty>'}". Set frontend/.env.local, e.g. VITE_DEV_PROXY_TARGET=http://192.168.150.136:8000`
+    )
+  }
+
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -72,6 +126,18 @@ export default defineConfig((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
     devServer: {
+      host: '0.0.0.0',
+      port: 9000,
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+        '/sanctum': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+      },
       // https: true,
       open: true, // opens browser window automatically
     },

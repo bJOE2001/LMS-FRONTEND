@@ -43,7 +43,7 @@
             <q-input v-model="dateTo" type="date" outlined dense />
           </div>
           <div class="col-12 col-md-2">
-            <q-btn unelevated color="primary" icon="description" label="Generate" @click="showReportModal = true" />
+            <q-btn unelevated color="primary" icon="description" label="Generate" :loading="generating" @click="handleGenerate" />
           </div>
         </div>
       </q-card-section>
@@ -64,8 +64,64 @@
     </div>
 
     <q-card flat bordered class="rounded-borders q-mb-lg">
+      <q-card-section>
+        <div class="row items-center justify-between q-mb-sm">
+          <div>
+            <div class="text-h6">Leave Trends by Month</div>
+            <p class="text-caption text-grey-7 q-mb-none">Monthly trend for {{ trendYearLabel }}</p>
+          </div>
+        </div>
+
+        <div class="trend-chart-wrapper">
+          <q-no-ssr>
+            <VueApexCharts
+              type="area"
+              height="320"
+              :options="trendChartOptions"
+              :series="trendChartSeries"
+            />
+          </q-no-ssr>
+        </div>
+
+        <div class="row q-col-gutter-sm q-mt-sm">
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered class="trend-metric-card">
+              <q-card-section class="q-py-sm">
+                <div class="text-caption text-grey-7">Yearly total leaves</div>
+                <div class="text-subtitle1 text-weight-bold">{{ trendTotal }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered class="trend-metric-card">
+              <q-card-section class="q-py-sm">
+                <div class="text-caption text-grey-7">Peak month</div>
+                <div class="text-subtitle1 text-weight-bold">{{ trendPeakMonth }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered class="trend-metric-card">
+              <q-card-section class="q-py-sm">
+                <div class="text-caption text-grey-7">Source</div>
+                <div class="text-subtitle1 text-weight-bold">HR dashboard data</div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <q-card flat bordered class="rounded-borders q-mb-lg">
       <q-card-section><div class="text-h6">Department Statistics</div></q-card-section>
-      <q-table :rows="deptStats" :columns="deptColumns" row-key="dept" flat hide-pagination :rows-per-page-options="[0]" />
+      <q-table
+        v-model:pagination="deptPagination"
+        :rows="deptStats"
+        :columns="deptColumns"
+        row-key="dept"
+        flat
+        :rows-per-page-options="[5, 10, 15, 20]"
+      />
     </q-card>
 
     <q-dialog v-model="showReportModal" position="standard">
@@ -74,13 +130,13 @@
         <q-card-section>
           <div class="text-center q-mb-lg">
             <div class="text-h5">City Government</div>
-            <div class="text-subtitle1">Leave Monitoring System</div>
+            <div class="text-subtitle1">Leave Management System</div>
             <div class="text-caption text-grey-7">Generated: {{ new Date().toLocaleDateString() }}</div>
           </div>
           <div class="row q-col-gutter-md">
-            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Total</div><div class="text-h5 text-primary">{{ leaveStore.applications.length }}</div></q-card-section></q-card></div>
-            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Approved</div><div class="text-h5 text-green-8">{{ approvedCount }}</div></q-card-section></q-card></div>
-            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Pending</div><div class="text-h5 text-warning">{{ pendingCount }}</div></q-card-section></q-card></div>
+            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Total</div><div class="text-h5 text-primary">{{ reportData.length }}</div></q-card-section></q-card></div>
+            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Approved</div><div class="text-h5 text-green-8">{{ approvedInReport }}</div></q-card-section></q-card></div>
+            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Pending</div><div class="text-h5 text-warning">{{ pendingInReport }}</div></q-card-section></q-card></div>
           </div>
         </q-card-section>
         <q-card-actions align="right">
@@ -94,38 +150,207 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { useLeaveStore } from 'stores/leave-store'
+import { api } from 'src/boot/axios'
+import VueApexCharts from 'vue3-apexcharts'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
-const leaveStore = useLeaveStore()
 
 const reportType = ref('Monthly Summary')
 const dateFrom = ref('')
 const dateTo = ref('')
 const showReportModal = ref(false)
+const generating = ref(false)
+const reportData = ref([])
 
 const reportTypeOptions = ['Monthly Summary', 'Department Report', 'Leave Type Analysis']
 
-const approvedCount = computed(() => leaveStore.applications.filter((a) => a.status === 'Approved').length)
-const pendingCount = computed(() => leaveStore.applications.filter((a) => a.status === 'Pending').length)
-const approvalRate = computed(() =>
-  leaveStore.applications.length ? Math.round((approvedCount.value / leaveStore.applications.length) * 100) : 0
-)
+const summary = ref({
+  total_applications: 0,
+  approval_rate: 0,
+  avg_processing_days: 0,
+  active_employees: 0
+})
+
+const deptStats = ref([])
+const deptPagination = ref({
+  page: 1,
+  rowsPerPage: 5,
+  sortBy: 'dept',
+  descending: false,
+})
+const trendApplications = ref([])
+const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const trendYearLabel = new Date().getFullYear()
+
+function getApplicationDate(application) {
+  return (
+    application?.dateFiled ??
+    application?.date_filed ??
+    application?.created_at ??
+    application?.startDate ??
+    application?.start_date ??
+    null
+  )
+}
+
+async function fetchTrendData() {
+  try {
+    const { data } = await api.get('/hr/dashboard')
+    trendApplications.value = Array.isArray(data?.applications) ? data.applications : []
+  } catch {
+    trendApplications.value = []
+  }
+}
+
+async function fetchSummary() {
+  try {
+    const { data } = await api.get('/hr/reports/summary')
+    summary.value = data
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load summary statistics right now.')
+    $q.notify({ type: 'negative', message: msg })
+  }
+}
+
+async function fetchDeptStats() {
+  try {
+    const { data } = await api.get('/hr/reports/departments')
+    deptStats.value = data
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load department statistics right now.')
+    $q.notify({ type: 'negative', message: msg })
+  }
+}
+
+async function handleGenerate() {
+  generating.value = true
+  try {
+    const { data } = await api.get('/hr/reports/generate', {
+      params: {
+        type: reportType.value,
+        date_from: dateFrom.value,
+        date_to: dateTo.value
+      }
+    })
+    reportData.value = data
+    showReportModal.value = true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to generate report right now.')
+    $q.notify({ type: 'negative', message: msg })
+  } finally {
+    generating.value = false
+  }
+}
+
+onMounted(() => {
+  fetchSummary()
+  fetchDeptStats()
+  fetchTrendData()
+})
 
 const summaryStats = computed(() => [
-  { label: 'Total Applications', value: leaveStore.applications.length, icon: 'description', color: 'primary' },
-  { label: 'Approval Rate', value: `${approvalRate.value}%`, icon: 'trending_up', color: 'green' },
-  { label: 'Avg Processing', value: '2.3d', icon: 'schedule', color: 'warning' },
-  { label: 'Active Employees', value: '156', icon: 'people', color: 'purple' },
+  { label: 'Total Applications', value: summary.value.total_applications, icon: 'description', color: 'primary' },
+  { label: 'Approval Rate', value: `${summary.value.approval_rate}%`, icon: 'trending_up', color: 'green' },
+  { label: 'Avg Processing', value: `${summary.value.avg_processing_days}d`, icon: 'schedule', color: 'warning' },
+  { label: 'Active Employees', value: summary.value.active_employees, icon: 'people', color: 'purple' },
 ])
 
-const deptStats = [
-  { dept: 'City Planning & Development', total: 32, onLeave: 2, pending: 1, approved: 8, rate: 65 },
-  { dept: 'Human Resources', total: 18, onLeave: 1, pending: 0, approved: 5, rate: 58 },
-  { dept: 'Finance Department', total: 24, onLeave: 1, pending: 1, approved: 6, rate: 72 },
-]
+const approvedInReport = computed(() => reportData.value.filter(a => a.status === 'APPROVED').length)
+const pendingInReport = computed(() => reportData.value.filter(a => a.status === 'PENDING_HR' || a.status === 'PENDING_ADMIN').length)
+
+const monthlyLeaveTrend = computed(() => {
+  const buckets = Array(12).fill(0)
+
+  for (const application of trendApplications.value) {
+    const rawDate = getApplicationDate(application)
+    if (!rawDate) continue
+
+    const parsedDate = new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
+    if (parsedDate.getFullYear() !== trendYearLabel) continue
+
+    buckets[parsedDate.getMonth()] += 1
+  }
+
+  return buckets
+})
+
+const trendChartSeries = computed(() => [
+  {
+    name: 'Leave Applications',
+    data: monthlyLeaveTrend.value,
+  },
+])
+
+const trendChartOptions = computed(() => ({
+  chart: {
+    id: 'hr-reports-leave-trend',
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    animations: { easing: 'easeinout', speed: 450 },
+    fontFamily: 'inherit',
+  },
+  colors: ['#1e88e5'],
+  dataLabels: { enabled: false },
+  stroke: {
+    curve: 'smooth',
+    width: 3,
+  },
+  markers: {
+    size: 4,
+    strokeWidth: 2,
+    colors: ['#ffffff'],
+    strokeColors: '#1e88e5',
+    hover: { sizeOffset: 2 },
+  },
+  fill: {
+    type: 'gradient',
+    gradient: {
+      shadeIntensity: 0.7,
+      opacityFrom: 0.35,
+      opacityTo: 0.06,
+      stops: [0, 90, 100],
+    },
+  },
+  grid: {
+    borderColor: '#e0e0e0',
+    strokeDashArray: 4,
+    xaxis: { lines: { show: false } },
+  },
+  xaxis: {
+    categories: monthLabels,
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: { style: { colors: '#6b7280' } },
+  },
+  yaxis: {
+    min: 0,
+    forceNiceScale: true,
+    tickAmount: 4,
+    labels: {
+      style: { colors: '#6b7280' },
+      formatter: (value) => String(Math.round(value)),
+    },
+  },
+  legend: { show: false },
+  tooltip: {
+    y: {
+      formatter: (value) => `${Math.round(value)} leaves`,
+    },
+  },
+}))
+
+const trendTotal = computed(() => monthlyLeaveTrend.value.reduce((sum, value) => sum + value, 0))
+const trendPeakMonth = computed(() => {
+  const peakValue = Math.max(...monthlyLeaveTrend.value)
+  if (peakValue <= 0) return 'No data'
+  const peakIndex = monthlyLeaveTrend.value.findIndex((value) => value === peakValue)
+  return `${monthLabels[peakIndex]} (${peakValue})`
+})
+
 const deptColumns = [
   { name: 'dept', label: 'Department', field: 'dept', align: 'left' },
   { name: 'total', label: 'Total', field: 'total', align: 'left' },
@@ -142,3 +367,14 @@ function exportData(format) {
   $q.notify({ type: 'info', message: `Exporting as ${format}...`, position: 'top' })
 }
 </script>
+
+<style scoped>
+.trend-chart-wrapper {
+  width: 100%;
+  min-height: 320px;
+}
+
+.trend-metric-card {
+  background: #fafafa;
+}
+</style>

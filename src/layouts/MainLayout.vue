@@ -1,5 +1,5 @@
 <template>
-  <q-layout view="hHh lpR fFf" class="bg-grey-2 layout-no-scroll" :class="{ 'drawer-open': leftDrawer && $q.screen.gt.sm, 'layout-ready': layoutReady }">
+  <q-layout view="hHh lpR fFf" class="layout-no-scroll" :class="[isDark ? 'bg-dark-page' : 'bg-grey-2', { 'drawer-open': leftDrawer && $q.screen.gt.sm, 'layout-ready': layoutReady }]">
     <!-- Side panel - full height, left -->
     <q-drawer
       v-model="leftDrawer"
@@ -7,12 +7,13 @@
       :width="260"
       side="left"
       behavior="default"
-      class="side-panel-fixed bg-primary text-white"
+      class="side-panel-fixed text-white"
+      :class="isDark ? 'bg-dark' : 'bg-primary'"
     >
       <div class="side-panel-content">
         <div class="sidebar-header text-center">
           <img
-            src="~src/assets/images/LMSdashboardlogo.png"
+            src="~src/assets/images/INSIDE LMS SYSTEM LOGO.png"
             alt="LMS Logo"
             class="sidebar-logo"
           />
@@ -46,9 +47,9 @@
     </q-header>
 
     <!-- Content area: header + page (only this area scrolls) -->
-    <q-page-container class="bg-grey-2 layout-main-content">
+    <q-page-container class="layout-main-content" :class="isDark ? 'bg-dark-page' : 'bg-grey-2'">
       <!-- Header - sticky, only in content area to the right of side panel -->
-      <div ref="navbarRef" class="layout-content-header row items-center q-py-sm bg-white">
+      <div ref="navbarRef" class="layout-content-header row items-center q-py-sm" :class="isDark ? 'bg-dark navbar-dark' : 'bg-white'">
         <q-btn
           flat
           dense
@@ -58,6 +59,16 @@
           aria-label="Menu"
         />
         <q-space />
+        <q-btn
+          flat
+          round
+          dense
+          :icon="isDark ? 'light_mode' : 'dark_mode'"
+          @click="toggleDarkMode"
+          :color="isDark ? 'amber' : 'grey-7'"
+        >
+          <q-tooltip>{{ isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode' }}</q-tooltip>
+        </q-btn>
         <q-btn flat round dense icon="help" to="/help">
           <q-tooltip>Help</q-tooltip>
         </q-btn>
@@ -66,6 +77,7 @@
             {{ notifStore.unreadCount }}
           </q-badge>
           <q-menu
+            ref="notifMenuRef"
             anchor="bottom end"
             self="top end"
             :offset="[0, 8]"
@@ -74,23 +86,23 @@
             class="notif-menu-wrapper"
             @before-show="notifStore.fetchNotifications()"
           >
-            <NotificationPanel />
+            <NotificationPanel :on-view-all="closeNotifMenuAndGoToNotifications" />
           </q-menu>
         </q-btn>
         <q-btn flat round dense>
           <q-avatar size="32px" color="primary" text-color="white" icon="person" />
           <q-menu auto-close>
-            <q-list style="min-width: 220px" class="text-dark">
+            <q-list style="min-width: 220px">
               <q-item>
                 <q-item-section>
-                  <q-item-label class="text-weight-medium text-dark">{{ authStore.user?.name || 'User' }}</q-item-label>
-                  <q-item-label caption class="text-dark">{{ authStore.user?.username }}</q-item-label>
+                  <q-item-label class="text-weight-medium">{{ userDisplayName }}</q-item-label>
+                  <q-item-label caption>{{ authStore.user?.username }}</q-item-label>
                 </q-item-section>
               </q-item>
               <q-separator />
-              <q-item clickable to="/settings" class="text-dark">
-                <q-item-section avatar><q-icon name="settings" class="text-dark" /></q-item-section>
-                <q-item-section class="text-dark">Settings</q-item-section>
+              <q-item clickable to="/settings">
+                <q-item-section avatar><q-icon name="settings" /></q-item-section>
+                <q-item-section>Settings</q-item-section>
               </q-item>
               <q-separator />
               <q-item clickable class="text-negative" @click="confirmLogout">
@@ -113,7 +125,7 @@
           </q-avatar>
           <div class="text-h6 q-mt-md">Sign out of LMS?</div>
           <div class="text-subtitle2 text-grey-7 q-mt-xs">
-            You’ll be logged out from the Leave Monitoring System.  
+            You’ll be logged out from the Leave Management System.
             You can sign back in anytime using your account.
           </div>
         </q-card-section>
@@ -161,7 +173,32 @@ const leftDrawer = ref(true)
 const logoutDialog = ref(false)
 const layoutReady = ref(false)
 const navbarRef = ref(null)
+const notifMenuRef = ref(null)
 let navbarObserver = null
+
+function closeNotifMenuAndGoToNotifications() {
+  notifMenuRef.value?.hide()
+}
+
+// Dark mode
+const isDark = computed(() => $q.dark.isActive)
+
+function toggleDarkMode() {
+  $q.dark.toggle()
+  localStorage.setItem('lms-dark-mode', $q.dark.isActive ? '1' : '0')
+}
+
+// Initialize dark mode from localStorage
+function initDarkMode() {
+  const saved = localStorage.getItem('lms-dark-mode')
+  if (saved === '1') {
+    $q.dark.set(true)
+  } else if (saved === '0') {
+    $q.dark.set(false)
+  }
+  // If no preference saved, keep Quasar default (light)
+}
+initDarkMode()
 
 // When authenticated, refresh user from API so department_admin gets department_id/department
 // (avoids stale localStorage from before we added those fields)
@@ -199,11 +236,6 @@ onBeforeUnmount(() => {
   if (navbarObserver) navbarObserver.disconnect()
 })
 
-const employeeNav = [
-  { path: '/employee/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { path: '/employee/apply-leave', label: 'Apply Leave', icon: 'description' },
-  { path: '/employee/leave-history', label: 'Leave History', icon: 'history' },
-]
 const adminNav = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/admin/employees', label: 'Employee Management', icon: 'groups' },
@@ -211,19 +243,72 @@ const adminNav = [
 ]
 const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/hr/calendar', label: 'Calendar', icon: 'calendar_today' },
+  { path: '/hr/leave-types', label: 'Leave Types', icon: 'playlist_add' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
-  { path: '/hr/forecasting', label: 'Attrition Forecast', icon: 'trending_down' },
 ]
 
 const navItems = computed(() => {
-  if (leaveStore.userRole === 'employee') return employeeNav
-  // HR dashboard and menu are for role 'hr' only
   if (leaveStore.userRole === 'hr') return hrNav
   // Admin and department_admin see the admin menu (not HR)
   if (leaveStore.userRole === 'admin' || leaveStore.userRole === 'department_admin') return adminNav
-  return employeeNav
+  return []
+})
+
+const ACRONYM_STOP_WORDS = new Set([
+  'A',
+  'AN',
+  'AND',
+  'FOR',
+  'IN',
+  'OF',
+  'OFFICE',
+  'ON',
+  'THE',
+  'TO',
+])
+
+function toOfficeAcronym(input) {
+  const source = String(input || '').trim()
+  if (!source) return ''
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return ''
+
+  const filtered = words.filter((word) => !ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word))
+  const pick = filtered.length ? filtered : words
+
+  return pick.map((word) => word[0]).join('')
+}
+
+function deriveDepartmentAdminDisplayName(user) {
+  const departmentName = user?.department?.name
+  if (departmentName) {
+    const acronym = toOfficeAcronym(departmentName)
+    if (acronym) return `${acronym} Admin`
+  }
+
+  const rawName = String(user?.name || '').trim()
+  if (!rawName) return 'User'
+
+  const withoutAdminSuffix = rawName.replace(/\s+admin$/i, '').trim()
+  const acronym = toOfficeAcronym(withoutAdminSuffix)
+  if (acronym) return `${acronym} Admin`
+
+  return rawName
+}
+
+const userDisplayName = computed(() => {
+  const user = authStore.user
+  if (!user) return 'User'
+  if (user.role !== 'department_admin') return user.name || 'User'
+  return deriveDepartmentAdminDisplayName(user)
 })
 
 function confirmLogout() {
@@ -238,6 +323,7 @@ async function doLogout() {
   }
   authStore.clearAuth()
   leaveStore.setUserRole(null)
+  notifStore.clearAll()
   $q.notify({ type: 'positive',
   message: 'Logged out successfully!',
   position: 'top',
@@ -268,6 +354,13 @@ async function doLogout() {
   padding-left: 16px;
   padding-right: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.navbar-dark {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.bg-dark-page {
+  background-color: #121212;
 }
 /* Layout: only main content scrolls, sidebar is fixed */
 .layout-no-scroll {
@@ -334,9 +427,9 @@ async function doLogout() {
   margin: 0 0 8px 0;
 }
 .sidebar-logo {
-  width: auto;
-  max-width: 160px;
-  max-height: 36px;
+  width: 150px;
+  /* max-width: 200px;
+  max-height: 36px; */
   height: auto;
 }
 .logout-card {

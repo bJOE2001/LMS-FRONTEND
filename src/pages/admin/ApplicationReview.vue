@@ -21,16 +21,28 @@
         <div class="text-h6 q-mb-md">Employee Information</div>
         <div class="row q-col-gutter-md q-mb-lg">
           <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Name</div><div class="text-weight-medium">{{ application.employeeName }}</div></div>
-          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Employee ID</div><div class="text-weight-medium">{{ application.employeeId }}</div></div>
+          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Control No</div><div class="text-weight-medium">{{ application.employee_id }}</div></div>
           <div class="col-12"><div class="text-caption text-grey-7">Department</div><div class="text-weight-medium">{{ application.office }}</div></div>
         </div>
 
-        <div class="text-h6 q-mb-md">Leave Details</div>
+        <div class="text-h6 q-mb-md">{{ application.is_monetization ? 'Monetization Details' : 'Leave Details' }}</div>
         <div class="row q-col-gutter-md">
-          <div class="col-12"><div class="text-caption text-grey-7">Leave Type</div><div class="text-weight-medium">{{ application.leaveType }}</div></div>
-          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Start Date</div><div class="text-weight-medium">{{ formatDate(application.startDate) }}</div></div>
-          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">End Date</div><div class="text-weight-medium">{{ formatDate(application.endDate) }}</div></div>
-          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Number of Days</div><div class="text-weight-medium">{{ application.days }} day(s)</div></div>
+          <div class="col-12">
+            <div class="text-caption text-grey-7">Leave Type</div>
+            <div class="text-weight-medium">{{ application.leaveType }}{{ application.is_monetization ? ' (Monetization)' : '' }}</div>
+          </div>
+          <template v-if="!application.is_monetization">
+            <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Start Date</div><div class="text-weight-medium">{{ application.startDate ? formatDate(application.startDate) : 'N/A' }}</div></div>
+            <div class="col-12 col-md-6"><div class="text-caption text-grey-7">End Date</div><div class="text-weight-medium">{{ application.endDate ? formatDate(application.endDate) : 'N/A' }}</div></div>
+          </template>
+          <div class="col-12 col-md-6">
+            <div class="text-caption text-grey-7">{{ application.is_monetization ? 'Days to Monetize' : 'Number of Days' }}</div>
+            <div class="text-weight-medium">{{ application.days }} day(s)</div>
+          </div>
+          <div v-if="application.is_monetization && application.equivalent_amount" class="col-12 col-md-6">
+            <div class="text-caption text-grey-7">Estimated Amount</div>
+            <div class="text-weight-medium">&#8369;{{ Number(application.equivalent_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) }}</div>
+          </div>
           <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Date Filed</div><div class="text-weight-medium">{{ formatDate(application.dateFiled) }}</div></div>
           <div class="col-12"><div class="text-caption text-grey-7">Reason</div><div class="bg-grey-3 q-pa-sm rounded-borders">{{ application.reason }}</div></div>
           <div class="col-12"><div class="text-caption text-grey-7">Status</div><StatusBadge :status="application.status" /></div>

@@ -27,33 +27,10 @@
         <!-- ==================== STEP 1: Employee Information ==================== -->
         <q-step :name="1" title="Employee Information" icon="person" :done="step > 1">
           <q-form ref="step1Form" greedy>
-            <div class="text-subtitle1 text-weight-bold q-mb-md">Search & Select Employee</div>
-            <p class="text-grey-6 text-body2 q-mb-lg">Select the employee you are filing the leave for.</p>
+
 
             <div class="row q-col-gutter-md">
-              <div class="col-12 col-md-6">
-                <label class="input-label">Select Employee</label>
-                <q-select
-                  v-model="selectedEmployeeId"
-                  :options="employeeOptions"
-                  label="Find employee..."
-                  outlined
-                  dense
-                  emit-value
-                  map-options
-                  use-input
-                  input-debounce="0"
-                  :rules="[val => !!val || 'Please select an employee']"
-                  class="form-input"
-                  @filter="filterEmployees"
-                  @update:model-value="onEmployeeChange"
-                >
-                  <template #prepend>
-                    <q-icon name="search" size="sm" color="grey-6" />
-                  </template>
-                </q-select>
-              </div>
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-md-4">
                 <label class="input-label">1. Office / Department</label>
                 <q-input
                   v-model="form.office"
@@ -64,9 +41,6 @@
                   class="form-input readonly-field"
                 />
               </div>
-            </div>
-
-            <div class="row q-col-gutter-md q-mt-xs">
               <div class="col-12 col-md-4">
                 <label class="input-label">2. Last Name</label>
                 <q-input
@@ -100,9 +74,6 @@
                   class="form-input readonly-field"
                 />
               </div>
-            </div>
-
-            <div class="row q-col-gutter-md q-mt-xs">
               <div class="col-12 col-md-4">
                 <label class="input-label">3. Date of Filing</label>
                 <q-input
@@ -154,7 +125,7 @@
 
         <!-- ==================== STEP 2: Details of Application ==================== -->
         <q-step :name="2" title="Details of Application" icon="description" :done="step > 2">
-          <q-form @submit.prevent="onSubmit" greedy>
+          <q-form ref="step2Form" greedy>
             <!-- 6.A Type of Leave -->
             <div class="section-block q-mb-lg">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">6.A Type of Leave to be Availed Of</div>
@@ -198,200 +169,148 @@
               />
             </div>
 
+            <!-- ==================== MONETIZATION SECTION ==================== -->
+            <div v-if="isMonetization" class="section-block q-mb-lg">
+              <div class="text-subtitle1 text-weight-bold q-mb-xs">Monetization Leave</div>
+              <p class="text-grey-6 text-caption q-mb-md">City Hall of Tagum Policy: Minimum of 10 accumulated leave credits required.</p>
+
+              <div class="q-mb-md">
+                <label class="input-label">Select Leave Type to Monetize</label>
+                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" label="Select Leave Type" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
+                  <template #prepend><q-icon name="account_balance_wallet" size="sm" color="grey-6" /></template>
+                </q-select>
+              </div>
+
+              <div class="row q-col-gutter-md q-mb-md">
+                <div class="col-12 col-md-4">
+                  <label class="input-label">Available Leave Credits</label>
+                  <q-input :model-value="monetization.availableBalance" outlined dense readonly class="form-input readonly-field" :loading="monetization.loadingBalance">
+                    <template #prepend><q-icon name="savings" size="sm" color="grey-6" /></template>
+                  </q-input>
+                  <div v-if="monetization.availableBalance !== null && monetization.availableBalance < 10" class="text-caption text-negative q-mt-xs">Insufficient credits. Minimum of 10 required.</div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="input-label">Days to Monetize</label>
+                  <q-input v-model.number="monetization.daysToMonetize" type="number" min="1" :max="monetization.availableBalance || 999" outlined dense placeholder="Enter number of days" :rules="[val => (val !== null && val !== '' && val >= 1) || 'At least 1 day', val => !monetization.availableBalance || val <= monetization.availableBalance || 'Cannot exceed balance']" class="form-input">
+                    <template #prepend><q-icon name="today" size="sm" color="grey-6" /></template>
+                  </q-input>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="input-label">Estimated Equivalent Amount</label>
+                  <q-input :model-value="monetizationEstimatedAmount" outlined dense readonly class="form-input readonly-field">
+                    <template #prepend><span class="text-grey-6 text-body2">&#8369;</span></template>
+                  </q-input>
+                  <div class="text-caption text-grey-5 q-mt-xs">Daily rate = monthly salary / 22</div>
+                </div>
+              </div>
+            </div>
+
             <!-- 6.B Details of Leave -->
-            <div v-if="showDetailsOfLeave" class="section-block q-mb-lg">
+            <div v-if="showDetailsOfLeave && !isMonetization" class="section-block q-mb-lg">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">6.B Details of Leave</div>
               <p class="text-grey-6 text-caption q-mb-md">Provide additional details based on the selected leave type.</p>
 
-              <!-- Vacation / Special Privilege Leave -->
               <div v-if="isVacationType" class="q-gutter-sm">
-                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation/Special Privilege Leave:</div>
-                <q-option-group
-                  v-model="form.vacationDetail"
-                  :options="[
-                    { label: 'Within the Philippines', value: 'Within the Philippines' },
-                    { label: 'Abroad (Specify)', value: 'Abroad' },
-                  ]"
-                  type="radio"
-                  color="green-8"
-                />
-                <q-input
-                  v-if="form.vacationDetail === 'Abroad'"
-                  v-model="form.vacationSpecify"
-                  outlined
-                  dense
-                  label="Specify destination"
-                  placeholder="Enter Destination"
-                  class="form-input q-mt-sm"
-                />
-                <q-input
-                  v-if="form.vacationDetail === 'Within the Philippines'"
-                  v-model="form.vacationSpecify"
-                  outlined
-                  dense
-                  label="Specify location"
-                  placeholder="Enter Location"
-                  class="form-input q-mt-sm"
-                />
+                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave:</div>
+                <q-option-group v-model="form.vacationDetail" :options="[{ label: 'Within the Philippines', value: 'Within the Philippines' }, { label: 'Abroad (Specify)', value: 'Abroad' }]" type="radio" color="green-8" />
+                <q-input v-if="form.vacationDetail === 'Abroad'" v-model="form.vacationSpecify" outlined dense label="Specify destination" placeholder="Enter Destination" class="form-input q-mt-sm" />
+                <q-input v-if="form.vacationDetail === 'Within the Philippines'" v-model="form.vacationSpecify" outlined dense label="Specify location" placeholder="Enter Location" class="form-input q-mt-sm" />
               </div>
 
-              <!-- Sick Leave -->
               <div v-if="isSickType" class="q-gutter-sm">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Sick Leave:</div>
-                <q-option-group
-                  v-model="form.sickDetail"
-                  :options="[
-                    { label: 'In Hospital (Specify Illness)', value: 'In Hospital' },
-                    { label: 'Out Patient (Specify Illness)', value: 'Out Patient' },
-                  ]"
-                  type="radio"
-                  color="primary"
-                />
-                <q-input
-                  v-if="form.sickDetail"
-                  v-model="form.sickSpecify"
-                  outlined
-                  dense
-                  label="Specify illness"
-                  placeholder="Enter Illness"
-                  class="form-input q-mt-sm"
-                />
+                <q-option-group v-model="form.sickDetail" :options="[{ label: 'In Hospital (Specify Illness)', value: 'In Hospital' }, { label: 'Out Patient (Specify Illness)', value: 'Out Patient' }]" type="radio" color="primary" />
+                <q-input v-if="form.sickDetail" v-model="form.sickSpecify" outlined dense label="Specify illness" placeholder="Enter Illness" class="form-input q-mt-sm" />
               </div>
               
-              <!-- Special Leave Benefits for Women -->
               <div v-if="selectedLeaveTypeName === 'Special Leave Benefits for Women'" class="q-gutter-sm">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Special Leave Benefits for Women:</div>
-                <q-input
-                  v-model="form.womenSpecify"
-                  outlined
-                  dense
-                  label="Specify illness"
-                  placeholder="Enter Illness"
-                  class="form-input"
-                />
+                <q-input v-model="form.womenSpecify" outlined dense label="Specify illness" placeholder="Enter Illness" class="form-input" />
               </div>
 
-              <!-- Study Leave -->
               <div v-if="selectedLeaveTypeName === 'Study Leave'" class="q-gutter-sm">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Study Leave:</div>
-                <q-option-group
-                  v-model="form.studyDetail"
-                  :options="[
-                    { label: 'Completion of Master\'s Degree', value: 'Masters Degree' },
-                    { label: 'BAR/Board Examination Review', value: 'BAR Review' },
-                  ]"
-                  type="radio"
-                  color="primary"
-                />
+                <q-option-group v-model="form.studyDetail" :options="[{ label: 'Completion of Master\'s Degree', value: 'Masters Degree' }, { label: 'BAR/Board Examination Review', value: 'BAR Review' }]" type="radio" color="primary" />
               </div>
 
-              <!-- Other purpose (Monetization / Terminal) -->
               <div v-if="selectedLeaveTypeName === 'Others'" class="q-gutter-sm q-mt-md">
                 <div class="text-body2 text-weight-medium q-mb-sm">Other purpose:</div>
-                <q-option-group
-                  v-model="form.otherPurpose"
-                  :options="[
-                    { label: 'Monetization of Leave Credits', value: 'Monetization' },
-                    { label: 'Terminal Leave', value: 'Terminal Leave' },
-                  ]"
-                  type="radio"
-                  color="primary"
-                />
+                <q-option-group v-model="form.otherPurpose" :options="[{ label: 'Monetization Leave', value: 'Monetization' }, { label: 'Terminal Leave', value: 'Terminal Leave' }]" type="radio" color="primary" />
               </div>
             </div>
 
-            <!-- 6.C Number of Working Days & Inclusive Dates -->
-            <div class="section-block q-mb-lg">
+            <!-- 6.C Number of Working Days Applied For (hidden for monetization) -->
+            <div v-if="!isMonetization" class="section-block q-mb-lg">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">6.C Number of Working Days Applied For</div>
-              <p class="text-grey-6 text-caption q-mb-md">Enter the number of days and inclusive dates.</p>
+              <p class="text-grey-6 text-caption q-mb-md">
+                <template v-if="isMco6Leave">Select up to 3 individual dates. Interval usage is allowed.</template>
+                <template v-else-if="isMaternityLeave">Select the start date. 105 days will be automatically calculated.</template>
+                <template v-else-if="isPaternityLeave">Select the start date. 7 days will be automatically calculated.</template>
+                <template v-else>Select the dates you want to apply for leave.</template>
+              </p>
+
               <div class="row q-col-gutter-md">
-                <div class="col-12 col-md-4">
-                  <label class="input-label">Working Days</label>
-                  <q-input
-                    v-model.number="form.days"
-                    type="number"
-                    min="1"
-                    outlined
-                    dense
-                    placeholder="Enter Working Days"
-                    :rules="[val => val >= 1 || 'At least 1 day required']"
-                    class="form-input"
-                  >
-                    <template #prepend>
-                      <q-icon name="date_range" size="sm" color="grey-6" />
-                    </template>
-                  </q-input>
+                <div class="col-12 col-md-6">
+                  <label class="input-label">
+                    <template v-if="isMco6Leave">Select Leave Dates (max 3)</template>
+                    <template v-else-if="isMaternityLeave || isPaternityLeave">Select Start Date</template>
+                    <template v-else>Select Leave Dates</template>
+                  </label>
+
+                  <!-- Maternity/Paternity Leave: Single Date Picker -->
+                  <q-date
+                    v-if="isMaternityLeave || isPaternityLeave"
+                    v-model="maternityStartDate"
+                    mask="YYYY-MM-DD"
+                    color="green-8"
+                    :options="leaveDateOptions"
+                    class="q-mt-sm"
+                    style="width: 100%"
+                  />
+
+                  <!-- Standard Leave: Multi-select -->
+                  <q-date
+                    v-else
+                    v-model="selectedDates"
+                    multiple
+                    mask="YYYY-MM-DD"
+                    color="green-8"
+                    :options="leaveDateOptions"
+                    class="q-mt-sm"
+                    style="width: 100%"
+                    @update:model-value="onSelectedDatesChange"
+                  />
                 </div>
-                <div class="col-12 col-md-4">
-                  <label class="input-label">Inclusive Date - From</label>
-                  <q-input
-                    v-model="form.startDate"
-                    outlined
-                    dense
-                    readonly
-                    placeholder="Select start date"
-                    :rules="[val => !!val || 'Start date is required']"
-                    class="form-input cursor-pointer"
-                  >
-                    <template #prepend>
-                      <q-icon name="event" size="sm" color="grey-6" />
-                    </template>
-                    <template #append>
-                      <q-icon name="arrow_drop_down" color="grey-6" />
-                    </template>
-                    <q-popup-proxy transition-show="scale" transition-hide="scale">
-                      <q-date
-                        v-model="form.startDate"
-                        mask="YYYY-MM-DD"
-                        color="green-8"
-                        :options="startDateOptions"
-                      >
-                        <div class="row items-center justify-end">
-                          <q-btn v-close-popup label="OK" color="green-8" flat no-caps />
-                        </div>
-                      </q-date>
-                    </q-popup-proxy>
-                  </q-input>
-                </div>
-                <div class="col-12 col-md-4">
-                  <label class="input-label">Inclusive Date - To</label>
-                  <q-input
-                    v-model="form.endDate"
-                    outlined
-                    dense
-                    readonly
-                    placeholder="Select end date"
-                    :rules="[
-                      val => !!val || 'End date is required',
-                      val => !form.startDate || val >= form.startDate || 'End date must be after start date'
-                    ]"
-                    class="form-input cursor-pointer"
-                  >
-                    <template #prepend>
-                      <q-icon name="event" size="sm" color="grey-6" />
-                    </template>
-                    <template #append>
-                      <q-icon name="arrow_drop_down" color="grey-6" />
-                    </template>
-                    <q-popup-proxy transition-show="scale" transition-hide="scale">
-                      <q-date
-                        v-model="form.endDate"
-                        mask="YYYY-MM-DD"
-                        color="green-8"
-                        :options="endDateOptions"
-                      >
-                        <div class="row items-center justify-end">
-                          <q-btn v-close-popup label="OK" color="green-8" flat no-caps />
-                        </div>
-                      </q-date>
-                    </q-popup-proxy>
-                  </q-input>
+                <div class="col-12 col-md-6">
+                  <label class="input-label">Selected Dates</label>
+                  <div v-if="selectedDatesList.length === 0" class="text-grey-5 text-body2 q-mt-sm">
+                    No dates selected yet.
+                  </div>
+                  <q-list v-else dense bordered separator class="rounded-borders q-mt-sm" style="max-height: 300px; overflow-y: auto">
+                    <q-item v-for="(d, idx) in sortedSelectedDates" :key="idx">
+                      <q-item-section>
+                        <q-item-label>{{ formatDateDisplay(d) }}</q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
+                        <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" :disable="isMaternityLeave || isPaternityLeave" />
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                  <div class="text-caption q-mt-sm text-grey-6">
+                    {{ selectedDatesList.length }} day(s) selected
+                  </div>
+                  <div v-if="mco6ConsecutiveWarning" class="text-caption text-negative q-mt-xs">
+                    ⚠ {{ mco6ConsecutiveWarning }}
+                  </div>
+                  <div v-if="maxDaysWarning" class="text-caption text-negative q-mt-xs">
+                    ⚠ {{ maxDaysWarning }}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- 6.D Commutation -->
-            <div class="section-block q-mb-lg">
+            <!-- 6.D Commutation (hidden for monetization) -->
+            <div v-if="!isMonetization" class="section-block q-mb-lg">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">6.D Commutation</div>
               <p class="text-grey-6 text-caption q-mb-md">Select whether commutation is requested.</p>
               <q-option-group
@@ -407,7 +326,7 @@
 
             <div class="section-block q-mb-lg">
               <label class="input-label">Reason / Purpose</label>
-              <q-input v-model="form.reason" type="textarea" rows="3" outlined dense placeholder="Enter Reason / Purpose" :rules="[val => !!val || 'Required']" class="form-input" />
+              <q-input v-model="form.reason" type="textarea" rows="3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" :rules="[val => !!val || 'Required']" class="form-input" />
             </div>
 
             <!-- Navigation -->
@@ -415,7 +334,18 @@
               <div class="row q-gutter-md">
                 <q-btn flat no-caps label="Back" icon="arrow_back" color="grey-7" @click="step = 1" class="step-btn" />
                 <q-space />
-                <q-btn unelevated no-caps color="green-8" type="submit" label="File Application" icon="send" :loading="loading" class="step-btn" />
+                <q-btn
+                  unelevated
+                  no-caps
+                  color="green-8"
+                  type="button"
+                  :label="isMonetization ? 'File Monetization Request' : 'File Application'"
+                  icon="send"
+                  :loading="loading"
+                  :disable="isMonetization && monetizationSubmitDisabled"
+                  class="step-btn"
+                  @click="onSubmit"
+                />
               </div>
             </q-stepper-navigation>
           </q-form>
@@ -428,8 +358,8 @@
       <q-card style="min-width: 400px" class="rounded-borders">
         <q-card-section class="text-center q-pa-lg">
           <q-icon name="check_circle" color="positive" size="64px" class="q-mb-md" />
-          <div class="text-h6 text-weight-bold">Application Filed!</div>
-          <p class="text-grey-7 q-mb-lg">The leave application for <strong>{{ selectedEmployeeName }}</strong> has been submitted successfully.</p>
+          <div class="text-h6 text-weight-bold">{{ isMonetization ? 'Monetization Request Filed!' : 'Application Filed!' }}</div>
+          <p class="text-grey-7 q-mb-lg">{{ isMonetization ? 'The monetization request' : 'The leave application' }} for <strong>{{ selectedEmployeeName }}</strong> has been submitted successfully.</p>
           <q-btn unelevated no-caps color="primary" label="Back to Dashboard" class="full-width" :to="{ name: 'admin-dashboard' }" v-close-popup />
         </q-card-section>
       </q-card>
@@ -443,6 +373,7 @@ import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const route = useRoute()
 const $q = useQuasar()
@@ -450,6 +381,7 @@ const authStore = useAuthStore()
 
 const step = ref(1)
 const step1Form = ref(null)
+const step2Form = ref(null)
 const loading = ref(false)
 const showSuccess = ref(false)
 
@@ -501,7 +433,7 @@ const todayFormatted = computed(() => {
   return today.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 })
 
-const employeeOptions = ref([])
+
 const leaveTypeOptions = ref([])
 
 onMounted(async () => {
@@ -510,39 +442,25 @@ onMounted(async () => {
     employees.value = data.employees
     allLeaveTypes.value = data.leave_types
 
-    employeeOptions.value = data.employees.map(e => ({
-      label: `${e.last_name}, ${e.first_name}`,
-      value: e.id
-    }))
+
 
     leaveTypeOptions.value = data.leave_types.map(lt => ({
       label: lt.name,
       value: lt.id
     }))
 
-    // Handle pre-filled employee from query
+    // Handle pre-filled employee from query (control_no is a string)
     if (route.query.empId) {
-      const empId = Number(route.query.empId)
-      selectedEmployeeId.value = empId
-      onEmployeeChange(empId)
+      selectedEmployeeId.value = route.query.empId
+      onEmployeeChange(route.query.empId)
     }
-  } catch {
-    $q.notify({ type: 'negative', message: 'Failed to load employee list' })
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load employee list right now.')
+    $q.notify({ type: 'negative', message: msg })
   }
 })
 
-function filterEmployees(val, update) {
-  update(() => {
-    if (!val) {
-      employeeOptions.value = employees.value.map(e => ({ label: `${e.last_name}, ${e.first_name}`, value: e.id }))
-    } else {
-      const needle = val.toLowerCase()
-      employeeOptions.value = employees.value
-        .filter(e => `${e.last_name}, ${e.first_name}`.toLowerCase().includes(needle))
-        .map(e => ({ label: `${e.last_name}, ${e.first_name}`, value: e.id }))
-    }
-  })
-}
+
 
 function filterLeaveTypes(val, update) {
   update(() => {
@@ -557,21 +475,21 @@ function filterLeaveTypes(val, update) {
   })
 }
 
-function onEmployeeChange(id) {
-  const emp = employees.value.find(e => e.id === id)
+function onEmployeeChange(controlNo) {
+  const emp = employees.value.find(e => e.control_no === controlNo)
   if (emp) {
-    form.value.employeeId = emp.id
-    form.value.firstName = emp.first_name
-    form.value.lastName = emp.last_name
-    form.value.position = emp.position
-    form.value.office = authStore.user?.department_name || ''
+    form.value.employeeId = emp.control_no
+    form.value.firstName = emp.firstname
+    form.value.lastName = emp.surname
+    form.value.position = emp.designation
+    form.value.office = emp.office || authStore.user?.department?.name || authStore.user?.department_name || ''
     form.value.salary = emp.salary || ''
   }
 }
 
 const selectedEmployeeName = computed(() => {
-  const emp = employees.value.find(e => e.id === selectedEmployeeId.value)
-  return emp ? `${emp.first_name} ${emp.last_name}` : ''
+  const emp = employees.value.find(e => e.control_no === selectedEmployeeId.value)
+  return emp ? `${emp.firstname} ${emp.surname}` : ''
 })
 
 const selectedLeaveTypeName = computed(() => {
@@ -579,15 +497,103 @@ const selectedLeaveTypeName = computed(() => {
   return lt ? lt.name : ''
 })
 
+const selectedLeaveTypeMaxDays = computed(() => {
+  const lt = allLeaveTypes.value.find(t => t.id === form.value.leaveTypeId)
+  return lt ? lt.max_days : null
+})
+
+const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'MCO6 Leave')
+const isMaternityLeave = computed(() => selectedLeaveTypeName.value === 'Maternity Leave')
+const isPaternityLeave = computed(() => selectedLeaveTypeName.value === 'Paternity Leave')
+const isMonetization = computed(() => selectedLeaveTypeName.value === 'Monetization Leave')
+
 const showDetailsOfLeave = computed(() => {
-  const types = ['Vacation Leave', 'Sick Leave', 'Study Leave', 'Special Leave Benefits for Women', 'Others']
+  const types = ['Vacation Leave', 'Sick Leave']
   return types.includes(selectedLeaveTypeName.value)
 })
 
 const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation Leave')
 const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
 
-function onLeaveTypeChange() {
+// ─── Monetization State ──────────────────────────────────────────
+const monetization = ref({
+  leaveTypeId: null,
+  availableBalance: null,
+  daysToMonetize: null,
+  loadingBalance: false,
+})
+
+const monetizationLeaveTypeOptions = computed(() => {
+  const opts = []
+  const vl = allLeaveTypes.value.find(t => t.name === 'Vacation Leave')
+  const sl = allLeaveTypes.value.find(t => t.name === 'Sick Leave')
+  if (vl) opts.push({ label: 'Vacation Leave', value: vl.id })
+  if (sl) opts.push({ label: 'Sick Leave', value: sl.id })
+  return opts
+})
+
+watch(isMonetization, async (val) => {
+  if (val && selectedEmployeeId.value) {
+    const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
+    if (vlOpt) {
+      monetization.value.leaveTypeId = vlOpt.value
+      await fetchEmployeeMonetizationBalance(selectedEmployeeId.value, vlOpt.value)
+    }
+  } else {
+    monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
+  }
+})
+
+async function onMonetizationTypeChange(typeId) {
+  if (typeId && selectedEmployeeId.value) {
+    await fetchEmployeeMonetizationBalance(selectedEmployeeId.value, typeId)
+  }
+}
+
+async function fetchEmployeeMonetizationBalance(empId, typeId) {
+  monetization.value.loadingBalance = true
+  monetization.value.availableBalance = null
+  monetization.value.daysToMonetize = null
+  try {
+    const { data } = await api.get(`/admin/employee-leave-balance/${empId}/${typeId}`)
+    monetization.value.availableBalance = data.balance
+  } catch {
+    monetization.value.availableBalance = 0
+  } finally {
+    monetization.value.loadingBalance = false
+  }
+}
+
+const monetizationEstimatedAmount = computed(() => {
+  const salary = parseSalary(form.value.salary)
+  const days = monetization.value.daysToMonetize
+  if (!salary || !days || days <= 0) return '0.00'
+  const dailyRate = Number(salary) / 22
+  return (days * dailyRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+})
+
+const monetizationSubmitDisabled = computed(() => {
+  const bal = monetization.value.availableBalance
+  const days = monetization.value.daysToMonetize
+  if (bal === null || bal < 10) return true
+  if (!days || days < 1 || days > bal) return true
+  if (!monetization.value.leaveTypeId) return true
+  if (!selectedEmployeeId.value) return true
+  return false
+})
+
+const lastLeaveTypeId = ref(null)
+
+function onLeaveTypeChange(newValue) {
+  // q-select can emit update with the same value on blur/focus transitions.
+  // Reset dependent fields only when leave type actually changes.
+  if (String(newValue ?? '') === String(lastLeaveTypeId.value ?? '')) {
+    return
+  }
+
+  lastLeaveTypeId.value = newValue
+  const preservedReason = form.value.reason
+
   form.value.vacationDetail = ''
   form.value.vacationSpecify = ''
   form.value.sickDetail = ''
@@ -596,7 +602,146 @@ function onLeaveTypeChange() {
   form.value.studyDetail = ''
   form.value.otherPurpose = ''
   form.value.leaveTypeOther = ''
+  selectedDates.value = []
+  monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
+  form.value.reason = preservedReason
 }
+
+// ─── Unified Multi-date Selection (all leave types) ─────────────
+const selectedDates = ref([])
+const selectedDatesList = computed(() => (Array.isArray(selectedDates.value) ? selectedDates.value : []))
+
+const sortedSelectedDates = computed(() =>
+  [...selectedDatesList.value].sort()
+)
+
+function onSelectedDatesChange(value) {
+  selectedDates.value = Array.isArray(value) ? value : []
+}
+
+function formatDateDisplay(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+const leaveDateOptions = computed(() => {
+  // Access dependencies to trigger re-computation
+  const selected = selectedDatesList.value
+  const max = selectedLeaveTypeMaxDays.value
+  const isMco6 = isMco6Leave.value
+  const today = toSlash(todayStr.value)
+
+  return (date) => {
+    // Maternity/Paternity Leave allows weekends/holidays (continuous)
+    if (isMaternityLeave.value || isPaternityLeave.value) {
+      return date >= today
+    }
+
+    if (!isWeekday(date)) return false
+    if (date < today) return false
+    
+    if (isMco6 && selected.length >= 3) {
+      const dashDate = date.replace(/\//g, '-')
+      return selected.includes(dashDate)
+    }
+    
+    if (max && selected.length >= max) {
+      const dashDate = date.replace(/\//g, '-')
+      return selected.includes(dashDate)
+    }
+    
+    return true
+  }
+})
+
+const maternityStartDate = ref(null)
+
+// Auto-calculate days for Maternity (105) or Paternity (7)
+watch(maternityStartDate, (newDate) => {
+  if (newDate) {
+    let daysCount = 0
+    if (isMaternityLeave.value) daysCount = 105
+    else if (isPaternityLeave.value) daysCount = 7
+    
+    if (daysCount > 0) {
+      const dates = []
+      const start = new Date(newDate)
+      for (let i = 0; i < daysCount; i++) {
+        const d = new Date(start)
+        d.setDate(start.getDate() + i)
+        dates.push(d.toISOString().split('T')[0])
+      }
+      selectedDates.value = dates
+    }
+  }
+})
+
+// Reset start date if leave type changes
+watch([isMaternityLeave, isPaternityLeave], ([mat, pat]) => {
+  if (!mat && !pat) maternityStartDate.value = null
+})
+
+function removeSelectedDate(idx) {
+  const sorted = [...selectedDatesList.value].sort()
+  const dateToRemove = sorted[idx]
+  selectedDates.value = selectedDatesList.value.filter(d => d !== dateToRemove)
+}
+
+function calcMaxConsecutive(dates) {
+  if (!dates || dates.length <= 1) return dates ? dates.length : 0
+  const normalized = dates.map((d) => d.replace(/\//g, '-'))
+  const sorted = [...new Set(normalized)].sort()
+
+  let max = 1,
+    streak = 1
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1] + 'T00:00:00')
+    const curr = new Date(sorted[i] + 'T00:00:00')
+    const nextDay = new Date(prev)
+    nextDay.setDate(nextDay.getDate() + 1)
+
+    if (nextDay.getTime() === curr.getTime()) {
+      streak++
+      max = Math.max(max, streak)
+    } else {
+      streak = 1
+    }
+  }
+  return max
+}
+
+const mco6ConsecutiveWarning = computed(() => {
+  if (!isMco6Leave.value) return ''
+  if (selectedDatesList.value.length < 2) return ''
+  const maxC = calcMaxConsecutive(selectedDatesList.value)
+  if (maxC > 3) return 'MCO6 Leave cannot exceed 3 consecutive days. Please adjust your selection.'
+  return ''
+})
+
+const maxDaysWarning = computed(() => {
+  const max = selectedLeaveTypeMaxDays.value
+  if (!max) return ''
+  if (selectedDatesList.value.length > max) return `Maximum of ${max} days allowed for this leave type.`
+  return ''
+})
+
+watch(selectedDates, (dates) => {
+  const normalized = Array.isArray(dates) ? dates : []
+  if (!Array.isArray(dates)) {
+    selectedDates.value = normalized
+  }
+
+  if (normalized.length === 0) {
+    form.value.days = 1
+    form.value.startDate = ''
+    form.value.endDate = ''
+    return
+  }
+  const sorted = [...normalized].sort()
+  form.value.days = sorted.length
+  form.value.startDate = sorted[0]
+  form.value.endDate = sorted[sorted.length - 1]
+}, { deep: true })
 
 // Date limitation logic
 function toSlash(dateStr) {
@@ -607,46 +752,7 @@ function isWeekday(dateStr) {
   const day = new Date(y, m - 1, d).getDay()
   return day !== 0 && day !== 6
 }
-function getMaxEndDate(startDateStr, workingDays) {
-  const d = new Date(startDateStr)
-  let remaining = workingDays - 1
-  while (remaining > 0) {
-    d.setDate(d.getDate() + 1)
-    if (d.getDay() !== 0 && d.getDay() !== 6) remaining--
-  }
-  return d
-}
-function startDateOptions(date) {
-  return date >= toSlash(todayStr.value) && isWeekday(date)
-}
-function endDateOptions(date) {
-  if (!isWeekday(date)) return false
-  const minDate = toSlash(form.value.startDate) || toSlash(todayStr.value)
-  if (date < minDate) return false
-  if (form.value.startDate && form.value.days >= 1) {
-    const maxEnd = getMaxEndDate(form.value.startDate, form.value.days)
-    const y = maxEnd.getFullYear()
-    const m = String(maxEnd.getMonth() + 1).padStart(2, '0')
-    const dd = String(maxEnd.getDate()).padStart(2, '0')
-    return date <= `${y}/${m}/${dd}`
-  }
-  return true
-}
 
-// Clear invalid end date
-watch(
-  [() => form.value.days, () => form.value.startDate],
-  () => {
-    if (form.value.startDate && form.value.endDate && form.value.days >= 1) {
-      const start = new Date(form.value.startDate)
-      const end = new Date(form.value.endDate)
-      const maxEnd = getMaxEndDate(form.value.startDate, form.value.days)
-      if (end > maxEnd || end < start) {
-        form.value.endDate = ''
-      }
-    }
-  }
-)
 
 async function goToStep2() {
   const valid = await step1Form.value.validate()
@@ -654,8 +760,54 @@ async function goToStep2() {
 }
 
 async function onSubmit() {
+  const valid = await step2Form.value?.validate?.()
+  if (!valid) return
+
+  // Monetization submission
+  if (isMonetization.value) {
+    if (!monetization.value.leaveTypeId || monetizationSubmitDisabled.value) {
+      $q.notify({ type: 'negative', message: 'Please complete all monetization fields.' })
+      return
+    }
+    if (!form.value.reason) {
+      $q.notify({ type: 'negative', message: 'Please enter a reason.' })
+      return
+    }
+    loading.value = true
+    try {
+      await api.post('/admin/leave-applications', {
+        is_monetization: true,
+        employee_id: selectedEmployeeId.value,
+        leave_type_id: monetization.value.leaveTypeId,
+        total_days: monetization.value.daysToMonetize,
+        reason: form.value.reason,
+        salary: parseSalary(form.value.salary) || null,
+      })
+      showSuccess.value = true
+    } catch (err) {
+      const msg = resolveApiErrorMessage(err, 'Unable to submit the monetization request right now.')
+      $q.notify({ type: 'negative', message: msg })
+    } finally {
+      loading.value = false
+    }
+    return
+  }
+
+
+
+  if (maxDaysWarning.value) {
+      $q.notify({ type: 'negative', message: maxDaysWarning.value })
+      return
+  }
+
   loading.value = true
   try {
+    if (selectedDatesList.value.length === 0) {
+      $q.notify({ type: 'negative', message: 'Please select at least 1 date.' })
+      loading.value = false
+      return
+    }
+
     const payload = {
       employee_id: selectedEmployeeId.value,
       leave_type_id: form.value.leaveTypeId,
@@ -663,6 +815,8 @@ async function onSubmit() {
       end_date: form.value.endDate,
       total_days: form.value.days,
       reason: form.value.reason,
+      selected_dates: [...selectedDatesList.value].sort(),
+      commutation: form.value.commutation,
       details: {
         vacation_detail: form.value.vacationDetail,
         vacation_specify: form.value.vacationSpecify,
@@ -677,7 +831,7 @@ async function onSubmit() {
     await api.post('/admin/leave-applications', payload)
     showSuccess.value = true
   } catch (err) {
-    const msg = err.response?.data?.message || 'Failed to submit application'
+    const msg = resolveApiErrorMessage(err, 'Unable to submit the leave application right now.')
     $q.notify({ type: 'negative', message: msg })
   } finally {
     loading.value = false

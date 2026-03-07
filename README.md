@@ -1,6 +1,6 @@
-# Leave Monitoring System (lms-frontend)
+# Leave Management System (lms-frontend)
 
-Leave Monitoring System for City Government of Tagum
+Leave Management System for City Government of Tagum
 
 ## Install the dependencies
 

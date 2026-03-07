@@ -50,76 +50,53 @@
       </q-card-section>
     </q-card>
 
-    <!-- Summary cards -->
-    <div class="row q-col-gutter-md q-mb-lg stat-cards-row">
-      <div v-for="stat in summaryStats" :key="stat.label" class="col-12 col-sm-6 col-md-3">
-        <q-card class="stat-card rounded-borders" flat bordered>
-          <q-card-section class="row items-center">
-            <q-icon :name="stat.icon" :color="stat.color" size="32px" class="q-mr-md" />
-            <div>
-              <div class="text-caption text-grey-7">{{ stat.label }}</div>
-              <div class="text-h6">{{ stat.value }}</div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
-
-    <!-- Your department stats (scoped to current admin/head's department) -->
-    <q-card flat bordered class="rounded-borders q-mb-lg">
+    <!-- Leaves trend chart (UI preview) -->
+    <q-card flat bordered class="rounded-borders q-mt-lg q-mb-lg">
       <q-card-section>
-        <div class="text-h6 q-mb-md">Your Department Statistics</div>
-        <p class="text-caption text-grey-7 q-mb-md">
-          Statistics for your department's employees only.
-          <span v-if="departmentDisplayName" class="text-weight-medium">{{ departmentDisplayName }}</span>
-          <span v-else class="text-weight-medium">Your Department</span>
-        </p>
-        <q-inner-loading :showing="departmentStatsLoading">
-          <q-spinner-dots size="40px" color="primary" />
-        </q-inner-loading>
-        <div v-if="!departmentStatsLoading" class="row q-col-gutter-md">
-          <div class="col-6 col-sm-4 col-md-2">
-            <div class="text-caption text-grey-7">Total applications</div>
-            <div class="text-h6">{{ departmentStats.total }}</div>
+        <div class="row items-center justify-between q-mb-sm">
+          <div>
+            <div class="text-h6">Leave Trends by Month</div>
+            <p class="text-caption text-grey-7 q-mb-none">analytics preview for {{ trendYearLabel }}</p>
           </div>
-          <div class="col-6 col-sm-4 col-md-2">
-            <div class="text-caption text-grey-7">On leave</div>
-            <div class="text-h6">{{ departmentStats.onLeave }}</div>
-          </div>
-          <div class="col-6 col-sm-4 col-md-2">
-            <div class="text-caption text-grey-7">Pending</div>
-            <div class="text-h6">{{ departmentStats.pending }}</div>
-          </div>
-          <div class="col-6 col-sm-4 col-md-2">
-            <div class="text-caption text-grey-7">Approved</div>
-            <div class="text-h6">{{ departmentStats.approved }}</div>
-          </div>
-          <div class="col-6 col-sm-4 col-md-2">
-            <div class="text-caption text-grey-7">Utilization %</div>
-            <div class="text-h6">{{ departmentStats.rate }}%</div>
-          </div>
+          <!-- <q-chip dense color="blue-1" text-color="primary" icon="analytics">UI Only</q-chip> -->
         </div>
-      </q-card-section>
-    </q-card>
 
-    <!-- Your department leave type breakdown (scoped to current admin/head's department) -->
-    <q-card flat bordered class="rounded-borders">
-      <q-card-section>
-        <div class="text-h6 q-mb-md">Your Department Leave Type Breakdown</div>
-        <p class="text-caption text-grey-7 q-mb-md">Leave applications by type for your department's employees only.</p>
-        <q-inner-loading :showing="departmentLeaveBreakdownLoading">
-          <q-spinner-dots size="40px" color="primary" />
-        </q-inner-loading>
-        <div v-if="!departmentLeaveBreakdownLoading" class="q-gutter-y-md">
-          <div v-for="item in departmentLeaveTypeBreakdown" :key="item.name" class="row items-center">
-            <div class="col">
-              <div class="text-weight-medium">{{ item.name }}</div>
-              <div class="text-caption text-grey-7">{{ item.count }} applications</div>
-            </div>
-            <q-linear-progress :value="(item.pct || 0) / 100" :color="item.color" size="12px" class="col-4 rounded-borders" />
-            <span class="q-ml-md text-weight-medium">{{ item.pct || 0 }}%</span>
+        <div class="trend-chart-wrapper">
+          <q-no-ssr>
+            <VueApexCharts
+              type="area"
+              height="320"
+              :options="trendChartOptions"
+              :series="trendChartSeries"
+            />
+          </q-no-ssr>
+        </div>
+
+        <div class="row q-col-gutter-sm q-mt-sm">
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered class="trend-metric-card">
+              <q-card-section class="q-py-sm">
+                <div class="text-caption text-grey-7">Yearly total leaves</div>
+                <div class="text-subtitle1 text-weight-bold">{{ trendTotal }}</div>
+              </q-card-section>
+            </q-card>
           </div>
-          <p v-if="departmentLeaveTypeBreakdown.length === 0" class="text-grey-6 text-body2 q-mt-md">No leave data for your department yet.</p>
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered class="trend-metric-card">
+              <q-card-section class="q-py-sm">
+                <div class="text-caption text-grey-7">Peak month</div>
+                <div class="text-subtitle1 text-weight-bold">{{ trendPeakMonth }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered class="trend-metric-card">
+              <q-card-section class="q-py-sm">
+                <div class="text-caption text-grey-7">Source</div>
+                <div class="text-subtitle1 text-weight-bold">UI preview data</div>
+              </q-card-section>
+            </q-card>
+          </div>
         </div>
       </q-card-section>
     </q-card>
@@ -133,7 +110,7 @@
         <q-card-section>
           <div class="text-center q-mb-lg">
             <div class="text-h5">City Government</div>
-            <div class="text-subtitle1">Leave Monitoring System</div>
+            <div class="text-subtitle1">Leave Management System</div>
             <div class="text-caption text-grey-7">Generated: {{ new Date().toLocaleDateString() }}</div>
           </div>
           <div class="row q-col-gutter-md">
@@ -154,14 +131,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
+import VueApexCharts from 'vue3-apexcharts'
 import { useLeaveStore } from 'stores/leave-store'
-import { useAuthStore } from 'stores/auth-store'
 
 const $q = useQuasar()
 const leaveStore = useLeaveStore()
-const authStore = useAuthStore()
 
 const reportType = ref('Monthly Summary')
 const dateFrom = ref('')
@@ -173,80 +149,111 @@ const reportTypeOptions = ['Monthly Summary', 'Department Report', 'Approval Rep
 
 const approvedCount = computed(() => leaveStore.applications.filter((a) => a.status === 'Approved').length)
 const pendingCount = computed(() => leaveStore.applications.filter((a) => a.status === 'Pending').length)
-const approvalRate = computed(() =>
-  leaveStore.applications.length ? Math.round((approvedCount.value / leaveStore.applications.length) * 100) : 0
-)
 
-const summaryStats = computed(() => [
-  { label: 'Total Applications', value: leaveStore.applications.length, icon: 'description', color: 'primary' },
-  { label: 'Approval Rate', value: `${approvalRate.value}%`, icon: 'trending_up', color: 'green' },
-  { label: 'Pending Review', value: pendingCount.value, icon: 'schedule', color: 'warning' },
-  { label: 'Approved', value: approvedCount.value, icon: 'check_circle', color: 'green' },
-])
+const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const fallbackMonthlyTrend = [4, 6, 5, 8, 7, 9, 11, 10, 8, 7, 9, 6]
+const trendYearLabel = new Date().getFullYear()
 
-// --- Your department only (ready for backend) ---
-// Backend may return department as object { id, name } or string. Normalize for display.
-function departmentNameDisplay(val) {
-  if (val == null) return null
-  if (typeof val === 'string') return val
-  if (typeof val === 'object' && val !== null && 'name' in val) return val.name
-  return String(val)
+function getApplicationDate(application) {
+  return (
+    application?.date_filed ??
+    application?.dateFiled ??
+    application?.created_at ??
+    application?.start_date ??
+    application?.startDate ??
+    null
+  )
 }
 
-const departmentDisplayName = computed(() =>
-  departmentNameDisplay(departmentStats.value.departmentName)
-)
+const monthlyLeaveTrend = computed(() => {
+  const buckets = Array(12).fill(0)
+  let hasCurrentYearData = false
 
-// Backend: GET /api/admin/reports/department-stats (or similar) returns current user's department stats.
-// Expected response: { departmentName? (string or { id, name }), total, onLeave, pending, approved, rate }
-const departmentStatsLoading = ref(false)
-const departmentStats = ref({
-  departmentName: authStore.user?.department_name ?? authStore.user?.department ?? null,
-  total: 0,
-  onLeave: 0,
-  pending: 0,
-  approved: 0,
-  rate: 0,
+  for (const application of leaveStore.applications) {
+    const rawDate = getApplicationDate(application)
+    if (!rawDate) continue
+
+    const parsedDate = new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
+    if (parsedDate.getFullYear() !== trendYearLabel) continue
+
+    buckets[parsedDate.getMonth()] += 1
+    hasCurrentYearData = true
+  }
+
+  return hasCurrentYearData ? buckets : fallbackMonthlyTrend
 })
 
-// Backend: GET /api/admin/reports/department-leave-breakdown (or similar) returns leave types for current user's department.
-// Expected response: [{ name, count, pct, color? }]
-const departmentLeaveBreakdownLoading = ref(false)
-const departmentLeaveTypeBreakdown = ref([])
+const trendChartSeries = computed(() => [
+  {
+    name: 'Leave Applications',
+    data: monthlyLeaveTrend.value,
+  },
+])
 
-async function fetchDepartmentStats() {
-  departmentStatsLoading.value = true
-  try {
-    // TODO: Replace with API when backend is ready, e.g.:
-    // const { data } = await api.get('/admin/reports/department-stats')
-    // departmentStats.value = { ...data, departmentName: data.department_name ?? authStore.user?.department_name }
-    const raw = authStore.user?.department_name ?? authStore.user?.department
-    departmentStats.value.departmentName = raw ?? null
-    departmentStats.value.total = 0
-    departmentStats.value.onLeave = 0
-    departmentStats.value.pending = 0
-    departmentStats.value.approved = 0
-    departmentStats.value.rate = 0
-  } finally {
-    departmentStatsLoading.value = false
-  }
-}
+const trendChartOptions = computed(() => ({
+  chart: {
+    id: 'admin-leave-trend',
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    animations: { easing: 'easeinout', speed: 450 },
+    fontFamily: 'inherit',
+  },
+  colors: ['#1e88e5'],
+  dataLabels: { enabled: false },
+  stroke: {
+    curve: 'smooth',
+    width: 3,
+  },
+  markers: {
+    size: 4,
+    strokeWidth: 2,
+    colors: ['#ffffff'],
+    strokeColors: '#1e88e5',
+    hover: { sizeOffset: 2 },
+  },
+  fill: {
+    type: 'gradient',
+    gradient: {
+      shadeIntensity: 0.7,
+      opacityFrom: 0.35,
+      opacityTo: 0.06,
+      stops: [0, 90, 100],
+    },
+  },
+  grid: {
+    borderColor: '#e0e0e0',
+    strokeDashArray: 4,
+    xaxis: { lines: { show: false } },
+  },
+  xaxis: {
+    categories: monthLabels,
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: { style: { colors: '#6b7280' } },
+  },
+  yaxis: {
+    min: 0,
+    forceNiceScale: true,
+    tickAmount: 4,
+    labels: {
+      style: { colors: '#6b7280' },
+      formatter: (value) => String(Math.round(value)),
+    },
+  },
+  legend: { show: false },
+  tooltip: {
+    y: {
+      formatter: (value) => `${Math.round(value)} leaves`,
+    },
+  },
+}))
 
-async function fetchDepartmentLeaveBreakdown() {
-  departmentLeaveBreakdownLoading.value = true
-  try {
-    // TODO: Replace with API when backend is ready, e.g.:
-    // const { data } = await api.get('/admin/reports/department-leave-breakdown')
-    // departmentLeaveTypeBreakdown.value = data.map(item => ({ ...item, color: item.color ?? 'primary' }))
-    departmentLeaveTypeBreakdown.value = []
-  } finally {
-    departmentLeaveBreakdownLoading.value = false
-  }
-}
-
-onMounted(() => {
-  fetchDepartmentStats()
-  fetchDepartmentLeaveBreakdown()
+const trendTotal = computed(() => monthlyLeaveTrend.value.reduce((sum, value) => sum + value, 0))
+const trendPeakMonth = computed(() => {
+  const peakValue = Math.max(...monthlyLeaveTrend.value)
+  const peakIndex = monthlyLeaveTrend.value.findIndex((value) => value === peakValue)
+  return `${monthLabels[peakIndex]} (${peakValue})`
 })
 
 function downloadReport() {
@@ -259,6 +266,12 @@ function exportData(format) {
 </script>
 
 <style scoped>
-.stat-cards-row .col { display: flex; }
-.stat-card { width: 100%; height: 100%; min-height: 100px; }
+.trend-chart-wrapper {
+  width: 100%;
+  min-height: 320px;
+}
+
+.trend-metric-card {
+  background: #fafafa;
+}
 </style>

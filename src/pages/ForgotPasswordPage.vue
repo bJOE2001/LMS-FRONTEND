@@ -128,6 +128,7 @@
 import { ref, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
 
@@ -174,9 +175,7 @@ async function onSubmitEmail() {
       position: 'top',
     })
   } catch (err) {
-    const msg = err.response?.data?.message
-      || err.response?.data?.errors?.email?.[0]
-      || 'Failed to send reset link. Please try again.'
+    const msg = resolveApiErrorMessage(err, 'Unable to send reset link right now. Please try again.')
     $q.notify({
       type: 'negative',
       message: msg,
@@ -203,7 +202,7 @@ async function onResend() {
       position: 'top',
     })
   } catch (err) {
-    const msg = err.response?.data?.message || 'Failed to resend. Please try again.'
+    const msg = resolveApiErrorMessage(err, 'Unable to resend the reset link right now. Please try again.')
     $q.notify({
       type: 'negative',
       message: msg,

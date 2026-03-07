@@ -24,62 +24,82 @@
     <div>
       <!-- ==================== INFORMATION TAB ==================== -->
       <q-card v-if="activeTab === 'information'" flat bordered class="rounded-borders">
-          <q-card-section>
-            <div class="row items-center q-mb-lg">
-              <q-icon name="badge" size="28px" color="primary" class="q-mr-sm" />
-              <div class="text-h6 text-weight-bold">Personal Information</div>
+        <q-card-section>
+          <div class="row items-center q-mb-lg">
+            <q-icon name="badge" size="28px" color="primary" class="q-mr-sm" />
+            <div class="text-h6 text-weight-bold">Personal Information</div>
+            <q-space />
+            <q-btn
+              flat
+              round
+              dense
+              icon="edit"
+              color="primary"
+              @click="openEditProfile"
+            >
+              <q-tooltip>Edit Profile</q-tooltip>
+            </q-btn>
+          </div>
+
+          <!-- Profile Avatar & Name -->
+          <div class="row items-center q-mb-lg q-pa-md bg-grey-1 rounded-borders">
+            <q-avatar size="72px" color="primary" text-color="white" class="q-mr-md">
+              <span class="text-h5 text-weight-bold">{{ userInitials }}</span>
+            </q-avatar>
+            <div>
+              <div class="text-h6 text-weight-bold">{{ userInfo.fullName }}</div>
+              <div class="text-body2 text-grey-7">{{ userInfo.position || userInfo.role.toUpperCase() }}</div>
+            </div>
+          </div>
+
+          <!-- Info Fields -->
+          <div class="q-gutter-y-md">
+            <div class="info-row">
+              <div class="row items-center">
+                <q-icon name="person" color="primary" size="20px" class="q-mr-sm" />
+                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Full Name</span>
+              </div>
+              <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.fullName }}</div>
+              <q-separator class="q-mt-sm" />
             </div>
 
-            <!-- Profile Avatar & Name -->
-            <div class="row items-center q-mb-lg q-pa-md bg-grey-1 rounded-borders">
-              <q-avatar size="72px" color="primary" text-color="white" class="q-mr-md">
-                <span class="text-h5 text-weight-bold">{{ userInitials }}</span>
-              </q-avatar>
-              <div>
-                <div class="text-h6 text-weight-bold">{{ userInfo.fullName }}</div>
-                <div class="text-body2 text-grey-7">{{ userInfo.position }}</div>
+            <div class="info-row">
+              <div class="row items-center">
+                <q-icon name="account_circle" color="primary" size="20px" class="q-mr-sm" />
+                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Username</span>
               </div>
+              <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.username }}</div>
+              <q-separator class="q-mt-sm" />
             </div>
 
-            <!-- Info Fields -->
-            <div class="q-gutter-y-md">
-              <div class="info-row">
-                <div class="row items-center">
-                  <q-icon name="person" color="primary" size="20px" class="q-mr-sm" />
-                  <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Full Name</span>
-                </div>
-                <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.fullName }}</div>
-                <q-separator class="q-mt-sm" />
+            <div v-if="userInfo.controlNo !== 'N/A'" class="info-row">
+              <div class="row items-center">
+                <q-icon name="badge" color="primary" size="20px" class="q-mr-sm" />
+                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Control No</span>
               </div>
-
-              <div class="info-row">
-                <div class="row items-center">
-                  <q-icon name="badge" color="primary" size="20px" class="q-mr-sm" />
-                  <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Employee ID</span>
-                </div>
-                <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.employeeId }}</div>
-                <q-separator class="q-mt-sm" />
-              </div>
-
-              <div class="info-row">
-                <div class="row items-center">
-                  <q-icon name="business" color="primary" size="20px" class="q-mr-sm" />
-                  <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Department</span>
-                </div>
-                <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.department }}</div>
-                <q-separator class="q-mt-sm" />
-              </div>
-
-              <div class="info-row">
-                <div class="row items-center">
-                  <q-icon name="work" color="primary" size="20px" class="q-mr-sm" />
-                  <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Position</span>
-                </div>
-                <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.position }}</div>
-              </div>
+              <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.controlNo }}</div>
+              <q-separator class="q-mt-sm" />
             </div>
-          </q-card-section>
-        </q-card>
+
+            <div v-if="userInfo.department !== 'N/A'" class="info-row">
+              <div class="row items-center">
+                <q-icon name="business" color="primary" size="20px" class="q-mr-sm" />
+                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Department</span>
+              </div>
+              <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.department }}</div>
+              <q-separator class="q-mt-sm" />
+            </div>
+
+            <div v-if="userInfo.position !== 'N/A'" class="info-row">
+              <div class="row items-center">
+                <q-icon name="work" color="primary" size="20px" class="q-mr-sm" />
+                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Position</span>
+              </div>
+              <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.position }}</div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
 
         <!-- ==================== CHANGE PASSWORD TAB ==================== -->
         <q-card v-else-if="activeTab === 'password'" flat bordered class="rounded-borders">
@@ -245,12 +265,44 @@
           </q-card-section>
         </q-card>
     </div>
+
+    <!-- Edit Profile Dialog -->
+    <q-dialog v-model="showEditDialog" persistent>
+      <q-card style="min-width: 400px">
+        <q-card-section class="bg-primary text-white">
+          <div class="text-h6">Edit Profile</div>
+        </q-card-section>
+
+        <q-card-section class="q-gutter-y-md q-pt-lg">
+          <q-input
+            v-if="userInfo.role === 'hr' || userInfo.role === 'admin'"
+            v-model="editForm.fullName"
+            label="Full Name"
+            outlined
+            dense
+          />
+          <q-input
+            v-model="editForm.username"
+            label="Username"
+            outlined
+            dense
+          />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" color="grey-7" v-close-popup />
+          <q-btn unelevated label="Save Changes" color="primary" :loading="editLoading" @click="handleUpdateProfile" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
 
@@ -259,19 +311,71 @@ const activeTab = ref('information')
 const tabs = [
   { id: 'information', label: 'Information', icon: 'person', description: 'View your personal details' },
   { id: 'password', label: 'Change Password', icon: 'lock', description: 'Update your password' },
-  { id: 'notifications', label: 'Notifications', icon: 'notifications', description: 'Manage notification preferences' },
+  // { id: 'notifications', label: 'Notifications', icon: 'notifications', description: 'Manage notification preferences' },
 ]
 
 // ==================== INFORMATION TAB DATA ====================
-// Placeholder data — will be replaced by backend data
 const userInfo = ref({
-  fullName: 'Juan Dela Cruz',
-  employeeId: 'EMP-2024-001',
-  department: 'Human Resources',
-  position: 'HR Manager',
+  fullName: '',
+  username: '',
+  employeeId: '',
+  department: '',
+  position: '',
+  role: ''
 })
 
+const showEditDialog = ref(false)
+const editLoading = ref(false)
+const editForm = reactive({
+  fullName: '',
+  username: '',
+})
+
+async function fetchProfile() {
+  try {
+    const { data } = await api.get('/settings/profile')
+    userInfo.value = {
+      fullName: data.full_name || 'N/A',
+      username: data.username || 'N/A',
+      controlNo: data.control_no || data.employee_id || 'N/A',
+      department: data.department?.name || 'N/A',
+      position: data.position || 'N/A',
+      role: data.role
+    }
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load profile details right now.')
+    $q.notify({ type: 'negative', message: msg })
+  }
+}
+
+onMounted(fetchProfile)
+
+function openEditProfile() {
+  editForm.fullName = userInfo.value.fullName
+  editForm.username = userInfo.value.username
+  showEditDialog.value = true
+}
+
+async function handleUpdateProfile() {
+  editLoading.value = true
+  try {
+    await api.put('/settings/profile', {
+      full_name: editForm.fullName,
+      username: editForm.username
+    })
+    $q.notify({ type: 'positive', message: 'Profile updated successfully!' })
+    showEditDialog.value = false
+    await fetchProfile()
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to update your profile right now.')
+    $q.notify({ type: 'negative', message: msg })
+  } finally {
+    editLoading.value = false
+  }
+}
+
 const userInitials = computed(() => {
+  if (!userInfo.value.fullName || userInfo.value.fullName === 'N/A') return '?'
   const names = userInfo.value.fullName.split(' ')
   if (names.length >= 2) {
     return (names[0][0] + names[names.length - 1][0]).toUpperCase()
@@ -288,6 +392,7 @@ const passwordForm = reactive({
 const showCurrentPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
+const loading = ref(false)
 
 // ==================== PASSWORD RULES & STRENGTH ====================
 const hasMinLength = computed(() => passwordForm.newPassword.length >= 8)
@@ -301,7 +406,6 @@ const passwordRules = computed(() => [
   { key: 'uppercase', label: 'At least 1 uppercase letter (A-Z)', passed: hasUppercase.value },
   { key: 'lowercase', label: 'At least 1 lowercase letter (a-z)', passed: hasLowercase.value },
   { key: 'number', label: 'At least 1 number (0-9)', passed: hasNumber.value },
-  { key: 'symbol', label: 'At least 1 symbol (optional)', passed: hasSymbol.value },
 ])
 
 const strengthScore = computed(() => {
@@ -352,19 +456,30 @@ const isPasswordFormValid = computed(() => {
   )
 })
 
-function handleChangePassword() {
-  // TODO: Connect to backend API to change password
-  $q.notify({ type: 'positive', message: 'Password updated successfully!', position: 'top' })
-  passwordForm.currentPassword = ''
-  passwordForm.newPassword = ''
-  passwordForm.confirmPassword = ''
+async function handleChangePassword() {
+  loading.value = true
+  try {
+    await api.put('/settings/password', {
+      current_password: passwordForm.currentPassword,
+      password: passwordForm.newPassword,
+      password_confirmation: passwordForm.confirmPassword
+    })
+    $q.notify({ type: 'positive', message: 'Password updated successfully!', position: 'top' })
+    passwordForm.currentPassword = ''
+    passwordForm.newPassword = ''
+    passwordForm.confirmPassword = ''
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to update your password right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    loading.value = false
+  }
 }
 
 // ==================== NOTIFICATIONS TAB DATA ====================
 const notificationsEnabled = ref(true)
 
 function handleSaveNotifications() {
-  // TODO: Connect to backend API to save notification preferences
   $q.notify({ type: 'positive', message: 'Notification preferences saved!', position: 'top' })
 }
 </script>

@@ -6,12 +6,6 @@ const routes = [
     children: [
       { path: '', redirect: '/login' },
 
-      // Employee
-      { path: 'employee/dashboard', name: 'employee-dashboard', component: () => import('pages/employee/EmployeeDashboard.vue') },
-      { path: 'employee/change-password', name: 'employee-change-password', component: () => import('pages/employee/EmployeeChangePassword.vue') },
-      { path: 'employee/apply-leave', name: 'employee-apply', component: () => import('pages/employee/ApplyLeave.vue') },
-      { path: 'employee/leave-history', name: 'employee-history', component: () => import('pages/employee/LeaveHistory.vue') },
-
       // Admin
       { path: 'admin/dashboard', name: 'admin-dashboard', component: () => import('pages/admin/AdminDashboard.vue') },
       { path: 'admin/employees', name: 'admin-employees', component: () => import('pages/admin/AdminEmployees.vue') },
@@ -23,13 +17,16 @@ const routes = [
       // HR
       { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },
       { path: 'hr/employees', name: 'hr-employees', component: () => import('pages/hr/EmployeeManagement.vue') },
-      { path: 'hr/calendar', name: 'hr-calendar', component: () => import('pages/hr/LeaveCalendar.vue') },
+      { path: 'hr/leave-types', name: 'hr-leave-types', component: () => import('pages/hr/LeaveTypesPage.vue') },
+      { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
+      { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
-      { path: 'hr/forecasting', name: 'hr-forecasting', component: () => import('pages/hr/AttritionForecasting.vue') },
 
       // Common
+      { path: 'notifications', name: 'notifications', component: () => import('pages/NotificationsPage.vue') },
       { path: 'settings', name: 'settings', component: () => import('pages/SettingsPage.vue') },
       { path: 'help', name: 'help', component: () => import('pages/HelpPage.vue') },
+
     ],
   },
 
@@ -59,6 +56,17 @@ const routes = [
       { path: '', name: 'reset-password', component: () => import('pages/ResetPasswordPage.vue') },
     ],
   },
+
+  // // Development Team (public, same layout as login)
+  // {
+  //   path: '/development-team',
+  //   component: () => import('layouts/EmptyLayout.vue'),
+  //   meta: { public: true },
+  //   children: [
+  //     { path: '', name: 'DevelopmentTeam', component: () => import('../../../node_modules/dti/DevelopmentTeam.vue') },
+  //   ],
+  // },
+ 
 
   // Always leave this as last one
   {

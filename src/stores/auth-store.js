@@ -2,6 +2,18 @@ import { defineStore } from 'pinia'
 
 const TOKEN_KEY = 'lms_token'
 const USER_KEY = 'lms_user'
+const PENDING_REMINDER_SESSION_PREFIX = 'lms_pending_reminder_seen:'
+
+function clearPendingReminderSessionFlags() {
+  if (typeof sessionStorage === 'undefined') return
+
+  for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+    const key = sessionStorage.key(index)
+    if (!key) continue
+    if (!key.startsWith(PENDING_REMINDER_SESSION_PREFIX)) continue
+    sessionStorage.removeItem(key)
+  }
+}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -29,6 +41,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
+      clearPendingReminderSessionFlags()
     },
 
     getToken() {

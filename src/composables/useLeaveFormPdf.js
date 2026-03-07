@@ -150,7 +150,7 @@ export async function generateLeaveFormPdf(app) {
       cbLine(false, 'BAR/Board Examination Review'),
 
       { text: 'Other purpose:', fontSize: 7, italics: true, margin: [0, 6, 0, 2] },
-      cbLine(false, 'Monetization of Leave Credits'),
+      cbLine(false, 'Monetization Leave'),
       cbLine(false, 'Terminal Leave'),
     ],
     margin: [4, 0, 6, 6],

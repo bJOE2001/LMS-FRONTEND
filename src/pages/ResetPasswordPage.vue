@@ -163,6 +163,7 @@ import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const route = useRoute()
 const $q = useQuasar()
@@ -200,10 +201,10 @@ async function onSubmitReset() {
       position: 'top',
     })
   } catch (err) {
-    const msg = err.response?.data?.message
-      || err.response?.data?.errors?.email?.[0]
-      || err.response?.data?.errors?.password?.[0]
-      || 'Failed to reset password. The link may have expired.'
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to reset password. The reset link may be invalid or expired.',
+    )
     $q.notify({
       type: 'negative',
       message: msg,

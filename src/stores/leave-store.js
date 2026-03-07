@@ -29,7 +29,6 @@ export const useLeaveStore = defineStore('leave', () => {
     if (userRole.value !== 'employee' || !authStore.isAuthenticated) return
     try {
       const { data } = await api.get('/employee/dashboard')
-      leaveInitialized.value = data.leave_initialized ?? false
       applicationSummary.value = data.application_summary ?? { pending: 0, approved: 0, rejected: 0 }
       applications.value = data.recent_applications ?? []
       applicationsLoaded.value = true
@@ -43,7 +42,6 @@ export const useLeaveStore = defineStore('leave', () => {
     if (userRole.value !== 'employee' || !authStore.isAuthenticated) return
     try {
       const { data } = await api.get('/employee/dashboard/leave-summary')
-      leaveInitialized.value = data.leave_initialized ?? false
       leaveSummary.value = {
         accrued: data.accrued ?? {},
         resettable: data.resettable ?? [],
@@ -74,12 +72,28 @@ export const useLeaveStore = defineStore('leave', () => {
       end_date: payload.end_date,
       total_days: payload.total_days,
       reason: payload.reason ?? null,
+      selected_dates: payload.selected_dates ?? null,
+      details: payload.details ?? null,
+      commutation: payload.commutation ?? 'Not Requested',
+      is_monetization: payload.is_monetization ?? false,
+      salary: payload.salary ?? null,
     }
     const { data } = await api.post('/employee/leave-applications', body)
     if (data.application) {
       applications.value = [data.application, ...applications.value]
     }
     await fetchMyApplications()
+    return data
+  }
+
+  async function fetchLeaveBalance(leaveTypeId) {
+    if (userRole.value !== 'employee' || !authStore.isAuthenticated) return null
+    try {
+      const { data } = await api.get(`/employee/leave-balance/${leaveTypeId}`)
+      return data
+    } catch {
+      return null
+    }
   }
 
   function updateApplicationStatus(id, status, remarks) {
@@ -107,5 +121,6 @@ export const useLeaveStore = defineStore('leave', () => {
     fetchDashboard,
     fetchLeaveSummary,
     fetchMyApplications,
+    fetchLeaveBalance,
   }
 })

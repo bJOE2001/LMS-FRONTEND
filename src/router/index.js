@@ -21,17 +21,14 @@ const ROLE_DASHBOARDS = {
   admin: '/admin/dashboard',
   department_admin: '/admin/dashboard',
   hr: '/hr/dashboard',
-  employee: '/employee/dashboard',
 }
 
 // Routes that require a specific role (path prefix -> allowed roles)
 const HR_PREFIX = '/hr'
 const ADMIN_PREFIX = '/admin'
-const EMPLOYEE_PREFIX = '/employee'
 const ROLE_ROUTES = [
   { prefix: HR_PREFIX, roles: ['hr'] },
   { prefix: ADMIN_PREFIX, roles: ['admin', 'department_admin'] },
-  { prefix: EMPLOYEE_PREFIX, roles: ['employee'] },
 ]
 
 export default defineRouter(function (/* { store, ssrContext } */) {
@@ -53,23 +50,19 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     const token = localStorage.getItem('lms_token')
     const user = JSON.parse(localStorage.getItem('lms_user') || 'null')
     const isAuth = !!token
+    const hasSupportedRole = !!(user?.role && ROLE_DASHBOARDS[user.role])
 
     if (to.path === '/login') {
-      if (isAuth && user?.role) {
-        if (user.role === 'employee' && user.must_change_password) {
-          next('/employee/change-password')
-        } else {
-          next(ROLE_DASHBOARDS[user.role] || '/employee/dashboard')
-        }
+      if (isAuth && hasSupportedRole) {
+        next(ROLE_DASHBOARDS[user.role])
+      } else if (isAuth && user?.role && !hasSupportedRole) {
+        // Session belongs to a role no longer supported by frontend routes.
+        localStorage.removeItem('lms_token')
+        localStorage.removeItem('lms_user')
+        next()
       } else {
         next()
       }
-      return
-    }
-
-    // Employee must change password on first login — block access until done
-    if (isAuth && user?.role === 'employee' && user.must_change_password && to.path !== '/employee/change-password') {
-      next('/employee/change-password')
       return
     }
 
@@ -78,7 +71,7 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       return
     }
 
-    // Restrict routes by role: /hr/* only for hr, /admin/* for admin/department_admin, /employee/* for employee
+    // Restrict routes by role: /hr/* only for hr, /admin/* for admin/department_admin
     if (isAuth && user?.role) {
       const path = to.path
       for (const { prefix, roles } of ROLE_ROUTES) {
@@ -101,3 +94,4 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
   return Router
 })
+

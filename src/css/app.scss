@@ -1,1 +1,281 @@
 // app global css in SCSS form
+
+// ============================================================
+// DARK MODE — Global overrides for Quasar's body.body--dark
+// ============================================================
+
+body.body--dark {
+  background-color: #121212;
+  color: #e0e0e0;
+
+  // ---- Page backgrounds ----
+  .q-page {
+    background-color: #121212;
+  }
+
+  // ---- Cards ----
+  .q-card {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+    border-color: #333 !important;
+  }
+
+  // ---- Tables ----
+  .q-table {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+
+    thead tr {
+      background-color: #272727;
+    }
+    th {
+      color: #b0b0b0;
+      border-color: #333;
+    }
+    td {
+      border-color: #333;
+    }
+    tbody tr:hover {
+      background-color: #2a2a2a;
+    }
+  }
+  .q-table--bordered {
+    border-color: #333;
+  }
+  .q-table__bottom {
+    border-color: #333;
+    color: #b0b0b0;
+  }
+
+  // ---- Inputs / Fields ----
+  .q-field__control {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+  }
+  .q-field--outlined .q-field__control:before {
+    border-color: #444;
+  }
+  .q-field--outlined .q-field__control:hover:before {
+    border-color: #666;
+  }
+  .q-field__label {
+    color: #aaa;
+  }
+  .q-field--float .q-field__label,
+  .q-field--focused .q-field__label {
+    color: #81c784;
+  }
+  .q-field__native,
+  .q-field__prefix,
+  .q-field__suffix,
+  .q-field__input {
+    color: #e0e0e0 !important;
+  }
+
+  // ---- Dialogs / Menus / Popups ----
+  .q-dialog .q-card,
+  .q-menu {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+  .q-menu .q-item {
+    color: #e0e0e0;
+  }
+  .q-menu .q-item:hover,
+  .q-menu .q-item--active {
+    background-color: #2a2a2a;
+  }
+
+  // ---- Tabs ----
+  .q-tab {
+    color: #b0b0b0;
+  }
+  .q-tab--active {
+    color: #81c784;
+  }
+  .q-tab-panels {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  // ---- Separators ----
+  .q-separator {
+    background-color: #333;
+  }
+
+  // ---- Lists ----
+  .q-item {
+    color: #e0e0e0;
+  }
+  .q-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  // ---- Toolbar ----
+  .q-toolbar {
+    color: #e0e0e0;
+  }
+
+  // ---- Chips / Badges ----
+  .q-chip {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+  }
+
+  // ---- Expansion items ----
+  .q-expansion-item {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  // ---- Tooltips ----
+  .q-tooltip {
+    background-color: #444;
+    color: #fff;
+  }
+
+  // ---- Scroll areas ----
+  .q-scrollarea__thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  // ---- Calendar / Date picker ----
+  .q-date {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  // ---- Quasar helper text classes (override for dark) ----
+  .text-grey-7 {
+    color: #999 !important;
+  }
+  .text-grey-6 {
+    color: #aaa !important;
+  }
+  .text-grey-8 {
+    color: #888 !important;
+  }
+  .text-caption {
+    color: #b0b0b0;
+  }
+  .text-subtitle2 {
+    color: #b0b0b0;
+  }
+
+  // ---- Bordered cards ----
+  .q-card.q-card--bordered {
+    border-color: #333 !important;
+  }
+
+  // ---- Banner / Alert ----
+  .q-banner {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  // ---- Timeline ----
+  .q-timeline__content {
+    color: #e0e0e0;
+  }
+  .q-timeline__subtitle {
+    color: #999;
+  }
+
+  // ---- Progress bars ----
+  .q-linear-progress__track {
+    background-color: #333;
+  }
+
+  // ---- Skeleton ----
+  .q-skeleton {
+    background-color: #2a2a2a;
+  }
+
+  // ---- Notification panel / custom wrappers ----
+  .notif-menu-wrapper {
+    background-color: #1e1e1e !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  // ---- Logout card ----
+  .logout-card {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  // ---- Sticky header for dark mode ----
+  .layout-content-header {
+    border-bottom: 1px solid #333;
+  }
+
+  // ---- Buttons - flat/outline in dark ----
+  .q-btn--flat {
+    color: #e0e0e0;
+  }
+
+  // ---- Select dropdown ----
+  .q-select__dialog {
+    background-color: #1e1e1e;
+  }
+
+  // ---- Status / colored backgrounds that need dark adjustments ----
+  .bg-grey-2 {
+    background-color: #1a1a1a !important;
+  }
+  .bg-grey-1 {
+    background-color: #1e1e1e !important;
+  }
+  .bg-white {
+    background-color: #1e1e1e !important;
+  }
+
+  // ---- Fix text colors that become invisible in dark mode ----
+  .text-dark {
+    color: #e0e0e0 !important;
+  }
+  .text-black {
+    color: #e0e0e0 !important;
+  }
+
+  // ---- Bordered elements ----
+  [class*="bordered"] {
+    border-color: #333 !important;
+  }
+
+  // ---- Chart / analytics containers ----
+  .apexcharts-tooltip {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #333 !important;
+  }
+  .apexcharts-xaxistooltip,
+  .apexcharts-yaxistooltip {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #333 !important;
+  }
+  .apexcharts-menu {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #333 !important;
+  }
+}
+
+// ============================================================
+// Smooth transitions for dark/light mode switch
+// ============================================================
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.q-page,
+.q-card,
+.q-table,
+.q-field__control,
+.q-menu,
+.q-dialog .q-card,
+.q-tab-panels,
+.q-separator,
+.q-toolbar,
+.layout-content-header {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
