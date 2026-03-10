@@ -167,6 +167,31 @@
             <div class="text-caption text-grey-7">{{ props.row.employee_id }}</div>
           </q-td>
         </template>
+        <template #body-cell-leaveBalance="props">
+          <q-td>
+            <div class="leave-balance-cell">
+              <template v-if="getLeaveBalanceBadgeItems(props.row).length">
+                <q-badge
+                  v-for="(badge, index) in getLeaveBalanceBadgeItems(props.row)"
+                  :key="`${props.row.id}-leave-balance-badge-${index}`"
+                  :color="badge.color"
+                  text-color="white"
+                  rounded
+                  class="text-weight-medium leave-balance-badge"
+                  :label="badge.label"
+                />
+              </template>
+              <q-badge
+                v-else
+                color="grey-7"
+                text-color="white"
+                rounded
+                class="text-weight-medium leave-balance-badge"
+                label="N/A"
+              />
+            </div>
+          </q-td>
+        </template>
         <template #body-cell-inclusiveDates="props">
           <q-td>
             <div class="application-details-cell">
@@ -233,8 +258,10 @@
     <!-- View dialog -->
     <q-dialog v-model="showDetailsDialog" position="standard">
       <q-card v-if="selectedApp" class="application-timeline-card" style="width: 680px; max-width: 96vw">
-        <q-card-section class="bg-primary text-white">
+        <q-card-section class="bg-primary text-white row items-center no-wrap application-timeline-header">
           <div class="text-h6">Application Timeline</div>
+          <q-space />
+          <q-btn flat dense round icon="close" color="white" v-close-popup />
         </q-card-section>
         <q-card-section class="application-timeline-content">
           <div class="application-timeline-summary q-mb-md">
@@ -267,17 +294,6 @@
             </q-timeline-entry>
           </q-timeline>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Close" v-close-popup />
-          <template v-if="selectedApp?.rawStatus === 'PENDING_ADMIN'">
-            <q-btn unelevated color="green-7" label="Approve" @click="openActionConfirm('approve', selectedApp)" />
-            <q-btn unelevated color="negative" label="Disapprove" @click="openActionConfirm('disapprove', selectedApp)" />
-            <q-btn unelevated color="blue-grey-7" label="Cancel" @click="openActionConfirm('cancel', selectedApp)" />
-          </template>
-          <template v-else-if="selectedApp?.rawStatus === 'PENDING_HR'">
-            <q-btn unelevated color="blue-grey-7" label="Cancel" @click="openActionConfirm('cancel', selectedApp)" />
-          </template>
-        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -439,11 +455,40 @@ const applicationsForTable = computed(() => {
   return [...filteredApplications].sort(compareApplicationsForTable)
 })
 
+const latestLeaveBalanceEntriesByEmployee = computed(() => {
+  const entriesByEmployee = new Map()
+  const applications = [...(dashboardData.value.applications ?? [])]
+    .sort(compareApplicationsByRecencyDesc)
+
+  for (const app of applications) {
+    const employeeKey = getEmployeeBalanceLookupKey(app)
+    if (!employeeKey) continue
+
+    const latestEntries = getLeaveBalanceEntriesFromSnapshot(app)
+    if (!latestEntries.length) continue
+
+    let employeeEntries = entriesByEmployee.get(employeeKey)
+    if (!employeeEntries) {
+      employeeEntries = new Map()
+      entriesByEmployee.set(employeeKey, employeeEntries)
+    }
+
+    for (const entry of latestEntries) {
+      const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+      if (!leaveTypeKey || employeeEntries.has(leaveTypeKey)) continue
+      employeeEntries.set(leaveTypeKey, entry)
+    }
+  }
+
+  return entriesByEmployee
+})
+
 const columns = [
   { name: 'employee', label: 'Employee', align: 'left' },
   { name: 'leaveType', label: 'Leave Type', field: (row) => row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType, align: 'left' },
   { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
   { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
+  { name: 'leaveBalance', label: 'Leave Balance', field: (row) => getLeaveBalanceDisplay(row), align: 'left' },
   { name: 'days', label: 'Days', field: 'days', align: 'left' },
   { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'left' },
   { name: 'actions', label: 'Actions', align: 'right', style: 'width: 150px', headerStyle: 'width: 150px' },
@@ -573,6 +618,206 @@ function formatDayValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return '0'
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
+}
+
+function formatLeaveBalanceValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+}
+
+function prettifyLeaveBalanceLabel(value) {
+  const label = String(value || '').trim()
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function toLeaveBalanceAcronym(value) {
+  const label = prettifyLeaveBalanceLabel(value)
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+  if (!normalized.length) return ''
+  return normalized.map((part) => part[0]).join('')
+}
+
+function getLeaveBalanceBadgeColor(value) {
+  const label = prettifyLeaveBalanceLabel(value).toLowerCase()
+
+  if (label.includes('vacation')) return 'orange-7'
+  if (label.includes('sick')) return 'blue-7'
+  if (label.includes('mandatory') || label.includes('forced')) return 'deep-orange-7'
+  if (label.includes('maternity')) return 'pink-6'
+  if (label.includes('paternity')) return 'indigo-7'
+  if (label.includes('special leave benefit')) return 'deep-purple-6'
+  if (label.includes('special privilege')) return 'purple-6'
+  if (label.includes('solo parent')) return 'teal-7'
+  if (label.includes('study')) return 'cyan-7'
+  if (label.includes('vawc')) return 'red-7'
+  if (label.includes('rehabilitation')) return 'brown-7'
+  if (label.includes('calamity') || label.includes('emergency')) return 'negative'
+  if (label.includes('adoption')) return 'light-blue-7'
+  if (label.includes('monetization') || label.includes('terminal')) return 'blue-grey-7'
+
+  return 'grey-7'
+}
+
+function addLeaveBalanceEntry(entries, seen, label, value) {
+  const formattedValue = formatLeaveBalanceValue(value)
+  const formattedLabel = prettifyLeaveBalanceLabel(label)
+  if (!formattedLabel || formattedValue === '') return
+
+  const key = formattedLabel.toLowerCase()
+  if (seen.has(key)) return
+
+  seen.add(key)
+  entries.push({ label: formattedLabel, value: formattedValue })
+}
+
+function getEmployeeBalanceLookupKey(app) {
+  const explicitKey = app?.employee_id ?? app?.employeeId ?? app?.control_no ?? app?.controlNo
+  if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
+    return String(explicitKey).trim().toLowerCase()
+  }
+
+  const nameKey = [
+    app?.surname,
+    app?.firstname,
+    app?.middlename,
+    app?.employeeName,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .join('|')
+
+  return nameKey || ''
+}
+
+function getLeaveBalanceTypeKey(value) {
+  return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
+  if (!source) return
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (item == null) continue
+      if (typeof item !== 'object') continue
+
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        item.leave_type_name || item.leave_type || item.type_name || item.type || item.name || item.label || fallbackLabel,
+        item.balance ?? item.remaining_balance ?? item.available_balance ?? item.credits ?? item.value
+      )
+    }
+    return
+  }
+
+  if (typeof source !== 'object') {
+    addLeaveBalanceEntry(entries, seen, fallbackLabel, source)
+    return
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value == null || key === 'as_of_date') continue
+
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        value.leave_type_name || value.leave_type || value.type_name || value.type || value.name || value.label || key,
+        value.balance ?? value.remaining_balance ?? value.available_balance ?? value.credits ?? value.value
+      )
+      continue
+    }
+
+    addLeaveBalanceEntry(entries, seen, key, value)
+  }
+}
+
+function getLeaveBalanceEntriesFromSnapshot(app) {
+  const entries = []
+  const seen = new Set()
+
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.certificationLeaveCredits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.certification_leave_credits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveBalances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveCredits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_credits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balance)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balance_summary)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.employee_leave_balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveBalance)
+
+  if (!entries.length) {
+    addLeaveBalanceEntry(
+      entries,
+      seen,
+      app?.leaveType || 'Leave Balance',
+      app?.balance ?? app?.leave_balance ?? app?.remaining_balance ?? app?.available_balance
+    )
+  }
+
+  return entries
+}
+
+function resolveLatestLeaveBalanceEntries(app) {
+  const employeeKey = getEmployeeBalanceLookupKey(app)
+  if (!employeeKey) return getLeaveBalanceEntriesFromSnapshot(app)
+
+  const employeeEntries = latestLeaveBalanceEntriesByEmployee.value.get(employeeKey)
+  if (!employeeEntries || employeeEntries.size === 0) {
+    return getLeaveBalanceEntriesFromSnapshot(app)
+  }
+
+  return Array.from(employeeEntries.values())
+}
+
+function getLeaveBalanceEntries(app) {
+  return resolveLatestLeaveBalanceEntries(app)
+}
+
+function getLeaveBalanceLines(app) {
+  return getLeaveBalanceEntries(app).map((entry) => {
+    const acronym = toLeaveBalanceAcronym(entry.label)
+    return `${acronym || entry.label}: ${entry.value}`
+  })
+}
+
+function getLeaveBalanceBadgeItems(app) {
+  return getLeaveBalanceEntries(app).map((entry) => {
+    const acronym = toLeaveBalanceAcronym(entry.label)
+    return {
+      color: getLeaveBalanceBadgeColor(entry.label),
+      label: `${acronym || entry.label}: ${entry.value}`,
+    }
+  })
+}
+
+function getLeaveBalanceDisplay(app) {
+  return getLeaveBalanceLines(app).join(', ')
 }
 
 function toIsoDateString(dateValue) {
@@ -759,6 +1004,7 @@ function getApplicationSearchTokenSet(app) {
     app?.middlename,
     app?.surname,
     app?.employee_id,
+    getLeaveBalanceDisplay(app),
     ...dateTerms,
   ].flatMap((value) => tokenizeSearchValue(value))
 
@@ -935,13 +1181,42 @@ function compareApplicationsForTable(a, b) {
   const statusPriorityDiff = getApplicationStatusPriority(a) - getApplicationStatusPriority(b)
   if (statusPriorityDiff !== 0) return statusPriorityDiff
 
-  const dateA = Date.parse(a?.dateFiled || '') || 0
-  const dateB = Date.parse(b?.dateFiled || '') || 0
+  const dateA = getApplicationRecencyTimestamp(a)
+  const dateB = getApplicationRecencyTimestamp(b)
   if (dateA !== dateB) return dateB - dateA
 
   const idA = Number(a?.id) || 0
   const idB = Number(b?.id) || 0
   return idB - idA
+}
+
+function getApplicationRecencyTimestamp(app) {
+  const candidateDates = [
+    app?.created_at,
+    app?.createdAt,
+    app?.submitted_at,
+    app?.submittedAt,
+    app?.filed_at,
+    app?.filedAt,
+    app?.dateFiled,
+  ]
+
+  for (const candidate of candidateDates) {
+    const timestamp = Date.parse(candidate || '')
+    if (Number.isFinite(timestamp)) return timestamp
+  }
+
+  return 0
+}
+
+function compareApplicationsByRecencyDesc(a, b) {
+  const timestampDiff = getApplicationRecencyTimestamp(b) - getApplicationRecencyTimestamp(a)
+  if (timestampDiff !== 0) return timestampDiff
+
+  const idDiff = (Number(b?.id) || 0) - (Number(a?.id) || 0)
+  if (idDiff !== 0) return idDiff
+
+  return 0
 }
 
 function formatRecentRemarks(app) {
@@ -1293,6 +1568,16 @@ async function confirmDisapprove() {
 .application-status-search {
   width: min(360px, 80vw);
 }
+.leave-balance-cell {
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.leave-balance-badge {
+  padding: 4px 10px;
+}
 .application-details-cell {
   min-width: 260px;
   white-space: normal;
@@ -1305,6 +1590,9 @@ async function confirmDisapprove() {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+}
+.application-timeline-header {
+  padding-right: 8px;
 }
 .application-timeline-summary {
   border: 1px solid #e4e8ed;
