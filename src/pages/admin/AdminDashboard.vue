@@ -170,24 +170,14 @@
         <template #body-cell-leaveBalance="props">
           <q-td>
             <div class="leave-balance-cell">
-              <template v-if="getLeaveBalanceBadgeItems(props.row).length">
-                <q-badge
-                  v-for="(badge, index) in getLeaveBalanceBadgeItems(props.row)"
-                  :key="`${props.row.id}-leave-balance-badge-${index}`"
-                  :color="badge.color"
-                  text-color="white"
-                  rounded
-                  class="text-weight-medium leave-balance-badge"
-                  :label="badge.label"
-                />
-              </template>
               <q-badge
-                v-else
-                color="grey-7"
-                text-color="white"
+                v-for="(item, index) in getLeaveBalanceTextItems(props.row)"
+                :key="`${props.row.id}-leave-balance-text-${index}`"
+                color="grey-2"
+                text-color="grey-7"
                 rounded
-                class="text-weight-medium leave-balance-badge"
-                label="N/A"
+                class="leave-balance-badge"
+                :label="item.label"
               />
             </div>
           </q-td>
@@ -265,16 +255,30 @@
         </q-card-section>
         <q-card-section class="application-timeline-content">
           <div class="application-timeline-summary q-mb-md">
-            <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
-            <div class="text-caption text-grey-7">
-              {{ selectedApp.leaveType }}{{ selectedApp.is_monetization ? ' (Monetization)' : '' }}
+            <div class="application-timeline-summary-row">
+              <div class="application-timeline-summary-main">
+                <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
+                <div class="text-caption text-grey-7">
+                  {{ selectedApp.leaveType }}{{ selectedApp.is_monetization ? ' (Monetization)' : '' }}
+                </div>
+                <q-badge
+                  class="q-mt-sm"
+                  rounded
+                  :color="getApplicationStatusColor(selectedApp)"
+                  :label="getApplicationStatusLabel(selectedApp)"
+                />
+              </div>
+              <q-btn
+                unelevated
+                no-caps
+                color="blue-grey-7"
+                icon="print"
+                label="Print Form"
+                size="sm"
+                class="timeline-print-btn"
+                @click="printApplication(selectedApp)"
+              />
             </div>
-            <q-badge
-              class="q-mt-sm"
-              rounded
-              :color="getApplicationStatusColor(selectedApp)"
-              :label="getApplicationStatusLabel(selectedApp)"
-            />
           </div>
           <q-timeline color="primary" layout="dense" class="application-timeline">
             <q-timeline-entry
@@ -626,6 +630,14 @@ function formatLeaveBalanceValue(value) {
   return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
 }
 
+const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Mandatory / Forced Leave',
+  'MCO6 Leave',
+  'Sick Leave',
+  'Vacation Leave',
+  'Wellness Leave',
+]
+
 function prettifyLeaveBalanceLabel(value) {
   const label = String(value || '').trim()
   if (!label) return ''
@@ -637,10 +649,14 @@ function prettifyLeaveBalanceLabel(value) {
     .trim()
 
   const lower = normalized.toLowerCase()
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
   if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
 
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
@@ -648,6 +664,13 @@ function prettifyLeaveBalanceLabel(value) {
 function toLeaveBalanceAcronym(value) {
   const label = prettifyLeaveBalanceLabel(value)
   if (!label) return ''
+
+  const lower = label.toLowerCase()
+  if (lower === 'mandatory / forced leave') return 'FL'
+  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'sick leave') return 'SL'
+  if (lower === 'vacation leave') return 'VL'
+  if (lower === 'wellness leave') return 'WL'
 
   const normalized = label
     .replace(/[^A-Za-z0-9\s]/g, ' ')
@@ -657,27 +680,6 @@ function toLeaveBalanceAcronym(value) {
 
   if (!normalized.length) return ''
   return normalized.map((part) => part[0]).join('')
-}
-
-function getLeaveBalanceBadgeColor(value) {
-  const label = prettifyLeaveBalanceLabel(value).toLowerCase()
-
-  if (label.includes('vacation')) return 'orange-7'
-  if (label.includes('sick')) return 'blue-7'
-  if (label.includes('mandatory') || label.includes('forced')) return 'deep-orange-7'
-  if (label.includes('maternity')) return 'pink-6'
-  if (label.includes('paternity')) return 'indigo-7'
-  if (label.includes('special leave benefit')) return 'deep-purple-6'
-  if (label.includes('special privilege')) return 'purple-6'
-  if (label.includes('solo parent')) return 'teal-7'
-  if (label.includes('study')) return 'cyan-7'
-  if (label.includes('vawc')) return 'red-7'
-  if (label.includes('rehabilitation')) return 'brown-7'
-  if (label.includes('calamity') || label.includes('emergency')) return 'negative'
-  if (label.includes('adoption')) return 'light-blue-7'
-  if (label.includes('monetization') || label.includes('terminal')) return 'blue-grey-7'
-
-  return 'grey-7'
 }
 
 function addLeaveBalanceEntry(entries, seen, label, value) {
@@ -796,7 +798,26 @@ function resolveLatestLeaveBalanceEntries(app) {
 }
 
 function getLeaveBalanceEntries(app) {
-  return resolveLatestLeaveBalanceEntries(app)
+  const resolvedEntries = resolveLatestLeaveBalanceEntries(app)
+  const requiredTypeKeys = new Set(
+    REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label))
+  )
+  const entriesByType = new Map(
+    resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry])
+  )
+
+  const orderedEntries = REQUIRED_LEAVE_BALANCE_TYPES.map((label) => {
+    const existingEntry = entriesByType.get(getLeaveBalanceTypeKey(label))
+    return existingEntry || { label, value: '0' }
+  })
+
+  for (const entry of resolvedEntries) {
+    const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+    if (requiredTypeKeys.has(leaveTypeKey)) continue
+    orderedEntries.push(entry)
+  }
+
+  return orderedEntries
 }
 
 function getLeaveBalanceLines(app) {
@@ -806,11 +827,10 @@ function getLeaveBalanceLines(app) {
   })
 }
 
-function getLeaveBalanceBadgeItems(app) {
+function getLeaveBalanceTextItems(app) {
   return getLeaveBalanceEntries(app).map((entry) => {
     const acronym = toLeaveBalanceAcronym(entry.label)
     return {
-      color: getLeaveBalanceBadgeColor(entry.label),
       label: `${acronym || entry.label}: ${entry.value}`,
     }
   })
@@ -1572,11 +1592,16 @@ async function confirmDisapprove() {
   min-width: 150px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 1.2;
 }
 .leave-balance-badge {
-  padding: 4px 10px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  line-height: 1.05;
+  white-space: nowrap;
+  border: 1px solid #d8dee6;
 }
 .application-details-cell {
   min-width: 260px;
@@ -1600,11 +1625,29 @@ async function confirmDisapprove() {
   background: #f8fafc;
   padding: 10px 12px;
 }
+.application-timeline-summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.application-timeline-summary-main {
+  min-width: 0;
+}
+.timeline-print-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .application-timeline-content {
   overflow-y: auto;
 }
 .application-timeline {
   padding-left: 12px;
   padding-right: 8px;
+}
+@media (max-width: 599px) {
+  .application-timeline-summary-row {
+    flex-direction: column;
+  }
 }
 </style>
