@@ -160,6 +160,7 @@ async function fetchDashboard() {
       approved_count: applications.length ? approvedFromApps : (data.approved_count ?? 0),
       rejected_count: applications.length ? rejectedFromApps : (data.rejected_count ?? 0),
     }
+
     maybeShowPendingReminder()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load HR dashboard data right now.')

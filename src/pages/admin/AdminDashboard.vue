@@ -1291,7 +1291,7 @@ async function confirmDisapprove() {
   padding-right: 8px;
 }
 .application-status-search {
-  width: min(360px, 80vw);
+  width: min(440px, 84vw);
 }
 .application-details-cell {
   min-width: 260px;
