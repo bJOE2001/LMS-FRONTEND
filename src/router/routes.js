@@ -9,8 +9,6 @@ const routes = [
       // Admin
       { path: 'admin/dashboard', name: 'admin-dashboard', component: () => import('pages/admin/AdminDashboard.vue') },
       { path: 'admin/employees', name: 'admin-employees', component: () => import('pages/admin/AdminEmployees.vue') },
-      { path: 'admin/apply-leave', name: 'admin-apply', component: () => import('pages/admin/AdminApplySelf.vue') },
-      { path: 'admin/apply-on-behalf', name: 'admin-apply-behalf', component: () => import('pages/admin/AdminApplyOnBehalf.vue') },
       { path: 'admin/review/:id', name: 'admin-review', component: () => import('pages/admin/ApplicationReview.vue') },
       { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
 

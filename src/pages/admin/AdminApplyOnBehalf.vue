@@ -273,7 +273,13 @@
             </div>
 
             <!-- 6.C Number of Working Days Applied For (hidden for monetization) -->
-            <div v-if="!isMonetization" class="section-block q-mb-lg dialog-section dialog-section--dates">
+            <div
+              v-if="!isMonetization"
+              :class="[
+                'section-block q-mb-lg dialog-section dialog-section--dates',
+                { 'dialog-section--dates-raised': moveDialogActionsUp },
+              ]"
+            >
               <div class="text-subtitle1 text-weight-bold q-mb-md">Number of Working Days Applied For</div>
 
               <div class="row q-col-gutter-md" :class="{ 'dialog-dates-layout': inDialog }">
@@ -382,7 +388,12 @@
             </div>
 
             <!-- Navigation -->
-            <q-stepper-navigation class="dialog-section dialog-section--actions">
+            <q-stepper-navigation
+              :class="[
+                'dialog-section',
+                moveDialogActionsUp ? 'dialog-section--actions-raised' : 'dialog-section--actions',
+              ]"
+            >
               <div class="row q-gutter-md">
                 <template v-if="inDialog">
                   <q-space />
@@ -641,6 +652,7 @@ const showDetailsOfLeave = computed(() => {
 
 const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation Leave')
 const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
+const moveDialogActionsUp = computed(() => props.inDialog && !isMonetization.value && showDetailsOfLeave.value)
 
 // ─── Monetization State ──────────────────────────────────────────
 const monetization = ref({
@@ -1215,9 +1227,18 @@ async function onSubmit() {
   grid-column: 2 / 4;
   grid-row: 2 / span 2;
 }
+.dialog-section--dates-raised {
+  grid-row: 2;
+}
 .dialog-section--full,
 .dialog-section--actions {
   grid-column: 1 / -1;
+}
+.dialog-section--actions-raised {
+  grid-column: 2 / 4;
+  grid-row: 3;
+  justify-self: end;
+  align-self: start;
 }
 .dialog-dates-layout {
   align-items: start;
