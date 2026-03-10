@@ -65,37 +65,20 @@
       <q-card-section>
         <div class="row justify-between items-center">
           <div class="text-h6">Employee Records</div>
-          <div class="row q-gutter-sm">
+          <div class="row q-gutter-sm search-wrap">
             <q-input
               v-model="search"
               outlined
               dense
               debounce="400"
-              placeholder="Search employees..."
-              class="search-input"
+              placeholder="Search name, ID, status, department..."
+              class="search-input full-width"
               clearable
             >
               <template #prepend>
                 <q-icon name="search" size="sm" color="grey-6" />
               </template>
             </q-input>
-            <q-select
-              v-model="filterDepartment"
-              :options="filteredDeptOptions"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-              label="Select Department"
-              style="width: 220px"
-              :loading="loadingDepartments"
-              use-input
-              hide-selected
-              fill-input
-              input-debounce="200"
-              @filter="onDepartmentFilter"
-            />
           </div>
         </div>
       </q-card-section>
@@ -107,7 +90,7 @@
         <div class="row items-center">
           <q-icon name="people" size="sm" color="green-8" class="q-mr-sm" />
           <div class="text-subtitle1 text-weight-bold text-green-8">
-            {{ filterDepartment ? `Employees - ${filterDepartmentName}` : 'All Employees' }}
+            All Employees
           </div>
           <q-space />
           <q-badge color="green-8" :label="employeePagination.rowsNumber + ' employee(s)'" rounded />
@@ -164,7 +147,7 @@
           <div class="full-width text-center q-pa-lg">
             <q-icon name="people_outline" size="48px" color="grey-5" />
             <div class="text-grey-6 q-mt-sm">
-              {{ filterDepartment ? 'No employees found in this department' : 'No employees found' }}
+              No employees found
             </div>
           </div>
         </template>
@@ -191,8 +174,8 @@
               <div class="text-caption text-grey-6">{{ selectedEmployee.designation || '-' }}</div>
             </div>
             <div class="col-6">
-              <div class="text-caption text-grey-6">Office</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.office ?? '-' }}</div>
+              <div class="text-caption text-grey-6">Department</div>
+              <div class="text-body2 text-weight-medium">{{ toDepartmentCode(selectedEmployee.office) }}</div>
             </div>
             <div class="col-6">
               <div class="text-caption text-grey-6">Status</div>
@@ -448,7 +431,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
@@ -456,13 +439,10 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 const $q = useQuasar()
 
 const search = ref('')
-const filterDepartment = ref(null)
 const loading = ref(false)
-const loadingDepartments = ref(false)
 
 const employees = ref([])
 const allDepartments = ref([])
-const filteredDeptOptions = ref([])
 const totalEmployees = ref(0)
 
 const showViewDialog = ref(false)
@@ -496,7 +476,7 @@ const employeeColumns = [
   { name: 'control_no', label: 'ID', align: 'left', field: 'control_no', sortable: true },
   { name: 'name', label: 'Employee', align: 'left', field: 'surname', sortable: true },
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
-  { name: 'office', label: 'Office', align: 'left', field: 'office', sortable: true },
+  { name: 'office', label: 'Department', align: 'left', field: (row) => toDepartmentCode(row.office), sortable: true },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
 ]
 
@@ -509,58 +489,123 @@ const historyColumns = [
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true, style: 'width: 20%' },
 ]
 
-// Department dropdown and filter label
-const departmentOptions = computed(() =>
-  allDepartments.value.map((d) => ({ label: d.name, value: d.id }))
-)
-
-const filterDepartmentName = computed(() => {
-  if (!filterDepartment.value) return ''
-  const d = allDepartments.value.find((x) => x.id === filterDepartment.value)
-  return d ? d.name : ''
-})
-
-function onDepartmentFilter(val, update) {
-  update(() => {
-    if (!val) {
-      filteredDeptOptions.value = departmentOptions.value
-    } else {
-      const needle = val.toLowerCase()
-      filteredDeptOptions.value = departmentOptions.value.filter(
-        (o) => o.label.toLowerCase().includes(needle)
-      )
-    }
-  })
-}
-
 function statusBadgeColor(status) {
   if (!status) return 'grey'
   const c = { REGULAR: 'green', 'CO-TERMINOUS': 'blue', ELECTIVE: 'amber', CASUAL: 'orange' }
   return c[status] ?? 'blue'
 }
 
+const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
+
+function toDepartmentCode(value) {
+  const source = String(value || '').trim()
+  if (!source) return '-'
+
+  if (!/\s/.test(source) && source === source.toUpperCase()) {
+    return source
+  }
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter((word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word))
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source
+}
+
+function normalizeDepartmentKey(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+}
+
+function findDepartmentByTerm(term) {
+  const queryKey = normalizeDepartmentKey(term)
+  if (!queryKey) return null
+
+  for (const department of allDepartments.value) {
+    const name = String(department?.name || '')
+    if (!name) continue
+
+    const nameKey = normalizeDepartmentKey(name)
+    const codeKey = normalizeDepartmentKey(toDepartmentCode(name))
+
+    if (queryKey === nameKey || queryKey === codeKey) {
+      return department
+    }
+  }
+
+  return null
+}
+
+function resolveEmployeeSearch(value) {
+  const raw = String(value || '').trim()
+  if (!raw) {
+    return {
+      searchText: '',
+      departmentId: null,
+    }
+  }
+
+  const terms = raw.split(/\s+/).filter(Boolean)
+  let departmentId = null
+  const remainingTerms = []
+
+  for (const term of terms) {
+    if (!departmentId) {
+      const matchedDepartment = findDepartmentByTerm(term)
+      if (matchedDepartment?.id) {
+        departmentId = matchedDepartment.id
+        continue
+      }
+    }
+
+    remainingTerms.push(term)
+  }
+
+  if (!departmentId) {
+    const fullQueryDepartment = findDepartmentByTerm(raw)
+    if (fullQueryDepartment?.id) {
+      return {
+        searchText: '',
+        departmentId: fullQueryDepartment.id,
+      }
+    }
+  }
+
+  return {
+    searchText: remainingTerms.join(' ').trim(),
+    departmentId,
+  }
+}
+
 async function fetchDepartments() {
-  loadingDepartments.value = true
   try {
     const { data } = await api.get('/departments')
     allDepartments.value = data.departments ?? []
-    filteredDeptOptions.value = departmentOptions.value
   } catch (err) {
     console.error('Failed to load departments:', err)
     const msg = resolveApiErrorMessage(err, 'Unable to load departments right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    loadingDepartments.value = false
   }
 }
 
 async function fetchData(page = 1) {
   loading.value = true
   try {
+    const { searchText, departmentId } = resolveEmployeeSearch(search.value)
+
     const { data } = await api.get('/employees', {
       params: {
-        department_id: filterDepartment.value || undefined,
-        search: search.value || undefined,
+        department_id: departmentId || undefined,
+        search: searchText || undefined,
         per_page: employeePagination.value.rowsPerPage,
         page,
       },
@@ -609,10 +654,6 @@ function onEmployeeRequest(props) {
   employeePagination.value.rowsPerPage = props.pagination.rowsPerPage
   fetchData(props.pagination.page)
 }
-
-watch(filterDepartment, () => {
-  fetchData(1)
-})
 
 watch(search, () => {
   fetchData(1)
@@ -780,8 +821,12 @@ async function doImport() {
 </script>
 
 <style scoped>
+.search-wrap {
+  width: min(620px, 100%);
+}
+
 .search-input {
-  min-width: 220px;
+  width: 100%;
 }
 .import-btn {
   border-radius: 8px;

@@ -336,7 +336,7 @@ const tablePagination = ref({
 })
 const statusSearch = ref('')
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected'])
-const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'ON', 'THE', 'TO'])
+const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
 
 function mergeStatus(app) {
   const raw = String(app.rawStatus || '').toUpperCase()
