@@ -155,16 +155,13 @@
               <q-select
                 v-model="form.leaveTypeId"
                 :options="leaveTypeOptions"
-                placeholder="Select Leave Type"
+                :placeholder="form.leaveTypeId ? '' : 'Select Leave Type'"
                 outlined
                 dense
                 emit-value
                 map-options
-                use-input
-                input-debounce="0"
                 :rules="[val => !!val || 'Please select a leave type']"
                 class="form-input leave-type-select"
-                @filter="filterLeaveTypes"
                 @update:model-value="onLeaveTypeChange"
               >
                 <template #prepend>
@@ -197,7 +194,7 @@
 
               <div class="q-mb-md">
                 <label class="input-label">Select Leave Type to Monetize</label>
-                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" placeholder="Select Leave Type" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
+                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" :placeholder="monetization.leaveTypeId ? '' : 'Select Leave Type'" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
                   <template #prepend><q-icon name="account_balance_wallet" size="sm" color="grey-6" /></template>
                 </q-select>
               </div>
@@ -377,8 +374,11 @@
             </div>
 
             <div class="section-block q-mb-lg dialog-section dialog-section--reason">
-              <label class="input-label">Reason / Purpose</label>
-              <q-input v-model="form.reason" type="textarea" :rows="inDialog ? 2 : 3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" :rules="[val => !!val || 'Required']" class="form-input" />
+              <label class="input-label">
+                Reason / Purpose
+                <span class="input-label-optional">(Optional)</span>
+              </label>
+              <q-input v-model="form.reason" type="textarea" :rows="inDialog ? 2 : 3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" class="form-input" />
             </div>
 
             <!-- Navigation -->
@@ -537,6 +537,28 @@ const dialogSalaryDisplay = computed(() => {
 
 const leaveTypeOptions = ref([])
 
+function getVacationLeaveTypeId() {
+  const vacationType = allLeaveTypes.value.find((lt) => lt.name === 'Vacation Leave')
+  return vacationType ? vacationType.id : null
+}
+
+function sortLeaveTypeOptions(leaveTypes) {
+  return [...leaveTypes]
+    .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
+    .map((leaveType) => ({
+      label: leaveType.name,
+      value: leaveType.id,
+    }))
+}
+
+function ensureDefaultLeaveType() {
+  if (form.value.leaveTypeId) return
+  const vacationLeaveTypeId = getVacationLeaveTypeId()
+  if (!vacationLeaveTypeId) return
+  form.value.leaveTypeId = vacationLeaveTypeId
+  onLeaveTypeChange(vacationLeaveTypeId)
+}
+
 onMounted(async () => {
   try {
     const { data } = await api.get('/admin/employees-for-leave')
@@ -545,10 +567,8 @@ onMounted(async () => {
 
 
 
-    leaveTypeOptions.value = data.leave_types.map(lt => ({
-      label: lt.name,
-      value: lt.id
-    }))
+    leaveTypeOptions.value = sortLeaveTypeOptions(data.leave_types)
+    ensureDefaultLeaveType()
 
     if (props.initialEmployee?.control_no) {
       applyPrefilledEmployee(props.initialEmployee)
@@ -571,19 +591,6 @@ watch(
 )
 
 
-
-function filterLeaveTypes(val, update) {
-  update(() => {
-    if (!val) {
-      leaveTypeOptions.value = allLeaveTypes.value.map(lt => ({ label: lt.name, value: lt.id }))
-    } else {
-      const needle = val.toLowerCase()
-      leaveTypeOptions.value = allLeaveTypes.value
-        .filter(lt => lt.name.toLowerCase().includes(needle))
-        .map(lt => ({ label: lt.name, value: lt.id }))
-    }
-  })
-}
 
 function onEmployeeChange(controlNo) {
   const emp = employees.value.find(e => e.control_no === controlNo)
@@ -713,8 +720,11 @@ function onLeaveTypeChange(newValue) {
 
   lastLeaveTypeId.value = newValue
   const preservedReason = form.value.reason
+  const selectedLeaveType = allLeaveTypes.value.find((leaveType) => leaveType.id === newValue)
 
-  form.value.vacationDetail = ''
+  form.value.vacationDetail = selectedLeaveType?.name === 'Vacation Leave'
+    ? 'Within the Philippines'
+    : ''
   form.value.vacationSpecify = ''
   form.value.sickDetail = ''
   form.value.sickSpecify = ''
@@ -981,10 +991,6 @@ async function onSubmit() {
       $q.notify({ type: 'negative', message: 'Please complete all monetization fields.' })
       return
     }
-    if (!form.value.reason) {
-      $q.notify({ type: 'negative', message: 'Please enter a reason.' })
-      return
-    }
     loading.value = true
     try {
       await api.post('/admin/leave-applications', {
@@ -992,7 +998,7 @@ async function onSubmit() {
         employee_id: selectedEmployeeId.value,
         leave_type_id: monetization.value.leaveTypeId,
         total_days: monetization.value.daysToMonetize,
-        reason: form.value.reason,
+        reason: String(form.value.reason || '').trim() || null,
         salary: parseSalary(form.value.salary) || null,
       })
       handleSubmitSuccess(true)
@@ -1026,7 +1032,7 @@ async function onSubmit() {
       start_date: form.value.startDate,
       end_date: form.value.endDate,
       total_days: form.value.days,
-      reason: form.value.reason,
+      reason: String(form.value.reason || '').trim() || null,
       selected_dates: [...selectedDatesList.value].sort(),
       selected_date_durations: buildSelectedDateDurationsPayload([...selectedDatesList.value].sort()),
       commutation: form.value.commutation,
@@ -1059,6 +1065,12 @@ async function onSubmit() {
   font-weight: 600;
   color: #37474f;
   margin-bottom: 6px;
+}
+.input-label-optional {
+  margin-left: 4px;
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: #94a3ab;
 }
 .readonly-field :deep(.q-field__control) {
   background: rgba(0, 0, 0, 0.04);
@@ -1260,19 +1272,25 @@ async function onSubmit() {
 }
 .selected-date-duration-toggle {
   border: 0;
-  padding: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
   background: transparent;
   color: #2e7d32;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
+  line-height: 1.2;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .selected-date-duration-toggle--half {
   color: #42a5f5;
 }
 .selected-date-duration-toggle:hover {
-  text-decoration: underline;
+  background: rgba(46, 125, 50, 0.12);
+}
+.selected-date-duration-toggle--half:hover {
+  background: rgba(66, 165, 245, 0.16);
 }
 .dialog-form-card :deep(.q-date) {
   box-shadow: none;
