@@ -15,18 +15,18 @@
 
     <q-dialog
       v-model="showApplyLeaveDialog"
+      persistent
       class="apply-leave-dialog"
       transition-show="scale"
       transition-hide="scale"
     >
       <q-card
         class="apply-leave-dialog-card"
-        style="width: min(1040px, 88vw); max-height: 88vh;"
       >
-        <q-bar class="bg-primary text-white">
-          <div class="text-subtitle1 text-weight-medium">Apply for Leave</div>
+        <q-bar class="apply-leave-dialog-header bg-primary text-white">
+          <div class="text-h6 text-weight-bold">Leave Application</div>
           <q-space />
-          <q-btn dense flat round icon="close" color="white" @click="closeApplyLeaveDialog" />
+          <q-btn flat round icon="close" color="white" size="md" class="apply-leave-dialog-close" @click="closeApplyLeaveDialog" />
         </q-bar>
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplySelf
@@ -38,7 +38,7 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showPendingReminderDialog">
+    <q-dialog v-model="showPendingReminderDialog" persistent>
       <q-card style="min-width: 360px; max-width: 480px">
         <q-card-section class="row items-center q-pb-none">
           <q-icon name="pending_actions" color="warning" size="28px" class="q-mr-sm" />
@@ -1616,19 +1616,30 @@ async function confirmDisapprove() {
   font-weight: 600;
 }
 .apply-leave-dialog-card {
+  width: min(1280px, 88vw);
+  max-width: none;
+  max-height: calc(100vh - 24px);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
 }
+.apply-leave-dialog-header {
+  min-height: 56px;
+  padding: 0 10px 0 14px;
+}
+.apply-leave-dialog-close {
+  width: 38px;
+  height: 38px;
+}
 .apply-leave-dialog :deep(.q-dialog__inner--minimized) {
-  padding: 24px;
+  padding: 12px;
 }
 .apply-leave-dialog :deep(.q-dialog__inner--minimized > div) {
   max-width: none !important;
 }
 .apply-leave-dialog-body {
-  flex: 1;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  overflow: hidden;
 }
 .pending-actions-cell {
   width: 150px;
@@ -1646,9 +1657,10 @@ async function confirmDisapprove() {
   line-height: 1.2;
 }
 .leave-balance-badge {
-  padding: 1px 6px;
+  padding: 2px 7px;
   font-size: 0.68rem;
-  line-height: 1.05;
+  font-weight: 700;
+  line-height: 1.1;
   white-space: nowrap;
   border: 1px solid #d8dee6;
 }

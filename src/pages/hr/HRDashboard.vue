@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <q-dialog v-model="showPendingReminderDialog">
+    <q-dialog v-model="showPendingReminderDialog" persistent>
       <q-card style="min-width: 360px; max-width: 480px">
         <q-card-section class="row items-center q-pb-none">
           <q-icon name="pending_actions" color="warning" size="28px" class="q-mr-sm" />

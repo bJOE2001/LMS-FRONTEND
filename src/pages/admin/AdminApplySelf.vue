@@ -1,18 +1,39 @@
 <template>
-  <component :is="inDialog ? 'div' : 'q-page'" class="q-pa-md">
-    <div class="q-mb-lg">
+  <component :is="inDialog ? 'div' : 'q-page'" :class="inDialog ? 'q-pa-sm' : 'q-pa-md'">
+    <div v-if="!inDialog" class="q-mb-lg">
       <div class="row items-center q-mb-xs">
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Apply for Leave</h1>
       </div>
       <p class="text-grey-7">Civil Service Form No. 6 — Application for Leave (Personal Application)</p>
     </div>
 
-    <q-card flat bordered class="rounded-borders q-mb-lg">
+    <q-card flat bordered :class="['rounded-borders q-mb-lg', { 'dialog-form-card': inDialog }]">
+      <q-form v-if="inDialog" ref="dialogStep1Form" greedy class="section-block q-ma-md q-mb-none">
+        <div class="dialog-summary-header">
+          <div class="dialog-summary-main">
+            <div class="dialog-summary-line dialog-summary-line--name">{{ dialogEmployeeName }}</div>
+            <div class="dialog-summary-line dialog-summary-line--position">{{ form.position || '-' }}</div>
+            <div class="dialog-summary-line dialog-summary-line--department">{{ dialogOfficeDisplay }}</div>
+          </div>
+          <div class="dialog-summary-meta">
+            <div class="dialog-summary-meta-item">
+              <span class="dialog-summary-meta-label">Date of Filing:</span>
+              <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
+            </div>
+            <div class="dialog-summary-meta-item">
+              <span class="dialog-summary-meta-label">Salary:</span>
+              <span class="dialog-summary-meta-value">{{ dialogSalaryDisplay }}</span>
+            </div>
+          </div>
+        </div>
+      </q-form>
+
       <!-- Stepper -->
       <q-stepper
         v-model="step"
         flat
         animated
+        :class="{ 'dialog-apply-stepper': inDialog }"
         color="primary"
         done-color="positive"
         active-color="primary"
@@ -123,16 +144,16 @@
 
         <!-- ==================== STEP 2: Details of Application ==================== -->
         <q-step :name="2" title="Details of Application" icon="description" :done="step > 2">
-          <q-form @submit.prevent="onSubmit" greedy>
+          <q-form ref="step2Form" @submit.prevent="onSubmit" greedy>
+            <div :class="{ 'dialog-application-grid': inDialog }">
             <!-- 6.A Type of Leave -->
-            <div class="section-block q-mb-lg">
-              <div class="text-subtitle1 text-weight-bold q-mb-xs">6.A Type of Leave to be Availed Of</div>
-              <p class="text-grey-6 text-caption q-mb-md">Select the type of leave you wish to apply for.</p>
+            <div class="section-block q-mb-lg dialog-section dialog-section--type">
+              <div class="text-subtitle1 text-weight-bold q-mb-md">Type of Leave to be Availed Of</div>
 
               <q-select
                 v-model="form.leaveTypeId"
                 :options="leaveTypeOptions"
-                label="Select Leave Type"
+                placeholder="Select Leave Type"
                 outlined
                 dense
                 emit-value
@@ -140,7 +161,7 @@
                 use-input
                 input-debounce="0"
                 :rules="[val => !!val || 'Please select a leave type']"
-                class="form-input"
+                class="form-input leave-type-select"
                 @filter="filterLeaveTypes"
                 @update:model-value="onLeaveTypeChange"
               >
@@ -168,13 +189,13 @@
             </div>
 
             <!-- ==================== MONETIZATION SECTION ==================== -->
-            <div v-if="isMonetization" class="section-block q-mb-lg">
+            <div v-if="isMonetization" class="section-block q-mb-lg dialog-section dialog-section--full">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">Monetization Leave</div>
               <p class="text-grey-6 text-caption q-mb-md">City Hall of Tagum Policy: Minimum of 10 accumulated leave credits required.</p>
 
               <div class="q-mb-md">
                 <label class="input-label">Select Leave Type to Monetize</label>
-                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" label="Select Leave Type" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
+                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" placeholder="Select Leave Type" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
                   <template #prepend><q-icon name="account_balance_wallet" size="sm" color="grey-6" /></template>
                 </q-select>
               </div>
@@ -203,52 +224,61 @@
               </div>
             </div>
 
-            <!-- 6.B Details of Leave -->
-            <div v-if="showDetailsOfLeave && !isMonetization" class="section-block q-mb-lg">
-              <div class="text-subtitle1 text-weight-bold q-mb-xs">6.B Details of Leave</div>
-              <p class="text-grey-6 text-caption q-mb-md">Provide additional details based on your selected leave type.</p>
-              
-              <div v-if="isVacationType" class="q-gutter-sm">
+            <div :class="{ 'dialog-section-stack dialog-section-stack--left': inDialog }">
+              <!-- Details of Leave -->
+              <div v-if="showDetailsOfLeave && !isMonetization" class="section-block q-mb-lg dialog-section dialog-section--details">
+                <div class="text-subtitle1 text-weight-bold q-mb-md">Details of Leave</div>
+
+                <div v-if="isVacationType" class="dialog-detail-options">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave:</div>
                 <q-option-group v-model="form.vacationDetail" :options="[{ label: 'Within the Philippines', value: 'Within the Philippines' }, { label: 'Abroad (Specify)', value: 'Abroad' }]" type="radio" color="primary" />
                 <q-input v-if="form.vacationDetail === 'Abroad'" v-model="form.vacationSpecify" outlined dense label="Specify destination" placeholder="Enter Destination" class="form-input q-mt-sm" />
                 <q-input v-if="form.vacationDetail === 'Within the Philippines'" v-model="form.vacationSpecify" outlined dense label="Specify location" placeholder="Enter Location" class="form-input q-mt-sm" />
-              </div>
+                </div>
 
-              <div v-if="isSickType" class="q-gutter-sm">
+                <div v-if="isSickType" class="dialog-detail-options">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Sick Leave:</div>
                 <q-option-group v-model="form.sickDetail" :options="[{ label: 'In Hospital (Specify Illness)', value: 'In Hospital' }, { label: 'Out Patient (Specify Illness)', value: 'Out Patient' }]" type="radio" color="primary" />
                 <q-input v-if="form.sickDetail" v-model="form.sickSpecify" outlined dense label="Specify illness" placeholder="Enter Illness" class="form-input q-mt-sm" />
-              </div>
+                </div>
 
-              <div v-if="selectedLeaveTypeName === 'Special Leave Benefits for Women'" class="q-gutter-sm">
+                <div v-if="selectedLeaveTypeName === 'Special Leave Benefits for Women'" class="dialog-detail-options">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Special Leave Benefits for Women:</div>
                 <q-input v-model="form.womenSpecify" outlined dense label="Specify illness" placeholder="Enter Illness" class="form-input" />
-              </div>
+                </div>
 
-              <div v-if="selectedLeaveTypeName === 'Study Leave'" class="q-gutter-sm">
+                <div v-if="selectedLeaveTypeName === 'Study Leave'" class="dialog-detail-options">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Study Leave:</div>
                 <q-option-group v-model="form.studyDetail" :options="[{ label: 'Completion of Master\'s Degree', value: 'Masters Degree' }, { label: 'BAR/Board Examination Review', value: 'BAR Review' }]" type="radio" color="primary" />
-              </div>
+                </div>
 
-              <div v-if="selectedLeaveTypeName === 'Others'" class="q-gutter-sm q-mt-md">
+                <div v-if="selectedLeaveTypeName === 'Others'" class="dialog-detail-options">
                 <div class="text-body2 text-weight-medium q-mb-sm">Other purpose:</div>
                 <q-option-group v-model="form.otherPurpose" :options="[{ label: 'Monetization Leave', value: 'Monetization' }, { label: 'Terminal Leave', value: 'Terminal Leave' }]" type="radio" color="primary" />
+                </div>
+              </div>
+
+              <!-- Commutation -->
+              <div v-if="!isMonetization" class="section-block q-mb-lg dialog-section dialog-section--commutation">
+                <div class="text-subtitle1 text-weight-bold q-mb-md">Commutation</div>
+                <q-option-group
+                  v-model="form.commutation"
+                  :options="[
+                    { label: 'Not Requested', value: 'Not Requested' },
+                    { label: 'Requested', value: 'Requested' },
+                  ]"
+                  type="radio"
+                  color="primary"
+                />
               </div>
             </div>
 
             <!-- 6.C Number of Working Days Applied For (hidden for monetization) -->
-            <div v-if="!isMonetization" class="section-block q-mb-lg">
-              <div class="text-subtitle1 text-weight-bold q-mb-xs">6.C Number of Working Days Applied For</div>
-              <p class="text-grey-6 text-caption q-mb-md">
-                <template v-if="isMco6Leave">Select up to 3 individual dates. Interval usage is allowed.</template>
-                <template v-else-if="isMaternityLeave">Select the start date. 105 days will be automatically calculated.</template>
-                <template v-else-if="isPaternityLeave">Select the start date. 7 days will be automatically calculated.</template>
-                <template v-else>Select the dates you want to apply for leave.</template>
-              </p>
+            <div v-if="!isMonetization" class="section-block q-mb-lg dialog-section dialog-section--dates">
+              <div class="text-subtitle1 text-weight-bold q-mb-md">Number of Working Days Applied For</div>
 
-              <div class="row q-col-gutter-md">
-                <div class="col-12 col-md-6">
+              <div class="row q-col-gutter-md" :class="{ 'dialog-dates-layout': inDialog }">
+                <div :class="inDialog ? 'col-12 col-sm-6' : 'col-12 col-md-6'">
                   <label class="input-label">
                     <template v-if="isMco6Leave">Select Leave Dates (max 3)</template>
                     <template v-else-if="isMaternityLeave || isPaternityLeave">Select Start Date</template>
@@ -276,12 +306,50 @@
                     :options="leaveDateOptions"
                     class="q-mt-sm"
                     style="width: 100%"
+                    @update:model-value="onSelectedDatesChange"
                   />
                 </div>
-                <div class="col-12 col-md-6">
+                <div :class="inDialog ? 'col-12 col-sm-6 dialog-selected-dates-panel' : 'col-12 col-md-6'">
                   <label class="input-label">Selected Dates</label>
                   <div v-if="selectedDates.length === 0" class="text-grey-5 text-body2 q-mt-sm">
                     No dates selected yet.
+                  </div>
+                  <div
+                    v-else-if="inDialog"
+                    :class="[
+                      'selected-date-duration-list q-mt-sm',
+                      { 'selected-date-duration-list--scrollable': sortedSelectedDates.length > 6 },
+                    ]"
+                  >
+                    <div
+                      v-for="(d, idx) in sortedSelectedDates"
+                      :key="idx"
+                      class="selected-date-duration-row"
+                    >
+                      <div class="selected-date-duration-label">
+                        <span>{{ formatDialogDateChip(d) }}</span>
+                        <q-btn
+                          v-if="!(isMaternityLeave || isPaternityLeave)"
+                          flat
+                          round
+                          dense
+                          icon="close"
+                          size="sm"
+                          color="negative"
+                          @click="removeSelectedDate(idx)"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        :class="[
+                          'selected-date-duration-toggle',
+                          { 'selected-date-duration-toggle--half': selectedDateDurations[d] === 'half_day' },
+                        ]"
+                        @click="toggleSelectedDateDuration(d)"
+                      >
+                        {{ selectedDateDurationLabel(d) }}
+                      </button>
+                    </div>
                   </div>
                   <q-list v-else dense bordered separator class="rounded-borders q-mt-sm" style="max-height: 300px; overflow-y: auto">
                     <q-item v-for="(d, idx) in sortedSelectedDates" :key="idx">
@@ -294,7 +362,7 @@
                     </q-item>
                   </q-list>
                   <div class="text-caption q-mt-sm text-grey-6">
-                    {{ selectedDates.length }} day(s) selected
+                    {{ formatSelectedDayCount(selectedDateTotalDays) }} day(s) selected
                   </div>
                   <div v-if="mco6ConsecutiveWarning" class="text-caption text-negative q-mt-xs">
                     ⚠ {{ mco6ConsecutiveWarning }}
@@ -306,35 +374,39 @@
               </div>
             </div>
 
-            <!-- 6.D Commutation (hidden for monetization) -->
-            <div v-if="!isMonetization" class="section-block q-mb-lg">
-              <div class="text-subtitle1 text-weight-bold q-mb-xs">6.D Commutation</div>
-              <p class="text-grey-6 text-caption q-mb-md">Select whether commutation is requested.</p>
-              <q-option-group
-                v-model="form.commutation"
-                :options="[
-                  { label: 'Not Requested', value: 'Not Requested' },
-                  { label: 'Requested', value: 'Requested' },
-                ]"
-                type="radio"
-                color="primary"
-              />
-            </div>
-
-            <div class="section-block q-mb-lg">
+            <div class="section-block q-mb-lg dialog-section dialog-section--reason">
               <label class="input-label">Reason / Purpose</label>
-              <q-input v-model="form.reason" type="textarea" rows="3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" :rules="[val => !!val || 'Required']" class="form-input" />
+              <q-input v-model="form.reason" type="textarea" :rows="inDialog ? 2 : 3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" :rules="[val => !!val || 'Required']" class="form-input" />
             </div>
 
             <!-- Navigation -->
-            <q-stepper-navigation>
+            <q-stepper-navigation class="dialog-section dialog-section--actions">
               <div class="row q-gutter-md">
-                <q-btn flat no-caps label="Back" icon="arrow_back" color="grey-7" @click="step = 1" class="step-btn" />
-                <q-space />
-                <q-btn outline no-caps label="Cancel" color="grey-7" class="step-btn" @click="handleCancel" />
-                <q-btn unelevated no-caps color="primary" type="submit" :label="isMonetization ? 'Submit Monetization Request' : 'Submit Application'" icon="send" :loading="loading" :disable="isMonetization && monetizationSubmitDisabled" class="step-btn" />
+                <template v-if="inDialog">
+                  <q-space />
+                  <q-btn outline no-caps label="Cancel" color="grey-7" class="step-btn" @click="handleCancel" />
+                  <q-btn
+                    unelevated
+                    no-caps
+                    color="primary"
+                    type="button"
+                    :label="isMonetization ? 'Submit Monetization Request' : 'Submit Application'"
+                    icon="send"
+                    :loading="loading"
+                    :disable="isMonetization && monetizationSubmitDisabled"
+                    class="step-btn"
+                    @click="submitDialogForm"
+                  />
+                </template>
+                <template v-else>
+                  <q-btn flat no-caps label="Back" icon="arrow_back" color="grey-7" @click="step = 1" class="step-btn" />
+                  <q-space />
+                  <q-btn outline no-caps label="Cancel" color="grey-7" class="step-btn" @click="handleCancel" />
+                  <q-btn unelevated no-caps color="primary" type="submit" :label="isMonetization ? 'Submit Monetization Request' : 'Submit Application'" icon="send" :loading="loading" :disable="isMonetization && monetizationSubmitDisabled" class="step-btn" />
+                </template>
               </div>
             </q-stepper-navigation>
+            </div>
           </q-form>
         </q-step>
       </q-stepper>
@@ -364,9 +436,12 @@ const $q = useQuasar()
 const router = useRouter()
 const authStore = useAuthStore()
 
-const step = ref(1)
+const step = ref(props.inDialog ? 2 : 1)
+const dialogStep1Form = ref(null)
 const step1Form = ref(null)
+const step2Form = ref(null)
 const loading = ref(false)
+const selectedDateDurations = ref({})
 
 const allLeaveTypes = ref([])
 const leaveTypeOptions = ref([])
@@ -412,6 +487,22 @@ const today = new Date()
 const todayStr = computed(() => today.toISOString().split('T')[0])
 const todayFormatted = computed(() => {
   return today.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+})
+
+const dialogEmployeeName = computed(() => {
+  const fullName = [form.value.firstName, form.value.lastName].filter(Boolean).join(' ').trim()
+  return fullName || '-'
+})
+
+const dialogOfficeDisplay = computed(() => {
+  const office = String(form.value.office || '').trim()
+  if (!office) return '-'
+  return office.replace(/^office of the\s+/i, '') || office
+})
+
+const dialogSalaryDisplay = computed(() => {
+  const salary = formatSalary(form.value.salary)
+  return salary ? `PHP ${salary}` : '-'
 })
 
 onMounted(async () => {
@@ -549,6 +640,7 @@ function onLeaveTypeChange() {
   form.value.otherPurpose = ''
   form.value.leaveTypeOther = ''
   selectedDates.value = []
+  selectedDateDurations.value = {}
   monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
 }
 
@@ -559,9 +651,65 @@ const sortedSelectedDates = computed(() =>
   [...selectedDates.value].sort()
 )
 
+function normalizeSelectedDates(value) {
+  return [...new Set((Array.isArray(value) ? value : []).filter(Boolean))].sort()
+}
+
+function onSelectedDatesChange(value) {
+  selectedDates.value = normalizeSelectedDates(value)
+}
+
 function formatDateDisplay(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
   return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function formatDialogDateChip(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function syncSelectedDateDurations(dates) {
+  const activeDates = new Set(dates)
+
+  Object.keys(selectedDateDurations.value).forEach((date) => {
+    if (!activeDates.has(date)) {
+      delete selectedDateDurations.value[date]
+    }
+  })
+
+  dates.forEach((date) => {
+    if (!selectedDateDurations.value[date]) {
+      selectedDateDurations.value[date] = 'whole_day'
+    }
+  })
+}
+
+const selectedDateTotalDays = computed(() =>
+  sortedSelectedDates.value.reduce(
+    (total, date) => total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1),
+    0,
+  ),
+)
+
+function formatSelectedDayCount(value) {
+  return Number.isInteger(value) ? value : value.toFixed(1)
+}
+
+function buildSelectedDateDurationsPayload(dates) {
+  return dates.reduce((acc, date) => {
+    acc[date] = selectedDateDurations.value[date] || 'whole_day'
+    return acc
+  }, {})
+}
+
+function selectedDateDurationLabel(date) {
+  return selectedDateDurations.value[date] === 'half_day' ? 'Half Day' : 'Whole Day'
+}
+
+function toggleSelectedDateDuration(date) {
+  selectedDateDurations.value[date] =
+    selectedDateDurations.value[date] === 'half_day' ? 'whole_day' : 'half_day'
 }
 
 const leaveDateOptions = computed(() => {
@@ -611,7 +759,7 @@ watch(maternityStartDate, (newDate) => {
         d.setDate(start.getDate() + i)
         dates.push(d.toISOString().split('T')[0])
       }
-      selectedDates.value = dates
+      selectedDates.value = normalizeSelectedDates(dates)
     }
   }
 })
@@ -666,6 +814,14 @@ const maxDaysWarning = computed(() => {
 })
 
 watch(selectedDates, (dates) => {
+  const normalized = normalizeSelectedDates(dates)
+  if (JSON.stringify(normalized) !== JSON.stringify(dates)) {
+    selectedDates.value = normalized
+    return
+  }
+
+  syncSelectedDateDurations(dates)
+
   if (dates.length === 0) {
     form.value.days = 1
     form.value.startDate = ''
@@ -673,10 +829,15 @@ watch(selectedDates, (dates) => {
     return
   }
   const sorted = [...dates].sort()
-  form.value.days = sorted.length
+  form.value.days = selectedDateTotalDays.value
   form.value.startDate = sorted[0]
   form.value.endDate = sorted[sorted.length - 1]
 }, { deep: true })
+
+watch(selectedDateTotalDays, (total) => {
+  if (selectedDates.value.length === 0) return
+  form.value.days = total
+})
 
 // Date limitation logic as per employee form
 function toSlash(dateStr) {
@@ -692,6 +853,16 @@ function isWeekday(dateStr) {
 async function goToStep2() {
   const valid = await step1Form.value.validate()
   if (valid) step.value = 2
+}
+
+async function submitDialogForm() {
+  const employeeValid = await dialogStep1Form.value?.validate?.()
+  if (!employeeValid) return
+
+  const detailsValid = await step2Form.value?.validate?.()
+  if (!detailsValid) return
+
+  await onSubmit()
 }
 
 function navigateToDashboard() {
@@ -772,6 +943,7 @@ async function onSubmit() {
       total_days: form.value.days,
       reason: form.value.reason,
       selected_dates: [...selectedDates.value].sort(),
+      selected_date_durations: buildSelectedDateDurationsPayload([...selectedDates.value].sort()),
       details: {
         vacation_detail: form.value.vacationDetail,
         vacation_specify: form.value.vacationSpecify,
@@ -811,7 +983,229 @@ async function onSubmit() {
 .form-input :deep(.q-field--outlined .q-field__control) {
   border-radius: 8px;
 }
+.leave-type-select :deep(.q-field__control-container) {
+  overflow: hidden;
+}
+.leave-type-select :deep(.q-field__native),
+.leave-type-select :deep(.q-field__input),
+.leave-type-select :deep(.q-select__selection),
+.leave-type-select :deep(.q-field__native > span) {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dialog-form-card {
+  margin-bottom: 0;
+}
+.dialog-form-card .section-block {
+  padding: 14px;
+}
+.dialog-form-card :deep(.q-field--dense .q-field__control) {
+  min-height: 34px;
+}
+.dialog-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.dialog-summary-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.dialog-summary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dialog-summary-line {
+  font-size: 1rem;
+  line-height: 1.25;
+  color: #2d3436;
+  text-transform: uppercase;
+}
+.dialog-summary-line--name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2d3436;
+}
+.dialog-summary-line--position {
+  color: #2d3436;
+  font-weight: 600;
+}
+.dialog-summary-line--department {
+  font-size: 0.86rem;
+  color: #8b98a1;
+  font-weight: 500;
+}
+.dialog-summary-meta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: right;
+}
+.dialog-summary-meta-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.dialog-summary-meta-label {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #46535d;
+}
+.dialog-summary-meta-value {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #46535d;
+}
+.section-block {
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid #eeeeee;
+}
 .step-btn {
   min-width: 120px;
+}
+.dialog-apply-stepper :deep(.q-stepper__header) {
+  display: none;
+}
+.dialog-apply-stepper :deep(.q-stepper__step-inner) {
+  padding: 8px 12px 12px;
+}
+.dialog-application-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 14px;
+  align-items: start;
+}
+.dialog-section {
+  margin-bottom: 0 !important;
+}
+.dialog-section-stack--left {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dialog-section--type,
+.dialog-section--details,
+.dialog-section--commutation {
+  grid-column: 1;
+}
+.dialog-section--reason {
+  grid-column: 2 / 4;
+  grid-row: 1;
+}
+.dialog-section--dates {
+  grid-column: 2 / 4;
+  grid-row: 2 / span 2;
+}
+.dialog-section--full,
+.dialog-section--actions {
+  grid-column: 1 / -1;
+}
+.dialog-dates-layout {
+  align-items: start;
+}
+.dialog-selected-dates-panel {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-detail-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dialog-detail-options :deep(.q-option-group) {
+  gap: 4px;
+}
+.dialog-detail-options :deep(.q-radio) {
+  margin: 0;
+}
+.selected-date-duration-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.selected-date-duration-list--scrollable {
+  max-height: calc((28px * 6) + (6px * 5));
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+.selected-date-duration-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  gap: 10px;
+  padding: 2px 0;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+.selected-date-duration-row:hover {
+  background: #f1f3f5;
+}
+.selected-date-duration-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #46535d;
+}
+.selected-date-duration-toggle {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #2e7d32;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.selected-date-duration-toggle--half {
+  color: #42a5f5;
+}
+.selected-date-duration-toggle:hover {
+  text-decoration: underline;
+}
+.dialog-form-card :deep(.q-date) {
+  box-shadow: none;
+  max-width: 360px;
+  font-size: 0.9rem;
+}
+.dialog-form-card :deep(.q-date__header) {
+  display: none;
+}
+.dialog-form-card :deep(.q-date--portrait-standard .q-date__content) {
+  height: 100%;
+}
+.dialog-form-card :deep(.q-date__content) {
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+.dialog-form-card :deep(.q-date__view) {
+  min-height: 236px;
+  padding: 10px 12px 8px;
+}
+.dialog-form-card :deep(.q-date__calendar-days-container) {
+  min-height: 156px;
+}
+.dialog-form-card :deep(.q-date__calendar-item) {
+  height: 26px;
+}
+.dialog-form-card :deep(.q-date__calendar-item div) {
+  min-width: 24px;
+  height: 24px;
+}
+.dialog-form-card :deep(.q-stepper__nav) {
+  padding-top: 0;
 }
 </style>

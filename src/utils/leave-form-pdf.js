@@ -95,9 +95,25 @@ function fmtCredit(val) {
     return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2)
 }
 
+function normalizeOfficeDepartment(value) {
+    return String(value || '')
+        .replace(/^office\s+of\s+the\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function getOfficeDepartmentFontSize(value) {
+    const officeText = normalizeOfficeDepartment(value)
+    if (officeText.length > 55) return 7.2
+    if (officeText.length > 40) return 7.8
+    return 9
+}
+
 // ─── main builder ──────────────────────────────────────────────────────────
 export async function generateLeaveFormPdf(sourceApp) {
     const app = await enrichAppWithDepartmentHead(sourceApp)
+    const office = normalizeOfficeDepartment(app.office || '')
+    const officeFontSize = getOfficeDepartmentFontSize(office)
     const lt = (app.leaveType || '').toLowerCase()
     const rawStatus = String(app.rawStatus || '').toUpperCase()
     const statusLabel = String(app.status || '').toUpperCase()
@@ -183,9 +199,9 @@ export async function generateLeaveFormPdf(sourceApp) {
                             {
                                 stack: [
                                     { text: '1.  OFFICE/DEPARTMENT:', bold: true, fontSize: 8 },
-                                    { text: app.office || '', fontSize: 9, bold: true, margin: [0, 4, 0, 0] },
+                                    { text: office, fontSize: officeFontSize, bold: true, lineHeight: 1.05, margin: [0, 4, 0, 0] },
                                 ],
-                                border: [true, true, true, true],
+                                border: [true, true, false, true],
                                 margin: [8, 8],
                             },
                             {
@@ -213,7 +229,12 @@ export async function generateLeaveFormPdf(sourceApp) {
                         ],
                     ],
                 },
-                layout: { hLineWidth: () => b, vLineWidth: () => b, hLineColor: () => '#000', vLineColor: () => '#000' },
+                layout: {
+                    hLineWidth: () => b,
+                    vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length) ? b : 0,
+                    hLineColor: () => '#000',
+                    vLineColor: () => '#000',
+                },
             },
             {
                 table: {
@@ -225,7 +246,7 @@ export async function generateLeaveFormPdf(sourceApp) {
                                     { text: '3.  DATE OF FILING: ', bold: true, fontSize: 8 },
                                     { text: fmtDateLong(app.dateFiled), fontSize: 9, bold: true, decoration: 'underline' },
                                 ],
-                                border: [true, false, true, true],
+                                border: [true, false, false, true],
                                 margin: [8, 8],
                             },
                             {
@@ -233,7 +254,7 @@ export async function generateLeaveFormPdf(sourceApp) {
                                     { text: '4.  POSITION: ', bold: true, fontSize: 8 },
                                     { text: app.position || '', fontSize: 9, bold: true, decoration: 'underline' },
                                 ],
-                                border: [false, false, true, true],
+                                border: [false, false, false, true],
                                 margin: [8, 8],
                             },
                             {
@@ -247,7 +268,12 @@ export async function generateLeaveFormPdf(sourceApp) {
                         ],
                     ],
                 },
-                layout: { hLineWidth: () => b, vLineWidth: () => b, hLineColor: () => '#000', vLineColor: () => '#000' },
+                layout: {
+                    hLineWidth: () => b,
+                    vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length) ? b : 0,
+                    hLineColor: () => '#000',
+                    vLineColor: () => '#000',
+                },
                 margin: [0, 4, 0, 0],
             },
 
@@ -501,7 +527,12 @@ export async function generateLeaveFormPdf(sourceApp) {
                         }],
                     ],
                 },
-                layout: { hLineWidth: () => b, vLineWidth: () => b, hLineColor: () => '#000', vLineColor: () => '#000' },
+                layout: {
+                    hLineWidth: () => b,
+                    vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length) ? b : 0,
+                    hLineColor: () => '#000',
+                    vLineColor: () => '#000',
+                },
             },
         ],
 
