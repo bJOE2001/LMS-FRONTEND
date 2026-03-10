@@ -181,18 +181,6 @@
       </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders q-mb-lg">
-      <q-card-section><div class="text-h6">Department Statistics</div></q-card-section>
-      <q-table
-        v-model:pagination="deptPagination"
-        :rows="deptStats"
-        :columns="deptColumns"
-        row-key="dept"
-        flat
-        :rows-per-page-options="[5, 10, 15, 20]"
-      />
-    </q-card>
-
   </q-page>
 </template>
 
@@ -236,12 +224,6 @@ const summary = ref({
 })
 
 const deptStats = ref([])
-const deptPagination = ref({
-  page: 1,
-  rowsPerPage: 5,
-  sortBy: 'dept',
-  descending: false,
-})
 const trendApplications = ref([])
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const trendYearLabel = new Date().getFullYear()
@@ -802,14 +784,6 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
 }))
 
-const deptColumns = [
-  { name: 'dept', label: 'Department', field: 'dept', align: 'left' },
-  { name: 'total', label: 'Total', field: 'total', align: 'left' },
-  { name: 'onLeave', label: 'On Leave', field: 'onLeave', align: 'left' },
-  { name: 'pending', label: 'Pending', field: 'pending', align: 'left' },
-  { name: 'approved', label: 'Approved', field: 'approved', align: 'left' },
-  { name: 'rate', label: 'Utilization %', field: 'rate', align: 'left' },
-]
 </script>
 
 <style scoped>
