@@ -167,6 +167,21 @@
             <div class="text-caption text-grey-7">{{ props.row.employee_id }}</div>
           </q-td>
         </template>
+        <template #body-cell-leaveBalance="props">
+          <q-td>
+            <div class="leave-balance-cell">
+              <q-badge
+                v-for="(item, index) in getLeaveBalanceTextItems(props.row)"
+                :key="`${props.row.id}-leave-balance-text-${index}`"
+                color="grey-2"
+                text-color="grey-7"
+                rounded
+                class="leave-balance-badge"
+                :label="item.label"
+              />
+            </div>
+          </q-td>
+        </template>
         <template #body-cell-inclusiveDates="props">
           <q-td>
             <div class="application-details-cell">
@@ -233,21 +248,37 @@
     <!-- View dialog -->
     <q-dialog v-model="showDetailsDialog" position="standard">
       <q-card v-if="selectedApp" class="application-timeline-card" style="width: 680px; max-width: 96vw">
-        <q-card-section class="bg-primary text-white">
+        <q-card-section class="bg-primary text-white row items-center no-wrap application-timeline-header">
           <div class="text-h6">Application Timeline</div>
+          <q-space />
+          <q-btn flat dense round icon="close" color="white" v-close-popup />
         </q-card-section>
         <q-card-section class="application-timeline-content">
           <div class="application-timeline-summary q-mb-md">
-            <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
-            <div class="text-caption text-grey-7">
-              {{ selectedApp.leaveType }}{{ selectedApp.is_monetization ? ' (Monetization)' : '' }}
+            <div class="application-timeline-summary-row">
+              <div class="application-timeline-summary-main">
+                <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
+                <div class="text-caption text-grey-7">
+                  {{ selectedApp.leaveType }}{{ selectedApp.is_monetization ? ' (Monetization)' : '' }}
+                </div>
+                <q-badge
+                  class="q-mt-sm"
+                  rounded
+                  :color="getApplicationStatusColor(selectedApp)"
+                  :label="getApplicationStatusLabel(selectedApp)"
+                />
+              </div>
+              <q-btn
+                unelevated
+                no-caps
+                color="blue-grey-7"
+                icon="print"
+                label="Print Form"
+                size="sm"
+                class="timeline-print-btn"
+                @click="printApplication(selectedApp)"
+              />
             </div>
-            <q-badge
-              class="q-mt-sm"
-              rounded
-              :color="getApplicationStatusColor(selectedApp)"
-              :label="getApplicationStatusLabel(selectedApp)"
-            />
           </div>
           <q-timeline color="primary" layout="dense" class="application-timeline">
             <q-timeline-entry
@@ -267,17 +298,6 @@
             </q-timeline-entry>
           </q-timeline>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Close" v-close-popup />
-          <template v-if="selectedApp?.rawStatus === 'PENDING_ADMIN'">
-            <q-btn unelevated color="green-7" label="Approve" @click="openActionConfirm('approve', selectedApp)" />
-            <q-btn unelevated color="negative" label="Disapprove" @click="openActionConfirm('disapprove', selectedApp)" />
-            <q-btn unelevated color="blue-grey-7" label="Cancel" @click="openActionConfirm('cancel', selectedApp)" />
-          </template>
-          <template v-else-if="selectedApp?.rawStatus === 'PENDING_HR'">
-            <q-btn unelevated color="blue-grey-7" label="Cancel" @click="openActionConfirm('cancel', selectedApp)" />
-          </template>
-        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -439,11 +459,40 @@ const applicationsForTable = computed(() => {
   return [...filteredApplications].sort(compareApplicationsForTable)
 })
 
+const latestLeaveBalanceEntriesByEmployee = computed(() => {
+  const entriesByEmployee = new Map()
+  const applications = [...(dashboardData.value.applications ?? [])]
+    .sort(compareApplicationsByRecencyDesc)
+
+  for (const app of applications) {
+    const employeeKey = getEmployeeBalanceLookupKey(app)
+    if (!employeeKey) continue
+
+    const latestEntries = getLeaveBalanceEntriesFromSnapshot(app)
+    if (!latestEntries.length) continue
+
+    let employeeEntries = entriesByEmployee.get(employeeKey)
+    if (!employeeEntries) {
+      employeeEntries = new Map()
+      entriesByEmployee.set(employeeKey, employeeEntries)
+    }
+
+    for (const entry of latestEntries) {
+      const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+      if (!leaveTypeKey || employeeEntries.has(leaveTypeKey)) continue
+      employeeEntries.set(leaveTypeKey, entry)
+    }
+  }
+
+  return entriesByEmployee
+})
+
 const columns = [
   { name: 'employee', label: 'Employee', align: 'left' },
   { name: 'leaveType', label: 'Leave Type', field: (row) => row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType, align: 'left' },
   { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
   { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
+  { name: 'leaveBalance', label: 'Leave Balance', field: (row) => getLeaveBalanceDisplay(row), align: 'left' },
   { name: 'days', label: 'Days', field: 'days', align: 'left' },
   { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'left' },
   { name: 'actions', label: 'Actions', align: 'right', style: 'width: 150px', headerStyle: 'width: 150px' },
@@ -573,6 +622,222 @@ function formatDayValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return '0'
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
+}
+
+function formatLeaveBalanceValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+}
+
+const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Mandatory / Forced Leave',
+  'MCO6 Leave',
+  'Sick Leave',
+  'Vacation Leave',
+  'Wellness Leave',
+]
+
+function prettifyLeaveBalanceLabel(value) {
+  const label = String(value || '').trim()
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function toLeaveBalanceAcronym(value) {
+  const label = prettifyLeaveBalanceLabel(value)
+  if (!label) return ''
+
+  const lower = label.toLowerCase()
+  if (lower === 'mandatory / forced leave') return 'FL'
+  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'sick leave') return 'SL'
+  if (lower === 'vacation leave') return 'VL'
+  if (lower === 'wellness leave') return 'WL'
+
+  const normalized = label
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+  if (!normalized.length) return ''
+  return normalized.map((part) => part[0]).join('')
+}
+
+function addLeaveBalanceEntry(entries, seen, label, value) {
+  const formattedValue = formatLeaveBalanceValue(value)
+  const formattedLabel = prettifyLeaveBalanceLabel(label)
+  if (!formattedLabel || formattedValue === '') return
+
+  const key = formattedLabel.toLowerCase()
+  if (seen.has(key)) return
+
+  seen.add(key)
+  entries.push({ label: formattedLabel, value: formattedValue })
+}
+
+function getEmployeeBalanceLookupKey(app) {
+  const explicitKey = app?.employee_id ?? app?.employeeId ?? app?.control_no ?? app?.controlNo
+  if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
+    return String(explicitKey).trim().toLowerCase()
+  }
+
+  const nameKey = [
+    app?.surname,
+    app?.firstname,
+    app?.middlename,
+    app?.employeeName,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .join('|')
+
+  return nameKey || ''
+}
+
+function getLeaveBalanceTypeKey(value) {
+  return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
+  if (!source) return
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (item == null) continue
+      if (typeof item !== 'object') continue
+
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        item.leave_type_name || item.leave_type || item.type_name || item.type || item.name || item.label || fallbackLabel,
+        item.balance ?? item.remaining_balance ?? item.available_balance ?? item.credits ?? item.value
+      )
+    }
+    return
+  }
+
+  if (typeof source !== 'object') {
+    addLeaveBalanceEntry(entries, seen, fallbackLabel, source)
+    return
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value == null || key === 'as_of_date') continue
+
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        value.leave_type_name || value.leave_type || value.type_name || value.type || value.name || value.label || key,
+        value.balance ?? value.remaining_balance ?? value.available_balance ?? value.credits ?? value.value
+      )
+      continue
+    }
+
+    addLeaveBalanceEntry(entries, seen, key, value)
+  }
+}
+
+function getLeaveBalanceEntriesFromSnapshot(app) {
+  const entries = []
+  const seen = new Set()
+
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.certificationLeaveCredits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.certification_leave_credits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveBalances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveCredits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_credits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balance)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balance_summary)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.employee_leave_balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveBalance)
+
+  if (!entries.length) {
+    addLeaveBalanceEntry(
+      entries,
+      seen,
+      app?.leaveType || 'Leave Balance',
+      app?.balance ?? app?.leave_balance ?? app?.remaining_balance ?? app?.available_balance
+    )
+  }
+
+  return entries
+}
+
+function resolveLatestLeaveBalanceEntries(app) {
+  const employeeKey = getEmployeeBalanceLookupKey(app)
+  if (!employeeKey) return getLeaveBalanceEntriesFromSnapshot(app)
+
+  const employeeEntries = latestLeaveBalanceEntriesByEmployee.value.get(employeeKey)
+  if (!employeeEntries || employeeEntries.size === 0) {
+    return getLeaveBalanceEntriesFromSnapshot(app)
+  }
+
+  return Array.from(employeeEntries.values())
+}
+
+function getLeaveBalanceEntries(app) {
+  const resolvedEntries = resolveLatestLeaveBalanceEntries(app)
+  const requiredTypeKeys = new Set(
+    REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label))
+  )
+  const entriesByType = new Map(
+    resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry])
+  )
+
+  const orderedEntries = REQUIRED_LEAVE_BALANCE_TYPES.map((label) => {
+    const existingEntry = entriesByType.get(getLeaveBalanceTypeKey(label))
+    return existingEntry || { label, value: '0' }
+  })
+
+  for (const entry of resolvedEntries) {
+    const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+    if (requiredTypeKeys.has(leaveTypeKey)) continue
+    orderedEntries.push(entry)
+  }
+
+  return orderedEntries
+}
+
+function getLeaveBalanceLines(app) {
+  return getLeaveBalanceEntries(app).map((entry) => {
+    const acronym = toLeaveBalanceAcronym(entry.label)
+    return `${acronym || entry.label}: ${entry.value}`
+  })
+}
+
+function getLeaveBalanceTextItems(app) {
+  return getLeaveBalanceEntries(app).map((entry) => {
+    const acronym = toLeaveBalanceAcronym(entry.label)
+    return {
+      label: `${acronym || entry.label}: ${entry.value}`,
+    }
+  })
+}
+
+function getLeaveBalanceDisplay(app) {
+  return getLeaveBalanceLines(app).join(', ')
 }
 
 function toIsoDateString(dateValue) {
@@ -759,6 +1024,7 @@ function getApplicationSearchTokenSet(app) {
     app?.middlename,
     app?.surname,
     app?.employee_id,
+    getLeaveBalanceDisplay(app),
     ...dateTerms,
   ].flatMap((value) => tokenizeSearchValue(value))
 
@@ -935,13 +1201,42 @@ function compareApplicationsForTable(a, b) {
   const statusPriorityDiff = getApplicationStatusPriority(a) - getApplicationStatusPriority(b)
   if (statusPriorityDiff !== 0) return statusPriorityDiff
 
-  const dateA = Date.parse(a?.dateFiled || '') || 0
-  const dateB = Date.parse(b?.dateFiled || '') || 0
+  const dateA = getApplicationRecencyTimestamp(a)
+  const dateB = getApplicationRecencyTimestamp(b)
   if (dateA !== dateB) return dateB - dateA
 
   const idA = Number(a?.id) || 0
   const idB = Number(b?.id) || 0
   return idB - idA
+}
+
+function getApplicationRecencyTimestamp(app) {
+  const candidateDates = [
+    app?.created_at,
+    app?.createdAt,
+    app?.submitted_at,
+    app?.submittedAt,
+    app?.filed_at,
+    app?.filedAt,
+    app?.dateFiled,
+  ]
+
+  for (const candidate of candidateDates) {
+    const timestamp = Date.parse(candidate || '')
+    if (Number.isFinite(timestamp)) return timestamp
+  }
+
+  return 0
+}
+
+function compareApplicationsByRecencyDesc(a, b) {
+  const timestampDiff = getApplicationRecencyTimestamp(b) - getApplicationRecencyTimestamp(a)
+  if (timestampDiff !== 0) return timestampDiff
+
+  const idDiff = (Number(b?.id) || 0) - (Number(a?.id) || 0)
+  if (idDiff !== 0) return idDiff
+
+  return 0
 }
 
 function formatRecentRemarks(app) {
@@ -1293,6 +1588,21 @@ async function confirmDisapprove() {
 .application-status-search {
   width: min(440px, 84vw);
 }
+.leave-balance-cell {
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 1.2;
+}
+.leave-balance-badge {
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  line-height: 1.05;
+  white-space: nowrap;
+  border: 1px solid #d8dee6;
+}
 .application-details-cell {
   min-width: 260px;
   white-space: normal;
@@ -1306,11 +1616,27 @@ async function confirmDisapprove() {
   display: flex;
   flex-direction: column;
 }
+.application-timeline-header {
+  padding-right: 8px;
+}
 .application-timeline-summary {
   border: 1px solid #e4e8ed;
   border-radius: 8px;
   background: #f8fafc;
   padding: 10px 12px;
+}
+.application-timeline-summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.application-timeline-summary-main {
+  min-width: 0;
+}
+.timeline-print-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .application-timeline-content {
   overflow-y: auto;
@@ -1318,5 +1644,10 @@ async function confirmDisapprove() {
 .application-timeline {
   padding-left: 12px;
   padding-right: 8px;
+}
+@media (max-width: 599px) {
+  .application-timeline-summary-row {
+    flex-direction: column;
+  }
 }
 </style>
