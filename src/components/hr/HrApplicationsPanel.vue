@@ -88,7 +88,7 @@
               size="sm"
               icon="check_circle"
               color="green-7"
-              @click="handleApprove(props.row.id)"
+              @click="openActionConfirm('approve', props.row)"
             >
               <q-tooltip>Approve</q-tooltip>
             </q-btn>
@@ -100,7 +100,7 @@
               size="sm"
               icon="cancel"
               color="negative"
-              @click="openReject(props.row.id)"
+              @click="openActionConfirm('reject', props.row)"
             >
               <q-tooltip>Reject</q-tooltip>
             </q-btn>
@@ -191,6 +191,33 @@
           </div>
         </div>
       </q-card-section>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="showConfirmActionDialog">
+    <q-card style="min-width: 360px; max-width: 440px">
+      <q-card-section class="text-center q-py-md">
+        <div class="text-h6">
+          {{ getConfirmActionTitle(confirmActionType) }}
+        </div>
+        <div class="text-body2 text-grey-7 q-mt-sm">
+          {{ getConfirmActionMessage(confirmActionType) }}
+        </div>
+      </q-card-section>
+      <q-card-actions align="center" class="q-pb-md">
+        <q-btn
+          unelevated
+          label="Yes"
+          color="green-7"
+          @click="confirmPendingAction"
+        />
+        <q-btn
+          unelevated
+          label="No"
+          color="negative"
+          v-close-popup
+        />
+      </q-card-actions>
     </q-card>
   </q-dialog>
 
@@ -617,9 +644,12 @@ const columns = [
 const showDetailsDialog = ref(false)
 const showEditDialog = ref(false)
 const showRejectDialog = ref(false)
+const showConfirmActionDialog = ref(false)
 const selectedApp = ref(null)
 const rejectId = ref('')
 const remarks = ref('')
+const confirmActionType = ref('approve')
+const confirmActionTarget = ref(null)
 const editForm = ref(getEmptyEditForm())
 
 function getEmptyEditForm() {
@@ -739,6 +769,42 @@ function formatDate(dateStr) {
 function openDetails(app) {
   selectedApp.value = app
   showDetailsDialog.value = true
+}
+
+function getConfirmActionTitle(type) {
+  if (type === 'approve') return 'Approve this application?'
+  return 'Reject this application?'
+}
+
+function getConfirmActionMessage(type) {
+  if (type === 'approve') {
+    return 'This will finalize the approval of the leave request.'
+  }
+  return 'You will continue to the rejection form.'
+}
+
+function getApplicationId(target) {
+  return target?.id ?? target
+}
+
+function openActionConfirm(type, target) {
+  confirmActionType.value = type
+  confirmActionTarget.value = target
+  showConfirmActionDialog.value = true
+  showDetailsDialog.value = false
+}
+
+function confirmPendingAction() {
+  const target = confirmActionTarget.value
+  const type = confirmActionType.value
+  showConfirmActionDialog.value = false
+
+  if (type === 'approve') {
+    handleApprove(getApplicationId(target))
+    return
+  }
+
+  openReject(getApplicationId(target))
 }
 
 function openEdit(app) {

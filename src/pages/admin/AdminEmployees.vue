@@ -139,6 +139,33 @@
       </q-table>
     </q-card>
 
+    <q-dialog
+      v-model="showApplyLeaveDialog"
+      persistent
+      class="apply-leave-dialog"
+      transition-show="scale"
+      transition-hide="scale"
+    >
+      <q-card
+        class="apply-leave-dialog-card"
+      >
+        <q-bar class="apply-leave-dialog-header bg-primary text-white">
+          <div class="text-h6 text-weight-bold">Leave Application</div>
+          <q-space />
+          <q-btn flat round icon="close" color="white" size="md" class="apply-leave-dialog-close" @click="closeApplyLeaveDialog" />
+        </q-bar>
+        <q-card-section class="q-pa-none apply-leave-dialog-body">
+          <AdminApplyOnBehalf
+            :key="applyLeaveDialogKey"
+            in-dialog
+            :initial-employee="applyLeaveEmployee"
+            @cancel="closeApplyLeaveDialog"
+            @submitted="handleApplyLeaveSubmitted"
+          />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="showViewDialog" persistent>
       <q-card style="width: 90vw; max-width: 520px" class="rounded-borders dialog-card">
         <q-card-section class="row items-center q-pb-none">
@@ -398,17 +425,17 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/auth-store'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
 
-const router = useRouter()
 const $q = useQuasar()
 const authStore = useAuthStore()
 
 const search = ref('')
+const showApplyLeaveDialog = ref(false)
 const showViewDialog = ref(false)
 const showDepartmentHeadDialog = ref(false)
 const showFormDialog = ref(false)
@@ -425,6 +452,8 @@ const statusCounts = ref({})
 const loadingDepartmentHead = ref(false)
 const savingDepartmentHead = ref(false)
 const departmentHeadId = ref(null)
+const applyLeaveEmployee = ref(null)
+const applyLeaveDialogKey = ref(0)
 
 const pagination = ref({
   page: 1,
@@ -858,16 +887,17 @@ function viewEmployee(employee) {
 
 function applyLeaveFor(employee) {
   if (!employee) return
-  router.push({
-    path: '/admin/apply-on-behalf',
-    query: {
-      department: employee.office,
-      lastName: employee.surname,
-      firstName: employee.firstname,
-      position: employee.designation,
-      empId: employee.control_no,
-    },
-  })
+  applyLeaveEmployee.value = employee
+  applyLeaveDialogKey.value += 1
+  showApplyLeaveDialog.value = true
+}
+
+function closeApplyLeaveDialog() {
+  showApplyLeaveDialog.value = false
+}
+
+function handleApplyLeaveSubmitted() {
+  showApplyLeaveDialog.value = false
 }
 
 watch(adminDepartmentId, (id) => {
@@ -913,5 +943,36 @@ watch(adminDepartmentId, (id) => {
   font-size: 0.75rem;
   line-height: 1.2;
   letter-spacing: 0.01em;
+}
+
+.apply-leave-dialog-card {
+  width: min(1280px, 88vw);
+  max-width: none;
+  max-height: calc(100vh - 24px);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.apply-leave-dialog-header {
+  min-height: 56px;
+  padding: 0 10px 0 14px;
+}
+
+.apply-leave-dialog-close {
+  width: 38px;
+  height: 38px;
+}
+
+.apply-leave-dialog :deep(.q-dialog__inner--minimized) {
+  padding: 12px;
+}
+
+.apply-leave-dialog :deep(.q-dialog__inner--minimized > div) {
+  max-width: none !important;
+}
+
+.apply-leave-dialog-body {
+  flex: 0 0 auto;
+  overflow: hidden;
 }
 </style>

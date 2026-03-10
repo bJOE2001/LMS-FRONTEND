@@ -14,6 +14,20 @@ function formatDate(dateStr) {
   })
 }
 
+function normalizeOfficeDepartment(value) {
+  return String(value || '')
+    .replace(/^office\s+of\s+the\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getOfficeDepartmentFontSize(value) {
+  const officeText = normalizeOfficeDepartment(value)
+  if (officeText.length > 55) return 7.2
+  if (officeText.length > 40) return 7.8
+  return 9
+}
+
 /**
  * Convert an image URL to a base64 data URL for pdfmake.
  */
@@ -50,7 +64,8 @@ export async function generateLeaveFormPdf(app) {
   const firstName = nameParts[0] || ''
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
   const lt = printableApp.leaveType || ''
-  const office = printableApp.office || ''
+  const office = normalizeOfficeDepartment(printableApp.office || '')
+  const officeFontSize = getOfficeDepartmentFontSize(office)
   const dateFiled = formatDate(printableApp.dateFiled)
   const startDate = formatDate(printableApp.startDate)
   const endDate = formatDate(printableApp.endDate)
@@ -387,7 +402,7 @@ export async function generateLeaveFormPdf(app) {
                       {
                         stack: [
                           { text: '1.  OFFICE/DEPARTMENT', bold: true, fontSize: 7 },
-                          { text: office, fontSize: 9, margin: [0, 3, 0, 0] },
+                          { text: office, fontSize: officeFontSize, lineHeight: 1.05, margin: [0, 3, 0, 0] },
                         ],
                         margin: [2, 3, 2, 3],
                       },
@@ -410,7 +425,7 @@ export async function generateLeaveFormPdf(app) {
                 },
                 layout: {
                   hLineWidth: () => 0,
-                  vLineWidth: (i) => (i === 0 || i === 3) ? 0 : 0.3,
+                  vLineWidth: (i) => (i === 2) ? 0.3 : 0,
                   vLineColor: () => '#000',
                 },
               },
@@ -451,7 +466,7 @@ export async function generateLeaveFormPdf(app) {
                 },
                 layout: {
                   hLineWidth: () => 0,
-                  vLineWidth: (i) => (i === 0 || i === 3) ? 0 : 0.3,
+                  vLineWidth: () => 0,
                   vLineColor: () => '#000',
                 },
               },
