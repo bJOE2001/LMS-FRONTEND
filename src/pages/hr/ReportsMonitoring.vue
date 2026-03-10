@@ -273,9 +273,9 @@ async function fetchTrendData() {
   }
 }
 
-async function fetchSummary() {
+async function fetchSummary(params = {}) {
   try {
-    const { data } = await api.get('/hr/reports/summary')
+    const { data } = await api.get('/hr/reports/summary', { params })
     summary.value = data
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load summary statistics right now.')
@@ -283,14 +283,39 @@ async function fetchSummary() {
   }
 }
 
-async function fetchDeptStats() {
+async function fetchDeptStats(params = {}) {
   try {
-    const { data } = await api.get('/hr/reports/departments')
+    const { data } = await api.get('/hr/reports/departments', { params })
     deptStats.value = data
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load department statistics right now.')
     $q.notify({ type: 'negative', message: msg })
   }
+}
+
+function buildReportFilterParams() {
+  const hasFromDate = Boolean(dateFrom.value)
+  const hasToDate = Boolean(dateTo.value)
+
+  if (!hasFromDate || !hasToDate) return {}
+
+  const fromDate = parseInputDate(dateFrom.value)
+  const toDate = parseInputDate(dateTo.value)
+
+  if (!fromDate || !toDate || fromDate > toDate) return {}
+
+  return {
+    date_from: dateFrom.value,
+    date_to: dateTo.value,
+  }
+}
+
+async function refreshReportStats() {
+  const params = buildReportFilterParams()
+  await Promise.all([
+    fetchSummary(params),
+    fetchDeptStats(params),
+  ])
 }
 
 function parseInputDate(value, endOfDay = false) {
@@ -576,9 +601,12 @@ async function handleGenerate() {
 }
 
 onMounted(() => {
-  fetchSummary()
-  fetchDeptStats()
+  refreshReportStats()
   fetchTrendData()
+})
+
+watch([dateFrom, dateTo], () => {
+  refreshReportStats()
 })
 
 const summaryStats = computed(() => [
