@@ -201,7 +201,7 @@
           </q-td>
         </template>
         <template #body-cell-status="props">
-          <q-td>
+          <q-td class="text-center">
             <q-badge
               :color="getApplicationStatusColor(props.row)"
               :label="getApplicationStatusLabel(props.row)"
@@ -212,8 +212,8 @@
           </q-td>
         </template>
         <template #body-cell-actions="props">
-          <q-td class="pending-actions-cell">
-            <div class="row no-wrap justify-end items-center q-gutter-x-xs">
+          <q-td class="pending-actions-cell text-center">
+            <div class="row no-wrap justify-center items-center q-gutter-x-xs">
               <q-btn flat dense round size="sm" icon="visibility" @click="openDetails(props.row)">
                 <q-tooltip>View</q-tooltip>
               </q-btn>
@@ -493,9 +493,9 @@ const columns = [
   { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
   { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
   { name: 'leaveBalance', label: 'Leave Balance', field: (row) => getLeaveBalanceDisplay(row), align: 'left' },
-  { name: 'days', label: 'Days', field: 'days', align: 'left' },
-  { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'left' },
-  { name: 'actions', label: 'Actions', align: 'right', style: 'width: 150px', headerStyle: 'width: 150px' },
+  { name: 'days', label: 'Days', field: 'days', align: 'center' },
+  { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'center' },
+  { name: 'actions', label: 'Actions', align: 'center', style: 'width: 150px', headerStyle: 'width: 150px' },
 ]
 const showApplyLeaveDialog = ref(false)
 const showPendingReminderDialog = ref(false)
