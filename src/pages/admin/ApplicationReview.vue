@@ -102,7 +102,7 @@ function handleDisapprove() {
   leaveStore.updateApplicationStatus(application.value.id, 'Disapproved', remarks.value)
   router.push('/admin/dashboard')
 }
-function printApplication() {
-  generateLeaveFormPdf(application.value)
+async function printApplication() {
+  await generateLeaveFormPdf(application.value)
 }
 </script>
