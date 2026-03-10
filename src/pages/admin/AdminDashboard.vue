@@ -1646,9 +1646,10 @@ async function confirmDisapprove() {
   line-height: 1.2;
 }
 .leave-balance-badge {
-  padding: 1px 6px;
+  padding: 2px 7px;
   font-size: 0.68rem;
-  line-height: 1.05;
+  font-weight: 700;
+  line-height: 1.1;
   white-space: nowrap;
   border: 1px solid #d8dee6;
 }
