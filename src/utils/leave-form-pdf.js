@@ -6,6 +6,7 @@
  */
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from './department-head-signature'
 
 // pdfmake v0.3.x font initialization
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -95,7 +96,8 @@ function fmtCredit(val) {
 }
 
 // ─── main builder ──────────────────────────────────────────────────────────
-export function generateLeaveFormPdf(app) {
+export async function generateLeaveFormPdf(sourceApp) {
+    const app = await enrichAppWithDepartmentHead(sourceApp)
     const lt = (app.leaveType || '').toLowerCase()
     const rawStatus = String(app.rawStatus || '').toUpperCase()
     const statusLabel = String(app.status || '').toUpperCase()
@@ -131,6 +133,7 @@ export function generateLeaveFormPdf(app) {
     const inclusiveDates = `${fmtDate(app.startDate)} - ${fmtDate(app.endDate)}`
     const b = 0.5 // border width
     const name = parseName(app)
+    const departmentHeadSignature = getDepartmentHeadSignature(app)
 
     const docDefinition = {
         pageSize: 'A4',
@@ -393,7 +396,7 @@ export function generateLeaveFormPdf(app) {
                                     },
                                     { text: ' ', fontSize: 8 },
                                     { text: '________________________________________', fontSize: 8, alignment: 'center' },
-                                    { text: '(Authorized Officer)', fontSize: 7, italics: true, alignment: 'center', margin: [0, 1, 0, 4] },
+                                    { text: 'CHRMO Leave In-charge', fontSize: 7, alignment: 'center', margin: [0, 1, 0, 4] },
                                 ],
                                 border: [true, false, true, true],
                             },
@@ -407,8 +410,30 @@ export function generateLeaveFormPdf(app) {
                                     checkboxRow(isForDisapproval, `For disapproval due to ${disapprovalReason}`, { marginVertical: 2 }),
                                     { text: ' ', fontSize: 14 },
                                     { text: ' ', fontSize: 14 },
-                                    { text: '________________________________________', fontSize: 8, alignment: 'center' },
-                                    { text: 'Executive Assistant III', fontSize: 7, italics: true, alignment: 'center', margin: [0, 1, 0, 4] },
+                                    {
+                                        table: {
+                                            widths: ['*'],
+                                            body: [[{
+                                                text: departmentHeadSignature.fullName || ' ',
+                                                fontSize: 8,
+                                                bold: true,
+                                                alignment: 'center',
+                                                margin: [0, 0, 0, 2],
+                                                border: [false, false, false, true],
+                                            }]],
+                                        },
+                                        margin: [36, 0, 36, 0],
+                                        layout: {
+                                            hLineWidth: () => 0.6,
+                                            vLineWidth: () => 0,
+                                            hLineColor: () => '#000',
+                                            paddingLeft: () => 0,
+                                            paddingRight: () => 0,
+                                            paddingTop: () => 0,
+                                            paddingBottom: () => 0,
+                                        },
+                                    },
+                                    { text: departmentHeadSignature.designation, fontSize: 7, alignment: 'center', margin: [0, 2, 0, 4] },
                                 ],
                                 border: [false, false, true, true],
                             },
@@ -418,44 +443,66 @@ export function generateLeaveFormPdf(app) {
                 layout: { hLineWidth: () => b, vLineWidth: () => b, hLineColor: () => '#000', vLineColor: () => '#000' },
             },
 
-            // 7.C and 7.D side by side
+            // 7.C and 7.D combined into one box with mayor signature
             {
                 table: {
-                    widths: ['50%', '50%'],
+                    widths: ['*'],
                     body: [
-                        [
-                            // ─── 7.C ───
-                            {
-                                stack: [
-                                    { text: '7.C  APPROVED FOR:', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
-                                    { text: '         _______ days with pay', fontSize: 8, margin: [4, 2] },
-                                    { text: '         _______ days without pay', fontSize: 8, margin: [4, 2] },
-                                    { text: '         _______ others (Specify)', fontSize: 8, margin: [4, 2, 0, 4] },
-                                ],
-                                border: [true, false, true, true],
-                            },
-
-                            // ─── 7.D ───
-                            {
-                                stack: [
-                                    { text: '7.D  DISAPPROVED DUE TO:', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
-                                    { text: '   _______________________________________________', fontSize: 8, margin: [4, 2] },
-                                    { text: '   _______________________________________________', fontSize: 8, margin: [4, 2] },
-                                    { text: ' ', fontSize: 8, margin: [4, 2, 0, 4] },
-                                ],
-                                border: [false, false, true, true],
-                            },
-                        ],
+                        [{
+                            stack: [
+                                {
+                                    columns: [
+                                        {
+                                            width: '50%',
+                                            stack: [
+                                                { text: '7.C  APPROVED FOR:', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
+                                                { text: '         _______ days with pay', fontSize: 8, margin: [4, 2] },
+                                                { text: '         _______ days without pay', fontSize: 8, margin: [4, 2] },
+                                                { text: '         _______ others (Specify)', fontSize: 8, margin: [4, 2, 0, 4] },
+                                            ],
+                                        },
+                                        {
+                                            width: '50%',
+                                            stack: [
+                                                { text: '7.D  DISAPPROVED DUE TO:', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
+                                                { text: '   _______________________________________________', fontSize: 8, margin: [4, 2] },
+                                                { text: '   _______________________________________________', fontSize: 8, margin: [4, 2] },
+                                                { text: '   _______________________________________________', fontSize: 8, margin: [4, 2, 0, 4] },
+                                            ],
+                                        },
+                                    ],
+                                },
+                                { text: ' ', fontSize: 6, margin: [0, 5, 0, 0] },
+                                {
+                                    table: {
+                                        widths: ['*'],
+                                        body: [[{
+                                            text: 'HON. REY T. UY',
+                                            fontSize: 10,
+                                            bold: true,
+                                            alignment: 'center',
+                                            margin: [0, 0, 0, 2],
+                                            border: [false, false, false, true],
+                                        }]],
+                                    },
+                                    margin: [185, 0, 185, 0],
+                                    layout: {
+                                        hLineWidth: () => 0.8,
+                                        vLineWidth: () => 0,
+                                        hLineColor: () => '#000',
+                                        paddingLeft: () => 0,
+                                        paddingRight: () => 0,
+                                        paddingTop: () => 0,
+                                        paddingBottom: () => 0,
+                                    },
+                                },
+                                { text: 'City Mayor', fontSize: 9, alignment: 'center', margin: [0, 2, 0, 6] },
+                            ],
+                        }],
                     ],
                 },
                 layout: { hLineWidth: () => b, vLineWidth: () => b, hLineColor: () => '#000', vLineColor: () => '#000' },
             },
-
-            // ═══ FOOTER — Mayor signature ═══
-            { text: ' ', fontSize: 8, margin: [0, 8, 0, 0] },
-            { text: 'REY T. UY', bold: true, fontSize: 10, alignment: 'center' },
-            { canvas: [{ type: 'line', x1: 160, y1: 0, x2: 380, y2: 0, lineWidth: 0.8, lineColor: '#000' }], margin: [0, 2, 0, 0] },
-            { text: 'City Mayor', fontSize: 9, italics: true, alignment: 'center', margin: [0, 1, 0, 0] },
         ],
 
         defaultStyle: {

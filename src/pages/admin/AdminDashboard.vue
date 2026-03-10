@@ -269,6 +269,7 @@
                 />
               </div>
               <q-btn
+                v-if="canPrintApplication(selectedApp)"
                 unelevated
                 no-caps
                 color="blue-grey-7"
@@ -493,7 +494,7 @@ const columns = [
   { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
   { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
   { name: 'leaveBalance', label: 'Leave Balance', field: (row) => getLeaveBalanceDisplay(row), align: 'left' },
-  { name: 'days', label: 'Days', field: 'days', align: 'center' },
+  { name: 'days', label: 'Days', field: (row) => getApplicationDayCount(row), align: 'center' },
   { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'center' },
   { name: 'actions', label: 'Actions', align: 'center', style: 'width: 150px', headerStyle: 'width: 150px' },
 ]
@@ -638,6 +639,19 @@ const REQUIRED_LEAVE_BALANCE_TYPES = [
   'Wellness Leave',
 ]
 
+const EVENT_BASED_LEAVE_BALANCE_TYPES = [
+  'Maternity Leave',
+  'Paternity Leave',
+  'Special Privilege Leave',
+  'Solo Parent Leave',
+  'Study Leave',
+  '10-Day VAWC Leave',
+  'Rehabilitation Privilege',
+  'Special Leave Benefits for Women',
+  'Special Emergency (Calamity) Leave',
+  'Adoption Leave',
+]
+
 function prettifyLeaveBalanceLabel(value) {
   const label = String(value || '').trim()
   if (!label) return ''
@@ -715,6 +729,12 @@ function getEmployeeBalanceLookupKey(app) {
 
 function getLeaveBalanceTypeKey(value) {
   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function isEventBasedLeaveBalanceType(value) {
+  const typeKey = getLeaveBalanceTypeKey(value)
+  return EVENT_BASED_LEAVE_BALANCE_TYPES
+    .some((label) => getLeaveBalanceTypeKey(label) === typeKey)
 }
 
 function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
@@ -799,6 +819,7 @@ function resolveLatestLeaveBalanceEntries(app) {
 
 function getLeaveBalanceEntries(app) {
   const resolvedEntries = resolveLatestLeaveBalanceEntries(app)
+    .filter((entry) => !isEventBasedLeaveBalanceType(entry.label))
   const requiredTypeKeys = new Set(
     REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label))
   )
@@ -928,6 +949,28 @@ function getApplicationInclusiveDateLines(app) {
   return [`${start} - ${end}`]
 }
 
+function getApplicationDayCount(app) {
+  if (!app) return '0'
+
+  if (app.is_monetization) {
+    return formatDayValue(app.days)
+  }
+
+  if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
+    const uniqueSelectedDates = [...new Set(app.selected_dates.filter(Boolean))]
+    if (uniqueSelectedDates.length > 0) return String(uniqueSelectedDates.length)
+  }
+
+  if (app.startDate || app.endDate) {
+    const startDate = app.startDate || app.endDate
+    const endDate = app.endDate || app.startDate
+    const rangedDates = enumerateInclusiveDateRange(startDate, endDate)
+    if (rangedDates.length > 0) return String(rangedDates.length)
+  }
+
+  return formatDayValue(app.days)
+}
+
 function getApplicationDurationLabel(app) {
   return getApplicationInclusiveDateLines(app).join(' ')
 }
@@ -984,6 +1027,10 @@ function getApplicationStatusColor(app) {
   if (app?.rawStatus === 'APPROVED') return 'green'
   if (app?.rawStatus === 'REJECTED') return 'negative'
   return 'grey-6'
+}
+
+function canPrintApplication(app) {
+  return getApplicationStatusLabel(app) !== 'Pending Admin'
 }
 
 function getDateSearchValues(dateValue) {
@@ -1299,13 +1346,15 @@ function confirmPendingAction() {
 }
 
 async function printApplication(app) {
+  if (!canPrintApplication(app)) return
+
   try {
     const { data } = await api.get('/admin/dashboard')
     dashboardData.value = data
     const updated = data.applications?.find((a) => a.id === app.id)
-    generateLeaveFormPdf(updated || app)
+    await generateLeaveFormPdf(updated || app)
   } catch {
-    generateLeaveFormPdf(app)
+    await generateLeaveFormPdf(app)
   }
 }
 

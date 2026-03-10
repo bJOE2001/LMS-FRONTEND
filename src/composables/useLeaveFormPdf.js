@@ -1,5 +1,6 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from 'src/utils/department-head-signature'
 
 // Register fonts for pdfmake 0.3.x
 pdfMake.addVirtualFileSystem(pdfFonts)
@@ -33,6 +34,7 @@ function toBase64(url) {
  */
 export async function generateLeaveFormPdf(app) {
   if (!app) return
+  const printableApp = await enrichAppWithDepartmentHead(app)
 
   // ── Load logo image ──
   let logoBase64 = null
@@ -43,18 +45,19 @@ export async function generateLeaveFormPdf(app) {
   }
 
   // ── Parse application data ──
-  const fullName = app.employeeName || ''
+  const fullName = printableApp.employeeName || ''
   const nameParts = fullName.trim().split(/\s+/)
   const firstName = nameParts[0] || ''
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
-  const lt = app.leaveType || ''
-  const office = app.office || ''
-  const dateFiled = formatDate(app.dateFiled)
-  const startDate = formatDate(app.startDate)
-  const endDate = formatDate(app.endDate)
-  const days = app.days || ''
-  const commutation = app.commutation || 'Not Requested'
-  const status = app.status || ''
+  const lt = printableApp.leaveType || ''
+  const office = printableApp.office || ''
+  const dateFiled = formatDate(printableApp.dateFiled)
+  const startDate = formatDate(printableApp.startDate)
+  const endDate = formatDate(printableApp.endDate)
+  const days = printableApp.days || ''
+  const commutation = printableApp.commutation || 'Not Requested'
+  const status = printableApp.status || ''
+  const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
 
   // ── Checkbox helper: canvas rectangle + optional checkmark ──
   function cbLine(checked, label, opts = {}) {
@@ -218,7 +221,7 @@ export async function generateLeaveFormPdf(app) {
         margin: [8, 0, 8, 14],
       },
       { text: '______________________________________', alignment: 'center', fontSize: 8 },
-      { text: '(Authorized Officer)', alignment: 'center', fontSize: 7, italics: true, margin: [0, 2, 0, 0] },
+      { text: 'CHRMO Leave In-charge', alignment: 'center', fontSize: 7, margin: [0, 2, 0, 0] },
     ],
     margin: [6, 0, 4, 6],
   }
@@ -233,32 +236,88 @@ export async function generateLeaveFormPdf(app) {
       { text: '     ______________________________________', fontSize: 7 },
       { text: '     ______________________________________', fontSize: 7, margin: [0, 3, 0, 0] },
       { text: '', margin: [0, 28, 0, 0] },
-      { text: '______________________________________', alignment: 'center', fontSize: 8 },
-      { text: 'Executive Assistant III', alignment: 'center', fontSize: 7, bold: true, margin: [0, 2, 0, 0] },
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            text: departmentHeadSignature.fullName || ' ',
+            alignment: 'center',
+            fontSize: 8,
+            bold: true,
+            margin: [0, 0, 0, 2],
+            border: [false, false, false, true],
+          }]],
+        },
+        margin: [36, 0, 36, 0],
+        layout: {
+          hLineWidth: () => 0.6,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+      },
+      { text: departmentHeadSignature.designation, alignment: 'center', fontSize: 7, margin: [0, 2, 0, 0] },
     ],
     margin: [4, 0, 6, 6],
   }
 
-  // ── Section 7.C: Approved for ──
-  const section7C = {
+  // ── Section 7.C and 7.D: combined action box ──
+  const section7Combined = {
     stack: [
-      { text: '7.C  APPROVED FOR:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-      { text: '         _________ days with pay', fontSize: 7, margin: [0, 2, 0, 2] },
-      { text: '         _________ days without pay', fontSize: 7, margin: [0, 2, 0, 2] },
-      { text: '         _________ others (Specify)', fontSize: 7, margin: [0, 2, 0, 2] },
+      {
+        columns: [
+          {
+            width: '50%',
+            stack: [
+              { text: '7.C  APPROVED FOR:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
+              { text: '         _________ days with pay', fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: '         _________ days without pay', fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: '         _________ others (Specify)', fontSize: 7, margin: [0, 2, 0, 2] },
+            ],
+            margin: [0, 0, 10, 0],
+          },
+          {
+            width: '50%',
+            stack: [
+              { text: '7.D  DISAPPROVED DUE TO:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
+              { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
+            ],
+            margin: [10, 0, 0, 0],
+          },
+        ],
+      },
+      { text: '', margin: [0, 6, 0, 0] },
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            text: 'HON. REY T. UY',
+            alignment: 'center',
+            fontSize: 10,
+            bold: true,
+            margin: [0, 0, 0, 2],
+            border: [false, false, false, true],
+          }]],
+        },
+        margin: [185, 0, 185, 0],
+        layout: {
+          hLineWidth: () => 0.6,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+      },
+      { text: 'City Mayor', alignment: 'center', fontSize: 9, margin: [0, 2, 0, 0] },
     ],
-    margin: [6, 0, 4, 6],
-  }
-
-  // ── Section 7.D: Disapproved due to ──
-  const section7D = {
-    stack: [
-      { text: '7.D  DISAPPROVED DUE TO:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-      { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
-      { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
-      { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
-    ],
-    margin: [4, 0, 6, 6],
+    margin: [6, 0, 6, 10],
   }
 
   // ══════════════════════════════════════════════════════
@@ -414,19 +473,11 @@ export async function generateLeaveFormPdf(app) {
             // ── 7.A (left) | 7.B (right) ──
             [section7A, section7B],
 
-            // ── 7.C (left) | 7.D (right) ──
-            [section7C, section7D],
-
-            // ── Footer: City Mayor ──
+            // ── 7.C and 7.D combined, with mayor signature inside the same box ──
             [
               {
                 colSpan: 2,
-                stack: [
-                  { text: '', margin: [0, 20, 0, 0] },
-                  { text: '______________________________________', alignment: 'center', fontSize: 8 },
-                  { text: 'City Mayor', alignment: 'center', fontSize: 10, bold: true, margin: [0, 3, 0, 0] },
-                ],
-                margin: [0, 5, 0, 15],
+                ...section7Combined,
               },
               {},
             ],
