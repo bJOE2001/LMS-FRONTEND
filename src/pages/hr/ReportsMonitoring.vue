@@ -5,28 +5,6 @@
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Reports & Monitoring</h1>
         <p class="text-grey-7">Generate and view comprehensive leave reports</p>
       </div>
-      <q-btn-dropdown
-        unelevated
-        color="green-7"
-        icon="download"
-        label="Export Data"
-        dropdown-icon="arrow_drop_down"
-      >
-        <q-list>
-          <q-item clickable v-close-popup @click="exportData('Excel')">
-            <q-item-section avatar><q-icon name="table_chart" color="green" /></q-item-section>
-            <q-item-section>Excel (.xlsx)</q-item-section>
-          </q-item>
-          <q-item clickable v-close-popup @click="exportData('CSV')">
-            <q-item-section avatar><q-icon name="table_rows" color="primary" /></q-item-section>
-            <q-item-section>CSV File</q-item-section>
-          </q-item>
-          <q-item clickable v-close-popup @click="exportData('PDF')">
-            <q-item-section avatar><q-icon name="picture_as_pdf" color="red" /></q-item-section>
-            <q-item-section>PDF Report</q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
     </div>
 
     <q-card flat bordered class="rounded-borders q-mb-lg">
@@ -34,16 +12,97 @@
         <div class="text-h6 q-mb-md">Generate Report</div>
         <div class="row q-col-gutter-md items-end">
           <div class="col-12 col-md-3">
-            <q-select v-model="reportType" :options="reportTypeOptions" outlined dense />
+            <q-input
+              v-model="dateFrom"
+              outlined
+              dense
+              readonly
+              label="Date From"
+              class="report-date-input"
+              @click="showDateFromMenu = true"
+            >
+              <template #append>
+                <q-icon
+                  v-if="dateFrom"
+                  name="close"
+                  class="cursor-pointer text-grey-6"
+                  @click.stop="dateFrom = ''"
+                />
+                <q-icon
+                  name="event"
+                  color="primary"
+                  class="cursor-pointer"
+                  @click.stop.prevent="openDateFromMenuFromIcon"
+                />
+              </template>
+              <q-menu
+                v-model="showDateFromMenu"
+                anchor="bottom left"
+                self="top left"
+                transition-show="scale"
+                transition-hide="scale"
+              >
+                <q-date
+                  v-model="dateFrom"
+                  mask="YYYY-MM-DD"
+                  color="primary"
+                  class="report-date-popup"
+                  @update:model-value="showDateFromMenu = false"
+                >
+                  <div class="row items-center justify-end q-pa-sm">
+                    <q-btn v-close-popup flat label="Close" color="primary" />
+                  </div>
+                </q-date>
+              </q-menu>
+            </q-input>
           </div>
-          <div class="col-12 col-md-2">
-            <q-input v-model="dateFrom" type="date" outlined dense />
+          <div class="col-12 col-md-3">
+            <q-input
+              v-model="dateTo"
+              outlined
+              dense
+              readonly
+              label="Date To"
+              class="report-date-input"
+              @click="showDateToMenu = true"
+            >
+              <template #append>
+                <q-icon
+                  v-if="dateTo"
+                  name="close"
+                  class="cursor-pointer text-grey-6"
+                  @click.stop="dateTo = ''"
+                />
+                <q-icon
+                  name="event"
+                  color="primary"
+                  class="cursor-pointer"
+                  @click.stop.prevent="openDateToMenuFromIcon"
+                />
+              </template>
+              <q-menu
+                v-model="showDateToMenu"
+                anchor="bottom left"
+                self="top left"
+                transition-show="scale"
+                transition-hide="scale"
+              >
+                <q-date
+                  v-model="dateTo"
+                  mask="YYYY-MM-DD"
+                  color="primary"
+                  class="report-date-popup"
+                  @update:model-value="showDateToMenu = false"
+                >
+                  <div class="row items-center justify-end q-pa-sm">
+                    <q-btn v-close-popup flat label="Close" color="primary" />
+                  </div>
+                </q-date>
+              </q-menu>
+            </q-input>
           </div>
-          <div class="col-12 col-md-2">
-            <q-input v-model="dateTo" type="date" outlined dense />
-          </div>
-          <div class="col-12 col-md-2">
-            <q-btn unelevated color="primary" icon="description" label="Generate" :loading="generating" @click="handleGenerate" />
+          <div class="col-12 col-md-3">
+            <q-btn unelevated color="primary" icon="print" label="Print" :loading="generating" @click="handleGenerate" />
           </div>
         </div>
       </q-card-section>
@@ -83,33 +142,6 @@
                   :series="trendChartSeries"
                 />
               </q-no-ssr>
-            </div>
-
-            <div class="row q-col-gutter-sm q-mt-sm">
-              <div class="col-12 col-sm-4">
-                <q-card flat bordered class="trend-metric-card">
-                  <q-card-section class="q-py-sm">
-                    <div class="text-caption text-grey-7">Yearly total leaves</div>
-                    <div class="text-subtitle1 text-weight-bold">{{ trendTotal }}</div>
-                  </q-card-section>
-                </q-card>
-              </div>
-              <div class="col-12 col-sm-4">
-                <q-card flat bordered class="trend-metric-card">
-                  <q-card-section class="q-py-sm">
-                    <div class="text-caption text-grey-7">Peak month</div>
-                    <div class="text-subtitle1 text-weight-bold">{{ trendPeakMonth }}</div>
-                  </q-card-section>
-                </q-card>
-              </div>
-              <div class="col-12 col-sm-4">
-                <q-card flat bordered class="trend-metric-card">
-                  <q-card-section class="q-py-sm">
-                    <div class="text-caption text-grey-7">Source</div>
-                    <div class="text-subtitle1 text-weight-bold">HR dashboard data</div>
-                  </q-card-section>
-                </q-card>
-              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -161,28 +193,6 @@
       />
     </q-card>
 
-    <q-dialog v-model="showReportModal" position="standard">
-      <q-card style="min-width: 560px; max-width: 90vw">
-        <q-card-section class="bg-primary text-white"><div class="text-h6">{{ reportType }} - Preview</div></q-card-section>
-        <q-card-section>
-          <div class="text-center q-mb-lg">
-            <div class="text-h5">City Government</div>
-            <div class="text-subtitle1">Leave Management System</div>
-            <div class="text-caption text-grey-7">Generated: {{ new Date().toLocaleDateString() }}</div>
-          </div>
-          <div class="row q-col-gutter-md">
-            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Total</div><div class="text-h5 text-primary">{{ reportData.length }}</div></q-card-section></q-card></div>
-            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Approved</div><div class="text-h5 text-green-8">{{ approvedInReport }}</div></q-card-section></q-card></div>
-            <div class="col-4"><q-card flat bordered><q-card-section class="text-center"><div class="text-caption">Pending</div><div class="text-h5 text-warning">{{ pendingInReport }}</div></q-card-section></q-card></div>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Close" v-close-popup />
-          <q-btn unelevated color="primary" icon="download" label="Download PDF" @click="downloadReport" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
   </q-page>
 </template>
 
@@ -191,18 +201,32 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import VueApexCharts from 'vue3-apexcharts'
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
-const reportType = ref('Monthly Summary')
 const dateFrom = ref('')
 const dateTo = ref('')
-const showReportModal = ref(false)
 const generating = ref(false)
-const reportData = ref([])
+const showDateFromMenu = ref(false)
+const showDateToMenu = ref(false)
 
-const reportTypeOptions = ['Monthly Summary', 'Department Report', 'Leave Type Analysis']
+function openDateFromMenuFromIcon() {
+  // Delay opening until current click cycle ends to avoid immediate auto-close.
+  window.setTimeout(() => {
+    showDateFromMenu.value = true
+  }, 0)
+}
+
+function openDateToMenuFromIcon() {
+  // Delay opening until current click cycle ends to avoid immediate auto-close.
+  window.setTimeout(() => {
+    showDateToMenu.value = true
+  }, 0)
+}
 
 const summary = ref({
   total_applications: 0,
@@ -287,21 +311,283 @@ async function fetchDeptStats() {
   }
 }
 
+function parseInputDate(value, endOfDay = false) {
+  if (!value) return null
+  const parsed = new Date(`${value}T${endOfDay ? '23:59:59' : '00:00:00'}`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDateLabel(value) {
+  if (!value) return 'N/A'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'N/A'
+  return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function resolveApplicationStatusLabel(application) {
+  const raw = String(application?.rawStatus ?? application?.status ?? '').toUpperCase()
+  if (raw.includes('PENDING_ADMIN')) return 'Pending Admin'
+  if (raw.includes('PENDING_HR')) return 'Pending HR'
+  if (raw.includes('PENDING')) return 'Pending'
+  if (raw.includes('APPROVED')) return 'Approved'
+  if (raw.includes('REJECTED') || raw.includes('DISAPPROVED')) return 'Rejected'
+  return 'Unknown'
+}
+
+function getApplicationsForSelectedRange() {
+  const fromDate = parseInputDate(dateFrom.value)
+  const toDate = parseInputDate(dateTo.value, true)
+  const sourceRows = Array.isArray(trendApplications.value) ? trendApplications.value : []
+
+  if (!fromDate && !toDate) {
+    return sourceRows
+  }
+
+  return sourceRows.filter((application) => {
+    const rawDate = getApplicationDate(application)
+    if (!rawDate) return false
+
+    const parsedDate = new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) return false
+    if (fromDate && parsedDate < fromDate) return false
+    if (toDate && parsedDate > toDate) return false
+    return true
+  })
+}
+
+function buildMonthlyTrendRows(applications) {
+  const monthlyMap = new Map()
+
+  for (const application of applications) {
+    const rawDate = getApplicationDate(application)
+    if (!rawDate) continue
+
+    const parsedDate = new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
+
+    const key = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}`
+    const label = parsedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    const current = monthlyMap.get(key) ?? { label, total: 0 }
+    current.total += 1
+    monthlyMap.set(key, current)
+  }
+
+  return Array.from(monthlyMap.entries())
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([, value]) => value)
+}
+
+function buildLeaveTypeRows(applications) {
+  const leaveTypeMap = new Map()
+
+  for (const application of applications) {
+    const leaveTypeName = getApplicationLeaveType(application)
+    leaveTypeMap.set(leaveTypeName, (leaveTypeMap.get(leaveTypeName) ?? 0) + 1)
+  }
+
+  return Array.from(leaveTypeMap.entries())
+    .map(([leaveType, total]) => ({ leaveType, total }))
+    .sort((left, right) => {
+      if (right.total !== left.total) return right.total - left.total
+      return left.leaveType.localeCompare(right.leaveType)
+    })
+}
+
+async function loadImageDataUrl(path) {
+  try {
+    const response = await fetch(path)
+    if (!response.ok) return null
+
+    const blob = await response.blob()
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => reject(new Error('Unable to read image file.'))
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+async function createReportPdf() {
+  const applications = getApplicationsForSelectedRange()
+  const statusCounts = applications.reduce((acc, application) => {
+    const status = resolveApplicationStatusLabel(application)
+    if (status.includes('Pending')) acc.pending += 1
+    else if (status === 'Approved') acc.approved += 1
+    else if (status === 'Rejected') acc.rejected += 1
+    else acc.other += 1
+    return acc
+  }, { pending: 0, approved: 0, rejected: 0, other: 0 })
+
+  const monthlyRows = buildMonthlyTrendRows(applications)
+  const leaveTypeRows = buildLeaveTypeRows(applications)
+  const totalApplications = applications.length
+  const computedApprovalRate = totalApplications > 0
+    ? ((statusCounts.approved / totalApplications) * 100).toFixed(2)
+    : '0.00'
+  const periodLabel = dateFrom.value && dateTo.value
+    ? `${formatDateLabel(dateFrom.value)} to ${formatDateLabel(dateTo.value)}`
+    : 'All available dates'
+  const generatedAt = new Date().toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  const logoDataUrl = await loadImageDataUrl('/images/CityOfTagumLogo.png')
+
+  const monthlyTableBody = [
+    [{ text: 'Month', style: 'tableHeader' }, { text: 'Applications', style: 'tableHeader' }],
+    ...(monthlyRows.length
+      ? monthlyRows.map((row) => [row.label, String(row.total)])
+      : [['No monthly data available', '0']]),
+  ]
+
+  const leaveTypeTableBody = [
+    [{ text: 'Leave Type', style: 'tableHeader' }, { text: 'Applications', style: 'tableHeader' }],
+    ...(leaveTypeRows.length
+      ? leaveTypeRows.map((row) => [row.leaveType, String(row.total)])
+      : [['No leave type data available', '0']]),
+  ]
+
+  const departmentTableBody = [
+    [
+      { text: 'Department', style: 'tableHeader' },
+      { text: 'Total', style: 'tableHeader' },
+      { text: 'On Leave', style: 'tableHeader' },
+      { text: 'Pending', style: 'tableHeader' },
+      { text: 'Approved', style: 'tableHeader' },
+      { text: 'Utilization %', style: 'tableHeader' },
+    ],
+    ...(deptStats.value.length
+      ? deptStats.value.map((row) => [
+        String(row?.dept ?? 'N/A'),
+        String(row?.total ?? 0),
+        String(row?.onLeave ?? 0),
+        String(row?.pending ?? 0),
+        String(row?.approved ?? 0),
+        String(row?.rate ?? 0),
+      ])
+      : [['No department data available', '0', '0', '0', '0', '0']]),
+  ]
+
+  const documentDefinition = {
+    pageSize: 'A4',
+    pageOrientation: 'portrait',
+    pageMargins: [24, 24, 24, 24],
+    content: [
+      {
+        columns: [
+          ...(logoDataUrl ? [{ image: logoDataUrl, width: 58, margin: [0, 0, 10, 0] }] : []),
+          {
+            stack: [
+              { text: 'HR Reports & Monitoring', style: 'title' },
+              { text: 'Comprehensive Leave Report', style: 'subtitle' },
+              { text: `Generated: ${generatedAt}`, style: 'meta' },
+              { text: `Date range: ${periodLabel}`, style: 'meta' },
+            ],
+            width: '*',
+          },
+        ],
+        margin: [0, 0, 0, 12],
+      },
+      { text: 'Summary', style: 'section' },
+      {
+        table: {
+          widths: ['*', 'auto'],
+          body: [
+            ['Total Applications (selected range)', String(totalApplications)],
+            ['Approved', String(statusCounts.approved)],
+            ['Pending', String(statusCounts.pending)],
+            ['Rejected', String(statusCounts.rejected)],
+            ['Other Status', String(statusCounts.other)],
+            ['Approval Rate (selected range)', `${computedApprovalRate}%`],
+            ['Dashboard Approval Rate', `${summary.value.approval_rate}%`],
+            ['Avg Processing Days', `${summary.value.avg_processing_days}d`],
+            ['Active Employees', String(summary.value.active_employees)],
+          ],
+        },
+        layout: 'lightHorizontalLines',
+      },
+      { text: 'Monthly Leave Trend', style: 'section' },
+      {
+        table: {
+          headerRows: 1,
+          widths: ['*', 120],
+          body: monthlyTableBody,
+        },
+        layout: 'lightHorizontalLines',
+      },
+      { text: 'Leave Type Breakdown', style: 'section' },
+      {
+        table: {
+          headerRows: 1,
+          widths: ['*', 120],
+          body: leaveTypeTableBody,
+        },
+        layout: 'lightHorizontalLines',
+      },
+      { text: 'Department Statistics', style: 'section' },
+      {
+        table: {
+          headerRows: 1,
+          widths: ['*', 50, 55, 55, 55, 70],
+          body: departmentTableBody,
+        },
+        layout: 'lightHorizontalLines',
+      },
+    ],
+    styles: {
+      title: { fontSize: 18, bold: true, margin: [0, 0, 0, 2] },
+      subtitle: { fontSize: 12, color: '#37474f', margin: [0, 0, 0, 2] },
+      meta: { fontSize: 9, color: '#607d8b', margin: [0, 0, 0, 2] },
+      section: { fontSize: 12, bold: true, margin: [0, 12, 0, 6] },
+      tableHeader: { bold: true, fillColor: '#eceff1' },
+    },
+    defaultStyle: {
+      fontSize: 9,
+    },
+  }
+
+  pdfMake.createPdf(documentDefinition).open()
+}
+
 async function handleGenerate() {
+  const hasFromDate = Boolean(dateFrom.value)
+  const hasToDate = Boolean(dateTo.value)
+
+  if (hasFromDate !== hasToDate) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please select both Date From and Date To to filter by range.',
+      position: 'top',
+    })
+    return
+  }
+
+  const fromDate = parseInputDate(dateFrom.value)
+  const toDate = parseInputDate(dateTo.value)
+  if (dateFrom.value && !fromDate) {
+    $q.notify({ type: 'warning', message: 'Please provide a valid From date.', position: 'top' })
+    return
+  }
+  if (dateTo.value && !toDate) {
+    $q.notify({ type: 'warning', message: 'Please provide a valid To date.', position: 'top' })
+    return
+  }
+  if (fromDate && toDate && fromDate > toDate) {
+    $q.notify({ type: 'warning', message: 'Date From cannot be later than Date To.', position: 'top' })
+    return
+  }
+
   generating.value = true
   try {
-    const { data } = await api.get('/hr/reports/generate', {
-      params: {
-        type: reportType.value,
-        date_from: dateFrom.value,
-        date_to: dateTo.value
-      }
-    })
-    reportData.value = data
-    showReportModal.value = true
-  } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to generate report right now.')
-    $q.notify({ type: 'negative', message: msg })
+    await createReportPdf()
+  } catch {
+    $q.notify({ type: 'negative', message: 'Unable to generate report right now.', position: 'top' })
   } finally {
     generating.value = false
   }
@@ -319,9 +605,6 @@ const summaryStats = computed(() => [
   { label: 'Avg Processing', value: `${summary.value.avg_processing_days}d`, icon: 'schedule', color: 'warning' },
   { label: 'Active Employees', value: summary.value.active_employees, icon: 'people', color: 'purple' },
 ])
-
-const approvedInReport = computed(() => reportData.value.filter(a => a.status === 'APPROVED').length)
-const pendingInReport = computed(() => reportData.value.filter(a => a.status === 'PENDING_HR' || a.status === 'PENDING_ADMIN').length)
 
 const monthlyLeaveTrend = computed(() => {
   const buckets = Array(12).fill(0)
@@ -404,14 +687,6 @@ const trendChartOptions = computed(() => ({
     },
   },
 }))
-
-const trendTotal = computed(() => monthlyLeaveTrend.value.reduce((sum, value) => sum + value, 0))
-const trendPeakMonth = computed(() => {
-  const peakValue = Math.max(...monthlyLeaveTrend.value)
-  if (peakValue <= 0) return 'No data'
-  const peakIndex = monthlyLeaveTrend.value.findIndex((value) => value === peakValue)
-  return `${monthLabels[peakIndex]} (${peakValue})`
-})
 
 const leaveTypeMonthlyTrendMap = computed(() => {
   const trendMap = new Map()
@@ -535,13 +810,6 @@ const deptColumns = [
   { name: 'approved', label: 'Approved', field: 'approved', align: 'left' },
   { name: 'rate', label: 'Utilization %', field: 'rate', align: 'left' },
 ]
-
-function downloadReport() {
-  $q.notify({ type: 'info', message: 'Downloading report...', position: 'top' })
-}
-function exportData(format) {
-  $q.notify({ type: 'info', message: `Exporting as ${format}...`, position: 'top' })
-}
 </script>
 
 <style scoped>
@@ -550,7 +818,32 @@ function exportData(format) {
   min-height: 320px;
 }
 
-.trend-metric-card {
-  background: #fafafa;
+.report-date-input :deep(.q-field__control) {
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.report-date-input :deep(.q-field__native) {
+  font-weight: 500;
+}
+
+.report-date-input :deep(.q-field__prepend) {
+  padding-right: 4px;
+}
+
+.report-date-input :deep(.q-field__control:before) {
+  border-color: #c7d3e0;
+}
+
+.report-date-input:hover :deep(.q-field__control:before) {
+  border-color: #9eb2c8;
+}
+
+.report-date-input :deep(.q-field__control:after) {
+  border-color: #1976d2;
+}
+
+.report-date-popup :deep(.q-date) {
+  border-radius: 12px;
 }
 </style>
