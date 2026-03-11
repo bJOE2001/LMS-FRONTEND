@@ -684,7 +684,11 @@ function getApplicationSearchTokenSet(app) {
 
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
-  const rows = applications.value.filter((app) => matchesEmploymentTypeFilter(app))
+  const rows = applications.value.filter(
+    (app) =>
+      String(app?.rawStatus || '').toUpperCase() !== 'PENDING_ADMIN' &&
+      matchesEmploymentTypeFilter(app),
+  )
   if (!queryTokens.length) return [...rows].sort(compareApplicationsForTable)
 
   const filteredRows = rows.filter((app) => {
@@ -798,6 +802,7 @@ async function fetchApplications() {
     const rawApps = Array.isArray(data.applications) ? data.applications : []
     applications.value = rawApps.map((app) => ({
       ...app,
+      employeeName: app?.employeeName || app?.applicantName || app?.employee?.full_name || 'Unknown',
       officeShort: toDepartmentCode(app?.office),
       displayStatus: mergeStatus(app),
     }))
