@@ -31,6 +31,7 @@
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplySelf
             in-dialog
+            :existing-applications="dashboardData.applications"
             @cancel="closeApplyLeaveDialog"
             @submitted="handleApplyLeaveSubmitted"
           />
@@ -153,8 +154,7 @@
               dense
               outlined
               clearable
-              debounce="250"
-              placeholder="Search employee, status, date filed"
+              placeholder="Search all application columns"
               class="application-status-search"
             >
               <template #prepend>
@@ -178,7 +178,7 @@
         :columns="columns"
         row-key="id"
         flat
-        :pagination="applicationsPagination"
+        v-model:pagination="applicationsPagination"
         :rows-per-page-options="[5, 10, 15, 20]"
         :loading="loading"
       >
@@ -415,7 +415,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import pdfMake from 'pdfmake/build/pdfmake'
@@ -476,6 +476,7 @@ const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
 const applicationsPagination = ref({
+  page: 1,
   rowsPerPage: 10,
 })
 const activeEmploymentTypeFilterLabel = computed(() => {
@@ -492,12 +493,16 @@ const applicationsForTable = computed(() => {
     .filter((app) => matchesEmploymentTypeFilter(app))
   const filteredApplications = queryTokens.length
     ? applications.filter((app) => {
-      const searchTokens = getApplicationSearchTokenSet(app)
-      return queryTokens.every((token) => searchTokens.has(token))
+      const searchText = getApplicationSearchText(app)
+      return queryTokens.every((token) => searchText.includes(token))
     })
     : applications
 
   return [...filteredApplications].sort(compareApplicationsForTable)
+})
+
+watch([statusSearch, employmentTypeFilter], () => {
+  applicationsPagination.value.page = 1
 })
 
 const latestLeaveBalanceEntriesByEmployee = computed(() => {
@@ -1171,11 +1176,13 @@ function getDateSearchValues(dateValue) {
   ]
 }
 
-function getApplicationSearchTokenSet(app) {
+function getApplicationSearchText(app) {
   const dateTerms = getDateSearchValues(app?.dateFiled)
+  const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
 
-  const searchTokens = [
+  const searchValues = [
     'application',
+    app?.id,
     app?.rawStatus,
     app?.status,
     getApplicationStatusLabel(app),
@@ -1186,11 +1193,17 @@ function getApplicationSearchTokenSet(app) {
     app?.middlename,
     app?.surname,
     app?.employee_id,
+    getApplicationDurationLabel(app),
+    ...inclusiveDateTerms,
     getLeaveBalanceDisplay(app),
+    getApplicationDayCount(app),
     ...dateTerms,
-  ].flatMap((value) => tokenizeSearchValue(value))
+  ]
 
-  return new Set(searchTokens)
+  return searchValues
+    .map((value) => normalizeSearchText(value))
+    .filter(Boolean)
+    .join(' ')
 }
 
 function buildApplicationTimeline(app) {
