@@ -293,28 +293,46 @@
                   </label>
 
                   <!-- Maternity/Paternity Leave: Single Date Picker -->
-                  <q-date
-                    v-if="isMaternityLeave || isPaternityLeave"
-                    v-model="maternityStartDate"
-                    mask="YYYY-MM-DD"
-                    color="green-8"
-                    :options="leaveDateOptions"
-                    class="q-mt-sm"
-                    style="width: 100%"
-                  />
+                  <div
+                    ref="leaveDateCalendarRef"
+                    class="leave-date-calendar q-mt-sm"
+                    @pointerdown.capture="handleCalendarSurfacePointerDown"
+                  >
+                    <q-date
+                      v-if="isMaternityLeave || isPaternityLeave"
+                      v-model="maternityStartDate"
+                      mask="YYYY-MM-DD"
+                      color="green-8"
+                      :options="leaveDateOptions"
+                      style="width: 100%"
+                      @navigation="onCalendarNavigation"
+                    />
 
-                  <!-- Standard Leave: Multi-select -->
-                  <q-date
-                    v-else
-                    v-model="selectedDates"
-                    multiple
-                    mask="YYYY-MM-DD"
-                    color="green-8"
-                    :options="leaveDateOptions"
-                    class="q-mt-sm"
-                    style="width: 100%"
-                    @update:model-value="onSelectedDatesChange"
-                  />
+                    <!-- Standard Leave: Multi-select -->
+                    <q-date
+                      v-else
+                      v-model="selectedDates"
+                      multiple
+                      mask="YYYY-MM-DD"
+                      color="green-8"
+                      :options="leaveDateOptions"
+                      style="width: 100%"
+                      @navigation="onCalendarNavigation"
+                      @update:model-value="onSelectedDatesChange"
+                    />
+
+                    <div
+                      v-if="calendarDateWarning && calendarDateWarningStyle.left"
+                      :class="[
+                        'leave-date-warning-popover',
+                        `leave-date-warning-popover--${calendarWarningState}`,
+                      ]"
+                      :style="calendarDateWarningStyle"
+                    >
+                      <q-icon name="warning_amber" size="16px" />
+                      <span>{{ calendarDateWarning }}</span>
+                    </div>
+                  </div>
                 </div>
                 <div :class="inDialog ? 'col-12 col-sm-6 dialog-selected-dates-panel' : 'col-12 col-md-6'">
                   <label class="input-label">Selected Dates</label>
@@ -452,12 +470,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import {
+  enumerateInclusiveDates,
+  getBlockingLeaveApplicationState,
+  getApplicationSelectedDates,
+  isBlockingLeaveApplication,
+  normalizeIsoDate,
+  offsetIsoDate,
+} from 'src/utils/leave-date-locking'
 
 const props = defineProps({
   inDialog: {
@@ -483,10 +509,16 @@ const step2Form = ref(null)
 const loading = ref(false)
 const showSuccess = ref(false)
 const selectedDateDurations = ref({})
+const calendarDateWarning = ref('')
+const calendarDateWarningDate = ref('')
+const calendarDateWarningStyle = ref({})
+const leaveDateCalendarRef = ref(null)
 
 const employees = ref([])
 const allLeaveTypes = ref([])
 const selectedEmployeeId = ref(null)
+const departmentApplications = ref([])
+let applicationsRefreshIntervalId = null
 
 const form = ref({
   employeeId: '',
@@ -528,6 +560,10 @@ function handleSalaryInput(value) {
 
 const today = new Date()
 const todayStr = computed(() => today.toISOString().split('T')[0])
+const calendarView = ref({
+  year: today.getFullYear(),
+  month: today.getMonth() + 1,
+})
 const todayFormatted = computed(() => {
   return today.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 })
@@ -547,6 +583,273 @@ const dialogSalaryDisplay = computed(() => {
   const salary = formatSalary(form.value.salary)
   return salary ? `PHP ${salary}` : '-'
 })
+
+function normalizeLookupValue(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeEmployeeName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function getApplicationEmployeeName(application) {
+  return (
+    application?.employeeName ||
+    application?.employee_name ||
+    application?.employee?.name ||
+    application?.employee?.full_name ||
+    application?.employee?.employee_name ||
+    application?.name ||
+    application?.full_name ||
+    [application?.employee?.firstname, application?.employee?.middlename, application?.employee?.surname].filter(Boolean).join(' ') ||
+    [application?.firstname, application?.middlename, application?.surname].filter(Boolean).join(' ')
+  )
+}
+
+function getApplicationEmployeeLookupValue(application) {
+  return normalizeLookupValue(
+    application?.employee_id ??
+      application?.employeeId ??
+      application?.control_no ??
+      application?.controlNo ??
+      application?.employee?.control_no ??
+      application?.employee?.controlNo ??
+      application?.employee?.employee_id ??
+      application?.employee?.employeeId,
+  )
+}
+
+function extractApplicationsFromPayload(payload) {
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload
+
+  const candidates = [
+    payload?.applications,
+    payload?.leave_applications,
+    payload?.leaveApplications,
+    payload?.rows,
+    payload?.items,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+    if (candidate && typeof candidate === 'object' && Array.isArray(candidate.data)) {
+      return candidate.data
+    }
+  }
+
+  return []
+}
+
+function applicationMatchesSelectedEmployee(application) {
+  const selectedControlNo = normalizeLookupValue(selectedEmployeeId.value || form.value.employeeId)
+  const applicationControlNo = getApplicationEmployeeLookupValue(application)
+
+  if (selectedControlNo && applicationControlNo && applicationControlNo === selectedControlNo) {
+    return true
+  }
+
+  const selectedFirstName = normalizeEmployeeName(form.value.firstName)
+  const selectedLastName = normalizeEmployeeName(form.value.lastName)
+  const applicationEmployeeName = normalizeEmployeeName(getApplicationEmployeeName(application))
+
+  if (!applicationEmployeeName || !selectedFirstName || !selectedLastName) {
+    return false
+  }
+
+  return applicationEmployeeName.includes(selectedFirstName) && applicationEmployeeName.includes(selectedLastName)
+}
+
+function getApplicationMergeKey(application, index) {
+  const explicitId =
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id
+
+  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+    return `id:${String(explicitId).trim()}`
+  }
+
+  const employeeKey = getApplicationEmployeeLookupValue(application)
+  const employeeName = normalizeEmployeeName(getApplicationEmployeeName(application))
+  const selectedDatesKey = getApplicationSelectedDates(application).join(',')
+  const startDate = normalizeIsoDate(application?.startDate ?? application?.start_date)
+  const endDate = normalizeIsoDate(application?.endDate ?? application?.end_date)
+  const statusKey = String(application?.rawStatus || application?.status || '')
+    .trim()
+    .toUpperCase()
+
+  const fallbackKey = [employeeKey || employeeName, startDate, endDate, selectedDatesKey, statusKey]
+    .filter(Boolean)
+    .join('|')
+
+  return fallbackKey ? `fallback:${fallbackKey}` : `index:${index}`
+}
+
+function getApplicationLogicalKey(application, index) {
+  const explicitId =
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id
+
+  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+    return `id:${String(explicitId).trim()}`
+  }
+
+  const employeeKey = getApplicationEmployeeLookupValue(application)
+  const employeeName = normalizeEmployeeName(getApplicationEmployeeName(application))
+  const filedDate = normalizeIsoDate(
+    application?.dateFiled ??
+      application?.date_filed ??
+      application?.filed_at ??
+      application?.filedAt ??
+      application?.created_at ??
+      application?.createdAt,
+  )
+  const leaveTypeKey = normalizeEmployeeName(
+    application?.leaveType ?? application?.leave_type ?? application?.leaveTypeName ?? application?.leave_type_name,
+  )
+  const selectedDatesKey = getApplicationSelectedDates(application).join(',')
+  const startDate = normalizeIsoDate(application?.startDate ?? application?.start_date)
+  const endDate = normalizeIsoDate(application?.endDate ?? application?.end_date)
+
+  const fallbackKey = [
+    employeeKey || employeeName,
+    leaveTypeKey,
+    filedDate,
+    selectedDatesKey || `${startDate}|${endDate}`,
+  ]
+    .filter(Boolean)
+    .join('|')
+
+  return fallbackKey ? `logical:${fallbackKey}` : getApplicationMergeKey(application, index)
+}
+
+function getApplicationTimestampValue(application) {
+  const candidates = [
+    application?.updated_at,
+    application?.updatedAt,
+    application?.disapprovedAt,
+    application?.hrActionAt,
+    application?.adminActionAt,
+    application?.dateFiled,
+    application?.date_filed,
+    application?.filed_at,
+    application?.filedAt,
+    application?.created_at,
+    application?.createdAt,
+  ]
+
+  for (const candidate of candidates) {
+    const timestamp = Date.parse(candidate)
+    if (!Number.isNaN(timestamp)) return timestamp
+  }
+
+  return 0
+}
+
+function getApplicationDateDetailScore(application) {
+  const selectedDates = getApplicationSelectedDates(application)
+  if (selectedDates.length > 0) return selectedDates.length
+
+  const startDate = normalizeIsoDate(application?.startDate ?? application?.start_date)
+  const endDate = normalizeIsoDate(application?.endDate ?? application?.end_date)
+  return startDate || endDate ? 1 : 0
+}
+
+function choosePreferredApplication(existingApplication, incomingApplication) {
+  if (!existingApplication) return incomingApplication
+
+  const existingState = getBlockingLeaveApplicationState(existingApplication)
+  const incomingState = getBlockingLeaveApplicationState(incomingApplication)
+
+  if (Boolean(existingState) !== Boolean(incomingState)) {
+    return incomingState ? existingApplication : incomingApplication
+  }
+
+  const incomingDateScore = getApplicationDateDetailScore(incomingApplication)
+  const existingDateScore = getApplicationDateDetailScore(existingApplication)
+  if (incomingDateScore !== existingDateScore) {
+    return incomingDateScore > existingDateScore ? incomingApplication : existingApplication
+  }
+
+  const incomingTimestamp = getApplicationTimestampValue(incomingApplication)
+  const existingTimestamp = getApplicationTimestampValue(existingApplication)
+  if (incomingTimestamp !== existingTimestamp) {
+    return incomingTimestamp > existingTimestamp ? incomingApplication : existingApplication
+  }
+
+  return incomingApplication
+}
+
+async function refreshDepartmentApplications() {
+  const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+    api.get('/admin/dashboard').catch(() => null),
+    api.get('/admin/leave-applications').catch(() => null),
+  ])
+
+  const mergedApplications = new Map()
+
+  ;[
+    ...extractApplicationsFromPayload(dashboardResponse?.data),
+    ...extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+  ].forEach((application, index) => {
+    const key = getApplicationLogicalKey(application, index)
+    const existingApplication = mergedApplications.get(key)
+    mergedApplications.set(key, choosePreferredApplication(existingApplication, application))
+  })
+
+  departmentApplications.value = Array.from(mergedApplications.values())
+}
+
+function handleDepartmentApplicationsFocusRefresh() {
+  refreshDepartmentApplications().catch(() => {})
+}
+
+function handleDepartmentApplicationsVisibilityRefresh() {
+  if (document.visibilityState !== 'visible') return
+  refreshDepartmentApplications().catch(() => {})
+}
+
+const employeeExistingApplications = computed(() => {
+  if (!selectedEmployeeId.value && !form.value.employeeId) return []
+
+  return departmentApplications.value.filter((application) =>
+    isBlockingLeaveApplication(application) && applicationMatchesSelectedEmployee(application),
+  )
+})
+
+function getLockedDatePriority(state) {
+  return state === 'pending' ? 2 : 1
+}
+
+const lockedLeaveDateStates = computed(() => {
+  const dates = new Map()
+
+  employeeExistingApplications.value.forEach((application) => {
+    const state = getBlockingLeaveApplicationState(application)
+    if (!state) return
+
+    getApplicationSelectedDates(application).forEach((date) => {
+      const existingState = dates.get(date)
+      if (!existingState || getLockedDatePriority(state) > getLockedDatePriority(existingState)) {
+        dates.set(date, state)
+      }
+    })
+  })
+
+  return dates
+})
+
+const lockedLeaveDates = computed(() => new Set(lockedLeaveDateStates.value.keys()))
+const calendarWarningState = computed(() => getLockedDateState(calendarDateWarningDate.value) || 'pending')
 
 const leaveTypeOptions = ref([])
 
@@ -574,11 +877,12 @@ function ensureDefaultLeaveType() {
 
 onMounted(async () => {
   try {
-    const { data } = await api.get('/admin/employees-for-leave')
+    const [{ data }] = await Promise.all([
+      api.get('/admin/employees-for-leave'),
+    ])
     employees.value = data.employees
     allLeaveTypes.value = data.leave_types
-
-
+    await refreshDepartmentApplications()
 
     leaveTypeOptions.value = sortLeaveTypeOptions(data.leave_types)
     ensureDefaultLeaveType()
@@ -588,6 +892,18 @@ onMounted(async () => {
     } else if (route.query.empId) {
       selectedEmployeeId.value = route.query.empId
       onEmployeeChange(route.query.empId)
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleDepartmentApplicationsFocusRefresh)
+      applicationsRefreshIntervalId = window.setInterval(() => {
+        if (document.visibilityState === 'hidden') return
+        refreshDepartmentApplications().catch(() => {})
+      }, 30000)
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleDepartmentApplicationsVisibilityRefresh)
     }
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load employee list right now.')
@@ -615,6 +931,7 @@ function onEmployeeChange(controlNo) {
     form.value.office = emp.office || authStore.user?.department?.name || authStore.user?.department_name || ''
     form.value.salary = emp.salary || emp.rate_mon || ''
   }
+  clearCalendarDateWarning()
 }
 
 function applyPrefilledEmployee(employee) {
@@ -625,6 +942,7 @@ function applyPrefilledEmployee(employee) {
   form.value.position = employee.designation || ''
   form.value.office = employee.office || authStore.user?.department?.name || authStore.user?.department_name || ''
   form.value.salary = employee.salary || employee.rate_mon || ''
+  clearCalendarDateWarning()
 }
 
 const selectedEmployeeName = computed(() => {
@@ -748,6 +1066,7 @@ function onLeaveTypeChange(newValue) {
   form.value.leaveTypeOther = ''
   selectedDates.value = []
   selectedDateDurations.value = {}
+  clearCalendarDateWarning()
   monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
   form.value.reason = preservedReason
 }
@@ -761,7 +1080,19 @@ const sortedSelectedDates = computed(() =>
 )
 
 function onSelectedDatesChange(value) {
-  selectedDates.value = normalizeSelectedDates(value)
+  const normalizedDates = normalizeSelectedDates(value)
+  const blockedDates = lockedLeaveDates.value
+  const allowedDates = normalizedDates.filter((date) => blockedDates.has(date) === false)
+
+  if (allowedDates.length !== normalizedDates.length) {
+    const blockedDate = normalizedDates.find((date) => blockedDates.has(date))
+    showCalendarDateWarning(blockedDate)
+  } else {
+    clearCalendarDateWarning()
+  }
+
+  selectedDates.value = allowedDates
+  syncLockedDateDecorations()
 }
 
 function normalizeSelectedDates(value) {
@@ -776,6 +1107,201 @@ function formatDateDisplay(dateStr) {
 function formatDialogDateChip(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function buildLockedDateWarningMessage(dateStr) {
+  const conflict = getLockedDateConflict(dateStr)
+  if (!conflict) return ''
+
+  const formattedDate = formatDateDisplay(conflict.date)
+  if (conflict.state === 'approved') {
+    return `${formattedDate} leave application is already approved.`
+  }
+
+  return `${formattedDate} leave application is still pending.`
+}
+
+let calendarWarningTimeoutId = null
+let calendarWarningPressedDate = ''
+let calendarWarningPressedAt = 0
+const CALENDAR_WARNING_WIDTH = 220
+
+function clearCalendarWarningTimeout() {
+  if (calendarWarningTimeoutId) {
+    window.clearTimeout(calendarWarningTimeoutId)
+    calendarWarningTimeoutId = null
+  }
+}
+
+function clearCalendarDateWarning() {
+  clearCalendarWarningTimeout()
+  if (!calendarDateWarning.value && !calendarDateWarningDate.value && Object.keys(calendarDateWarningStyle.value).length === 0) return
+  calendarDateWarning.value = ''
+  calendarDateWarningDate.value = ''
+  calendarDateWarningStyle.value = {}
+  syncLockedDateDecorations()
+}
+
+function showCalendarDateWarning(dateStr, options = {}) {
+  const { sticky = false } = options
+  const message = buildLockedDateWarningMessage(dateStr)
+  if (!message) {
+    clearCalendarDateWarning()
+    return
+  }
+
+  clearCalendarWarningTimeout()
+  calendarDateWarning.value = message
+  calendarDateWarningDate.value = normalizeIsoDate(dateStr)
+  syncLockedDateDecorations()
+
+  if (!sticky) {
+    calendarWarningTimeoutId = window.setTimeout(() => {
+      clearCalendarDateWarning()
+    }, 3000)
+  }
+}
+
+function resolveCalendarDateFromEvent(event) {
+  const dayCell = event.target?.closest?.('.q-date__calendar-item--out')
+  if (!dayCell || dayCell.classList.contains('q-date__calendar-item--fill')) return ''
+
+  const day = Number.parseInt(String(dayCell.textContent || '').trim(), 10)
+  if (!Number.isInteger(day) || day < 1 || day > 31) return ''
+
+  return `${calendarView.value.year}-${String(calendarView.value.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function releaseCalendarWarningPointer() {
+  window.removeEventListener('pointerup', handleCalendarGlobalPointerUp, true)
+  window.removeEventListener('pointercancel', handleCalendarGlobalPointerUp, true)
+}
+
+function handleCalendarGlobalPointerUp() {
+  if (!calendarWarningPressedDate) return
+
+  const pressedDate = calendarWarningPressedDate
+  const pressedDuration = Date.now() - calendarWarningPressedAt
+
+  calendarWarningPressedDate = ''
+  calendarWarningPressedAt = 0
+  releaseCalendarWarningPointer()
+
+  if (pressedDuration >= 250) {
+    clearCalendarDateWarning()
+    return
+  }
+
+  showCalendarDateWarning(pressedDate)
+}
+
+function getLockedDateState(dateStr) {
+  return lockedLeaveDateStates.value.get(normalizeIsoDate(dateStr)) || ''
+}
+
+function getLockedDateConflict(dateStr) {
+  const normalizedDate = normalizeIsoDate(dateStr)
+  if (!normalizedDate) return null
+
+  if (isMaternityLeave.value || isPaternityLeave.value) {
+    const totalDays = isMaternityLeave.value ? 105 : 7
+    const conflictingDate = enumerateInclusiveDates(
+      normalizedDate,
+      offsetIsoDate(normalizedDate, totalDays - 1),
+    ).find((date) => lockedLeaveDates.value.has(date))
+
+    if (!conflictingDate) return null
+    return {
+      date: conflictingDate,
+      state: getLockedDateState(conflictingDate) || 'pending',
+    }
+  }
+
+  if (!lockedLeaveDates.value.has(normalizedDate)) return null
+
+  return {
+    date: normalizedDate,
+    state: getLockedDateState(normalizedDate) || 'pending',
+  }
+}
+
+function isLockedDateSelection(dateStr) {
+  return Boolean(getLockedDateConflict(dateStr))
+}
+
+function onCalendarNavigation({ year, month }) {
+  calendarView.value = { year, month }
+  clearCalendarDateWarning()
+  syncLockedDateDecorations()
+}
+
+function handleCalendarSurfacePointerDown(event) {
+  const clickedDate = resolveCalendarDateFromEvent(event)
+  if (!clickedDate || !isLockedDateSelection(clickedDate)) {
+    calendarWarningPressedDate = ''
+    calendarWarningPressedAt = 0
+    releaseCalendarWarningPointer()
+    clearCalendarDateWarning()
+    return
+  }
+
+  calendarWarningPressedDate = clickedDate
+  calendarWarningPressedAt = Date.now()
+  showCalendarDateWarning(clickedDate, { sticky: true })
+  releaseCalendarWarningPointer()
+  window.addEventListener('pointerup', handleCalendarGlobalPointerUp, true)
+  window.addEventListener('pointercancel', handleCalendarGlobalPointerUp, true)
+}
+
+function syncLockedDateDecorations() {
+  nextTick(() => {
+    const calendarRoot = leaveDateCalendarRef.value
+    if (!calendarRoot) return
+
+    const calendarRect = calendarRoot.getBoundingClientRect()
+    const calendarWidth = calendarRoot.clientWidth || calendarRect.width || 0
+    let nextWarningStyle = {}
+
+    const dayCells = calendarRoot.querySelectorAll('.q-date__calendar-item')
+    dayCells.forEach((cell) => {
+      cell.classList.remove('leave-date-calendar__day--locked')
+      cell.classList.remove('leave-date-calendar__day--locked-pending')
+      cell.classList.remove('leave-date-calendar__day--locked-approved')
+      cell.classList.remove('leave-date-calendar__day--warning')
+
+      if (cell.classList.contains('q-date__calendar-item--fill')) return
+
+      const day = Number.parseInt(String(cell.textContent || '').trim(), 10)
+      if (!Number.isInteger(day) || day < 1 || day > 31) return
+
+      const date = `${calendarView.value.year}-${String(calendarView.value.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      const lockedState = getLockedDateState(date)
+      if (lockedState) {
+        cell.classList.add('leave-date-calendar__day--locked')
+        cell.classList.add(`leave-date-calendar__day--locked-${lockedState}`)
+
+        if (calendarDateWarningDate.value === date && calendarDateWarning.value) {
+          cell.classList.add('leave-date-calendar__day--warning')
+
+          const cellRect = cell.getBoundingClientRect()
+          const popupWidth = Math.max(160, Math.min(CALENDAR_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)))
+          const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+          const popupLeft = Math.max(8, Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8))
+          const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
+          const arrowLeft = Math.max(16, Math.min(cellCenter - popupLeft - 6, popupWidth - 18))
+
+          nextWarningStyle = {
+            width: `${popupWidth}px`,
+            left: `${popupLeft}px`,
+            top: `${popupTop}px`,
+            '--leave-date-warning-arrow-left': `${arrowLeft}px`,
+          }
+        }
+      }
+    })
+
+    calendarDateWarningStyle.value = nextWarningStyle
+  })
 }
 
 function syncSelectedDateDurations(dates) {
@@ -827,23 +1353,25 @@ const leaveDateOptions = computed(() => {
   const max = selectedLeaveTypeMaxDays.value
   const isMco6 = isMco6Leave.value
   const today = toSlash(todayStr.value)
+  const blockedDates = lockedLeaveDates.value
 
   return (date) => {
+    const dashDate = normalizeIsoDate(date)
+
     // Maternity/Paternity Leave allows weekends/holidays (continuous)
     if (isMaternityLeave.value || isPaternityLeave.value) {
-      return date >= today
+      return date >= today && isLockedDateSelection(dashDate) === false
     }
 
     if (!isWeekday(date)) return false
     if (date < today) return false
+    if (blockedDates.has(dashDate) && selected.includes(dashDate) === false) return false
     
     if (isMco6 && selected.length >= 3) {
-      const dashDate = date.replace(/\//g, '-')
       return selected.includes(dashDate)
     }
     
     if (max && selected.length >= max) {
-      const dashDate = date.replace(/\//g, '-')
       return selected.includes(dashDate)
     }
     
@@ -856,6 +1384,14 @@ const maternityStartDate = ref(null)
 // Auto-calculate days for Maternity (105) or Paternity (7)
 watch(maternityStartDate, (newDate) => {
   if (newDate) {
+    if (isLockedDateSelection(newDate)) {
+      showCalendarDateWarning(newDate)
+      maternityStartDate.value = null
+      selectedDates.value = []
+      return
+    }
+
+    clearCalendarDateWarning()
     let daysCount = 0
     if (isMaternityLeave.value) daysCount = 105
     else if (isPaternityLeave.value) daysCount = 7
@@ -876,6 +1412,42 @@ watch(maternityStartDate, (newDate) => {
 // Reset start date if leave type changes
 watch([isMaternityLeave, isPaternityLeave], ([mat, pat]) => {
   if (!mat && !pat) maternityStartDate.value = null
+})
+
+watch(lockedLeaveDates, (dates) => {
+  const invalidSelectedDate = selectedDatesList.value.find((date) => dates.has(date))
+  if (invalidSelectedDate) {
+    selectedDates.value = selectedDatesList.value.filter((date) => dates.has(date) === false)
+  }
+
+  if (maternityStartDate.value && isLockedDateSelection(maternityStartDate.value)) {
+    maternityStartDate.value = null
+    selectedDates.value = []
+  }
+
+  if (calendarDateWarningDate.value && dates.has(calendarDateWarningDate.value) === false) {
+    clearCalendarDateWarning()
+  }
+  syncLockedDateDecorations()
+}, { immediate: true })
+
+watch([calendarDateWarningDate, calendarDateWarning], () => {
+  syncLockedDateDecorations()
+})
+
+onBeforeUnmount(() => {
+  clearCalendarDateWarning()
+  releaseCalendarWarningPointer()
+  if (applicationsRefreshIntervalId) {
+    window.clearInterval(applicationsRefreshIntervalId)
+    applicationsRefreshIntervalId = null
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', handleDepartmentApplicationsFocusRefresh)
+  }
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleDepartmentApplicationsVisibilityRefresh)
+  }
 })
 
 function removeSelectedDate(idx) {
@@ -941,6 +1513,7 @@ watch(selectedDates, (dates) => {
   form.value.days = selectedDateTotalDays.value
   form.value.startDate = sorted[0]
   form.value.endDate = sorted[sorted.length - 1]
+  syncLockedDateDecorations()
 }, { deep: true })
 
 watch(selectedDateTotalDays, (total) => {
@@ -1315,6 +1888,75 @@ async function onSubmit() {
 .selected-date-duration-toggle--half:hover {
   background: rgba(66, 165, 245, 0.16);
 }
+.leave-date-calendar {
+  position: relative;
+}
+.leave-date-warning-popover {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  border-radius: 10px;
+  background: #fff8db;
+  color: #9a6700;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+  background: var(--leave-date-warning-bg, #fff1c9);
+  border-color: var(--leave-date-warning-border, rgba(225, 192, 106, 0.8));
+  color: var(--leave-date-warning-text, #9a6700);
+}
+.leave-date-warning-popover::after {
+  content: '';
+  position: absolute;
+  left: var(--leave-date-warning-arrow-left, 24px);
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  border-right: 1px solid var(--leave-date-warning-border, rgba(225, 192, 106, 0.8));
+  border-bottom: 1px solid var(--leave-date-warning-border, rgba(225, 192, 106, 0.8));
+  background: var(--leave-date-warning-bg, #fff1c9);
+  transform: rotate(45deg);
+}
+.leave-date-warning-popover--pending {
+  --leave-date-warning-bg: #fff1c9;
+  --leave-date-warning-border: rgba(225, 192, 106, 0.8);
+  --leave-date-warning-text: #9a6700;
+}
+.leave-date-warning-popover--approved {
+  --leave-date-warning-bg: #dff1e0;
+  --leave-date-warning-border: rgba(154, 199, 158, 0.9);
+  --leave-date-warning-text: #2f6b34;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--warning) {
+  position: relative;
+  z-index: 3;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--locked) {
+  opacity: 1 !important;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--locked > div) {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #2b2f33 !important;
+  opacity: 1 !important;
+  border-radius: 999px;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--locked-pending > div) {
+  background: #fff1c9;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--locked-approved > div) {
+  background: #dff1e0;
+}
 .dialog-form-card :deep(.q-date) {
   box-shadow: none;
   max-width: 360px;
@@ -1333,12 +1975,15 @@ async function onSubmit() {
 .dialog-form-card :deep(.q-date__view) {
   min-height: 236px;
   padding: 10px 12px 8px;
+  overflow: visible;
 }
 .dialog-form-card :deep(.q-date__calendar-days-container) {
   min-height: 156px;
+  overflow: visible;
 }
 .dialog-form-card :deep(.q-date__calendar-item) {
   height: 26px;
+  overflow: visible;
 }
 .dialog-form-card :deep(.q-date__calendar-item div) {
   min-width: 24px;

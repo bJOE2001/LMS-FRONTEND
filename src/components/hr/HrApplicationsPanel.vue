@@ -22,8 +22,7 @@
             dense
             outlined
             clearable
-            debounce="250"
-            placeholder="Search employee, status, date filed"
+            placeholder="Search all application columns"
             class="application-status-search"
           >
             <template #prepend>
@@ -657,7 +656,7 @@ function getApplicationSearchTokenSet(app) {
   const dateTerms = getDateSearchValues(app?.dateFiled)
   const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
 
-  const searchTokens = [
+  const searchValues = [
     'application',
     app?.id,
     app?.rawStatus,
@@ -671,11 +670,16 @@ function getApplicationSearchTokenSet(app) {
     app?.employee_id,
     app?.office,
     app?.officeShort,
+    app?.days,
+    formatDayValue(app?.days),
     ...inclusiveDateTerms,
     ...dateTerms,
-  ].flatMap((value) => tokenizeSearchValue(value))
+  ]
 
-  return new Set(searchTokens)
+  return searchValues
+    .map((value) => normalizeSearchText(value))
+    .filter(Boolean)
+    .join(' ')
 }
 
 const applicationsForTable = computed(() => {
@@ -684,8 +688,8 @@ const applicationsForTable = computed(() => {
   if (!queryTokens.length) return [...rows].sort(compareApplicationsForTable)
 
   const filteredRows = rows.filter((app) => {
-    const searchTokens = getApplicationSearchTokenSet(app)
-    return queryTokens.every((token) => searchTokens.has(token))
+    const searchText = getApplicationSearchTokenSet(app)
+    return queryTokens.every((token) => searchText.includes(token))
   })
 
   return filteredRows.sort(compareApplicationsForTable)
