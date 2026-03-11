@@ -2335,9 +2335,9 @@ async function onSubmit() {
   --leave-date-warning-text: #9a6700;
 }
 .leave-date-warning-popover--approved {
-  --leave-date-warning-bg: #fff1c9;
-  --leave-date-warning-border: rgba(225, 192, 106, 0.8);
-  --leave-date-warning-text: #9a6700;
+  --leave-date-warning-bg: #e3f3e6;
+  --leave-date-warning-border: rgba(129, 199, 132, 0.9);
+  --leave-date-warning-text: #2e7d32;
 }
 .leave-date-calendar :deep(.leave-date-calendar__day--warning) {
   position: relative;
