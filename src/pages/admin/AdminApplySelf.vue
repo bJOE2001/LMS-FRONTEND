@@ -1392,6 +1392,7 @@ let calendarWarningPressedDate = ''
 let calendarWarningPressedAt = 0
 let calendarWarningPressedMessage = ''
 const CALENDAR_WARNING_WIDTH = 220
+const CALENDAR_WARNING_TIMEOUT_MS = 7000
 
 function clearCalendarWarningTimeout() {
   if (calendarWarningTimeoutId) {
@@ -1400,8 +1401,13 @@ function clearCalendarWarningTimeout() {
   }
 }
 
+function releaseCalendarWarningDismiss() {
+  window.removeEventListener('pointerdown', handleCalendarWarningDismissPointerDown, true)
+}
+
 function clearCalendarDateWarning() {
   clearCalendarWarningTimeout()
+  releaseCalendarWarningDismiss()
   if (!calendarDateWarning.value && !calendarDateWarningDate.value && Object.keys(calendarDateWarningStyle.value).length === 0) return
   calendarDateWarning.value = ''
   calendarDateWarningDate.value = ''
@@ -1424,14 +1430,16 @@ function showCalendarDateWarning(dateStr, options = {}) {
   }
 
   clearCalendarWarningTimeout()
+  releaseCalendarWarningDismiss()
   calendarDateWarning.value = resolvedMessage
   calendarDateWarningDate.value = normalizedDate
   syncLockedDateDecorations()
+  window.addEventListener('pointerdown', handleCalendarWarningDismissPointerDown, true)
 
   if (!sticky) {
     calendarWarningTimeoutId = window.setTimeout(() => {
       clearCalendarDateWarning()
-    }, 3000)
+    }, CALENDAR_WARNING_TIMEOUT_MS)
   }
 }
 
@@ -1468,6 +1476,10 @@ function handleCalendarGlobalPointerUp() {
   }
 
   showCalendarDateWarning(pressedDate, { message: pressedMessage })
+}
+
+function handleCalendarWarningDismissPointerDown() {
+  clearCalendarDateWarning()
 }
 
 function isLockedDateSelection(dateStr) {
@@ -1727,6 +1739,7 @@ watch([calendarDateWarningDate, calendarDateWarning], () => {
 onBeforeUnmount(() => {
   clearCalendarDateWarning()
   releaseCalendarWarningPointer()
+  releaseCalendarWarningDismiss()
   if (applicationsRefreshIntervalId) {
     window.clearInterval(applicationsRefreshIntervalId)
     applicationsRefreshIntervalId = null
@@ -2245,9 +2258,9 @@ async function onSubmit() {
   --leave-date-warning-text: #9a6700;
 }
 .leave-date-warning-popover--approved {
-  --leave-date-warning-bg: #fff1c9;
-  --leave-date-warning-border: rgba(225, 192, 106, 0.8);
-  --leave-date-warning-text: #9a6700;
+  --leave-date-warning-bg: #e3f3e6;
+  --leave-date-warning-border: rgba(129, 199, 132, 0.9);
+  --leave-date-warning-text: #2e7d32;
 }
 .leave-date-calendar :deep(.leave-date-calendar__day--warning) {
   position: relative;
