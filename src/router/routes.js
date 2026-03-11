@@ -8,6 +8,7 @@ const routes = [
 
       // Admin
       { path: 'admin/dashboard', name: 'admin-dashboard', component: () => import('pages/admin/AdminDashboard.vue') },
+      { path: 'admin/applications', name: 'admin-applications', component: () => import('pages/admin/AdminApplicationsPage.vue') },
       { path: 'admin/employees', name: 'admin-employees', component: () => import('pages/admin/AdminEmployees.vue') },
       { path: 'admin/review/:id', name: 'admin-review', component: () => import('pages/admin/ApplicationReview.vue') },
       { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
