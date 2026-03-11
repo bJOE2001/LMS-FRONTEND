@@ -22,7 +22,7 @@
             dense
             outlined
             clearable
-            placeholder="Search all application columns"
+            placeholder="Search all applications columns"
             class="application-status-search"
           >
             <template #prepend>
