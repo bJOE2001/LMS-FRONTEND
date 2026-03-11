@@ -1,19 +1,25 @@
 <template>
   <q-page class="q-pa-md">
     <div class="row items-center q-mb-xs">
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
-        <q-space />
-        <q-btn
-          unelevated
-          color="green-8"
-          icon="description"
-          label="Apply Leave"
-          @click="openApplyLeaveDialog"
-        />
-      </div>
-      <p class="text-grey-7 q-mb-lg">Review and approve leave applications</p>
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">
+        {{ props.applicationsOnly ? 'Applications' : 'Admin Dashboard' }}
+      </h1>
+      <q-space />
+      <q-btn
+        v-if="!props.applicationsOnly"
+        unelevated
+        color="green-8"
+        icon="description"
+        label="Apply Leave"
+        @click="openApplyLeaveDialog"
+      />
+    </div>
+    <p class="text-grey-7 q-mb-lg">
+      {{ props.applicationsOnly ? 'Review and manage leave applications' : 'Review and approve leave applications' }}
+    </p>
 
     <q-dialog
+      v-if="!props.applicationsOnly"
       v-model="showApplyLeaveDialog"
       persistent
       class="apply-leave-dialog"
@@ -39,7 +45,7 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showPendingReminderDialog" persistent>
+    <q-dialog v-if="!props.applicationsOnly" v-model="showPendingReminderDialog" persistent>
       <q-card style="min-width: 360px; max-width: 480px">
         <q-card-section class="row items-center q-pb-none">
           <q-icon name="pending_actions" color="warning" size="28px" class="q-mr-sm" />
@@ -59,7 +65,7 @@
       </q-card>
     </q-dialog>
 
-    <div class="row q-col-gutter-md q-mb-lg stat-cards-row">
+    <div v-if="!props.applicationsOnly" class="row q-col-gutter-md q-mb-lg stat-cards-row">
       <div class="col-12 col-sm-6 col-md-4">
         <q-card class="stat-card bg-white rounded-borders" flat elevation="1">
           <q-card-section class="stat-card-content">
@@ -128,7 +134,12 @@
       </div>
     </div>
 
-    <q-card ref="applicationsSectionRef" flat bordered class="rounded-borders">
+    <AdminAnalyticsCharts
+      v-if="!props.applicationsOnly"
+      :applications="applicationRows"
+    />
+
+    <q-card v-if="props.applicationsOnly" flat bordered class="rounded-borders">
       <q-card-section>
         <div class="row justify-between items-center q-col-gutter-sm">
           <div class="row items-center q-gutter-sm">
@@ -401,8 +412,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
@@ -411,10 +423,19 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import AdminApplySelf from 'pages/admin/AdminApplySelf.vue'
+import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 
 const $q = useQuasar()
+const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const props = defineProps({
+  applicationsOnly: {
+    type: Boolean,
+    default: false,
+  },
+})
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
 function emptyEmploymentBreakdown() {
@@ -490,6 +511,14 @@ watch([statusSearch, employmentTypeFilter], () => {
   applicationsPagination.value.page = 1
 })
 
+watch(
+  () => route.query.search,
+  (value) => {
+    statusSearch.value = props.applicationsOnly ? String(value || '') : ''
+  },
+  { immediate: true },
+)
+
 const latestLeaveBalanceEntriesByEmployee = computed(() => {
   const entriesByEmployee = new Map()
   const applications = [...(applicationRows.value ?? [])]
@@ -530,7 +559,6 @@ const columns = [
 ]
 const showApplyLeaveDialog = ref(false)
 const showPendingReminderDialog = ref(false)
-const applicationsSectionRef = ref(null)
 const showDetailsDialog = ref(false)
 const showDisapproveDialog = ref(false)
 const selectedApp = ref(null)
@@ -674,6 +702,11 @@ function maybeShowPendingReminder() {
   const pendingCount = Number(dashboardData.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
 
+  if (props.applicationsOnly) {
+    showPendingReminderDialog.value = false
+    return
+  }
+
   if (pendingCount <= 0) {
     showPendingReminderDialog.value = false
     return
@@ -686,13 +719,12 @@ function maybeShowPendingReminder() {
 }
 
 function focusPendingApplications() {
-  clearEmploymentTypeFilter()
   showPendingReminderDialog.value = false
-  statusSearch.value = 'pending'
-
-  nextTick(() => {
-    const target = applicationsSectionRef.value?.$el ?? applicationsSectionRef.value
-    target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  router.push({
+    name: 'admin-applications',
+    query: {
+      search: 'pending',
+    },
   })
 }
 
@@ -1073,10 +1105,6 @@ function getEmploymentTypeCardStyle(card) {
     '--stat-mini-card-accent': card.accent,
     '--stat-mini-card-hover-bg': card.bg,
   }
-}
-
-function clearEmploymentTypeFilter() {
-  employmentTypeFilter.value = ''
 }
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
