@@ -123,9 +123,9 @@
           <q-card-section class="manpower-card-section">
             <div class="row items-center justify-between q-mb-sm">
               <div>
-                <div class="text-h6">Daily Manpower Percentage</div>
+                <div class="text-h6">Monthly Manpower Percentage</div>
                 <!-- <p class="text-caption text-grey-7 q-mb-none">
-                  Based on active employees minus approved leaves per day (current month)
+                  Based on active employees minus approved leaves per month (current year)
                 </p> -->
               </div>
               <div class="text-right">
@@ -368,21 +368,16 @@ function getEmployeeKey(application) {
   return String(key || '').trim()
 }
 
-const manpowerDays = computed(() => {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-
-  return Array.from({ length: daysInMonth }, (_, index) => {
-    const day = String(index + 1).padStart(2, '0')
-    const monthLabel = String(month + 1).padStart(2, '0')
-    return `${year}-${monthLabel}-${day}`
+const manpowerMonths = computed(() => {
+  const currentYear = new Date().getFullYear()
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = String(index + 1).padStart(2, '0')
+    return `${currentYear}-${month}`
   })
 })
 
-const manpowerDailyOnLeave = computed(() => {
-  const daySetMap = new Map(manpowerDays.value.map((day) => [day, new Set()]))
+const manpowerMonthlyOnLeave = computed(() => {
+  const monthSetMap = new Map(manpowerMonths.value.map((month) => [month, new Set()]))
 
   for (const application of dashboardApplications.value) {
     if (mergeStatus(application) !== 'Approved') continue
@@ -392,19 +387,20 @@ const manpowerDailyOnLeave = computed(() => {
 
     const leaveDates = getApplicationLeaveDates(application)
     for (const leaveDate of leaveDates) {
-      const bucket = daySetMap.get(leaveDate)
+      const monthKey = leaveDate.slice(0, 7)
+      const bucket = monthSetMap.get(monthKey)
       if (bucket) bucket.add(employeeKey)
     }
   }
 
-  return manpowerDays.value.map((day) => daySetMap.get(day)?.size ?? 0)
+  return manpowerMonths.value.map((month) => monthSetMap.get(month)?.size ?? 0)
 })
 
-const manpowerDailyPercentage = computed(() => {
+const manpowerMonthlyPercentage = computed(() => {
   const totalActive = Number(activeEmployeeCount.value || 0)
-  if (totalActive <= 0) return manpowerDailyOnLeave.value.map(() => 0)
+  if (totalActive <= 0) return manpowerMonthlyOnLeave.value.map(() => 0)
 
-  return manpowerDailyOnLeave.value.map((onLeaveCount) => {
+  return manpowerMonthlyOnLeave.value.map((onLeaveCount) => {
     const available = Math.max(totalActive - onLeaveCount, 0)
     return Number(((available / totalActive) * 100).toFixed(2))
   })
@@ -413,7 +409,7 @@ const manpowerDailyPercentage = computed(() => {
 const manpowerChartSeries = computed(() => [
   {
     name: 'Manpower %',
-    data: manpowerDailyPercentage.value,
+    data: manpowerMonthlyPercentage.value,
   },
 ])
 
@@ -444,7 +440,7 @@ function getEmploymentTypeCardStyle(card) {
 
 const manpowerChartOptions = computed(() => ({
   chart: {
-    id: 'hr-manpower-daily-percentage',
+    id: 'hr-manpower-monthly-percentage',
     toolbar: { show: false },
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
@@ -475,9 +471,9 @@ const manpowerChartOptions = computed(() => ({
     xaxis: { lines: { show: false } },
   },
   xaxis: {
-    categories: manpowerDays.value.map((day) => {
-      const parsedDate = new Date(`${day}T00:00:00`)
-      return parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    categories: manpowerMonths.value.map((month) => {
+      const parsedDate = new Date(`${month}-01T00:00:00`)
+      return parsedDate.toLocaleDateString('en-US', { month: 'short' })
     }),
     labels: {
       hideOverlappingLabels: true,
