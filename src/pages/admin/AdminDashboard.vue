@@ -6,7 +6,7 @@
       </h1>
       <q-space />
       <q-btn
-        v-if="!props.applicationsOnly"
+        v-if="props.applicationsOnly"
         unelevated
         color="green-8"
         icon="description"
@@ -19,7 +19,7 @@
     </p>
 
     <q-dialog
-      v-if="!props.applicationsOnly"
+      v-if="props.applicationsOnly"
       v-model="showApplyLeaveDialog"
       persistent
       class="apply-leave-dialog"
