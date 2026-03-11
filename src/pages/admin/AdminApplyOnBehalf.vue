@@ -1426,6 +1426,7 @@ let calendarWarningPressedDate = ''
 let calendarWarningPressedAt = 0
 let calendarWarningPressedMessage = ''
 const CALENDAR_WARNING_WIDTH = 220
+const CALENDAR_WARNING_TIMEOUT_MS = 7000
 
 function clearCalendarWarningTimeout() {
   if (calendarWarningTimeoutId) {
@@ -1434,8 +1435,13 @@ function clearCalendarWarningTimeout() {
   }
 }
 
+function releaseCalendarWarningDismiss() {
+  window.removeEventListener('pointerdown', handleCalendarWarningDismissPointerDown, true)
+}
+
 function clearCalendarDateWarning() {
   clearCalendarWarningTimeout()
+  releaseCalendarWarningDismiss()
   if (!calendarDateWarning.value && !calendarDateWarningDate.value && Object.keys(calendarDateWarningStyle.value).length === 0) return
   calendarDateWarning.value = ''
   calendarDateWarningDate.value = ''
@@ -1458,14 +1464,16 @@ function showCalendarDateWarning(dateStr, options = {}) {
   }
 
   clearCalendarWarningTimeout()
+  releaseCalendarWarningDismiss()
   calendarDateWarning.value = resolvedMessage
   calendarDateWarningDate.value = normalizedDate
   syncLockedDateDecorations()
+  window.addEventListener('pointerdown', handleCalendarWarningDismissPointerDown, true)
 
   if (!sticky) {
     calendarWarningTimeoutId = window.setTimeout(() => {
       clearCalendarDateWarning()
-    }, 3000)
+    }, CALENDAR_WARNING_TIMEOUT_MS)
   }
 }
 
@@ -1502,6 +1510,10 @@ function handleCalendarGlobalPointerUp() {
   }
 
   showCalendarDateWarning(pressedDate, { message: pressedMessage })
+}
+
+function handleCalendarWarningDismissPointerDown() {
+  clearCalendarDateWarning()
 }
 
 function getLockedDateState(dateStr) {
@@ -1791,6 +1803,7 @@ watch([calendarDateWarningDate, calendarDateWarning], () => {
 onBeforeUnmount(() => {
   clearCalendarDateWarning()
   releaseCalendarWarningPointer()
+  releaseCalendarWarningDismiss()
   if (applicationsRefreshIntervalId) {
     window.clearInterval(applicationsRefreshIntervalId)
     applicationsRefreshIntervalId = null
