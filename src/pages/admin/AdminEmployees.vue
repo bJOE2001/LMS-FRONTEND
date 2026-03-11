@@ -254,9 +254,9 @@
     </q-dialog>
 
     <q-dialog v-model="showDepartmentHeadDialog" persistent>
-      <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
+        <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">{{ departmentHeadId ? 'Edit Department Head' : 'Add Department Head' }}</div>
+          <div class="text-h6">{{ departmentHeadDialogMode === 'edit' ? 'Edit Department Head' : 'Add Department Head' }}</div>
           <q-space />
           <q-btn icon="close" flat round dense :disable="savingDepartmentHead" v-close-popup />
         </q-card-section>
@@ -351,7 +351,7 @@
             <q-btn
               unelevated
               no-caps
-              :label="departmentHeadId ? 'Update Dept. Head' : 'Add Dept. Head'"
+              :label="departmentHeadDialogMode === 'edit' ? 'Update Dept. Head' : 'Add Dept. Head'"
               color="primary"
               :loading="savingDepartmentHead"
               type="submit"
@@ -473,6 +473,7 @@ const activeStatusFilter = ref('')
 const loadingDepartmentHead = ref(false)
 const savingDepartmentHead = ref(false)
 const departmentHeadId = ref(null)
+const departmentHeadDialogMode = ref('add')
 const applyLeaveEmployee = ref(null)
 const applyLeaveDialogKey = ref(0)
 
@@ -677,7 +678,26 @@ function resetForm() {
 
 function resetDepartmentHeadForm() {
   departmentHeadId.value = null
+  departmentHeadDialogMode.value = 'add'
   departmentHeadForm.value = createDefaultDepartmentHeadForm()
+}
+
+function applyDepartmentHeadState(head) {
+  const normalizedHead = head && typeof head === 'object' ? head : null
+  const legacyName = String(normalizedHead?.full_name || '').trim()
+
+  departmentHeadId.value = normalizedHead?.id || null
+  departmentHeadForm.value = normalizedHead
+    ? {
+      control_no: normalizedHead.control_no || '',
+      surname: normalizedHead.surname || legacyName,
+      firstname: normalizedHead.firstname || '',
+      middlename: normalizedHead.middlename || '',
+      status: normalizedHead.status || 'REGULAR',
+      designation: normalizedHead.designation || normalizedHead.position || '',
+      rate_mon: normalizedHead.rate_mon ?? null,
+    }
+    : createDefaultDepartmentHeadForm()
 }
 
 function openDepartmentHeadDialog() {
@@ -686,6 +706,17 @@ function openDepartmentHeadDialog() {
     return
   }
 
+  if (departmentHeadId.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Only one department head is allowed per department. Edit or remove the current record first.',
+      position: 'top',
+    })
+    return
+  }
+
+  departmentHeadDialogMode.value = 'add'
+  departmentHeadForm.value = createDefaultDepartmentHeadForm()
   showDepartmentHeadDialog.value = true
 }
 
@@ -704,6 +735,7 @@ function openEditDialog(employee) {
   if (!employee) return
 
   if (isDepartmentHeadRecord(employee)) {
+    departmentHeadDialogMode.value = 'edit'
     showDepartmentHeadDialog.value = true
     return
   }
@@ -761,40 +793,6 @@ function buildDepartmentHeadPayload() {
   }
 }
 
-async function fetchDepartmentHead() {
-  if (!adminDepartmentId.value) {
-    resetDepartmentHeadForm()
-    return
-  }
-
-  loadingDepartmentHead.value = true
-  try {
-    const { data } = await api.get('/admin/department-head')
-    const head = data.department_head || {}
-    const legacyName = String(head.full_name || '').trim()
-    departmentHeadId.value = data.department_head?.id || null
-    departmentHeadForm.value = {
-      control_no: head.control_no || '',
-      surname: head.surname || legacyName,
-      firstname: head.firstname || '',
-      middlename: head.middlename || '',
-      status: head.status || 'REGULAR',
-      designation: head.designation || head.position || '',
-      rate_mon: head.rate_mon ?? null,
-    }
-  } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to load department head right now.')
-    $q.notify({
-      type: 'negative',
-      message: msg,
-      position: 'top',
-      caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
-    })
-  } finally {
-    loadingDepartmentHead.value = false
-  }
-}
-
 async function saveDepartmentHead() {
   const valid = await departmentHeadFormRef.value?.validate?.()
   if (!valid) return
@@ -808,9 +806,14 @@ async function saveDepartmentHead() {
 
   savingDepartmentHead.value = true
   try {
-    await api.put('/admin/department-head', payload)
-    $q.notify({ type: 'positive', message: 'Department head saved successfully.' })
-    await fetchDepartmentHead()
+    if (departmentHeadDialogMode.value === 'edit') {
+      await api.put('/admin/department-head', payload)
+      $q.notify({ type: 'positive', message: 'Department head updated successfully.' })
+    } else {
+      await api.post('/admin/department-head', payload)
+      $q.notify({ type: 'positive', message: 'Department head added successfully.' })
+    }
+    await fetchEmployees(1)
     showDepartmentHeadDialog.value = false
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to save department head right now.')
@@ -881,7 +884,7 @@ function confirmDelete(employee) {
       try {
         await api.delete('/admin/department-head')
         $q.notify({ type: 'positive', message: 'Department head removed successfully.' })
-        await fetchDepartmentHead()
+        await fetchEmployees(1)
       } catch (err) {
         const msg = resolveApiErrorMessage(err, 'Unable to remove department head right now.')
         $q.notify({ type: 'negative', message: msg, position: 'top' })
@@ -925,10 +928,12 @@ async function fetchEmployees(page = 1) {
     totalEmployees.value = 0
     statusCounts.value = {}
     pagination.value.rowsNumber = 0
+    resetDepartmentHeadForm()
     return
   }
 
   loading.value = true
+  loadingDepartmentHead.value = true
   const pageNum = Math.max(1, parseInt(page, 10) || 1)
   try {
     const baseParams = {
@@ -962,6 +967,7 @@ async function fetchEmployees(page = 1) {
     statusCounts.value = summaryData.status_counts ?? {}
     pagination.value.page = data.employees?.current_page ?? 1
     pagination.value.rowsNumber = data.employees?.total ?? 0
+    applyDepartmentHeadState(data.department_head ?? summaryData.department_head ?? null)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load employee records right now.')
     $q.notify({
@@ -974,8 +980,10 @@ async function fetchEmployees(page = 1) {
     totalEmployees.value = 0
     statusCounts.value = {}
     pagination.value.rowsNumber = 0
+    resetDepartmentHeadForm()
   } finally {
     loading.value = false
+    loadingDepartmentHead.value = false
   }
 }
 
@@ -1008,7 +1016,6 @@ function handleApplyLeaveSubmitted() {
 watch(adminDepartmentId, (id) => {
   if (id) {
     fetchEmployees(1)
-    fetchDepartmentHead()
   } else {
     employees.value = []
     totalEmployees.value = 0
