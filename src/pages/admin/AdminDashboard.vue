@@ -31,7 +31,7 @@
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplySelf
             in-dialog
-            :existing-applications="dashboardData.applications"
+            :existing-applications="applicationRows"
             @cancel="closeApplyLeaveDialog"
             @submitted="handleApplyLeaveSubmitted"
           />
@@ -68,7 +68,7 @@
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="description" size="28px" color="grey" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Total Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm">Application</div>
               </div>
               <div class="stat-value text-primary">
                 <q-spinner v-if="loading" size="32px" color="primary" />
@@ -76,18 +76,15 @@
               </div>
             </div>
             <div class="stat-breakdown">
-              <button
+              <div
                 v-for="card in totalApplicationBreakdownCards"
                 :key="card.key"
-                type="button"
-                :class="['stat-mini-card', { 'stat-mini-card--active': employmentTypeFilter === card.key }]"
+                class="stat-mini-card"
                 :style="getEmploymentTypeCardStyle(card)"
-                @click.stop="applyEmploymentTypeFilter(card.key)"
               >
                 <span class="stat-mini-label">{{ card.label }}</span>
                 <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
-                <q-tooltip>{{ getEmploymentTypeFilterTooltip(card) }}</q-tooltip>
-              </button>
+              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -136,17 +133,6 @@
         <div class="row justify-between items-center q-col-gutter-sm">
           <div class="row items-center q-gutter-sm">
             <div class="text-h6">All Application</div>
-            <q-chip
-              v-if="activeEmploymentTypeFilterLabel"
-              dense
-              removable
-              color="primary"
-              text-color="white"
-              icon="filter_alt"
-              @remove="clearEmploymentTypeFilter"
-            >
-              {{ activeEmploymentTypeFilterLabel }}
-            </q-chip>
           </div>
           <div class="row items-center q-gutter-sm">
             <q-input
@@ -442,6 +428,8 @@ function emptyEmploymentBreakdown() {
 
 const loading = ref(true)
 const actionLoading = ref(false)
+const departmentEmployees = ref([])
+const applicationRows = ref([])
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -479,17 +467,14 @@ const applicationsPagination = ref({
   page: 1,
   rowsPerPage: 10,
 })
-const activeEmploymentTypeFilterLabel = computed(() => {
-  const matched = EMPLOYMENT_TYPE_BREAKDOWN_CARDS.find((card) => card.key === employmentTypeFilter.value)
-  return matched?.label || ''
-})
+const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
 const totalApplicationBreakdownCards = computed(() => EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
   ...card,
   value: kpiBreakdown.value.total[card.key] ?? 0,
 })))
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
-  const applications = (dashboardData.value.applications ?? [])
+  const applications = (applicationRows.value ?? [])
     .filter((app) => matchesEmploymentTypeFilter(app))
   const filteredApplications = queryTokens.length
     ? applications.filter((app) => {
@@ -507,7 +492,7 @@ watch([statusSearch, employmentTypeFilter], () => {
 
 const latestLeaveBalanceEntriesByEmployee = computed(() => {
   const entriesByEmployee = new Map()
-  const applications = [...(dashboardData.value.applications ?? [])]
+  const applications = [...(applicationRows.value ?? [])]
     .sort(compareApplicationsByRecencyDesc)
 
   for (const app of applications) {
@@ -621,18 +606,69 @@ async function handleApplyLeaveSubmitted() {
 async function fetchDashboard() {
   loading.value = true
   try {
-    const { data } = await api.get('/admin/dashboard')
+    employmentTypeFilter.value = ''
+    const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+      api.get('/admin/dashboard'),
+      api.get('/admin/leave-applications').catch(() => null),
+    ])
+
+    const data = dashboardResponse?.data ?? {}
     dashboardData.value = data
+    applicationRows.value = mergeApplications(
+      extractApplicationsFromPayload(data),
+      extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+    )
     maybeShowPendingReminder()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load dashboard data right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
+    applicationRows.value = []
   } finally {
     loading.value = false
   }
 }
 
+async function fetchDepartmentEmployees() {
+  if (!adminDepartmentId.value) {
+    departmentEmployees.value = []
+    return
+  }
+
+  const employees = []
+  let page = 1
+  let lastPage = 1
+
+  try {
+    do {
+      const { data } = await api.get('/employees', {
+        params: {
+          department_id: adminDepartmentId.value,
+          per_page: 200,
+          page,
+        },
+      })
+
+      const pageData = data?.employees ?? {}
+      const rows = Array.isArray(pageData?.data) ? pageData.data : []
+      employees.push(...rows)
+
+      const currentPage = Number(pageData?.current_page ?? page)
+      const resolvedLastPage = Number(pageData?.last_page ?? currentPage)
+      lastPage = Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
+      page = currentPage + 1
+    } while (page <= lastPage)
+
+    departmentEmployees.value = employees
+  } catch {
+    departmentEmployees.value = []
+  }
+}
+
 onMounted(fetchDashboard)
+
+watch(adminDepartmentId, () => {
+  fetchDepartmentEmployees()
+}, { immediate: true })
 
 function maybeShowPendingReminder() {
   const pendingCount = Number(dashboardData.value.pending_count || 0)
@@ -677,6 +713,45 @@ function formatLeaveBalanceValue(value) {
   return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
 }
 
+function extractApplicationsFromPayload(payload) {
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload
+
+  const candidates = [
+    payload?.applications,
+    payload?.leave_applications,
+    payload?.leaveApplications,
+    payload?.rows,
+    payload?.items,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+    if (candidate && typeof candidate === 'object' && Array.isArray(candidate.data)) {
+      return candidate.data
+    }
+  }
+
+  return []
+}
+
+function normalizeLookupValue(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeEmployeeName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
 function normalizeEmploymentTypeKey(value) {
   const normalized = String(value || '')
     .trim()
@@ -691,7 +766,278 @@ function normalizeEmploymentTypeKey(value) {
   return ''
 }
 
+function getEmployeeLookupCandidates(employee) {
+  return [
+    employee?.control_no,
+    employee?.controlNo,
+    employee?.employee_id,
+    employee?.employeeId,
+  ]
+    .map((value) => normalizeLookupValue(value))
+    .filter(Boolean)
+}
+
+function getEmployeeNameCandidates(employee) {
+  const nameVariants = [
+    employee?.name,
+    employee?.full_name,
+    [employee?.firstname, employee?.middlename, employee?.surname].filter(Boolean).join(' '),
+    [employee?.firstname, employee?.surname].filter(Boolean).join(' '),
+    [employee?.surname, employee?.firstname, employee?.middlename].filter(Boolean).join(' '),
+    [employee?.surname, employee?.firstname].filter(Boolean).join(' '),
+  ]
+
+  return [...new Set(
+    nameVariants
+      .map((value) => normalizeEmployeeName(value))
+      .filter(Boolean),
+  )]
+}
+
+function getApplicationEmployeeDisplayName(application) {
+  return (
+    application?.employeeName ||
+    application?.employee_name ||
+    application?.employee?.name ||
+    application?.employee?.full_name ||
+    application?.employee?.employee_name ||
+    application?.name ||
+    application?.full_name ||
+    [application?.employee?.firstname, application?.employee?.middlename, application?.employee?.surname].filter(Boolean).join(' ') ||
+    [application?.firstname, application?.middlename, application?.surname].filter(Boolean).join(' ')
+  )
+}
+
+function getApplicationEmployeeLookupCandidates(application) {
+  return [
+    application?.employee_id,
+    application?.employeeId,
+    application?.control_no,
+    application?.controlNo,
+    application?.employee?.control_no,
+    application?.employee?.controlNo,
+    application?.employee?.employee_id,
+    application?.employee?.employeeId,
+    application?.user?.control_no,
+    application?.user?.controlNo,
+  ]
+    .map((value) => normalizeLookupValue(value))
+    .filter(Boolean)
+}
+
+function getApplicationEmployeeNameCandidates(application) {
+  const nameVariants = [
+    getApplicationEmployeeDisplayName(application),
+    application?.employeeName,
+    application?.employee_name,
+    application?.employee?.name,
+    application?.employee?.full_name,
+    application?.employee?.employee_name,
+    application?.name,
+    application?.full_name,
+    [application?.firstname, application?.middlename, application?.surname].filter(Boolean).join(' '),
+    [application?.firstname, application?.surname].filter(Boolean).join(' '),
+    [application?.surname, application?.firstname, application?.middlename].filter(Boolean).join(' '),
+    [application?.surname, application?.firstname].filter(Boolean).join(' '),
+    [application?.employee?.firstname, application?.employee?.middlename, application?.employee?.surname].filter(Boolean).join(' '),
+    [application?.employee?.firstname, application?.employee?.surname].filter(Boolean).join(' '),
+    [application?.employee?.surname, application?.employee?.firstname, application?.employee?.middlename].filter(Boolean).join(' '),
+    [application?.employee?.surname, application?.employee?.firstname].filter(Boolean).join(' '),
+  ]
+
+  return [...new Set(
+    nameVariants
+      .map((value) => normalizeEmployeeName(value))
+      .filter(Boolean),
+  )]
+}
+
+function applicationMatchesEmployeeName(application, employee) {
+  const applicationName = normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
+  if (!applicationName) return false
+
+  const employeeFirstName = normalizeEmployeeName(employee?.firstname)
+  const employeeSurname = normalizeEmployeeName(employee?.surname)
+  if (employeeFirstName && employeeSurname && applicationName.includes(employeeFirstName) && applicationName.includes(employeeSurname)) {
+    return true
+  }
+
+  const employeeNameTokens = [
+    employeeFirstName,
+    normalizeEmployeeName(employee?.middlename),
+    employeeSurname,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => value.split(' '))
+    .filter(Boolean)
+
+  if (!employeeNameTokens.length) return false
+
+  return employeeNameTokens.every((token) => applicationName.includes(token))
+}
+
+const employeeEmploymentTypeLookup = computed(() => {
+  const byLookupValue = new Map()
+  const byName = new Map()
+
+  for (const employee of departmentEmployees.value) {
+    const employmentTypeKey = normalizeEmploymentTypeKey(employee?.status)
+    if (!employmentTypeKey) continue
+
+    for (const lookupValue of getEmployeeLookupCandidates(employee)) {
+      if (!byLookupValue.has(lookupValue)) {
+        byLookupValue.set(lookupValue, employmentTypeKey)
+      }
+    }
+
+    for (const nameValue of getEmployeeNameCandidates(employee)) {
+      if (!byName.has(nameValue)) {
+        byName.set(nameValue, employmentTypeKey)
+      }
+    }
+  }
+
+  return { byLookupValue, byName }
+})
+
+function getApplicationEmploymentTypeFromEmployees(application) {
+  for (const lookupValue of getApplicationEmployeeLookupCandidates(application)) {
+    const matched = employeeEmploymentTypeLookup.value.byLookupValue.get(lookupValue)
+    if (matched) return matched
+  }
+
+  for (const nameValue of getApplicationEmployeeNameCandidates(application)) {
+    const matched = employeeEmploymentTypeLookup.value.byName.get(nameValue)
+    if (matched) return matched
+  }
+
+  for (const employee of departmentEmployees.value) {
+    if (!applicationMatchesEmployeeName(application, employee)) continue
+    const matched = normalizeEmploymentTypeKey(employee?.status)
+    if (matched) return matched
+  }
+
+  return ''
+}
+
+function getApplicationMergeKey(application, index) {
+  const explicitId =
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id
+
+  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+    return `id:${String(explicitId).trim()}`
+  }
+
+  const employeeKey = getApplicationEmployeeLookupCandidates(application)[0]
+  const employeeName = normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
+  const leaveTypeKey = normalizeEmployeeName(
+    application?.leaveType ?? application?.leave_type ?? application?.leaveTypeName ?? application?.leave_type_name,
+  )
+  const filedDateKey = normalizeLookupValue(
+    application?.dateFiled ??
+      application?.date_filed ??
+      application?.filed_at ??
+      application?.filedAt ??
+      application?.created_at ??
+      application?.createdAt,
+  )
+  const inclusiveDatesKey = normalizeEmployeeName(getApplicationDurationLabel(application))
+
+  const fallbackKey = [employeeKey || employeeName, leaveTypeKey, filedDateKey, inclusiveDatesKey]
+    .filter(Boolean)
+    .join('|')
+
+  return fallbackKey ? `fallback:${fallbackKey}` : `index:${index}`
+}
+
+function getApplicationCompletenessScore(application) {
+  const candidates = [
+    getApplicationEmployeeDisplayName(application),
+    application?.employee_id,
+    application?.employeeId,
+    application?.leaveType,
+    application?.leave_type,
+    application?.leaveTypeName,
+    application?.dateFiled,
+    application?.date_filed,
+    application?.status,
+    application?.rawStatus,
+    application?.remarks,
+    application?.updated_at,
+    application?.updatedAt,
+    application?.selected_dates,
+    application?.selectedDates,
+    application?.startDate,
+    application?.start_date,
+    application?.endDate,
+    application?.end_date,
+  ]
+
+  return candidates.filter((value) => {
+    if (Array.isArray(value)) return value.length > 0
+    return value !== undefined && value !== null && String(value).trim() !== ''
+  }).length
+}
+
+function getApplicationTimestampValue(application) {
+  const candidates = [
+    application?.updated_at,
+    application?.updatedAt,
+    application?.disapprovedAt,
+    application?.hrActionAt,
+    application?.adminActionAt,
+    application?.dateFiled,
+    application?.date_filed,
+    application?.filed_at,
+    application?.filedAt,
+    application?.created_at,
+    application?.createdAt,
+  ]
+
+  for (const candidate of candidates) {
+    const timestamp = Date.parse(candidate)
+    if (!Number.isNaN(timestamp)) return timestamp
+  }
+
+  return 0
+}
+
+function choosePreferredApplication(existingApplication, incomingApplication) {
+  if (!existingApplication) return incomingApplication
+
+  const incomingCompleteness = getApplicationCompletenessScore(incomingApplication)
+  const existingCompleteness = getApplicationCompletenessScore(existingApplication)
+  if (incomingCompleteness !== existingCompleteness) {
+    return incomingCompleteness > existingCompleteness ? incomingApplication : existingApplication
+  }
+
+  const incomingTimestamp = getApplicationTimestampValue(incomingApplication)
+  const existingTimestamp = getApplicationTimestampValue(existingApplication)
+  if (incomingTimestamp !== existingTimestamp) {
+    return incomingTimestamp > existingTimestamp ? incomingApplication : existingApplication
+  }
+
+  return incomingApplication
+}
+
+function mergeApplications(...sources) {
+  const mergedApplications = new Map()
+
+  sources.flat().forEach((application, index) => {
+    const key = getApplicationMergeKey(application, index)
+    const existingApplication = mergedApplications.get(key)
+    mergedApplications.set(key, choosePreferredApplication(existingApplication, application))
+  })
+
+  return Array.from(mergedApplications.values())
+}
+
 function getApplicationEmploymentTypeKey(application) {
+  const employeeMatchedKey = getApplicationEmploymentTypeFromEmployees(application)
+  if (employeeMatchedKey) return employeeMatchedKey
+
   const candidates = [
     application?.employment_status,
     application?.employmentStatus,
@@ -729,25 +1075,8 @@ function getEmploymentTypeCardStyle(card) {
   }
 }
 
-function getEmploymentTypeFilterTooltip(card) {
-  if (employmentTypeFilter.value === card.key) {
-    return `Clear ${card.label} filter`
-  }
-  return `Filter by ${card.label}`
-}
-
 function clearEmploymentTypeFilter() {
   employmentTypeFilter.value = ''
-}
-
-function applyEmploymentTypeFilter(type) {
-  const normalizedKey = normalizeEmploymentTypeKey(type)
-  employmentTypeFilter.value = normalizedKey === employmentTypeFilter.value ? '' : normalizedKey
-
-  nextTick(() => {
-    const target = applicationsSectionRef.value?.$el ?? applicationsSectionRef.value
-    target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-  })
 }
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
@@ -1568,7 +1897,7 @@ function resolveApp(target) {
   if (target && typeof target === 'object') return target
   const id = Number(target)
   if (!id) return null
-  return dashboardData.value.applications.find((a) => Number(a.id) === id) || null
+  return applicationRows.value.find((a) => Number(a.id) === id) || null
 }
 
 function mapStatusAfterAction(app, type) {
@@ -1597,7 +1926,7 @@ function mapStatusAfterAction(app, type) {
 }
 
 function showPostActionDialog(type, id, fallbackApp = null) {
-  const updated = dashboardData.value.applications.find((a) => Number(a.id) === Number(id))
+  const updated = applicationRows.value.find((a) => Number(a.id) === Number(id))
   actionResultApp.value = updated || mapStatusAfterAction(fallbackApp, type)
   actionResultType.value = type
   showActionResultDialog.value = true
@@ -1732,25 +2061,7 @@ async function confirmDisapprove() {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-.stat-mini-card:hover {
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-.stat-mini-card:focus-visible {
-  outline: none;
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
-}
-.stat-mini-card--active {
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+  cursor: default;
 }
 .stat-mini-label {
   min-width: 0;
