@@ -36,7 +36,7 @@
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="description" size="28px" color="grey" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Total Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
               </div>
               <div class="stat-value text-primary">
                 <q-spinner v-if="loading" size="32px" color="primary" />
@@ -44,18 +44,15 @@
               </div>
             </div>
             <div class="stat-breakdown">
-              <button
+              <div
                 v-for="card in totalApplicationBreakdownCards"
                 :key="card.key"
-                type="button"
                 class="stat-mini-card"
                 :style="getEmploymentTypeCardStyle(card)"
-                @click.stop="openEmploymentTypeApplications(card.key)"
               >
                 <span class="stat-mini-label">{{ card.label }}</span>
                 <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
-                <q-tooltip>{{ `View ${card.label} applications` }}</q-tooltip>
-              </button>
+              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -151,11 +148,70 @@
         <HrCalendarPanel />
       </div>
     </div>
+
+    <div class="row q-col-gutter-md q-mb-lg">
+      <div class="col-12 col-md-6">
+        <q-card flat bordered class="rounded-borders full-height">
+          <q-card-section>
+            <div class="row items-center justify-between q-mb-sm">
+              <div>
+                <div class="text-h6">Leave Trends by Month</div>
+                <p class="text-caption text-grey-7 q-mb-none">Monthly trend for {{ trendYearLabel }}</p>
+              </div>
+            </div>
+
+            <div class="trend-chart-wrapper">
+              <q-no-ssr>
+                <VueApexCharts
+                  type="area"
+                  height="320"
+                  :options="trendChartOptions"
+                  :series="trendChartSeries"
+                />
+              </q-no-ssr>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <q-card flat bordered class="rounded-borders full-height">
+          <q-card-section>
+            <div class="row items-end justify-between q-col-gutter-md q-mb-sm">
+              <div class="col-12 col-md-8">
+                <div class="text-h6">Leave Type Line Chart</div>
+                <p class="text-caption text-grey-7 q-mb-none">Monthly leave applications by leave type for {{ trendYearLabel }}</p>
+              </div>
+              <div class="col-12 col-sm-4 col-md-3">
+                <q-select
+                  v-model="leaveTypeFilter"
+                  :options="leaveTypeFilterOptions"
+                  outlined
+                  dense
+                  label="Leave Type"
+                />
+              </div>
+            </div>
+
+            <div class="trend-chart-wrapper">
+              <q-no-ssr>
+                <VueApexCharts
+                  type="line"
+                  height="320"
+                  :options="leaveTypeTrendChartOptions"
+                  :series="leaveTypeTrendSeries"
+                />
+              </q-no-ssr>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+    </div>
   </q-page>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
@@ -256,6 +312,10 @@ const dashboardData = ref({
 const dashboardApplications = ref([])
 const activeEmployeeCount = ref(0)
 const showPendingReminderDialog = ref(false)
+const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const trendYearLabel = new Date().getFullYear()
+const leaveTypeFilter = ref('All')
+const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 
 function pendingReminderSeenSessionKey() {
   return `lms_pending_reminder_seen:hr:${authStore.user?.id ?? 'unknown'}`
@@ -311,6 +371,40 @@ function mergeStatus(app) {
   }
 
   return app.status || ''
+}
+
+function getApplicationDate(application) {
+  return (
+    application?.dateFiled ??
+    application?.date_filed ??
+    application?.created_at ??
+    application?.startDate ??
+    application?.start_date ??
+    null
+  )
+}
+
+function normalizeLeaveTypeName(value) {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+
+  if (value && typeof value === 'object') {
+    const nestedName = value.name ?? value.label ?? value.type
+    if (typeof nestedName === 'string' && nestedName.trim()) return nestedName.trim()
+  }
+
+  return 'Unknown'
+}
+
+function getApplicationLeaveType(application) {
+  const leaveTypeValue =
+    application?.leaveType ??
+    application?.leave_type_name ??
+    application?.leaveTypeName ??
+    application?.leave_type ??
+    application?.leaveType?.name ??
+    application?.leave?.name
+
+  return normalizeLeaveTypeName(leaveTypeValue)
 }
 
 function toIsoDate(value) {
@@ -413,6 +507,30 @@ const manpowerChartSeries = computed(() => [
   },
 ])
 
+const monthlyLeaveTrend = computed(() => {
+  const buckets = Array(12).fill(0)
+
+  for (const application of dashboardApplications.value) {
+    const rawDate = getApplicationDate(application)
+    if (!rawDate) continue
+
+    const parsedDate = new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
+    if (parsedDate.getFullYear() !== trendYearLabel) continue
+
+    buckets[parsedDate.getMonth()] += 1
+  }
+
+  return buckets
+})
+
+const trendChartSeries = computed(() => [
+  {
+    name: 'Leave Applications',
+    data: monthlyLeaveTrend.value,
+  },
+])
+
 const totalApplicationsBreakdown = computed(() => {
   const apiBreakdown = normalizeEmploymentBreakdown(dashboardData.value.kpi_breakdown?.total)
   if (Object.values(apiBreakdown).some((value) => value > 0)) return apiBreakdown
@@ -502,6 +620,178 @@ const manpowerChartOptions = computed(() => ({
   },
 }))
 
+const trendChartOptions = computed(() => ({
+  chart: {
+    id: 'hr-dashboard-leave-trend',
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    animations: { easing: 'easeinout', speed: 450 },
+    fontFamily: 'inherit',
+  },
+  colors: ['#1e88e5'],
+  dataLabels: { enabled: false },
+  stroke: {
+    curve: 'smooth',
+    width: 3,
+  },
+  markers: {
+    size: 4,
+    strokeWidth: 2,
+    colors: ['#ffffff'],
+    strokeColors: '#1e88e5',
+    hover: { sizeOffset: 2 },
+  },
+  fill: {
+    type: 'gradient',
+    gradient: {
+      shadeIntensity: 0.7,
+      opacityFrom: 0.35,
+      opacityTo: 0.06,
+      stops: [0, 90, 100],
+    },
+  },
+  grid: {
+    borderColor: '#e0e0e0',
+    strokeDashArray: 4,
+    xaxis: { lines: { show: false } },
+  },
+  xaxis: {
+    categories: monthLabels,
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: { style: { colors: '#6b7280' } },
+  },
+  yaxis: {
+    min: 0,
+    forceNiceScale: true,
+    tickAmount: 4,
+    labels: {
+      style: { colors: '#6b7280' },
+      formatter: (value) => String(Math.round(value)),
+    },
+  },
+  legend: { show: false },
+  tooltip: {
+    y: {
+      formatter: (value) => `${Math.round(value)} leaves`,
+    },
+  },
+}))
+
+const leaveTypeMonthlyTrendMap = computed(() => {
+  const trendMap = new Map()
+
+  for (const application of dashboardApplications.value) {
+    const rawDate = getApplicationDate(application)
+    if (!rawDate) continue
+
+    const parsedDate = new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
+    if (parsedDate.getFullYear() !== trendYearLabel) continue
+
+    const leaveTypeName = getApplicationLeaveType(application)
+    if (!trendMap.has(leaveTypeName)) {
+      trendMap.set(leaveTypeName, Array(12).fill(0))
+    }
+
+    trendMap.get(leaveTypeName)[parsedDate.getMonth()] += 1
+  }
+
+  return trendMap
+})
+
+const leaveTypeFilterOptions = computed(() => [
+  'All',
+  ...Array.from(leaveTypeMonthlyTrendMap.value.keys()).sort((left, right) => left.localeCompare(right)),
+])
+
+watch(
+  leaveTypeFilterOptions,
+  (options) => {
+    if (!options.includes(leaveTypeFilter.value)) {
+      leaveTypeFilter.value = 'All'
+    }
+  },
+  { immediate: true },
+)
+
+const leaveTypeTrendSeries = computed(() => {
+  const trendEntries = Array.from(leaveTypeMonthlyTrendMap.value.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+
+  if (leaveTypeFilter.value === 'All') {
+    return trendEntries.map(([leaveType, data]) => ({
+      name: leaveType,
+      data,
+    }))
+  }
+
+  const selectedTypeData = leaveTypeMonthlyTrendMap.value.get(leaveTypeFilter.value)
+  if (!selectedTypeData) return []
+
+  return [
+    {
+      name: leaveTypeFilter.value,
+      data: selectedTypeData,
+    },
+  ]
+})
+
+const leaveTypeTrendChartOptions = computed(() => ({
+  chart: {
+    id: 'hr-dashboard-leave-type-trend',
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    animations: { easing: 'easeinout', speed: 450 },
+    fontFamily: 'inherit',
+  },
+  colors: leaveTypeChartPalette,
+  dataLabels: { enabled: false },
+  stroke: {
+    curve: 'smooth',
+    width: 3,
+  },
+  markers: {
+    size: 3,
+    hover: { sizeOffset: 2 },
+  },
+  grid: {
+    borderColor: '#e0e0e0',
+    strokeDashArray: 4,
+    xaxis: { lines: { show: false } },
+  },
+  xaxis: {
+    categories: monthLabels,
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: { style: { colors: '#6b7280' } },
+  },
+  yaxis: {
+    min: 0,
+    forceNiceScale: true,
+    tickAmount: 4,
+    labels: {
+      style: { colors: '#6b7280' },
+      formatter: (value) => String(Math.round(value)),
+    },
+  },
+  legend: {
+    show: true,
+    position: 'top',
+    horizontalAlign: 'left',
+  },
+  tooltip: {
+    shared: true,
+    intersect: false,
+    y: {
+      formatter: (value) => `${Math.round(value)} leaves`,
+    },
+  },
+  noData: {
+    text: 'No leave data for selected leave type.',
+  },
+}))
+
 async function fetchDashboard() {
   loading.value = true
   try {
@@ -537,12 +827,6 @@ async function fetchDashboard() {
   } finally {
     loading.value = false
   }
-}
-
-function openEmploymentTypeApplications(type) {
-  const normalizedKey = normalizeEmploymentTypeKey(type)
-  if (!normalizedKey) return
-  goToApplications('total', { employment_type: normalizedKey })
 }
 
 function goToApplications(status, extraQuery = {}) {
@@ -615,6 +899,11 @@ onMounted(fetchDashboard)
   height: 100% !important;
 }
 
+.trend-chart-wrapper {
+  width: 100%;
+  min-height: 320px;
+}
+
 .stat-card {
   width: 100%;
   height: 100%;
@@ -674,21 +963,7 @@ onMounted(fetchDashboard)
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.stat-mini-card:hover {
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.stat-mini-card:focus-visible {
-  outline: none;
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+  cursor: default;
 }
 
 .stat-mini-label {

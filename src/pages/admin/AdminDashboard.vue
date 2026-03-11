@@ -68,7 +68,7 @@
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="description" size="28px" color="grey" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Application</div>
+                <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
               </div>
               <div class="stat-value text-primary">
                 <q-spinner v-if="loading" size="32px" color="primary" />

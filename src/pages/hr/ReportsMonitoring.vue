@@ -122,65 +122,6 @@
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg">
-      <div class="col-12 col-md-6">
-        <q-card flat bordered class="rounded-borders full-height">
-          <q-card-section>
-            <div class="row items-center justify-between q-mb-sm">
-              <div>
-                <div class="text-h6">Leave Trends by Month</div>
-                <p class="text-caption text-grey-7 q-mb-none">Monthly trend for {{ trendYearLabel }}</p>
-              </div>
-            </div>
-
-            <div class="trend-chart-wrapper">
-              <q-no-ssr>
-                <VueApexCharts
-                  type="area"
-                  height="320"
-                  :options="trendChartOptions"
-                  :series="trendChartSeries"
-                />
-              </q-no-ssr>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <div class="col-12 col-md-6">
-        <q-card flat bordered class="rounded-borders full-height">
-          <q-card-section>
-            <div class="row items-end justify-between q-col-gutter-md q-mb-sm">
-              <div class="col-12 col-md-8">
-                <div class="text-h6">Leave Type Line Chart</div>
-                <p class="text-caption text-grey-7 q-mb-none">Monthly leave applications by leave type for {{ trendYearLabel }}</p>
-              </div>
-              <div class="col-12 col-sm-4 col-md-3">
-                <q-select
-                  v-model="leaveTypeFilter"
-                  :options="leaveTypeFilterOptions"
-                  outlined
-                  dense
-                  label="Leave Type"
-                />
-              </div>
-            </div>
-
-            <div class="trend-chart-wrapper">
-              <q-no-ssr>
-                <VueApexCharts
-                  type="line"
-                  height="320"
-                  :options="leaveTypeTrendChartOptions"
-                  :series="leaveTypeTrendSeries"
-                />
-              </q-no-ssr>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
-
   </q-page>
 </template>
 
@@ -188,7 +129,6 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-import VueApexCharts from 'vue3-apexcharts'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
@@ -225,10 +165,6 @@ const summary = ref({
 
 const deptStats = ref([])
 const trendApplications = ref([])
-const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const trendYearLabel = new Date().getFullYear()
-const leaveTypeFilter = ref('All')
-const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 
 function getApplicationDate(application) {
   return (
@@ -616,210 +552,9 @@ const summaryStats = computed(() => [
   { label: 'Active Employees', value: summary.value.active_employees, icon: 'people', color: 'purple' },
 ])
 
-const monthlyLeaveTrend = computed(() => {
-  const buckets = Array(12).fill(0)
-
-  for (const application of trendApplications.value) {
-    const rawDate = getApplicationDate(application)
-    if (!rawDate) continue
-
-    const parsedDate = new Date(rawDate)
-    if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== trendYearLabel) continue
-
-    buckets[parsedDate.getMonth()] += 1
-  }
-
-  return buckets
-})
-
-const trendChartSeries = computed(() => [
-  {
-    name: 'Leave Applications',
-    data: monthlyLeaveTrend.value,
-  },
-])
-
-const trendChartOptions = computed(() => ({
-  chart: {
-    id: 'hr-reports-leave-trend',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { easing: 'easeinout', speed: 450 },
-    fontFamily: 'inherit',
-  },
-  colors: ['#1e88e5'],
-  dataLabels: { enabled: false },
-  stroke: {
-    curve: 'smooth',
-    width: 3,
-  },
-  markers: {
-    size: 4,
-    strokeWidth: 2,
-    colors: ['#ffffff'],
-    strokeColors: '#1e88e5',
-    hover: { sizeOffset: 2 },
-  },
-  fill: {
-    type: 'gradient',
-    gradient: {
-      shadeIntensity: 0.7,
-      opacityFrom: 0.35,
-      opacityTo: 0.06,
-      stops: [0, 90, 100],
-    },
-  },
-  grid: {
-    borderColor: '#e0e0e0',
-    strokeDashArray: 4,
-    xaxis: { lines: { show: false } },
-  },
-  xaxis: {
-    categories: monthLabels,
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
-  },
-  yaxis: {
-    min: 0,
-    forceNiceScale: true,
-    tickAmount: 4,
-    labels: {
-      style: { colors: '#6b7280' },
-      formatter: (value) => String(Math.round(value)),
-    },
-  },
-  legend: { show: false },
-  tooltip: {
-    y: {
-      formatter: (value) => `${Math.round(value)} leaves`,
-    },
-  },
-}))
-
-const leaveTypeMonthlyTrendMap = computed(() => {
-  const trendMap = new Map()
-
-  for (const application of trendApplications.value) {
-    const rawDate = getApplicationDate(application)
-    if (!rawDate) continue
-
-    const parsedDate = new Date(rawDate)
-    if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== trendYearLabel) continue
-
-    const leaveTypeName = getApplicationLeaveType(application)
-    if (!trendMap.has(leaveTypeName)) {
-      trendMap.set(leaveTypeName, Array(12).fill(0))
-    }
-
-    trendMap.get(leaveTypeName)[parsedDate.getMonth()] += 1
-  }
-
-  return trendMap
-})
-
-const leaveTypeFilterOptions = computed(() => [
-  'All',
-  ...Array.from(leaveTypeMonthlyTrendMap.value.keys()).sort((left, right) => left.localeCompare(right)),
-])
-
-watch(
-  leaveTypeFilterOptions,
-  (options) => {
-    if (!options.includes(leaveTypeFilter.value)) {
-      leaveTypeFilter.value = 'All'
-    }
-  },
-  { immediate: true },
-)
-
-const leaveTypeTrendSeries = computed(() => {
-  const trendEntries = Array.from(leaveTypeMonthlyTrendMap.value.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-
-  if (leaveTypeFilter.value === 'All') {
-    return trendEntries.map(([leaveType, data]) => ({
-      name: leaveType,
-      data,
-    }))
-  }
-
-  const selectedTypeData = leaveTypeMonthlyTrendMap.value.get(leaveTypeFilter.value)
-  if (!selectedTypeData) return []
-
-  return [
-    {
-      name: leaveTypeFilter.value,
-      data: selectedTypeData,
-    },
-  ]
-})
-
-const leaveTypeTrendChartOptions = computed(() => ({
-  chart: {
-    id: 'hr-reports-leave-type-trend',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { easing: 'easeinout', speed: 450 },
-    fontFamily: 'inherit',
-  },
-  colors: leaveTypeChartPalette,
-  dataLabels: { enabled: false },
-  stroke: {
-    curve: 'smooth',
-    width: 3,
-  },
-  markers: {
-    size: 3,
-    hover: { sizeOffset: 2 },
-  },
-  grid: {
-    borderColor: '#e0e0e0',
-    strokeDashArray: 4,
-    xaxis: { lines: { show: false } },
-  },
-  xaxis: {
-    categories: monthLabels,
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
-  },
-  yaxis: {
-    min: 0,
-    forceNiceScale: true,
-    tickAmount: 4,
-    labels: {
-      style: { colors: '#6b7280' },
-      formatter: (value) => String(Math.round(value)),
-    },
-  },
-  legend: {
-    show: true,
-    position: 'top',
-    horizontalAlign: 'left',
-  },
-  tooltip: {
-    shared: true,
-    intersect: false,
-    y: {
-      formatter: (value) => `${Math.round(value)} leaves`,
-    },
-  },
-  noData: {
-    text: 'No leave data for selected leave type.',
-  },
-}))
-
 </script>
 
 <style scoped>
-.trend-chart-wrapper {
-  width: 100%;
-  min-height: 320px;
-}
-
 .report-date-input :deep(.q-field__control) {
   border-radius: 10px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
