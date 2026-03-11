@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <component :is="inDialog ? 'div' : 'q-page'" :class="inDialog ? 'q-pa-sm' : 'q-pa-md'">
     <div v-if="!inDialog" class="q-mb-lg">
       <div class="row items-center q-mb-xs">
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin: File Leave for Employee</h1>
       </div>
-      <p class="text-grey-7">Civil Service Form No. 6 — Application for Leave (Filing on behalf of employee)</p>
+      <p class="text-grey-7">Civil Service Form No. 6 â€” Application for Leave (Filing on behalf of employee)</p>
     </div>
 
     <q-card flat bordered :class="['rounded-borders q-mb-lg', { 'dialog-form-card': inDialog }]">
@@ -309,6 +309,7 @@
                     ref="leaveDateCalendarRef"
                     class="leave-date-calendar q-mt-sm"
                     @pointerdown.capture="handleCalendarSurfacePointerDown"
+                    @click.capture="handleCalendarSurfaceClick"
                   >
                     <q-date
                       v-if="isMaternityLeave || isPaternityLeave"
@@ -347,6 +348,15 @@
                   </div>
                 </div>
                 <div :class="inDialog ? 'col-12 col-sm-6 dialog-selected-dates-panel' : 'col-12 col-md-6'">
+                  <div class="selected-dates-warning-slot">
+                    <div
+                      v-if="maxDaysWarning"
+                      class="row items-start no-wrap text-caption text-warning"
+                    >
+                      <q-icon name="warning_amber" size="14px" class="q-mr-xs q-mt-xs" />
+                      <span>{{ maxDaysWarning }}</span>
+                    </div>
+                  </div>
                   <label class="input-label">Selected Dates</label>
                   <div v-if="selectedDatesList.length === 0" class="text-grey-5 text-body2 q-mt-sm">
                     No dates selected yet.
@@ -400,12 +410,6 @@
                   </q-list>
                   <div class="text-caption q-mt-sm text-grey-6">
                     {{ formatSelectedDayCount(selectedDateTotalDays) }} day(s) selected
-                  </div>
-                  <div v-if="mco6ConsecutiveWarning" class="text-caption text-negative q-mt-xs">
-                    ⚠ {{ mco6ConsecutiveWarning }}
-                  </div>
-                  <div v-if="maxDaysWarning" class="text-caption text-negative q-mt-xs">
-                    ⚠ {{ maxDaysWarning }}
                   </div>
                 </div>
               </div>
@@ -491,6 +495,7 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import {
   enumerateInclusiveDates,
   getBlockingLeaveApplicationState,
+  getApplicationRequestedDayCount,
   getApplicationSelectedDates,
   isBlockingLeaveApplication,
   normalizeIsoDate,
@@ -740,6 +745,17 @@ function buildOrderedLeaveBalanceEntries(...sources) {
   )
 }
 
+function buildLeaveBalanceEntries(...sources) {
+  const entries = []
+  const seen = new Set()
+
+  for (const source of sources) {
+    collectLeaveBalanceEntries(entries, seen, source)
+  }
+
+  return entries
+}
+
 function normalizeLookupValue(value) {
   return String(value || '')
     .trim()
@@ -765,6 +781,18 @@ function getApplicationEmployeeName(application) {
     application?.full_name ||
     [application?.employee?.firstname, application?.employee?.middlename, application?.employee?.surname].filter(Boolean).join(' ') ||
     [application?.firstname, application?.middlename, application?.surname].filter(Boolean).join(' ')
+  )
+}
+
+function getApplicationLeaveTypeName(application) {
+  return prettifyLeaveBalanceLabel(
+    application?.leaveType ??
+      application?.leave_type_name ??
+      application?.leaveTypeName ??
+      application?.leave_type ??
+      application?.leaveType?.name ??
+      application?.leave?.name ??
+      '',
   )
 }
 
@@ -996,6 +1024,13 @@ const employeeApplicationsForBalanceByRecency = computed(() =>
     .sort((left, right) => getApplicationTimestampValue(right) - getApplicationTimestampValue(left)),
 )
 
+const resolvedLeaveBalanceEntries = computed(() =>
+  buildLeaveBalanceEntries(
+    ...employeeApplicationsForBalanceByRecency.value,
+    selectedEmployeeRecord.value,
+  ),
+)
+
 const dialogLeaveBalanceItems = computed(() =>
   buildOrderedLeaveBalanceEntries(
     ...employeeApplicationsForBalanceByRecency.value,
@@ -1136,10 +1171,76 @@ const selectedLeaveTypeName = computed(() => {
   return lt ? lt.name : ''
 })
 
+function formatDayCountValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return '0'
+  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(1)
+}
+
+const selectedLeaveTypeBalanceValue = computed(() => {
+  const leaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
+  if (!leaveTypeKey) return null
+
+  const matchedEntry = resolvedLeaveBalanceEntries.value.find(
+    (entry) => getLeaveBalanceTypeKey(entry.label) === leaveTypeKey,
+  )
+
+  if (!matchedEntry) return null
+
+  const numericValue = Number(matchedEntry.value)
+  return Number.isFinite(numericValue) ? numericValue : null
+})
+
+const pendingSelectedLeaveDays = computed(() =>
+  employeeApplicationsForBalance.value
+    .filter((application) => getBlockingLeaveApplicationState(application) === 'pending')
+    .filter((application) =>
+      getLeaveBalanceTypeKey(getApplicationLeaveTypeName(application)) ===
+        getLeaveBalanceTypeKey(selectedLeaveTypeName.value),
+    )
+    .reduce((total, application) => total + getApplicationRequestedDayCount(application), 0),
+)
+
+const availableSelectedLeaveBalance = computed(() => {
+  if (selectedLeaveTypeBalanceValue.value === null) return null
+  return Math.max(0, selectedLeaveTypeBalanceValue.value - pendingSelectedLeaveDays.value)
+})
+
+function getLeaveBalanceWarningForTotal(totalDays) {
+  if (isMonetization.value || totalDays <= 0) return ''
+  const trackedBalance = selectedLeaveTypeBalanceValue.value
+  if (trackedBalance === null) return ''
+
+  if (totalDays <= availableSelectedLeaveBalance.value) {
+    return ''
+  }
+
+  if (pendingSelectedLeaveDays.value > 0) {
+    return `This employee already has ${formatDayCountValue(pendingSelectedLeaveDays.value)} day(s) of ${selectedLeaveTypeName.value} pending. Only ${formatDayCountValue(availableSelectedLeaveBalance.value)} day(s) are available for a new application.`
+  }
+
+  return `This employee's ${selectedLeaveTypeName.value} balance is insufficient. Only ${formatDayCountValue(trackedBalance)} day(s) remain.`
+}
+
+const leaveBalanceWarning = computed(() => {
+  return getLeaveBalanceWarningForTotal(selectedDateTotalDays.value)
+})
+
 const selectedLeaveTypeMaxDays = computed(() => {
   const lt = allLeaveTypes.value.find(t => t.id === form.value.leaveTypeId)
   return lt ? lt.max_days : null
 })
+
+function getMaxDaysWarningForTotal(totalDays) {
+  const max = Number(selectedLeaveTypeMaxDays.value)
+  if (!Number.isFinite(max) || max <= 0) return ''
+  if (totalDays > max) return `Maximum of ${formatDayCountValue(max)} day(s) allowed for this leave type.`
+  return ''
+}
+
+function getSelectionLimitWarningForTotal(totalDays) {
+  return getMaxDaysWarningForTotal(totalDays) || getLeaveBalanceWarningForTotal(totalDays)
+}
 
 const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'MCO6 Leave')
 const isMaternityLeave = computed(() => selectedLeaveTypeName.value === 'Maternity Leave')
@@ -1155,7 +1256,7 @@ const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation 
 const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
 const moveDialogActionsUp = computed(() => props.inDialog && !isMonetization.value && showDetailsOfLeave.value)
 
-// ─── Monetization State ──────────────────────────────────────────
+// â”€â”€â”€ Monetization State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const monetization = ref({
   leaveTypeId: null,
   availableBalance: null,
@@ -1252,27 +1353,45 @@ function onLeaveTypeChange(newValue) {
   form.value.reason = preservedReason
 }
 
-// ─── Unified Multi-date Selection (all leave types) ─────────────
+// â”€â”€â”€ Unified Multi-date Selection (all leave types) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const selectedDates = ref([])
 const selectedDatesList = computed(() => (Array.isArray(selectedDates.value) ? selectedDates.value : []))
+const lastValidSelectedDates = ref([])
 
 const sortedSelectedDates = computed(() =>
   [...selectedDatesList.value].sort()
 )
 
+function getSelectedDateTotalForDates(dates, durations = selectedDateDurations.value) {
+  return dates.reduce((total, date) => total + ((durations?.[date] === 'half_day') ? 0.5 : 1), 0)
+}
+
 function onSelectedDatesChange(value) {
+  const currentDates = normalizeSelectedDates(lastValidSelectedDates.value)
   const normalizedDates = normalizeSelectedDates(value)
   const blockedDates = lockedLeaveDates.value
   const allowedDates = normalizedDates.filter((date) => blockedDates.has(date) === false)
+  const addedDates = allowedDates.filter((date) => currentDates.includes(date) === false)
 
   if (allowedDates.length !== normalizedDates.length) {
     const blockedDate = normalizedDates.find((date) => blockedDates.has(date))
     showCalendarDateWarning(blockedDate)
-  } else {
-    clearCalendarDateWarning()
+    selectedDates.value = allowedDates
+    syncLockedDateDecorations()
+    return
   }
 
+  const limitWarning = getSelectionLimitWarningForDates(allowedDates)
+  if (limitWarning && addedDates.length > 0) {
+    showCalendarDateWarning(addedDates[addedDates.length - 1], { message: limitWarning })
+    selectedDates.value = currentDates
+    syncLockedDateDecorations()
+    return
+  }
+
+  clearCalendarDateWarning()
   selectedDates.value = allowedDates
+  lastValidSelectedDates.value = allowedDates
   syncLockedDateDecorations()
 }
 
@@ -1305,6 +1424,7 @@ function buildLockedDateWarningMessage(dateStr) {
 let calendarWarningTimeoutId = null
 let calendarWarningPressedDate = ''
 let calendarWarningPressedAt = 0
+let calendarWarningPressedMessage = ''
 const CALENDAR_WARNING_WIDTH = 220
 
 function clearCalendarWarningTimeout() {
@@ -1324,16 +1444,22 @@ function clearCalendarDateWarning() {
 }
 
 function showCalendarDateWarning(dateStr, options = {}) {
-  const { sticky = false } = options
-  const message = buildLockedDateWarningMessage(dateStr)
-  if (!message) {
+  const { sticky = false, message = '' } = options
+  const resolvedMessage = message || buildLockedDateWarningMessage(dateStr)
+  const normalizedDate = normalizeIsoDate(dateStr)
+  if (!normalizedDate) {
+    clearCalendarDateWarning()
+    return
+  }
+
+  if (!resolvedMessage) {
     clearCalendarDateWarning()
     return
   }
 
   clearCalendarWarningTimeout()
-  calendarDateWarning.value = message
-  calendarDateWarningDate.value = normalizeIsoDate(dateStr)
+  calendarDateWarning.value = resolvedMessage
+  calendarDateWarningDate.value = normalizedDate
   syncLockedDateDecorations()
 
   if (!sticky) {
@@ -1363,9 +1489,11 @@ function handleCalendarGlobalPointerUp() {
 
   const pressedDate = calendarWarningPressedDate
   const pressedDuration = Date.now() - calendarWarningPressedAt
+  const pressedMessage = calendarWarningPressedMessage
 
   calendarWarningPressedDate = ''
   calendarWarningPressedAt = 0
+  calendarWarningPressedMessage = ''
   releaseCalendarWarningPointer()
 
   if (pressedDuration >= 250) {
@@ -1373,7 +1501,7 @@ function handleCalendarGlobalPointerUp() {
     return
   }
 
-  showCalendarDateWarning(pressedDate)
+  showCalendarDateWarning(pressedDate, { message: pressedMessage })
 }
 
 function getLockedDateState(dateStr) {
@@ -1410,6 +1538,35 @@ function isLockedDateSelection(dateStr) {
   return Boolean(getLockedDateConflict(dateStr))
 }
 
+function getSelectionLimitWarningForDates(dates) {
+  const normalizedDates = normalizeSelectedDates(dates)
+  return getSelectionLimitWarningForTotal(getSelectedDateTotalForDates(normalizedDates))
+}
+
+function getSelectionLimitWarningForDate(dateStr) {
+  const normalizedDate = normalizeIsoDate(dateStr)
+  if (!normalizedDate) return ''
+
+  const currentDates = normalizeSelectedDates(selectedDatesList.value)
+  if (currentDates.includes(normalizedDate)) return ''
+
+  if (!leaveDateOptions.value(toSlash(normalizedDate))) return ''
+
+  if (isMaternityLeave.value || isPaternityLeave.value) {
+    const totalDays = isMaternityLeave.value ? 105 : 7
+    const proposedDates = Array.from({ length: totalDays }, (_, index) =>
+      offsetIsoDate(normalizedDate, index),
+    )
+    return getSelectionLimitWarningForDates(proposedDates)
+  }
+
+  return getSelectionLimitWarningForDates([...currentDates, normalizedDate])
+}
+
+function getCalendarSelectionWarning(dateStr) {
+  return buildLockedDateWarningMessage(dateStr) || getSelectionLimitWarningForDate(dateStr)
+}
+
 function onCalendarNavigation({ year, month }) {
   calendarView.value = { year, month }
   clearCalendarDateWarning()
@@ -1418,20 +1575,37 @@ function onCalendarNavigation({ year, month }) {
 
 function handleCalendarSurfacePointerDown(event) {
   const clickedDate = resolveCalendarDateFromEvent(event)
-  if (!clickedDate || !isLockedDateSelection(clickedDate)) {
+  const warningMessage = clickedDate ? getCalendarSelectionWarning(clickedDate) : ''
+
+  if (!clickedDate || !warningMessage) {
     calendarWarningPressedDate = ''
     calendarWarningPressedAt = 0
+    calendarWarningPressedMessage = ''
     releaseCalendarWarningPointer()
     clearCalendarDateWarning()
     return
   }
 
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
   calendarWarningPressedDate = clickedDate
   calendarWarningPressedAt = Date.now()
-  showCalendarDateWarning(clickedDate, { sticky: true })
+  calendarWarningPressedMessage = warningMessage
+  showCalendarDateWarning(clickedDate, { sticky: true, message: warningMessage })
   releaseCalendarWarningPointer()
   window.addEventListener('pointerup', handleCalendarGlobalPointerUp, true)
   window.addEventListener('pointercancel', handleCalendarGlobalPointerUp, true)
+}
+
+function handleCalendarSurfaceClick(event) {
+  const clickedDate = resolveCalendarDateFromEvent(event)
+  const warningMessage = clickedDate ? getCalendarSelectionWarning(clickedDate) : ''
+  if (!warningMessage) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
 }
 
 function syncLockedDateDecorations() {
@@ -1460,23 +1634,23 @@ function syncLockedDateDecorations() {
       if (lockedState) {
         cell.classList.add('leave-date-calendar__day--locked')
         cell.classList.add(`leave-date-calendar__day--locked-${lockedState}`)
+      }
 
-        if (calendarDateWarningDate.value === date && calendarDateWarning.value) {
-          cell.classList.add('leave-date-calendar__day--warning')
+      if (calendarDateWarningDate.value === date && calendarDateWarning.value) {
+        cell.classList.add('leave-date-calendar__day--warning')
 
-          const cellRect = cell.getBoundingClientRect()
-          const popupWidth = Math.max(160, Math.min(CALENDAR_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)))
-          const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
-          const popupLeft = Math.max(8, Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8))
-          const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
-          const arrowLeft = Math.max(16, Math.min(cellCenter - popupLeft - 6, popupWidth - 18))
+        const cellRect = cell.getBoundingClientRect()
+        const popupWidth = Math.max(160, Math.min(CALENDAR_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)))
+        const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+        const popupLeft = Math.max(8, Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8))
+        const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
+        const arrowLeft = Math.max(16, Math.min(cellCenter - popupLeft - 6, popupWidth - 18))
 
-          nextWarningStyle = {
-            width: `${popupWidth}px`,
-            left: `${popupLeft}px`,
-            top: `${popupTop}px`,
-            '--leave-date-warning-arrow-left': `${arrowLeft}px`,
-          }
+        nextWarningStyle = {
+          width: `${popupWidth}px`,
+          left: `${popupLeft}px`,
+          top: `${popupTop}px`,
+          '--leave-date-warning-arrow-left': `${arrowLeft}px`,
         }
       }
     })
@@ -1531,8 +1705,6 @@ function toggleSelectedDateDuration(date) {
 const leaveDateOptions = computed(() => {
   // Access dependencies to trigger re-computation
   const selected = selectedDatesList.value
-  const max = selectedLeaveTypeMaxDays.value
-  const isMco6 = isMco6Leave.value
   const today = toSlash(todayStr.value)
   const blockedDates = lockedLeaveDates.value
 
@@ -1547,15 +1719,7 @@ const leaveDateOptions = computed(() => {
     if (!isWeekday(date)) return false
     if (date < today) return false
     if (blockedDates.has(dashDate) && selected.includes(dashDate) === false) return false
-    
-    if (isMco6 && selected.length >= 3) {
-      return selected.includes(dashDate)
-    }
-    
-    if (max && selected.length >= max) {
-      return selected.includes(dashDate)
-    }
-    
+
     return true
   }
 })
@@ -1585,7 +1749,15 @@ watch(maternityStartDate, (newDate) => {
         d.setDate(start.getDate() + i)
         dates.push(d.toISOString().split('T')[0])
       }
-      selectedDates.value = normalizeSelectedDates(dates)
+      const normalizedDates = normalizeSelectedDates(dates)
+      const limitWarning = getSelectionLimitWarningForDates(normalizedDates)
+      if (limitWarning) {
+        showCalendarDateWarning(newDate, { message: limitWarning })
+        maternityStartDate.value = null
+        selectedDates.value = []
+        return
+      }
+      selectedDates.value = normalizedDates
     }
   }
 })
@@ -1637,42 +1809,8 @@ function removeSelectedDate(idx) {
   selectedDates.value = selectedDatesList.value.filter(d => d !== dateToRemove)
 }
 
-function calcMaxConsecutive(dates) {
-  if (!dates || dates.length <= 1) return dates ? dates.length : 0
-  const normalized = dates.map((d) => d.replace(/\//g, '-'))
-  const sorted = [...new Set(normalized)].sort()
-
-  let max = 1,
-    streak = 1
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1] + 'T00:00:00')
-    const curr = new Date(sorted[i] + 'T00:00:00')
-    const nextDay = new Date(prev)
-    nextDay.setDate(nextDay.getDate() + 1)
-
-    if (nextDay.getTime() === curr.getTime()) {
-      streak++
-      max = Math.max(max, streak)
-    } else {
-      streak = 1
-    }
-  }
-  return max
-}
-
-const mco6ConsecutiveWarning = computed(() => {
-  if (!isMco6Leave.value) return ''
-  if (selectedDatesList.value.length < 2) return ''
-  const maxC = calcMaxConsecutive(selectedDatesList.value)
-  if (maxC > 3) return 'MCO6 Leave cannot exceed 3 consecutive days. Please adjust your selection.'
-  return ''
-})
-
 const maxDaysWarning = computed(() => {
-  const max = selectedLeaveTypeMaxDays.value
-  if (!max) return ''
-  if (selectedDatesList.value.length > max) return `Maximum of ${max} days allowed for this leave type.`
-  return ''
+  return getMaxDaysWarningForTotal(selectedDateTotalDays.value)
 })
 
 watch(selectedDates, (dates) => {
@@ -1694,6 +1832,9 @@ watch(selectedDates, (dates) => {
   form.value.days = selectedDateTotalDays.value
   form.value.startDate = sorted[0]
   form.value.endDate = sorted[sorted.length - 1]
+  if (!getSelectionLimitWarningForDates(normalized)) {
+    lastValidSelectedDates.value = normalized
+  }
   syncLockedDateDecorations()
 }, { deep: true })
 
@@ -1784,6 +1925,11 @@ async function onSubmit() {
   if (maxDaysWarning.value) {
       $q.notify({ type: 'negative', message: maxDaysWarning.value })
       return
+  }
+
+  if (leaveBalanceWarning.value) {
+    $q.notify({ type: 'warning', message: leaveBalanceWarning.value, position: 'top' })
+    return
   }
 
   loading.value = true
@@ -2065,6 +2211,10 @@ async function onSubmit() {
   display: flex;
   flex-direction: column;
 }
+.selected-dates-warning-slot {
+  min-height: 24px;
+  margin-bottom: 4px;
+}
 .dialog-detail-options {
   display: flex;
   flex-direction: column;
@@ -2172,9 +2322,9 @@ async function onSubmit() {
   --leave-date-warning-text: #9a6700;
 }
 .leave-date-warning-popover--approved {
-  --leave-date-warning-bg: #dff1e0;
-  --leave-date-warning-border: rgba(154, 199, 158, 0.9);
-  --leave-date-warning-text: #2f6b34;
+  --leave-date-warning-bg: #fff1c9;
+  --leave-date-warning-border: rgba(225, 192, 106, 0.8);
+  --leave-date-warning-text: #9a6700;
 }
 .leave-date-calendar :deep(.leave-date-calendar__day--warning) {
   position: relative;
@@ -2235,3 +2385,4 @@ async function onSubmit() {
   padding-top: 0;
 }
 </style>
+

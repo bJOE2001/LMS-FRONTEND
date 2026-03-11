@@ -212,6 +212,68 @@ export function getApplicationSelectedDates(application) {
   return enumerateInclusiveDates(startDate, endDate)
 }
 
+function normalizeSelectedDateDurations(value) {
+  if (!value) return {}
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return {}
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+export function getApplicationRequestedDayCount(application) {
+  if (!application) return 0
+
+  const selectedDates = getApplicationSelectedDates(application)
+  const selectedDateDurations = normalizeSelectedDateDurations(
+    application?.selected_date_durations ?? application?.selectedDateDurations,
+  )
+
+  if (selectedDates.length > 0) {
+    const durationTotal = selectedDates.reduce((total, date) => (
+      total + (selectedDateDurations[date] === 'half_day' ? 0.5 : 1)
+    ), 0)
+
+    if (durationTotal > 0) {
+      return durationTotal
+    }
+
+    const explicitTotal = Number(
+      application?.total_days ?? application?.totalDays ?? application?.days,
+    )
+    if (Number.isFinite(explicitTotal) && explicitTotal > 0) {
+      return explicitTotal
+    }
+
+    return selectedDates.length
+  }
+
+  const explicitTotal = Number(
+    application?.total_days ?? application?.totalDays ?? application?.days,
+  )
+  if (Number.isFinite(explicitTotal) && explicitTotal > 0) {
+    return explicitTotal
+  }
+
+  const startDate = normalizeIsoDate(
+    application?.startDate ?? application?.start_date ?? application?.from_date ?? application?.fromDate,
+  )
+  const endDate = normalizeIsoDate(
+    application?.endDate ?? application?.end_date ?? application?.to_date ?? application?.toDate ?? startDate,
+  )
+
+  return enumerateInclusiveDates(startDate, endDate).length
+}
+
 export function getBlockingLeaveApplicationState(application) {
   if (!application || application.is_monetization === true) return false
 
