@@ -15,7 +15,7 @@
       />
     </div>
     <p class="text-grey-7 q-mb-lg">
-      {{ props.applicationsOnly ? 'Review and manage leave applications' : 'Review and approve leave applications' }}
+      {{ props.applicationsOnly ? 'Review and manage leave applications' : 'Monitor leave application analytics and summaries' }}
     </p>
 
     <q-dialog
