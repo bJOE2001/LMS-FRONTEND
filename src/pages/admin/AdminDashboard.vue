@@ -75,10 +75,18 @@
               </div>
             </div>
             <div class="stat-breakdown">
-              <div class="stat-mini-card"><span class="stat-mini-label">Elective</span><span class="stat-mini-value">{{ loading ? '-' : kpiBreakdown.total.elective }}</span></div>
-              <div class="stat-mini-card"><span class="stat-mini-label">Co-term</span><span class="stat-mini-value">{{ loading ? '-' : kpiBreakdown.total.co_terminous }}</span></div>
-              <div class="stat-mini-card"><span class="stat-mini-label">Regular</span><span class="stat-mini-value">{{ loading ? '-' : kpiBreakdown.total.regular }}</span></div>
-              <div class="stat-mini-card"><span class="stat-mini-label">Casual</span><span class="stat-mini-value">{{ loading ? '-' : kpiBreakdown.total.casual }}</span></div>
+              <button
+                v-for="card in totalApplicationBreakdownCards"
+                :key="card.key"
+                type="button"
+                :class="['stat-mini-card', { 'stat-mini-card--active': employmentTypeFilter === card.key }]"
+                :style="getEmploymentTypeCardStyle(card)"
+                @click.stop="applyEmploymentTypeFilter(card.key)"
+              >
+                <span class="stat-mini-label">{{ card.label }}</span>
+                <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
+                <q-tooltip>{{ getEmploymentTypeFilterTooltip(card) }}</q-tooltip>
+              </button>
             </div>
           </q-card-section>
         </q-card>
@@ -125,7 +133,20 @@
     <q-card ref="applicationsSectionRef" flat bordered class="rounded-borders">
       <q-card-section>
         <div class="row justify-between items-center q-col-gutter-sm">
-          <div class="text-h6">All Application</div>
+          <div class="row items-center q-gutter-sm">
+            <div class="text-h6">All Application</div>
+            <q-chip
+              v-if="activeEmploymentTypeFilterLabel"
+              dense
+              removable
+              color="primary"
+              text-color="white"
+              icon="filter_alt"
+              @remove="clearEmploymentTypeFilter"
+            >
+              {{ activeEmploymentTypeFilterLabel }}
+            </q-chip>
+          </div>
           <div class="row items-center q-gutter-sm">
             <q-input
               v-model="statusSearch"
@@ -178,7 +199,9 @@
                 rounded
                 class="leave-balance-badge"
                 :label="item.label"
-              />
+              >
+                <q-tooltip>{{ item.tooltip }}</q-tooltip>
+              </q-badge>
             </div>
           </q-td>
         </template>
@@ -443,13 +466,30 @@ const kpiBreakdown = computed(() => {
   }
 })
 
+const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
+  { key: 'elective', label: 'Elective', accent: '#f9a825', bg: '#fff8e1' },
+  { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
+  { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
+  { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
+]
+
 const statusSearch = ref('')
+const employmentTypeFilter = ref('')
 const applicationsPagination = ref({
   rowsPerPage: 10,
 })
+const activeEmploymentTypeFilterLabel = computed(() => {
+  const matched = EMPLOYMENT_TYPE_BREAKDOWN_CARDS.find((card) => card.key === employmentTypeFilter.value)
+  return matched?.label || ''
+})
+const totalApplicationBreakdownCards = computed(() => EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
+  ...card,
+  value: kpiBreakdown.value.total[card.key] ?? 0,
+})))
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
-  const applications = dashboardData.value.applications ?? []
+  const applications = (dashboardData.value.applications ?? [])
+    .filter((app) => matchesEmploymentTypeFilter(app))
   const filteredApplications = queryTokens.length
     ? applications.filter((app) => {
       const searchTokens = getApplicationSearchTokenSet(app)
@@ -605,6 +645,7 @@ function maybeShowPendingReminder() {
 }
 
 function focusPendingApplications() {
+  clearEmploymentTypeFilter()
   showPendingReminderDialog.value = false
   statusSearch.value = 'pending'
 
@@ -629,6 +670,79 @@ function formatLeaveBalanceValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return ''
   return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+}
+
+function normalizeEmploymentTypeKey(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[_\s]+/g, '-')
+
+  if (!normalized) return ''
+  if (normalized.includes('ELECTIVE')) return 'elective'
+  if (normalized.includes('CO-TER') || normalized.includes('CO-TERM') || normalized.includes('COTER')) return 'co_terminous'
+  if (normalized.includes('REGULAR')) return 'regular'
+  if (normalized.includes('CASUAL')) return 'casual'
+  return ''
+}
+
+function getApplicationEmploymentTypeKey(application) {
+  const candidates = [
+    application?.employment_status,
+    application?.employmentStatus,
+    application?.appointment_status,
+    application?.appointmentStatus,
+    application?.employee_status,
+    application?.employeeStatus,
+    application?.status_type,
+    application?.statusType,
+    application?.employee?.status,
+    application?.employee?.employment_status,
+    application?.employee?.employmentStatus,
+    application?.user?.status,
+    application?.user?.employment_status,
+    application?.user?.employmentStatus,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedKey = normalizeEmploymentTypeKey(candidate)
+    if (normalizedKey) return normalizedKey
+  }
+
+  return ''
+}
+
+function matchesEmploymentTypeFilter(application) {
+  if (!employmentTypeFilter.value) return true
+  return getApplicationEmploymentTypeKey(application) === employmentTypeFilter.value
+}
+
+function getEmploymentTypeCardStyle(card) {
+  return {
+    '--stat-mini-card-accent': card.accent,
+    '--stat-mini-card-hover-bg': card.bg,
+  }
+}
+
+function getEmploymentTypeFilterTooltip(card) {
+  if (employmentTypeFilter.value === card.key) {
+    return `Clear ${card.label} filter`
+  }
+  return `Filter by ${card.label}`
+}
+
+function clearEmploymentTypeFilter() {
+  employmentTypeFilter.value = ''
+}
+
+function applyEmploymentTypeFilter(type) {
+  const normalizedKey = normalizeEmploymentTypeKey(type)
+  employmentTypeFilter.value = normalizedKey === employmentTypeFilter.value ? '' : normalizedKey
+
+  nextTick(() => {
+    const target = applicationsSectionRef.value?.$el ?? applicationsSectionRef.value
+    target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
@@ -853,6 +967,7 @@ function getLeaveBalanceTextItems(app) {
     const acronym = toLeaveBalanceAcronym(entry.label)
     return {
       label: `${acronym || entry.label}: ${entry.value}`,
+      tooltip: entry.label,
     }
   })
 }
@@ -1556,13 +1671,14 @@ async function confirmDisapprove() {
 .stat-card {
   width: 100%;
   height: 100%;
-  min-height: 132px;
+  min-height: 116px;
 }
 .stat-card-content {
   height: 100%;
+  padding: 12px 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 .stat-card-main {
   display: flex;
@@ -1584,21 +1700,44 @@ async function confirmDisapprove() {
   line-height: 1;
 }
 .stat-breakdown {
-  margin-top: 6px;
+  margin-top: 4px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 .stat-mini-card {
+  width: 100%;
   min-width: 0;
   padding: 4px 6px;
   border-radius: 7px;
   border: 1px solid #ebeff3;
   background: #f7f9fb;
+  appearance: none;
+  font: inherit;
+  text-align: left;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.stat-mini-card:hover {
+  background: var(--stat-mini-card-hover-bg, #eef3f7);
+  border-color: var(--stat-mini-card-accent, #d0d8e2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+.stat-mini-card:focus-visible {
+  outline: none;
+  background: var(--stat-mini-card-hover-bg, #eef3f7);
+  border-color: var(--stat-mini-card-accent, #d0d8e2);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+.stat-mini-card--active {
+  background: var(--stat-mini-card-hover-bg, #eef3f7);
+  border-color: var(--stat-mini-card-accent, #d0d8e2);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 .stat-mini-label {
   min-width: 0;
