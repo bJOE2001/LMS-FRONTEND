@@ -27,36 +27,91 @@
       </q-card>
     </q-dialog>
 
-    <div class="row q-col-gutter-md q-mb-lg">
+    <div class="row q-col-gutter-md q-mb-lg stat-cards-row">
       <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="bg-white rounded-borders summary-card" flat bordered @click="goToApplications('total')">
-          <q-card-section>
-            <div class="text-caption text-weight-medium">Total Applications</div>
-            <div class="text-h4 text-primary">{{ dashboardData.total_count }}</div>
+        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('total')">
+          <q-card-section class="stat-card-content">
+            <div class="stat-card-main">
+              <div class="stat-card-left">
+                <div class="row items-center no-wrap q-gutter-xs">
+                  <q-icon name="description" size="28px" color="grey" />
+                </div>
+                <div class="text-caption text-weight-medium q-mt-sm">Total Applications</div>
+              </div>
+              <div class="stat-value text-primary">
+                <q-spinner v-if="loading" size="32px" color="primary" />
+                <template v-else>{{ dashboardData.total_count }}</template>
+              </div>
+            </div>
+            <div class="stat-breakdown">
+              <button
+                v-for="card in totalApplicationBreakdownCards"
+                :key="card.key"
+                type="button"
+                class="stat-mini-card"
+                :style="getEmploymentTypeCardStyle(card)"
+                @click.stop="openEmploymentTypeApplications(card.key)"
+              >
+                <span class="stat-mini-label">{{ card.label }}</span>
+                <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
+                <q-tooltip>{{ `View ${card.label} applications` }}</q-tooltip>
+              </button>
+            </div>
           </q-card-section>
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="bg-white rounded-borders summary-card" flat bordered @click="goToApplications('pending')">
-          <q-card-section>
-            <div class="text-caption text-weight-medium">Pending</div>
-            <div class="text-h4 text-warning">{{ dashboardData.pending_count }}</div>
+        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('pending')">
+          <q-card-section class="stat-card-content">
+            <div class="stat-card-main">
+              <div class="stat-card-left">
+                <div class="row items-center no-wrap q-gutter-xs">
+                  <q-icon name="schedule" size="28px" color="warning" />
+                  <q-icon v-if="dashboardData.pending_count > 5" name="warning" size="18px" color="warning" />
+                </div>
+                <div class="text-caption text-weight-medium q-mt-sm">Pending Applications</div>
+              </div>
+              <div class="stat-value text-warning">
+                <q-spinner v-if="loading" size="32px" color="warning" />
+                <template v-else>{{ dashboardData.pending_count }}</template>
+              </div>
+            </div>
           </q-card-section>
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="bg-white rounded-borders summary-card" flat bordered @click="goToApplications('approved')">
-          <q-card-section>
-            <div class="text-caption text-weight-medium">Approved</div>
-            <div class="text-h4 text-green-8">{{ dashboardData.approved_count }}</div>
+        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('approved')">
+          <q-card-section class="stat-card-content">
+            <div class="stat-card-main">
+              <div class="stat-card-left">
+                <div class="row items-center no-wrap q-gutter-xs">
+                  <q-icon name="check_circle" size="28px" color="primary" />
+                </div>
+                <div class="text-caption text-weight-medium q-mt-sm">Total Approved</div>
+              </div>
+              <div class="stat-value text-primary">
+                <q-spinner v-if="loading" size="32px" color="primary" />
+                <template v-else>{{ dashboardData.approved_count }}</template>
+              </div>
+            </div>
           </q-card-section>
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="bg-white rounded-borders summary-card" flat bordered @click="goToApplications('rejected')">
-          <q-card-section>
-            <div class="text-caption text-weight-medium">Rejected</div>
-            <div class="text-h4 text-negative">{{ dashboardData.rejected_count }}</div>
+        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('rejected')">
+          <q-card-section class="stat-card-content">
+            <div class="stat-card-main">
+              <div class="stat-card-left">
+                <div class="row items-center no-wrap q-gutter-xs">
+                  <q-icon name="cancel" size="28px" color="negative" />
+                </div>
+                <div class="text-caption text-weight-medium q-mt-sm">Rejected Applications</div>
+              </div>
+              <div class="stat-value text-negative">
+                <q-spinner v-if="loading" size="32px" color="negative" />
+                <template v-else>{{ dashboardData.rejected_count }}</template>
+              </div>
+            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -115,11 +170,88 @@ const router = useRouter()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
 
+function emptyEmploymentBreakdown() {
+  return {
+    elective: 0,
+    co_terminous: 0,
+    regular: 0,
+    casual: 0,
+  }
+}
+
+function normalizeEmploymentTypeKey(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[_\s]+/g, '-')
+
+  if (!normalized) return ''
+  if (normalized.includes('ELECTIVE')) return 'elective'
+  if (normalized.includes('CO-TER') || normalized.includes('CO-TERM') || normalized.includes('COTER')) return 'co_terminous'
+  if (normalized.includes('REGULAR')) return 'regular'
+  if (normalized.includes('CASUAL')) return 'casual'
+  return ''
+}
+
+function normalizeEmploymentBreakdown(source) {
+  const breakdown = emptyEmploymentBreakdown()
+
+  for (const [key, value] of Object.entries(source ?? {})) {
+    const normalizedKey = normalizeEmploymentTypeKey(key)
+    if (!normalizedKey) continue
+    breakdown[normalizedKey] = Number(value || 0)
+  }
+
+  return breakdown
+}
+
+function getApplicationEmploymentTypeKey(application) {
+  const candidates = [
+    application?.employment_status,
+    application?.employmentStatus,
+    application?.appointment_status,
+    application?.appointmentStatus,
+    application?.employee_status,
+    application?.employeeStatus,
+    application?.status_type,
+    application?.statusType,
+    application?.employee?.status,
+    application?.employee?.employment_status,
+    application?.employee?.employmentStatus,
+    application?.user?.status,
+    application?.user?.employment_status,
+    application?.user?.employmentStatus,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedKey = normalizeEmploymentTypeKey(candidate)
+    if (normalizedKey) return normalizedKey
+  }
+
+  return ''
+}
+
+function buildEmploymentBreakdown(applications) {
+  const breakdown = emptyEmploymentBreakdown()
+
+  for (const application of applications) {
+    const normalizedKey = getApplicationEmploymentTypeKey(application)
+    if (!normalizedKey) continue
+    breakdown[normalizedKey] += 1
+  }
+
+  return breakdown
+}
+
+const loading = ref(true)
 const dashboardData = ref({
   total_count: 0,
   pending_count: 0,
   approved_count: 0,
   rejected_count: 0,
+  kpi_breakdown: {
+    total: emptyEmploymentBreakdown(),
+  },
 })
 const dashboardApplications = ref([])
 const activeEmployeeCount = ref(0)
@@ -285,6 +417,31 @@ const manpowerChartSeries = computed(() => [
   },
 ])
 
+const totalApplicationsBreakdown = computed(() => {
+  const apiBreakdown = normalizeEmploymentBreakdown(dashboardData.value.kpi_breakdown?.total)
+  if (Object.values(apiBreakdown).some((value) => value > 0)) return apiBreakdown
+  return buildEmploymentBreakdown(dashboardApplications.value)
+})
+
+const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
+  { key: 'elective', label: 'Elective', accent: '#f9a825', bg: '#fff8e1' },
+  { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
+  { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
+  { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
+]
+
+const totalApplicationBreakdownCards = computed(() => EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
+  ...card,
+  value: totalApplicationsBreakdown.value[card.key] ?? 0,
+})))
+
+function getEmploymentTypeCardStyle(card) {
+  return {
+    '--stat-mini-card-accent': card.accent,
+    '--stat-mini-card-hover-bg': card.bg,
+  }
+}
+
 const manpowerChartOptions = computed(() => ({
   chart: {
     id: 'hr-manpower-daily-percentage',
@@ -350,6 +507,7 @@ const manpowerChartOptions = computed(() => ({
 }))
 
 async function fetchDashboard() {
+  loading.value = true
   try {
     const [{ data }, summaryResponse] = await Promise.all([
       api.get('/hr/dashboard'),
@@ -371,17 +529,32 @@ async function fetchDashboard() {
       pending_count: applications.length ? pendingFromApps : (data.pending_count ?? 0),
       approved_count: applications.length ? approvedFromApps : (data.approved_count ?? 0),
       rejected_count: applications.length ? rejectedFromApps : (data.rejected_count ?? 0),
+      kpi_breakdown: data?.kpi_breakdown ?? {
+        total: buildEmploymentBreakdown(applications),
+      },
     }
 
     maybeShowPendingReminder()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load HR dashboard data right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    loading.value = false
   }
 }
 
-function goToApplications(status) {
-  router.push({ path: '/hr/applications', query: { status } })
+function openEmploymentTypeApplications(type) {
+  const normalizedKey = normalizeEmploymentTypeKey(type)
+  if (!normalizedKey) return
+  goToApplications('total', { employment_type: normalizedKey })
+}
+
+function goToApplications(status, extraQuery = {}) {
+  const query = { ...extraQuery }
+  if (status && status !== 'total') {
+    query.status = status
+  }
+  router.push({ path: '/hr/applications', query })
 }
 
 function maybeShowPendingReminder() {
@@ -408,6 +581,10 @@ onMounted(fetchDashboard)
 </script>
 
 <style scoped>
+.stat-cards-row > div {
+  display: flex;
+}
+
 .dashboard-panel-col {
   display: flex;
 }
@@ -442,13 +619,108 @@ onMounted(fetchDashboard)
   height: 100% !important;
 }
 
-.summary-card {
+.stat-card {
+  width: 100%;
+  height: 100%;
+  min-height: 116px;
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
-.summary-card:hover {
+
+.stat-card-content {
+  height: 100%;
+  padding: 12px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stat-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.stat-card-left {
+  flex: 1 1 auto;
+}
+
+.stat-value {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 2px;
+  min-width: 64px;
+  text-align: right;
+  font-size: clamp(2.2rem, 3.2vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.stat-breakdown {
+  margin-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.stat-mini-card {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 7px;
+  border: 1px solid #ebeff3;
+  background: #f7f9fb;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.stat-mini-card:hover {
+  background: var(--stat-mini-card-hover-bg, #eef3f7);
+  border-color: var(--stat-mini-card-accent, #d0d8e2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stat-mini-card:focus-visible {
+  outline: none;
+  background: var(--stat-mini-card-hover-bg, #eef3f7);
+  border-color: var(--stat-mini-card-accent, #d0d8e2);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.stat-mini-label {
+  min-width: 0;
+  font-size: 0.62rem;
+  color: #9aa3ad;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-mini-value {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  color: #7f8b97;
+  font-weight: 600;
+}
+
+.stat-card:hover {
   background-color: #f3faf3 !important;
   transform: translateY(-1px);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 599px) {
+  .stat-breakdown {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

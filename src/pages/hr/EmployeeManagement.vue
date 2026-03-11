@@ -89,11 +89,13 @@
       <q-card-section class="bg-green-1">
         <div class="row items-center">
           <q-icon name="people" size="sm" color="green-8" class="q-mr-sm" />
-          <div class="text-subtitle1 text-weight-bold text-green-8">
-            All Employees
-          </div>
+          <div class="text-subtitle1 text-weight-bold text-green-8">All Employees</div>
           <q-space />
-          <q-badge color="green-8" :label="employeePagination.rowsNumber + ' employee(s)'" rounded />
+          <q-badge
+            color="green-8"
+            :label="employeePagination.rowsNumber + ' employee(s)'"
+            rounded
+          />
         </div>
       </q-card-section>
       <q-table
@@ -114,8 +116,12 @@
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
               <div>
-                <div class="text-weight-medium">{{ props.row.surname }}, {{ props.row.firstname }}</div>
-                <div v-if="props.row.designation" class="text-caption text-grey-6">{{ props.row.designation }}</div>
+                <div class="text-weight-medium">
+                  {{ props.row.surname }}, {{ props.row.firstname }}
+                </div>
+                <div v-if="props.row.designation" class="text-caption text-grey-6">
+                  {{ props.row.designation }}
+                </div>
               </div>
             </div>
           </q-td>
@@ -134,10 +140,26 @@
 
         <template #body-cell-actions="props">
           <q-td :props="props" class="q-gutter-xs">
-            <q-btn flat dense round icon="add_card" color="green-8" size="sm" @click.stop="openLeaveCreditsDialog(props.row)">
+            <q-btn
+              flat
+              dense
+              round
+              icon="add_card"
+              color="green-8"
+              size="sm"
+              @click.stop="openLeaveCreditsDialog(props.row)"
+            >
               <q-tooltip>Add Leave Credits</q-tooltip>
             </q-btn>
-            <q-btn flat dense round icon="visibility" color="primary" size="sm" @click.stop="viewEmployee(props.row)">
+            <q-btn
+              flat
+              dense
+              round
+              icon="visibility"
+              color="primary"
+              size="sm"
+              @click.stop="viewEmployee(props.row)"
+            >
               <q-tooltip>View Details</q-tooltip>
             </q-btn>
           </q-td>
@@ -146,9 +168,7 @@
         <template #no-data>
           <div class="full-width text-center q-pa-lg">
             <q-icon name="people_outline" size="48px" color="grey-5" />
-            <div class="text-grey-6 q-mt-sm">
-              No employees found
-            </div>
+            <div class="text-grey-6 q-mt-sm">No employees found</div>
           </div>
         </template>
       </q-table>
@@ -166,7 +186,8 @@
           <div class="row q-col-gutter-md">
             <div class="col-12 text-center q-mb-md">
               <q-avatar size="64px" color="primary" text-color="white" class="text-h5">
-                {{ (selectedEmployee.firstname || '').charAt(0) }}{{ (selectedEmployee.surname || '').charAt(0) }}
+                {{ (selectedEmployee.firstname || '').charAt(0)
+                }}{{ (selectedEmployee.surname || '').charAt(0) }}
               </q-avatar>
               <div class="text-h6 q-mt-sm">
                 {{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}
@@ -175,7 +196,9 @@
             </div>
             <div class="col-6">
               <div class="text-caption text-grey-6">Department</div>
-              <div class="text-body2 text-weight-medium">{{ toDepartmentCode(selectedEmployee.office) }}</div>
+              <div class="text-body2 text-weight-medium">
+                {{ toDepartmentCode(selectedEmployee.office) }}
+              </div>
             </div>
             <div class="col-6">
               <div class="text-caption text-grey-6">Status</div>
@@ -292,7 +315,14 @@
         </q-card-section>
 
         <q-card-actions align="right" class="q-pa-md">
-          <q-btn flat no-caps label="Cancel" color="grey-7" v-close-popup :disable="savingLeaveCredits" />
+          <q-btn
+            flat
+            no-caps
+            label="Cancel"
+            color="grey-7"
+            v-close-popup
+            :disable="savingLeaveCredits"
+          />
           <q-btn
             unelevated
             no-caps
@@ -323,8 +353,12 @@
               <q-icon name="info" color="blue-8" />
             </template>
             <div class="text-body2">
-              Upload a CSV file with columns: <strong>employee_id</strong>, <strong>leave_type</strong>, <strong>balance</strong>.<br />
-              <span class="text-caption">employee_id = Control No, leave_type = exact name (e.g. Vacation Leave), balance >= 0</span>
+              Upload a CSV file with columns: <strong>employee_id</strong>,
+              <strong>leave_type</strong>, <strong>balance</strong>.<br />
+              <span class="text-caption"
+                >employee_id = Control No, leave_type = exact name (e.g. Vacation Leave), balance >=
+                0</span
+              >
             </div>
           </q-banner>
 
@@ -349,11 +383,15 @@
 
           <!-- CSV preview -->
           <q-card v-if="!importFile" flat bordered class="bg-grey-1 rounded-borders q-pa-md">
-            <div class="text-caption text-grey-7 text-weight-medium q-mb-xs">Example CSV format:</div>
-            <pre class="text-caption text-grey-8 q-mb-none" style="line-height: 1.5">employee_id,leave_type,balance
+            <div class="text-caption text-grey-7 text-weight-medium q-mb-xs">
+              Example CSV format:
+            </div>
+            <pre class="text-caption text-grey-8 q-mb-none" style="line-height: 1.5">
+employee_id,leave_type,balance
 000001,Vacation Leave,12.50
 000001,Sick Leave,8.00
-000002,MCO6 Leave,5</pre>
+000002,MCO6 Leave,5</pre
+            >
           </q-card>
         </q-card-section>
 
@@ -378,7 +416,12 @@
               <div class="text-caption text-grey-6">Successful</div>
             </div>
             <div class="col-4 text-center">
-              <div class="text-h5" :class="importResult.failed_records > 0 ? 'text-negative' : 'text-grey-5'">{{ importResult.failed_records }}</div>
+              <div
+                class="text-h5"
+                :class="importResult.failed_records > 0 ? 'text-negative' : 'text-grey-5'"
+              >
+                {{ importResult.failed_records }}
+              </div>
               <div class="text-caption text-grey-6">Failed</div>
             </div>
           </div>
@@ -422,7 +465,14 @@
           </template>
           <template v-else>
             <q-btn flat no-caps label="Import Another" color="primary" @click="resetImport" />
-            <q-btn unelevated no-caps label="Done" color="primary" v-close-popup @click="resetImport" />
+            <q-btn
+              unelevated
+              no-caps
+              label="Done"
+              color="primary"
+              v-close-popup
+              @click="resetImport"
+            />
           </template>
         </q-card-actions>
       </q-card>
@@ -476,17 +526,65 @@ const employeeColumns = [
   { name: 'control_no', label: 'ID', align: 'left', field: 'control_no', sortable: true },
   { name: 'name', label: 'Employee', align: 'left', field: 'surname', sortable: true },
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
-  { name: 'office', label: 'Department', align: 'left', field: (row) => toDepartmentCode(row.office), sortable: true },
+  {
+    name: 'office',
+    label: 'Department',
+    align: 'left',
+    field: (row) => toDepartmentCode(row.office),
+    sortable: true,
+  },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
 ]
 
 const historyColumns = [
-  { name: 'date_filed', label: 'Date Filed', align: 'left', field: 'date_filed', sortable: true, style: 'width: 16%' },
-  { name: 'leave_type', label: 'Leave Type', align: 'left', field: 'leave_type', sortable: true, style: 'width: 22%' },
-  { name: 'start_date', label: 'Start Date', align: 'left', field: 'start_date', sortable: true, style: 'width: 16%' },
-  { name: 'end_date', label: 'End Date', align: 'left', field: 'end_date', sortable: true, style: 'width: 16%' },
-  { name: 'total_days', label: 'Days', align: 'center', field: 'total_days', sortable: true, style: 'width: 10%' },
-  { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true, style: 'width: 20%' },
+  {
+    name: 'date_filed',
+    label: 'Date Filed',
+    align: 'left',
+    field: 'date_filed',
+    sortable: true,
+    style: 'width: 16%',
+  },
+  {
+    name: 'leave_type',
+    label: 'Leave Type',
+    align: 'left',
+    field: 'leave_type',
+    sortable: true,
+    style: 'width: 22%',
+  },
+  {
+    name: 'start_date',
+    label: 'Start Date',
+    align: 'left',
+    field: 'start_date',
+    sortable: true,
+    style: 'width: 16%',
+  },
+  {
+    name: 'end_date',
+    label: 'End Date',
+    align: 'left',
+    field: 'end_date',
+    sortable: true,
+    style: 'width: 16%',
+  },
+  {
+    name: 'total_days',
+    label: 'Days',
+    align: 'center',
+    field: 'total_days',
+    sortable: true,
+    style: 'width: 10%',
+  },
+  {
+    name: 'status',
+    label: 'Status',
+    align: 'center',
+    field: 'status',
+    sortable: true,
+    style: 'width: 20%',
+  },
 ]
 
 function statusBadgeColor(status) {
@@ -495,7 +593,18 @@ function statusBadgeColor(status) {
   return c[status] ?? 'blue'
 }
 
-const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
+const DEPARTMENT_STOP_WORDS = new Set([
+  'A',
+  'AN',
+  'AND',
+  'FOR',
+  'IN',
+  'OF',
+  'OFFICE',
+  'ON',
+  'THE',
+  'TO',
+])
 
 function toDepartmentCode(value) {
   const source = String(value || '').trim()
@@ -513,7 +622,9 @@ function toDepartmentCode(value) {
 
   if (!words.length) return source
 
-  const acronymWords = words.filter((word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word))
+  const acronymWords = words.filter(
+    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
   const selectedWords = acronymWords.length ? acronymWords : words
   const acronym = selectedWords.map((word) => word[0]).join('')
 

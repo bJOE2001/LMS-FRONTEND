@@ -29,10 +29,16 @@
     <div class="row q-col-gutter-md q-mb-lg">
       <div
         v-for="card in statusCards"
-        :key="card.label"
+        :key="card.key"
         class="col-12 col-sm-6 col-md"
       >
-        <q-card class="stat-card bg-white rounded-borders" flat bordered>
+        <q-card
+          :class="['stat-card', 'bg-white', 'rounded-borders', { 'stat-card--active': isStatusCardActive(card) }]"
+          :style="getStatusCardStyle(card)"
+          flat
+          bordered
+          @click="applyStatusFilter(card.filterValue)"
+        >
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
               <q-avatar
@@ -48,6 +54,7 @@
                 <div class="text-h5 text-weight-bold" :style="{ color: card.hex }">{{ card.value }}</div>
               </div>
             </div>
+            <q-tooltip>{{ getStatusCardTooltip(card) }}</q-tooltip>
           </q-card-section>
         </q-card>
       </div>
@@ -56,7 +63,20 @@
     <q-card flat bordered class="rounded-borders">
       <q-card-section>
         <div class="row justify-between items-center">
-          <div class="text-h6">Employee Records</div>
+          <div class="row items-center q-gutter-sm">
+            <div class="text-h6">Employee Records</div>
+            <q-chip
+              v-if="activeStatusFilterLabel"
+              dense
+              removable
+              color="primary"
+              text-color="white"
+              icon="filter_alt"
+              @remove="clearStatusFilter"
+            >
+              {{ activeStatusFilterLabel }}
+            </q-chip>
+          </div>
           <q-input
             v-model="search"
             outlined
@@ -449,6 +469,7 @@ const employees = ref([])
 const loading = ref(false)
 const totalEmployees = ref(0)
 const statusCounts = ref({})
+const activeStatusFilter = ref('')
 const loadingDepartmentHead = ref(false)
 const savingDepartmentHead = ref(false)
 const departmentHeadId = ref(null)
@@ -493,15 +514,23 @@ const statusOptions = [
 
 const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
 const adminDepartmentName = computed(() => authStore.user?.department?.name ?? '-')
+const activeStatusFilterLabel = computed(() => {
+  if (!activeStatusFilter.value) return ''
+  const matched = statusOptions.find((option) => option.value === activeStatusFilter.value)
+  return matched?.label || activeStatusFilter.value
+})
 
 const noDataMessage = computed(() => {
   if (!adminDepartmentId.value) return 'Select or set your department to view employees.'
   return 'No employees found in this department.'
 })
 const tableRows = computed(() => {
-  const rows = Array.isArray(employees.value) ? [...employees.value] : []
+  const rows = (Array.isArray(employees.value) ? [...employees.value] : [])
+    .filter((row) => matchesStatusFilter(row?.status))
   const headRow = buildSyntheticDepartmentHeadRow()
   if (!headRow) return rows
+  if (!matchesStatusFilter(headRow.status)) return rows
+  if (!matchesEmployeeSearch(headRow)) return rows
 
   const existsInEmployees = rows.some((row) => normalizeControlNo(row?.control_no) === normalizeControlNo(headRow.control_no))
   if (existsInEmployees) return rows
@@ -517,13 +546,72 @@ const columns = [
 ]
 
 const statusCards = computed(() => [
-  { label: 'Total Employees', value: totalEmployees.value, icon: 'groups', hex: '#1565c0', color: 'primary', bg: '#e3f2fd' },
-  { label: 'Elective', value: statusCounts.value.ELECTIVE || 0, icon: 'how_to_vote', hex: '#f9a825', color: 'amber-9', bg: '#fff8e1' },
-  { label: 'Co-terminous', value: statusCounts.value['CO-TERMINOUS'] || 0, icon: 'event_repeat', hex: '#0277bd', color: 'blue-8', bg: '#e1f5fe' },
-  { label: 'Regular', value: statusCounts.value.REGULAR || 0, icon: 'verified_user', hex: '#2e7d32', color: 'green-8', bg: '#e8f5e9' },
-  { label: 'Casual', value: statusCounts.value.CASUAL || 0, icon: 'person_outline', hex: '#e65100', color: 'orange-9', bg: '#fff3e0' },
-  { label: 'Contractual', value: statusCounts.value.CONTRACTUAL || 0, icon: 'badge', hex: '#6d4c41', color: 'brown-7', bg: '#efebe9' },
+  { key: 'TOTAL', label: 'Total Employees', value: totalEmployees.value, filterValue: '', icon: 'groups', hex: '#1565c0', color: 'primary', bg: '#e3f2fd' },
+  { key: 'ELECTIVE', label: 'Elective', value: statusCounts.value.ELECTIVE || 0, filterValue: 'ELECTIVE', icon: 'how_to_vote', hex: '#f9a825', color: 'amber-9', bg: '#fff8e1' },
+  { key: 'CO-TERMINOUS', label: 'Co-terminous', value: statusCounts.value['CO-TERMINOUS'] || 0, filterValue: 'CO-TERMINOUS', icon: 'event_repeat', hex: '#0277bd', color: 'blue-8', bg: '#e1f5fe' },
+  { key: 'REGULAR', label: 'Regular', value: statusCounts.value.REGULAR || 0, filterValue: 'REGULAR', icon: 'verified_user', hex: '#2e7d32', color: 'green-8', bg: '#e8f5e9' },
+  { key: 'CASUAL', label: 'Casual', value: statusCounts.value.CASUAL || 0, filterValue: 'CASUAL', icon: 'person_outline', hex: '#e65100', color: 'orange-9', bg: '#fff3e0' },
+  { key: 'CONTRACTUAL', label: 'Contractual', value: statusCounts.value.CONTRACTUAL || 0, filterValue: 'CONTRACTUAL', icon: 'badge', hex: '#6d4c41', color: 'brown-7', bg: '#efebe9' },
 ])
+
+function normalizeStatus(value) {
+  return String(value || '').trim().toUpperCase()
+}
+
+function matchesStatusFilter(status) {
+  if (!activeStatusFilter.value) return true
+  return normalizeStatus(status) === activeStatusFilter.value
+}
+
+function matchesEmployeeSearch(employee) {
+  const query = String(search.value || '').trim().toLowerCase()
+  if (!query) return true
+
+  const haystack = [
+    employee?.control_no,
+    employee?.surname,
+    employee?.firstname,
+    employee?.middlename,
+    employee?.designation,
+    employee?.office,
+    employee?.status,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+
+  return haystack.includes(query)
+}
+
+function isStatusCardActive(card) {
+  return normalizeStatus(card.filterValue) === normalizeStatus(activeStatusFilter.value)
+}
+
+function getStatusCardStyle(card) {
+  return {
+    '--stat-card-accent': card.hex,
+    '--stat-card-hover-bg': card.bg,
+  }
+}
+
+function getStatusCardTooltip(card) {
+  if (isStatusCardActive(card)) {
+    return card.filterValue ? 'Click to clear this status filter' : 'Showing all employees'
+  }
+  return card.filterValue ? `Filter by ${card.label}` : 'Show all employees'
+}
+
+function clearStatusFilter() {
+  if (!activeStatusFilter.value) return
+  activeStatusFilter.value = ''
+  fetchEmployees(1)
+}
+
+function applyStatusFilter(status) {
+  const normalizedStatus = normalizeStatus(status)
+  activeStatusFilter.value = normalizedStatus === activeStatusFilter.value ? '' : normalizedStatus
+  fetchEmployees(1)
+}
 
 function requiredRule(label) {
   return (value) => !!String(value ?? '').trim() || `${label} is required.`
@@ -843,18 +931,35 @@ async function fetchEmployees(page = 1) {
   loading.value = true
   const pageNum = Math.max(1, parseInt(page, 10) || 1)
   try {
-    const { data } = await api.get('/employees', {
+    const baseParams = {
+      department_id: adminDepartmentId.value,
+      search: search.value || undefined,
+    }
+    const tableRequest = api.get('/employees', {
       params: {
-        department_id: adminDepartmentId.value,
-        search: search.value || undefined,
+        ...baseParams,
+        status: activeStatusFilter.value || undefined,
         per_page: pagination.value.rowsPerPage,
         page: pageNum,
       },
     })
+    const summaryRequest = activeStatusFilter.value
+      ? api.get('/employees', {
+        params: {
+          ...baseParams,
+          per_page: 1,
+          page: 1,
+        },
+      }).catch(() => null)
+      : Promise.resolve(null)
+
+    const [tableResponse, summaryResponse] = await Promise.all([tableRequest, summaryRequest])
+    const data = tableResponse?.data ?? {}
+    const summaryData = summaryResponse?.data ?? data
 
     employees.value = data.employees?.data ?? []
-    totalEmployees.value = data.total_employees ?? 0
-    statusCounts.value = data.status_counts ?? {}
+    totalEmployees.value = summaryData.total_employees ?? 0
+    statusCounts.value = summaryData.status_counts ?? {}
     pagination.value.page = data.employees?.current_page ?? 1
     pagination.value.rowsNumber = data.employees?.total ?? 0
   } catch (err) {
@@ -921,12 +1026,20 @@ watch(adminDepartmentId, (id) => {
 }
 
 .stat-card {
-  transition: box-shadow 0.2s, transform 0.2s;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
 .stat-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08), inset 0 0 0 1px var(--stat-card-accent, #d6dde6);
   transform: translateY(-2px);
+}
+
+.stat-card--active {
+  background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08), inset 0 0 0 2px var(--stat-card-accent, #2563eb);
+  transform: translateY(-1px);
 }
 
 .stat-icon {

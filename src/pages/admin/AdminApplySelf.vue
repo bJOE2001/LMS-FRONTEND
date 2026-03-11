@@ -156,6 +156,7 @@
                 :placeholder="form.leaveTypeId ? '' : 'Select Leave Type'"
                 outlined
                 dense
+                hide-bottom-space
                 emit-value
                 map-options
                 :rules="[val => !!val || 'Please select a leave type']"
@@ -178,6 +179,7 @@
                 v-model="form.leaveTypeOther"
                 outlined
                 dense
+                hide-bottom-space
                 label="Other purpose"
                 placeholder="Enter Leave Type"
                 class="form-input q-mt-sm"

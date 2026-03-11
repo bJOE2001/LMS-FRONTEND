@@ -2,7 +2,20 @@
   <q-card flat bordered class="hr-applications-panel rounded-borders q-mb-lg">
     <q-card-section>
       <div class="row justify-between items-center q-mb-md">
-        <div class="text-h6">All Applications</div>
+        <div class="row items-center q-gutter-sm">
+          <div class="text-h6">All Applications</div>
+          <q-chip
+            v-if="employmentTypeFilterLabel"
+            dense
+            removable
+            color="primary"
+            text-color="white"
+            icon="filter_alt"
+            @remove="clearEmploymentTypeFilter"
+          >
+            {{ employmentTypeFilterLabel }}
+          </q-chip>
+        </div>
         <div class="row items-center q-gutter-sm">
           <q-input
             v-model="statusSearch"
@@ -346,13 +359,14 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import StatusBadge from 'components/StatusBadge.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
 const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const actionLoading = ref(false)
@@ -362,8 +376,16 @@ const tablePagination = ref({
   rowsPerPage: 10,
 })
 const statusSearch = ref('')
+const employmentTypeFilter = ref('')
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected'])
 const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
+const EMPLOYMENT_TYPE_FILTER_LABELS = {
+  elective: 'Elective',
+  co_terminous: 'Co-term',
+  regular: 'Regular',
+  casual: 'Casual',
+}
+const employmentTypeFilterLabel = computed(() => EMPLOYMENT_TYPE_FILTER_LABELS[employmentTypeFilter.value] || '')
 
 function mergeStatus(app) {
   const raw = String(app.rawStatus || '').toUpperCase()
@@ -436,6 +458,51 @@ function tokenizeSearchValue(value) {
 
 function getSearchTokens(value) {
   return tokenizeSearchValue(value)
+}
+
+function normalizeEmploymentTypeKey(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[_\s]+/g, '-')
+
+  if (!normalized) return ''
+  if (normalized.includes('ELECTIVE')) return 'elective'
+  if (normalized.includes('CO-TER') || normalized.includes('CO-TERM') || normalized.includes('COTER')) return 'co_terminous'
+  if (normalized.includes('REGULAR')) return 'regular'
+  if (normalized.includes('CASUAL')) return 'casual'
+  return ''
+}
+
+function getApplicationEmploymentTypeKey(application) {
+  const candidates = [
+    application?.employment_status,
+    application?.employmentStatus,
+    application?.appointment_status,
+    application?.appointmentStatus,
+    application?.employee_status,
+    application?.employeeStatus,
+    application?.status_type,
+    application?.statusType,
+    application?.employee?.status,
+    application?.employee?.employment_status,
+    application?.employee?.employmentStatus,
+    application?.user?.status,
+    application?.user?.employment_status,
+    application?.user?.employmentStatus,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedKey = normalizeEmploymentTypeKey(candidate)
+    if (normalizedKey) return normalizedKey
+  }
+
+  return ''
+}
+
+function matchesEmploymentTypeFilter(application) {
+  if (!employmentTypeFilter.value) return true
+  return getApplicationEmploymentTypeKey(application) === employmentTypeFilter.value
 }
 
 function formatDayValue(value) {
@@ -613,7 +680,7 @@ function getApplicationSearchTokenSet(app) {
 
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
-  const rows = applications.value
+  const rows = applications.value.filter((app) => matchesEmploymentTypeFilter(app))
   if (!queryTokens.length) return [...rows].sort(compareApplicationsForTable)
 
   const filteredRows = rows.filter((app) => {
@@ -753,9 +820,23 @@ watch(
   { immediate: true },
 )
 
-watch(statusSearch, () => {
+watch(
+  () => route.query.employment_type,
+  (value) => {
+    employmentTypeFilter.value = normalizeEmploymentTypeKey(value)
+  },
+  { immediate: true },
+)
+
+watch([statusSearch, employmentTypeFilter], () => {
   tablePagination.value.page = 1
 })
+
+function clearEmploymentTypeFilter() {
+  const nextQuery = { ...route.query }
+  delete nextQuery.employment_type
+  router.replace({ query: nextQuery })
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return ''
