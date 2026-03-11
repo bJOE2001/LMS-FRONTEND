@@ -122,6 +122,14 @@
                 <div v-if="props.row.designation" class="text-caption text-grey-6">
                   {{ props.row.designation }}
                 </div>
+                <q-badge
+                  v-if="isDepartmentHeadRecord(props.row)"
+                  color="blue-8"
+                  text-color="white"
+                  label="Department Head"
+                  class="q-mt-xs"
+                  rounded
+                />
               </div>
             </div>
           </q-td>
@@ -695,6 +703,10 @@ function resolveEmployeeSearch(value) {
     searchText: remainingTerms.join(' ').trim(),
     departmentId,
   }
+}
+
+function isDepartmentHeadRecord(row) {
+  return row?.is_department_head_record === true
 }
 
 async function fetchDepartments() {
