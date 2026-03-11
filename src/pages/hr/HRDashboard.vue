@@ -36,7 +36,7 @@
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="description" size="28px" color="grey" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Total Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
               </div>
               <div class="stat-value text-primary">
                 <q-spinner v-if="loading" size="32px" color="primary" />
@@ -44,18 +44,15 @@
               </div>
             </div>
             <div class="stat-breakdown">
-              <button
+              <div
                 v-for="card in totalApplicationBreakdownCards"
                 :key="card.key"
-                type="button"
                 class="stat-mini-card"
                 :style="getEmploymentTypeCardStyle(card)"
-                @click.stop="openEmploymentTypeApplications(card.key)"
               >
                 <span class="stat-mini-label">{{ card.label }}</span>
                 <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
-                <q-tooltip>{{ `View ${card.label} applications` }}</q-tooltip>
-              </button>
+              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -539,12 +536,6 @@ async function fetchDashboard() {
   }
 }
 
-function openEmploymentTypeApplications(type) {
-  const normalizedKey = normalizeEmploymentTypeKey(type)
-  if (!normalizedKey) return
-  goToApplications('total', { employment_type: normalizedKey })
-}
-
 function goToApplications(status, extraQuery = {}) {
   const query = { ...extraQuery }
   if (status && status !== 'total') {
@@ -674,21 +665,7 @@ onMounted(fetchDashboard)
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.stat-mini-card:hover {
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.stat-mini-card:focus-visible {
-  outline: none;
-  background: var(--stat-mini-card-hover-bg, #eef3f7);
-  border-color: var(--stat-mini-card-accent, #d0d8e2);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+  cursor: default;
 }
 
 .stat-mini-label {

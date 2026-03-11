@@ -22,13 +22,25 @@
             <div class="dialog-summary-line dialog-summary-line--department">{{ dialogOfficeDisplay }}</div>
           </div>
           <div class="dialog-summary-meta">
-            <div class="dialog-summary-meta-item">
+            <div class="dialog-summary-meta-item dialog-summary-meta-item--filed">
               <span class="dialog-summary-meta-label">Date of Filing:</span>
               <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
             </div>
-            <div class="dialog-summary-meta-item">
+            <div class="dialog-summary-meta-item dialog-summary-meta-item--salary">
               <span class="dialog-summary-meta-label">Salary:</span>
               <span class="dialog-summary-meta-value">{{ dialogSalaryDisplay }}</span>
+            </div>
+            <div class="dialog-summary-meta-item dialog-summary-meta-item--leave-balance">
+              <div class="dialog-summary-badges">
+                <span
+                  v-for="item in dialogLeaveBalanceItems"
+                  :key="item.key"
+                  class="dialog-summary-badge"
+                >
+                  {{ item.label }}
+                  <q-tooltip>{{ item.tooltip }}</q-tooltip>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -584,6 +596,150 @@ const dialogSalaryDisplay = computed(() => {
   return salary ? `PHP ${salary}` : '-'
 })
 
+const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Mandatory / Forced Leave',
+  'MCO6 Leave',
+  'Sick Leave',
+  'Vacation Leave',
+  'Wellness Leave',
+]
+
+function formatLeaveBalanceValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+}
+
+function prettifyLeaveBalanceLabel(value) {
+  const label = String(value || '').trim()
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function toLeaveBalanceAcronym(value) {
+  const label = prettifyLeaveBalanceLabel(value)
+  if (!label) return ''
+
+  const lower = label.toLowerCase()
+  if (lower === 'mandatory / forced leave') return 'FL'
+  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'sick leave') return 'SL'
+  if (lower === 'vacation leave') return 'VL'
+  if (lower === 'wellness leave') return 'WL'
+
+  const normalized = label
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+  if (!normalized.length) return ''
+  return normalized.map((part) => part[0]).join('')
+}
+
+function getLeaveBalanceTypeKey(value) {
+  return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function addLeaveBalanceEntry(entries, seen, label, value) {
+  const formattedValue = formatLeaveBalanceValue(value)
+  const formattedLabel = prettifyLeaveBalanceLabel(label)
+  if (!formattedLabel || formattedValue === '') return
+
+  const key = formattedLabel.toLowerCase()
+  if (seen.has(key)) return
+
+  seen.add(key)
+  entries.push({ label: formattedLabel, value: formattedValue })
+}
+
+function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
+  if (!source) return
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (item == null || typeof item !== 'object') continue
+
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        item.leave_type_name || item.leave_type || item.type_name || item.type || item.name || item.label || fallbackLabel,
+        item.balance ?? item.remaining_balance ?? item.available_balance ?? item.credits ?? item.value,
+      )
+    }
+    return
+  }
+
+  if (typeof source !== 'object') {
+    addLeaveBalanceEntry(entries, seen, fallbackLabel, source)
+    return
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value == null || key === 'as_of_date') continue
+
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        value.leave_type_name || value.leave_type || value.type_name || value.type || value.name || value.label || key,
+        value.balance ?? value.remaining_balance ?? value.available_balance ?? value.credits ?? value.value,
+      )
+      continue
+    }
+
+    addLeaveBalanceEntry(entries, seen, key, value)
+  }
+}
+
+function collectLeaveBalanceEntries(entries, seen, source) {
+  if (!source) return
+
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.certificationLeaveCredits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.certification_leave_credits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leaveBalances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leave_balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leaveCredits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leave_credits)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leave_balance)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leave_balance_summary)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.employee_leave_balances)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source?.leaveBalance)
+  collectLeaveBalanceEntriesFromValue(entries, seen, source)
+}
+
+function buildOrderedLeaveBalanceEntries(...sources) {
+  const entries = []
+  const seen = new Set()
+
+  for (const source of sources) {
+    collectLeaveBalanceEntries(entries, seen, source)
+  }
+
+  const entryByType = new Map(entries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]))
+  return REQUIRED_LEAVE_BALANCE_TYPES.map((label) =>
+    entryByType.get(getLeaveBalanceTypeKey(label)) || { label, value: '0' },
+  )
+}
+
 function normalizeLookupValue(value) {
   return String(value || '')
     .trim()
@@ -825,6 +981,31 @@ const employeeExistingApplications = computed(() => {
     isBlockingLeaveApplication(application) && applicationMatchesSelectedEmployee(application),
   )
 })
+
+const employeeApplicationsForBalance = computed(() => {
+  if (!selectedEmployeeId.value && !form.value.employeeId) return []
+  return departmentApplications.value.filter((application) => applicationMatchesSelectedEmployee(application))
+})
+
+const selectedEmployeeRecord = computed(() =>
+  employees.value.find((employee) => employee.control_no === selectedEmployeeId.value) || null,
+)
+
+const employeeApplicationsForBalanceByRecency = computed(() =>
+  [...employeeApplicationsForBalance.value]
+    .sort((left, right) => getApplicationTimestampValue(right) - getApplicationTimestampValue(left)),
+)
+
+const dialogLeaveBalanceItems = computed(() =>
+  buildOrderedLeaveBalanceEntries(
+    ...employeeApplicationsForBalanceByRecency.value,
+    selectedEmployeeRecord.value,
+  ).map((entry) => ({
+    key: getLeaveBalanceTypeKey(entry.label),
+    label: `${toLeaveBalanceAcronym(entry.label) || entry.label}: ${entry.value}`,
+    tooltip: entry.label,
+  })),
+)
 
 function getLockedDatePriority(state) {
   return state === 'pending' ? 2 : 1
@@ -1700,52 +1881,63 @@ async function onSubmit() {
   min-height: 34px;
 }
 .dialog-summary-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 24px;
+  row-gap: 2px;
+  align-items: start;
 }
 .dialog-summary-main {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.dialog-summary-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: contents;
 }
 .dialog-summary-line {
   font-size: 1rem;
-  line-height: 1.25;
+  line-height: 1.12;
   color: #2d3436;
   text-transform: uppercase;
 }
 .dialog-summary-line--name {
+  grid-column: 1;
+  grid-row: 1;
   font-size: 1rem;
   font-weight: 700;
   color: #2d3436;
 }
 .dialog-summary-line--position {
+  grid-column: 1;
+  grid-row: 2;
   color: #2d3436;
   font-weight: 600;
 }
 .dialog-summary-line--department {
+  grid-column: 1;
+  grid-row: 3;
   font-size: 0.86rem;
   color: #8b98a1;
   font-weight: 500;
 }
 .dialog-summary-meta {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: right;
+  display: contents;
 }
 .dialog-summary-meta-item {
+  grid-column: 2;
   display: flex;
   align-items: baseline;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 5px;
+  min-height: 1rem;
+  justify-self: end;
+  min-width: 0;
+}
+.dialog-summary-meta-item--filed {
+  grid-row: 1;
+}
+.dialog-summary-meta-item--salary {
+  grid-row: 2;
+}
+.dialog-summary-meta-item--leave-balance {
+  grid-row: 3;
+  align-items: center;
 }
 .dialog-summary-meta-label {
   font-size: 0.84rem;
@@ -1756,6 +1948,56 @@ async function onSubmit() {
   font-size: 0.92rem;
   font-weight: 600;
   color: #46535d;
+}
+.dialog-summary-badges {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  min-height: 1rem;
+  max-width: 100%;
+}
+.dialog-summary-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid #d8dee6;
+  background: #f5f7fa;
+  color: #72808c;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .dialog-summary-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dialog-summary-main {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .dialog-summary-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+  }
+  .dialog-summary-meta-item {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: auto;
+    justify-content: flex-start;
+  }
+  .dialog-summary-badges {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 .section-block {
   background: #fafafa;
