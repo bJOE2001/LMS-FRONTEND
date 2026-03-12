@@ -768,6 +768,21 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return ''
+
+  const parsedDate = new Date(dateStr)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  return parsedDate.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function formatDayValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return '0'
@@ -1604,7 +1619,7 @@ function buildApplicationTimeline(app) {
   const entries = [
     {
       title: 'Application Filed',
-      subtitle: formatDate(app.dateFiled) || 'Date unavailable',
+      subtitle: formatDateTime(resolveFiledDateValue(app)) || formatDate(app.dateFiled) || 'Date unavailable',
       description: `${app.employeeName || 'Employee'} submitted this leave request.`,
       icon: 'check_circle',
       color: 'positive',
@@ -1615,7 +1630,7 @@ function buildApplicationTimeline(app) {
   if (isCancelledByUser(app)) {
     entries.push({
       title: 'Application Cancelled',
-      subtitle: 'Application closed',
+      subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Application closed',
       description: formatRecentRemarks(app) || 'Application was cancelled by the requester.',
       icon: 'cancel',
       color: 'grey-7',
@@ -1652,7 +1667,7 @@ function buildApplicationTimeline(app) {
   if (app.rawStatus === 'REJECTED') {
     entries.push({
       title: 'Application Disapproved',
-      subtitle: 'Application closed',
+      subtitle: formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed',
       description: formatRecentRemarks(app) || 'Application was disapproved.',
       icon: 'cancel',
       color: 'negative',
@@ -1663,7 +1678,7 @@ function buildApplicationTimeline(app) {
 
     entries.push({
       title: 'Department Admin Approved',
-      subtitle: 'Completed',
+      subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
       description: 'Application was reviewed and forwarded to HR.',
       icon: 'check_circle',
       color: 'positive',
@@ -1691,7 +1706,7 @@ function buildApplicationTimeline(app) {
   if (app.rawStatus === 'APPROVED') {
     entries.push({
       title: 'Final Approval',
-      subtitle: 'Completed',
+      subtitle: formatDateTime(resolveFinalApprovalDateValue(app)) || 'Completed',
       description: 'Application is fully approved.',
       icon: 'task_alt',
       color: 'positive',
@@ -1715,21 +1730,59 @@ function resolveFiledByActor(app) {
   return app?.filedBy || app?.employeeName || 'Unknown'
 }
 
+function resolveFiledDateValue(app) {
+  return (
+    app?.dateFiled ||
+    app?.date_filed ||
+    app?.submitted_at ||
+    app?.submittedAt ||
+    app?.filed_at ||
+    app?.filedAt ||
+    app?.created_at ||
+    app?.createdAt ||
+    null
+  )
+}
+
 function resolveDepartmentAdminActor(app) {
   return app?.adminActionBy || 'Unknown'
+}
+
+function resolveDepartmentAdminActionDateValue(app) {
+  return app?.adminActionAt || app?.admin_action_at || null
 }
 
 function resolveHrActor(app) {
   return app?.hrActionBy || 'Unknown'
 }
 
+function resolveFinalApprovalDateValue(app) {
+  return app?.hrActionAt || app?.hr_action_at || app?.reviewedAt || app?.reviewed_at || null
+}
+
 function resolveCancelledActor(app) {
   return app?.cancelledBy || app?.employeeName || 'Unknown'
+}
+
+function resolveCancelledDateValue(app) {
+  return app?.cancelledAt || app?.cancelled_at || app?.disapprovedAt || app?.disapproved_at || null
 }
 
 function resolveDisapprovalActor(app) {
   if (isCancelledByUser(app)) return resolveCancelledActor(app)
   return app?.disapprovedBy || app?.hrActionBy || app?.adminActionBy || 'Unknown'
+}
+
+function resolveDisapprovedDateValue(app) {
+  return (
+    app?.disapprovedAt ||
+    app?.disapproved_at ||
+    app?.hrActionAt ||
+    app?.hr_action_at ||
+    app?.adminActionAt ||
+    app?.admin_action_at ||
+    null
+  )
 }
 
 function resolveProcessedBy(app) {
