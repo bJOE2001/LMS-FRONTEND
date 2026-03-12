@@ -269,7 +269,7 @@
 
     <!-- Manual Leave Credits Dialog -->
     <q-dialog v-model="showLeaveCreditsDialog" persistent>
-      <q-card style="min-width: 500px; max-width: 600px" class="rounded-borders">
+      <q-card class="rounded-borders leave-credit-dialog">
         <q-card-section class="row items-center q-pb-none">
           <q-icon name="add_card" size="sm" color="secondary" class="q-mr-sm" />
           <div class="text-h6">Add Leave Credits</div>
@@ -287,37 +287,78 @@
 
           <div class="row q-col-gutter-md">
             <div class="col-12">
-              <q-input
-                v-model="leaveCreditForm.employee_id"
-                outlined
-                dense
-                label="Employee Control No *"
-                maxlength="50"
-                hint="Digits only"
-              />
-            </div>
-            <div class="col-12">
               <q-select
-                v-model="leaveCreditForm.leave_type_id"
-                :options="creditLeaveTypeOptions"
+                ref="creditEmployeeSelect"
+                v-model="leaveCreditForm.employee_id"
+                v-model:input-value="creditEmployeeFilter"
+                :options="filteredCreditEmployeeOptions"
                 outlined
                 dense
                 emit-value
                 map-options
-                label="Leave Type *"
-                :loading="loadingCreditLeaveTypes"
-              />
+                option-label="label"
+                option-value="value"
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                clearable
+                label="Employee Name *"
+                hint="Type office acronym + name, e.g. CICTMO Juan"
+                :loading="loadingCreditEmployees"
+                @filter="filterCreditEmployeeOptions"
+                @focus="ensureCreditEmployeeOptionsLoaded"
+                @popup-show="ensureCreditEmployeeOptionsLoaded"
+                @update:input-value="onCreditEmployeeInputValue"
+              >
+                <template #option="scope">
+                  <q-item v-bind="scope.itemProps">
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.label }}</q-item-label>
+                      <q-item-label v-if="scope.opt.caption" caption>
+                        {{ scope.opt.caption }}
+                      </q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
             </div>
             <div class="col-12">
-              <q-input
-                v-model.number="leaveCreditForm.balance"
-                outlined
-                dense
-                type="number"
-                min="0"
-                step="0.01"
-                label="Leave Credits (days) *"
-              />
+              <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
+              <div class="text-caption text-grey-6">
+                Fill only the leave types you want to update.
+              </div>
+            </div>
+            <template v-if="loadingCreditLeaveTypes">
+              <div class="col-12">
+                <div class="row items-center q-gutter-sm text-grey-7">
+                  <q-spinner color="secondary" size="20px" />
+                  <span>Loading leave types...</span>
+                </div>
+              </div>
+            </template>
+            <template v-else-if="creditLeaveTypes.length">
+              <div
+                v-for="leaveType in creditLeaveTypes"
+                :key="leaveType.id"
+                class="col-12 col-sm-6"
+              >
+                <q-input
+                  v-model="leaveCreditForm.balances[leaveType.id]"
+                  outlined
+                  dense
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  :label="leaveType.name"
+                  :hint="formatLeaveTypeInputHint(leaveType)"
+                />
+              </div>
+            </template>
+            <div v-else class="col-12">
+              <q-banner dense rounded class="bg-orange-1 text-orange-9">
+                No credit-based leave types available.
+              </q-banner>
             </div>
           </div>
         </q-card-section>
@@ -518,9 +559,16 @@ const importResult = ref(null)
 // Manual leave credit state
 const showLeaveCreditsDialog = ref(false)
 const savingLeaveCredits = ref(false)
+const loadingCreditEmployees = ref(false)
 const loadingCreditLeaveTypes = ref(false)
-const creditLeaveTypeOptions = ref([])
+const creditLeaveTypes = ref([])
+const allCreditEmployeeOptions = ref([])
+const filteredCreditEmployeeOptions = ref([])
 const leaveCreditForm = ref(defaultLeaveCreditForm())
+const creditEmployeeSelect = ref(null)
+const creditEmployeesLoaded = ref(false)
+const creditEmployeeFilter = ref('')
+let creditEmployeesPromise = null
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -759,17 +807,187 @@ async function fetchCreditLeaveTypes() {
   try {
     const { data } = await api.get('/hr/leave-types')
     const leaveTypes = Array.isArray(data.leave_types) ? data.leave_types : []
-    creditLeaveTypeOptions.value = leaveTypes
-      .filter((type) => type.is_credit_based)
-      .map((type) => ({
-        label: `${type.name} (${type.category})`,
-        value: type.id,
-      }))
+    creditLeaveTypes.value = leaveTypes.filter((type) => type.is_credit_based)
+    leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load leave types right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     loadingCreditLeaveTypes.value = false
+  }
+}
+
+function normalizeCreditEmployeeOptions(options) {
+  const optionMap = new Map()
+
+  for (const option of options) {
+    const value = String(option?.value ?? '').trim()
+    if (!value) continue
+
+    optionMap.set(value, {
+      ...option,
+      value,
+    })
+  }
+
+  return Array.from(optionMap.values()).sort((left, right) => left.label.localeCompare(right.label))
+}
+
+function getFilteredCreditEmployeeOptions(filterValue) {
+  const normalizedFilter = normalizeCreditEmployeeSearchValue(filterValue)
+  if (!normalizedFilter) {
+    return allCreditEmployeeOptions.value
+  }
+
+  const filterTerms = normalizedFilter.split(' ').filter(Boolean)
+
+  return allCreditEmployeeOptions.value.filter((option) =>
+    filterTerms.every((term) => option.searchTerms.some((candidate) => candidate.includes(term))),
+  )
+}
+
+function refreshFilteredCreditEmployeeOptions() {
+  filteredCreditEmployeeOptions.value = getFilteredCreditEmployeeOptions(creditEmployeeFilter.value)
+}
+
+function setCreditEmployeeOptions(options) {
+  const normalizedOptions = normalizeCreditEmployeeOptions(options)
+  allCreditEmployeeOptions.value = normalizedOptions
+  refreshFilteredCreditEmployeeOptions()
+}
+
+function buildCreditEmployeeOption(employee) {
+  const controlNo = String(employee?.control_no ?? '').trim()
+  if (!controlNo) return null
+
+  const firstname = String(employee?.firstname ?? '').trim()
+  const surname = String(employee?.surname ?? '').trim()
+  const designation = String(employee?.designation ?? '').trim()
+  const department = String(employee?.office ?? '').trim()
+  const officeCode = toDepartmentCode(department)
+  const displayName = [surname, firstname].filter(Boolean).join(', ')
+  const fullName = [firstname, surname].filter(Boolean).join(' ')
+  const captionParts = []
+
+  if (designation) {
+    captionParts.push(designation)
+  }
+
+  if (department) {
+    captionParts.push(officeCode)
+  }
+
+  const searchTerms = Array.from(
+    new Set(
+      [
+        firstname,
+        surname,
+        displayName,
+        fullName,
+        designation,
+        department,
+        officeCode,
+        `${officeCode} ${firstname}`,
+        `${officeCode} ${surname}`,
+        `${officeCode} ${displayName}`,
+        `${officeCode} ${fullName}`,
+        `${department} ${displayName}`,
+        `${department} ${fullName}`,
+      ]
+        .map((value) => normalizeCreditEmployeeSearchValue(value))
+        .filter(Boolean),
+    ),
+  )
+
+  return {
+    label: displayName || 'Unnamed Employee',
+    value: controlNo,
+    caption: captionParts.join(' | '),
+    searchTerms,
+  }
+}
+
+function normalizeCreditEmployeeSearchValue(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function upsertCreditEmployeeOption(employee) {
+  const option = buildCreditEmployeeOption(employee)
+  if (!option) return
+
+  setCreditEmployeeOptions([...allCreditEmployeeOptions.value, option])
+}
+
+async function fetchCreditEmployees() {
+  loadingCreditEmployees.value = true
+
+  try {
+    let page = 1
+    let lastPage = 1
+    const collectedOptions = []
+
+    do {
+      const { data } = await api.get('/employees', {
+        params: {
+          per_page: 100,
+          page,
+        },
+      })
+
+      const pageEmployees = Array.isArray(data?.employees?.data) ? data.employees.data : []
+      collectedOptions.push(...pageEmployees.map(buildCreditEmployeeOption).filter(Boolean))
+
+      lastPage = Number(data?.employees?.last_page ?? 1)
+      page += 1
+    } while (page <= lastPage)
+
+    setCreditEmployeeOptions(collectedOptions)
+    creditEmployeesLoaded.value = true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load employee options right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    loadingCreditEmployees.value = false
+  }
+}
+
+async function ensureCreditEmployeeOptionsLoaded() {
+  if (creditEmployeesLoaded.value) return
+  if (creditEmployeesPromise) return creditEmployeesPromise
+
+  creditEmployeesPromise = fetchCreditEmployees().finally(() => {
+    creditEmployeesPromise = null
+  })
+
+  return creditEmployeesPromise
+}
+
+function filterCreditEmployeeOptions(value, update) {
+  creditEmployeeFilter.value = String(value ?? '')
+
+  if (!creditEmployeesLoaded.value && !loadingCreditEmployees.value) {
+    void ensureCreditEmployeeOptionsLoaded()
+  }
+
+  update(() => {
+    refreshFilteredCreditEmployeeOptions()
+  })
+}
+
+function onCreditEmployeeInputValue(value) {
+  creditEmployeeFilter.value = String(value ?? '')
+  refreshFilteredCreditEmployeeOptions()
+
+  if (!creditEmployeesLoaded.value && !loadingCreditEmployees.value) {
+    void ensureCreditEmployeeOptionsLoaded()
+  }
+
+  if (creditEmployeeFilter.value.trim() !== '') {
+    creditEmployeeSelect.value?.showPopup?.()
   }
 }
 
@@ -843,32 +1061,84 @@ async function fetchEmployeeLeaveHistory(controlNo) {
 function defaultLeaveCreditForm() {
   return {
     employee_id: '',
-    leave_type_id: null,
-    balance: null,
+    balances: buildLeaveCreditBalanceState(),
   }
 }
 
 function resetLeaveCreditForm() {
   leaveCreditForm.value = defaultLeaveCreditForm()
+  creditEmployeeFilter.value = ''
+  filteredCreditEmployeeOptions.value = allCreditEmployeeOptions.value
 }
 
 function openLeaveCreditsDialog(employee = null) {
   resetLeaveCreditForm()
   if (employee?.control_no) {
     leaveCreditForm.value.employee_id = String(employee.control_no)
+    upsertCreditEmployeeOption(employee)
   }
   showLeaveCreditsDialog.value = true
+  void ensureCreditEmployeeOptionsLoaded()
+}
+
+function buildLeaveCreditBalanceState(existingBalances = {}) {
+  const balances = {}
+
+  for (const leaveType of creditLeaveTypes.value) {
+    const balanceKey = String(leaveType.id)
+    balances[balanceKey] = Object.prototype.hasOwnProperty.call(existingBalances, balanceKey)
+      ? existingBalances[balanceKey]
+      : ''
+  }
+
+  return balances
+}
+
+function normalizeBalanceInputValue(value) {
+  if (value === null || value === undefined) return ''
+  return typeof value === 'string' ? value.trim() : value
+}
+
+function getEnteredLeaveCreditEntries() {
+  return creditLeaveTypes.value.reduce((entries, leaveType) => {
+    const balanceKey = String(leaveType.id)
+    const rawBalance = normalizeBalanceInputValue(leaveCreditForm.value.balances?.[balanceKey])
+
+    if (rawBalance === '') {
+      return entries
+    }
+
+    entries.push({
+      leaveType,
+      balanceKey,
+      rawBalance,
+      balance: Number(rawBalance),
+    })
+
+    return entries
+  }, [])
+}
+
+function formatLeaveTypeInputHint(leaveType) {
+  const category = String(leaveType?.category ?? '').trim()
+  return category ? `${category} leave type` : 'Leave credits (days)'
 }
 
 function leaveCreditValidationError() {
   const employeeId = String(leaveCreditForm.value.employee_id ?? '').trim()
-  if (!employeeId) return 'Employee control no is required.'
-  if (!/^\d+$/.test(employeeId)) return 'Employee control no must contain digits only.'
-  if (!leaveCreditForm.value.leave_type_id) return 'Leave type is required.'
+  if (!employeeId) return 'Employee is required.'
+  if (!/^\d+$/.test(employeeId)) return 'Select a valid employee.'
 
-  const balance = Number(leaveCreditForm.value.balance)
-  if (!Number.isFinite(balance)) return 'Leave credits must be a number.'
-  if (balance < 0) return 'Leave credits cannot be negative.'
+  if (loadingCreditLeaveTypes.value) return 'Leave types are still loading.'
+  if (!creditLeaveTypes.value.length) return 'No credit-based leave types are available.'
+
+  const entries = getEnteredLeaveCreditEntries()
+  if (!entries.length) return 'Enter leave credits for at least one leave type.'
+
+  for (const entry of entries) {
+    if (!Number.isFinite(entry.balance)) return `${entry.leaveType.name} must be a number.`
+    if (entry.balance < 0) return `${entry.leaveType.name} cannot be negative.`
+  }
 
   return ''
 }
@@ -882,20 +1152,64 @@ async function saveLeaveCredits() {
 
   savingLeaveCredits.value = true
   try {
-    const payload = {
-      employee_id: String(leaveCreditForm.value.employee_id).trim(),
-      leave_type_id: Number(leaveCreditForm.value.leave_type_id),
-      balance: Number(leaveCreditForm.value.balance),
+    const employeeId = String(leaveCreditForm.value.employee_id).trim()
+    const entries = getEnteredLeaveCreditEntries()
+    const results = await Promise.allSettled(
+      entries.map((entry) =>
+        api.post('/hr/leave-balances', {
+          employee_id: employeeId,
+          leave_type_id: Number(entry.leaveType.id),
+          balance: entry.balance,
+        }),
+      ),
+    )
+
+    const successfulEntries = []
+    const failedEntries = []
+
+    results.forEach((result, index) => {
+      const entry = entries[index]
+      if (result.status === 'fulfilled') {
+        successfulEntries.push(entry)
+        return
+      }
+
+      failedEntries.push({
+        ...entry,
+        message: resolveApiErrorMessage(
+          result.reason,
+          `Unable to save ${entry.leaveType.name} leave credits right now.`,
+        ),
+      })
+    })
+
+    if (!failedEntries.length) {
+      $q.notify({
+        type: 'positive',
+        message: `${successfulEntries.length} leave balance(s) saved successfully.`,
+        position: 'top',
+      })
+      showLeaveCreditsDialog.value = false
+      resetLeaveCreditForm()
+      return
     }
 
-    const { data } = await api.post('/hr/leave-balances', payload)
+    for (const entry of successfulEntries) {
+      leaveCreditForm.value.balances[entry.balanceKey] = ''
+    }
+
+    const firstFailure = failedEntries[0]
+    const savedCount = successfulEntries.length
+    const failedCount = failedEntries.length
+
     $q.notify({
-      type: 'positive',
-      message: data?.message || 'Leave credits saved successfully.',
+      type: savedCount > 0 ? 'warning' : 'negative',
+      message:
+        savedCount > 0
+          ? `${savedCount} leave balance(s) saved. ${failedCount} failed. First error: ${firstFailure.message}`
+          : firstFailure.message,
       position: 'top',
     })
-    showLeaveCreditsDialog.value = false
-    resetLeaveCreditForm()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to save leave credits right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
@@ -960,6 +1274,11 @@ async function doImport() {
   border-radius: 8px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.leave-credit-dialog {
+  width: min(760px, 96vw);
+  max-width: 96vw;
 }
 
 .employee-details-dialog {

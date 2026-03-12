@@ -771,6 +771,10 @@ function formatDate(dateStr) {
 function formatDateTime(dateStr) {
   if (!dateStr) return ''
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr).trim())) {
+    return formatDate(dateStr)
+  }
+
   const parsedDate = new Date(dateStr)
   if (Number.isNaN(parsedDate.getTime())) return ''
 
@@ -1479,8 +1483,9 @@ function getApplicationInclusiveDateLines(app) {
 function getApplicationDayCount(app) {
   if (!app) return '0'
 
-  if (app.is_monetization) {
-    return formatDayValue(app.days)
+  const parsedDays = Number(app?.days)
+  if (Number.isFinite(parsedDays) && parsedDays > 0) {
+    return formatDayValue(parsedDays)
   }
 
   if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
@@ -1732,14 +1737,14 @@ function resolveFiledByActor(app) {
 
 function resolveFiledDateValue(app) {
   return (
-    app?.dateFiled ||
-    app?.date_filed ||
-    app?.submitted_at ||
-    app?.submittedAt ||
     app?.filed_at ||
     app?.filedAt ||
     app?.created_at ||
     app?.createdAt ||
+    app?.submitted_at ||
+    app?.submittedAt ||
+    app?.dateFiled ||
+    app?.date_filed ||
     null
   )
 }

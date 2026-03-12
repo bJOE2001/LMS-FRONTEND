@@ -7,15 +7,6 @@
         <q-btn
           unelevated
           no-caps
-          color="secondary"
-          icon="badge"
-          label="Add Dept. Head"
-          :disable="!adminDepartmentId || loadingDepartmentHead"
-          @click="openDepartmentHeadDialog"
-        />
-        <q-btn
-          unelevated
-          no-caps
           color="primary"
           icon="person_add"
           label="Add Employee"
@@ -111,8 +102,17 @@
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
               <div class="column justify-center items-start">
-                <div class="employee-name text-primary text-left">
+                <div class="row items-center no-wrap q-gutter-x-sm">
+                  <div class="employee-name text-primary text-left">
                   {{ props.row.surname }}, {{ props.row.firstname }}
+                  </div>
+                  <q-badge
+                    v-if="isDepartmentHeadRecord(props.row)"
+                    color="secondary"
+                    text-color="white"
+                    label="Dept. Head"
+                    rounded
+                  />
                 </div>
                 <div class="employee-designation text-grey-6 text-left">{{ props.row.designation || '-' }}</div>
               </div>
@@ -136,6 +136,20 @@
             <div class="row inline no-wrap justify-center q-gutter-x-xs">
               <q-btn flat dense round icon="visibility" color="primary" size="sm" @click="viewEmployee(props.row)">
                 <q-tooltip>View Details</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                dense
+                round
+                icon="badge"
+                color="secondary"
+                size="sm"
+                :disable="loadingDepartmentHead || savingDepartmentHead"
+                @click="confirmAssignDepartmentHead(props.row)"
+              >
+                <q-tooltip>{{
+                  isDepartmentHeadRecord(props.row) ? 'Current Department Head' : 'Assign Dept. Head'
+                }}</q-tooltip>
               </q-btn>
               <q-btn flat dense round icon="edit" color="orange-8" size="sm" @click="openEditDialog(props.row)">
                 <q-tooltip>Edit</q-tooltip>
@@ -700,24 +714,90 @@ function applyDepartmentHeadState(head) {
     : createDefaultDepartmentHeadForm()
 }
 
-function openDepartmentHeadDialog() {
+function buildDepartmentHeadPayloadFromEmployee(employee) {
+  return {
+    control_no: String(employee?.control_no || '').trim(),
+    surname: String(employee?.surname || '').trim(),
+    firstname: String(employee?.firstname || '').trim(),
+    middlename: toNullableString(employee?.middlename),
+    status: String(employee?.status || 'REGULAR').trim().toUpperCase(),
+    designation: toNullableString(employee?.designation),
+    rate_mon: toNullableNumber(employee?.rate_mon),
+  }
+}
+
+function confirmAssignDepartmentHead(employee) {
+  if (!employee) return
+
   if (!adminDepartmentId.value) {
     $q.notify({ type: 'warning', message: 'Your account has no department assignment yet.' })
     return
   }
 
-  if (departmentHeadId.value) {
+  if (isDepartmentHeadRecord(employee)) {
     $q.notify({
-      type: 'warning',
-      message: 'Only one department head is allowed per department. Edit or remove the current record first.',
+      type: 'info',
+      message: 'This employee is already assigned as department head.',
       position: 'top',
     })
     return
   }
 
-  departmentHeadDialogMode.value = 'add'
-  departmentHeadForm.value = createDefaultDepartmentHeadForm()
-  showDepartmentHeadDialog.value = true
+  const nextPayload = buildDepartmentHeadPayloadFromEmployee(employee)
+  const currentHeadControlNo = normalizeControlNo(departmentHeadForm.value.control_no)
+  const nextControlNo = normalizeControlNo(nextPayload.control_no)
+  const isReassigning = !!departmentHeadId.value && currentHeadControlNo !== '' && currentHeadControlNo !== nextControlNo
+  const employeeName = `${nextPayload.firstname} ${nextPayload.surname}`.trim() || nextPayload.control_no
+  const currentHeadName = `${departmentHeadForm.value.firstname || ''} ${departmentHeadForm.value.surname || ''}`.trim()
+    || currentHeadControlNo
+
+  $q.dialog({
+    title: isReassigning ? 'Reassign Department Head' : 'Assign Department Head',
+    message: isReassigning
+      ? `Assign ${employeeName} as department head and replace ${currentHeadName}?`
+      : `Assign ${employeeName} as department head?`,
+    cancel: true,
+    persistent: true,
+    ok: {
+      color: 'secondary',
+      label: isReassigning ? 'Reassign' : 'Assign',
+      noCaps: true,
+    },
+    cancelProps: {
+      flat: true,
+      noCaps: true,
+      color: 'grey-7',
+      label: 'Cancel',
+    },
+  }).onOk(async () => {
+    savingDepartmentHead.value = true
+    try {
+      if (departmentHeadId.value) {
+        await api.put('/admin/department-head', nextPayload)
+      } else {
+        await api.post('/admin/department-head', nextPayload)
+      }
+
+      $q.notify({
+        type: 'positive',
+        message: isReassigning
+          ? 'Department head reassigned successfully.'
+          : 'Department head assigned successfully.',
+        position: 'top',
+      })
+      await fetchEmployees(1)
+    } catch (err) {
+      const msg = resolveApiErrorMessage(err, 'Unable to assign department head right now.')
+      $q.notify({
+        type: 'negative',
+        message: msg,
+        position: 'top',
+        caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
+      })
+    } finally {
+      savingDepartmentHead.value = false
+    }
+  })
 }
 
 function openCreateDialog() {
