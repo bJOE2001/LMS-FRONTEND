@@ -100,6 +100,10 @@
                 </q-item-section>
               </q-item>
               <q-separator />
+              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/leave-types">
+                <q-item-section avatar><q-icon name="playlist_add" /></q-item-section>
+                <q-item-section>Leave Types</q-item-section>
+              </q-item>
               <q-item clickable to="/settings">
                 <q-item-section avatar><q-icon name="settings" /></q-item-section>
                 <q-item-section>Settings</q-item-section>
@@ -246,7 +250,6 @@ const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/hr/leave-types', label: 'Leave Types', icon: 'playlist_add' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
 ]
 
