@@ -1,26 +1,71 @@
 <template>
   <q-card flat bordered class="rounded-borders">
     <q-card-section>
-      <div class="row justify-between items-center q-mb-md flex-wrap q-gutter-md">
-        <div class="row q-gutter-sm items-center">
+      <div class="q-mb-sm">
+        <q-select
+          v-model="calendarDept"
+          :options="departmentOptions"
+          dense
+          outlined
+          emit-value
+          map-options
+          label="Select Department"
+          clearable
+          class="department-select q-mb-sm"
+          :loading="loadingDepts"
+          :use-input="departmentSearchEnabled"
+          input-debounce="0"
+          @filter="filterDepartments"
+          @clear="resetDepartmentOptions"
+          @keydown="handleDepartmentKeydown"
+          @popup-show="resetDepartmentOptions"
+          @popup-hide="resetDepartmentOptions"
+        />
+        <div class="row items-center calendar-toolbar">
           <q-btn flat round dense icon="chevron_left" @click="prevMonth" />
-          <div class="text-h6 q-mx-sm">{{ monthName }} {{ currentYear }}</div>
+          <div class="row items-center no-wrap calendar-picker-group">
+            <q-btn-dropdown
+              flat
+              dense
+              no-caps
+              auto-close
+              dropdown-icon="arrow_drop_down"
+              :label="selectedMonthLabel"
+              class="calendar-picker calendar-picker--month"
+            >
+              <q-list dense>
+                <q-item
+                  v-for="month in monthOptions"
+                  :key="month.value"
+                  clickable
+                  @click="selectedMonthIndex = month.value"
+                >
+                  <q-item-section>{{ month.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+            <q-btn-dropdown
+              flat
+              dense
+              no-caps
+              auto-close
+              dropdown-icon="arrow_drop_down"
+              :label="selectedYearLabel"
+              class="calendar-picker calendar-picker--year"
+            >
+              <q-list dense>
+                <q-item
+                  v-for="year in yearOptions"
+                  :key="year.value"
+                  clickable
+                  @click="selectedYearValue = year.value"
+                >
+                  <q-item-section>{{ year.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+          </div>
           <q-btn flat round dense icon="chevron_right" @click="nextMonth" />
-        </div>
-        <div class="row q-gutter-sm items-center">
-          <q-btn unelevated color="primary" size="sm" label="Today" @click="goToday" />
-          <q-select
-            v-model="calendarDept"
-            :options="departmentOptions"
-            dense
-            outlined
-            emit-value
-            map-options
-            label="Select Department"
-            clearable
-            style="min-width: 220px"
-            :loading="loadingDepts"
-          />
         </div>
       </div>
       <div class="calendar-grid calendar-grid-header">
@@ -34,9 +79,33 @@
           :class="[cell.class, { 'today-strong': cell.isToday, 'selected-outline': cell.isSelected }]"
           @click="cell.date && openDateDialog(cell.date)"
         >
-          <div v-if="cell.day" class="row justify-between items-start">
-            <span :class="cell.dayClass">{{ cell.day }}</span>
-            <q-badge v-if="cell.count" :label="cell.count" color="orange" />
+          <div v-if="cell.day" class="calendar-day-content">
+            <div class="row justify-between items-start">
+              <span :class="cell.dayClass">{{ cell.day }}</span>
+              <q-badge
+                v-if="cell.count"
+                color="orange"
+                text-color="white"
+                rounded
+                class="calendar-total-badge"
+                :label="cell.count"
+              >
+                <q-tooltip>{{ getCalendarTotalTooltip(cell.date, cell.count) }}</q-tooltip>
+              </q-badge>
+            </div>
+            <div v-if="cell.leaveTypeBreakdown.length" class="leave-balance-cell calendar-leave-breakdown q-mt-xs">
+              <q-badge
+                v-for="item in cell.leaveTypeBreakdown"
+                :key="`${cell.key}-${item.tooltip}`"
+                color="grey-2"
+                text-color="grey-7"
+                rounded
+                class="leave-balance-badge"
+                :label="item.label"
+              >
+                <q-tooltip>{{ item.tooltip }}</q-tooltip>
+              </q-badge>
+            </div>
           </div>
         </div>
       </div>
@@ -55,6 +124,19 @@
       <q-card-section>
         <div v-if="selectedDateEmployees.length" class="text-caption text-grey-7 q-mb-md">
           {{ selectedDateEmployees.length }} employee(s) on leave
+        </div>
+        <div v-if="selectedDateLeaveTypeBreakdown.length" class="leave-balance-cell q-mb-md">
+          <q-badge
+            v-for="item in selectedDateLeaveTypeBreakdown"
+            :key="`selected-date-${item.tooltip}`"
+            color="grey-2"
+            text-color="grey-7"
+            rounded
+            class="leave-balance-badge"
+            :label="item.label"
+          >
+            <q-tooltip>{{ item.tooltip }}</q-tooltip>
+          </q-badge>
         </div>
 
         <div v-if="selectedDateEmployees.length" class="q-gutter-sm">
@@ -102,6 +184,27 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api } from 'src/boot/axios'
 
 const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const PRIORITY_LEAVE_TYPES = [
+  'Mandatory / Forced Leave',
+  'Sick Leave',
+  'Vacation Leave',
+  'Wellness Leave',
+]
+const LAST_LEAVE_TYPES = ['MCO6 Leave']
+const monthOptions = [
+  { label: 'January', value: 0 },
+  { label: 'February', value: 1 },
+  { label: 'March', value: 2 },
+  { label: 'April', value: 3 },
+  { label: 'May', value: 4 },
+  { label: 'June', value: 5 },
+  { label: 'July', value: 6 },
+  { label: 'August', value: 7 },
+  { label: 'September', value: 8 },
+  { label: 'October', value: 9 },
+  { label: 'November', value: 10 },
+  { label: 'December', value: 11 },
+]
 
 const currentMonth = ref(new Date())
 const calendarDept = ref(null)
@@ -109,21 +212,65 @@ const selectedDate = ref(null)
 const showDateDialog = ref(false)
 const calendarLeaves = ref([])
 const loadingDepts = ref(false)
+const allDepartmentOptions = ref([])
 const departmentOptions = ref([])
+const departmentSearchEnabled = computed(() => !calendarDept.value)
 
 async function fetchDepartments() {
   loadingDepts.value = true
   try {
     const { data } = await api.get('/departments')
     const depts = data.departments ?? data ?? []
-    departmentOptions.value = depts.map((d) => ({
+    allDepartmentOptions.value = depts.map((d) => ({
       label: typeof d === 'string' ? d : d.name,
       value: typeof d === 'string' ? d : d.name,
     }))
+    resetDepartmentOptions()
   } catch {
+    allDepartmentOptions.value = []
     departmentOptions.value = []
   } finally {
     loadingDepts.value = false
+  }
+}
+
+function resetDepartmentOptions() {
+  departmentOptions.value = [...allDepartmentOptions.value]
+}
+
+function normalizeDepartmentSearch(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function matchesDepartmentSearch(option, query) {
+  const label = normalizeDepartmentSearch(option?.label)
+  if (!query) return true
+  if (label.startsWith(query)) return true
+
+  const words = label.split(/[\s/-]+/).filter(Boolean)
+  if (words.some((word) => word.startsWith(query))) return true
+
+  return label.includes(query)
+}
+
+function filterDepartments(val, update) {
+  update(() => {
+    const query = normalizeDepartmentSearch(val)
+    departmentOptions.value = query
+      ? allDepartmentOptions.value.filter((option) => matchesDepartmentSearch(option, query))
+      : [...allDepartmentOptions.value]
+  })
+}
+
+function handleDepartmentKeydown(event) {
+  if (!calendarDept.value) return
+
+  const blockedKeys = ['Backspace', 'Delete']
+  if (blockedKeys.includes(event.key) || event.key.length === 1) {
+    event.preventDefault()
   }
 }
 
@@ -146,13 +293,153 @@ onMounted(() => {
 })
 
 watch([currentMonth, calendarDept], () => {
+  if (!calendarDept.value) resetDepartmentOptions()
   fetchCalendarLeaves()
 })
 
-const monthName = computed(() => currentMonth.value.toLocaleString('en-US', { month: 'long' }))
-const currentYear = computed(() => currentMonth.value.getFullYear())
-
 const today = new Date()
+const selectedMonthIndex = computed({
+  get: () => currentMonth.value.getMonth(),
+  set: (monthIndex) => {
+    currentMonth.value = new Date(currentMonth.value.getFullYear(), monthIndex, 1)
+    selectedDate.value = null
+  },
+})
+const selectedYearValue = computed({
+  get: () => currentMonth.value.getFullYear(),
+  set: (year) => {
+    currentMonth.value = new Date(year, currentMonth.value.getMonth(), 1)
+    selectedDate.value = null
+  },
+})
+const yearOptions = computed(() => {
+  const selectedYear = currentMonth.value.getFullYear()
+  return Array.from({ length: 11 }, (_, index) => {
+    const year = selectedYear - 5 + index
+    return { label: String(year), value: year }
+  })
+})
+const selectedMonthLabel = computed(() =>
+  monthOptions.find((month) => month.value === selectedMonthIndex.value)?.label || '',
+)
+const selectedYearLabel = computed(() => String(selectedYearValue.value))
+
+function normalizeLeaveTypeName(value) {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+
+  if (value && typeof value === 'object') {
+    const nestedName = value.name ?? value.label ?? value.type
+    if (typeof nestedName === 'string' && nestedName.trim()) return nestedName.trim()
+  }
+
+  return 'Unknown'
+}
+
+function prettifyLeaveTypeLabel(value) {
+  const label = normalizeLeaveTypeName(value)
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getLeaveTypeKey(value) {
+  return prettifyLeaveTypeLabel(value).trim().toLowerCase()
+}
+
+function toLeaveTypeAcronym(value) {
+  const label = prettifyLeaveTypeLabel(value)
+  if (!label) return ''
+
+  const lower = label.toLowerCase()
+  if (lower === 'mandatory / forced leave') return 'FL'
+  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'sick leave') return 'SL'
+  if (lower === 'vacation leave') return 'VL'
+  if (lower === 'wellness leave') return 'WL'
+
+  const normalized = label
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+  if (!normalized.length) return ''
+  return normalized.map((part) => part[0]).join('')
+}
+
+function getApplicationLeaveType(application) {
+  const leaveTypeValue =
+    application?.leaveType ??
+    application?.leave_type_name ??
+    application?.leaveTypeName ??
+    application?.leave_type ??
+    application?.leaveType?.name ??
+    application?.leave?.name
+
+  return prettifyLeaveTypeLabel(leaveTypeValue)
+}
+
+function compareLeaveTypeBreakdown(left, right) {
+  const leftKey = getLeaveTypeKey(left.tooltip)
+  const rightKey = getLeaveTypeKey(right.tooltip)
+  const leftIsLast = LAST_LEAVE_TYPES.some((label) => getLeaveTypeKey(label) === leftKey)
+  const rightIsLast = LAST_LEAVE_TYPES.some((label) => getLeaveTypeKey(label) === rightKey)
+
+  if (leftIsLast || rightIsLast) {
+    if (leftIsLast && rightIsLast) return left.tooltip.localeCompare(right.tooltip)
+    if (leftIsLast) return 1
+    return -1
+  }
+
+  const leftPriority = PRIORITY_LEAVE_TYPES.findIndex((label) => getLeaveTypeKey(label) === leftKey)
+  const rightPriority = PRIORITY_LEAVE_TYPES.findIndex((label) => getLeaveTypeKey(label) === rightKey)
+
+  if (leftPriority !== -1 || rightPriority !== -1) {
+    if (leftPriority === -1) return 1
+    if (rightPriority === -1) return -1
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority
+  }
+
+  if (left.count !== right.count) return right.count - left.count
+  return left.tooltip.localeCompare(right.tooltip)
+}
+
+function getLeaveTypeBreakdown(applications) {
+  const totals = new Map()
+
+  for (const application of applications) {
+    const leaveType = getApplicationLeaveType(application)
+    if (!leaveType) continue
+    totals.set(leaveType, (totals.get(leaveType) || 0) + 1)
+  }
+
+  return Array.from(totals.entries())
+    .map(([leaveType, count]) => {
+      const acronym = toLeaveTypeAcronym(leaveType)
+      return {
+        label: `${acronym || leaveType}: ${count}`,
+        tooltip: leaveType,
+        count,
+      }
+    })
+    .sort(compareLeaveTypeBreakdown)
+}
 
 function toDateStr(date) {
   if (date instanceof Date) {
@@ -216,6 +503,7 @@ const calendarCells = computed(() => {
       class: cls,
       dayClass,
       count: employees.length,
+      leaveTypeBreakdown: getLeaveTypeBreakdown(employees),
       isToday,
       isSelected,
     })
@@ -238,6 +526,9 @@ const selectedDateLabel = computed(() =>
 const selectedDateEmployees = computed(() =>
   selectedDate.value ? getEmployeesOnLeave(selectedDate.value) : [],
 )
+const selectedDateLeaveTypeBreakdown = computed(() =>
+  getLeaveTypeBreakdown(selectedDateEmployees.value),
+)
 
 function openDateDialog(date) {
   selectedDate.value = date
@@ -250,6 +541,10 @@ function formatDate(dateStr) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function getCalendarTotalTooltip(date, count) {
+  return `${count} total leave record(s)`
 }
 
 function prevMonth() {
@@ -270,24 +565,82 @@ function nextMonth() {
   selectedDate.value = null
 }
 
-function goToday() {
-  currentMonth.value = new Date()
-  selectedDate.value = new Date()
-  showDateDialog.value = true
-}
 </script>
 
 <style scoped>
+.department-select {
+  width: 100%;
+}
+.calendar-toolbar {
+  min-height: 40px;
+  gap: 6px;
+}
+.calendar-picker-group {
+  gap: 10px;
+}
+.calendar-picker {
+  padding: 0;
+  min-height: 32px;
+  font-weight: 700;
+}
+.calendar-picker--month {
+  min-width: 126px;
+}
+.calendar-picker--year {
+  min-width: 72px;
+}
+.calendar-picker :deep(.q-btn__content) {
+  gap: 2px;
+  font-size: 1.55rem;
+  font-weight: 700;
+}
+.calendar-picker :deep(.q-btn-dropdown__arrow-container) {
+  margin-left: 0;
+}
+.calendar-picker :deep(.q-icon) {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
 }
+.calendar-day-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .calendar-grid-header {
   margin-bottom: 4px;
 }
+.leave-balance-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 1.2;
+}
+.leave-balance-badge {
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  border: 1px solid #d8dee6;
+}
+.calendar-leave-breakdown {
+  align-items: flex-start;
+}
+.calendar-total-badge {
+  padding: 4px 9px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1;
+}
 .min-h-80 {
-  min-height: 80px;
+  min-height: 96px;
 }
 .today-strong {
   background-color: #90caf9 !important;
