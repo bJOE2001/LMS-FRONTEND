@@ -67,7 +67,17 @@
 
     <div v-if="!props.applicationsOnly" class="row q-col-gutter-md q-mb-lg stat-cards-row">
       <div class="col-12 col-sm-6 col-md-4">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1">
+        <q-card
+          class="stat-card stat-card--interactive bg-white rounded-borders"
+          flat
+          elevation="1"
+          role="button"
+          tabindex="0"
+          :style="{ '--stat-card-hover-bg': '#eef4ff' }"
+          @click="openApplicationsView()"
+          @keyup.enter="openApplicationsView()"
+          @keyup.space.prevent="openApplicationsView()"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -96,7 +106,17 @@
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md-4">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1">
+        <q-card
+          class="stat-card stat-card--interactive bg-white rounded-borders"
+          flat
+          elevation="1"
+          role="button"
+          tabindex="0"
+          :style="{ '--stat-card-hover-bg': '#fff5e0' }"
+          @click="openApplicationsView('pending')"
+          @keyup.enter="openApplicationsView('pending')"
+          @keyup.space.prevent="openApplicationsView('pending')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -115,7 +135,17 @@
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md-4">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1">
+        <q-card
+          class="stat-card stat-card--interactive bg-white rounded-borders"
+          flat
+          elevation="1"
+          role="button"
+          tabindex="0"
+          :style="{ '--stat-card-hover-bg': '#edf8ef' }"
+          @click="openApplicationsView('approved')"
+          @keyup.enter="openApplicationsView('approved')"
+          @keyup.space.prevent="openApplicationsView('approved')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -718,14 +748,19 @@ function maybeShowPendingReminder() {
   markPendingReminderSeenThisLogin()
 }
 
-function focusPendingApplications() {
-  showPendingReminderDialog.value = false
+function openApplicationsView(search = '') {
+  const normalizedSearch = String(search || '').trim()
+  const query = normalizedSearch ? { search: normalizedSearch } : {}
+
   router.push({
     name: 'admin-applications',
-    query: {
-      search: 'pending',
-    },
+    query,
   })
+}
+
+function focusPendingApplications() {
+  showPendingReminderDialog.value = false
+  openApplicationsView('pending')
 }
 
 function formatDate(dateStr) {
@@ -2042,6 +2077,16 @@ async function confirmDisapprove() {
   width: 100%;
   height: 100%;
   min-height: 116px;
+}
+.stat-card--interactive {
+  cursor: pointer;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.stat-card--interactive:hover,
+.stat-card--interactive:focus-visible {
+  background: var(--stat-card-hover-bg, #f5f7fa) !important;
+  box-shadow: 0 10px 24px rgba(38, 50, 56, 0.1);
+  transform: translateY(-2px);
 }
 .stat-card-content {
   height: 100%;
