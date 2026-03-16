@@ -285,101 +285,206 @@
         </q-card-section>
 
         <q-card-section class="q-pt-sm">
-          <div class="ledger-sheet">
-            <div class="ledger-sheet__header">
-              <div class="ledger-sheet__field">
-                <div class="ledger-sheet__label">Name</div>
-                <div class="ledger-sheet__value">{{ ledgerEmployeeDisplayName }}</div>
-              </div>
-              <div class="ledger-sheet__field">
-                <div class="ledger-sheet__label">Division Office</div>
-                <div class="ledger-sheet__value">{{ ledgerEmployeeDivisionOffice }}</div>
-                <div v-if="ledgerEmployeeDesignation" class="ledger-sheet__subvalue">
-                  {{ ledgerEmployeeDesignation }}
+          <q-banner
+            v-if="leaveCreditsLedgerError"
+            dense
+            rounded
+            class="bg-orange-1 text-orange-9 q-mb-md"
+          >
+            <template #avatar>
+              <q-icon name="warning" color="orange-8" />
+            </template>
+            {{ leaveCreditsLedgerError }}
+          </q-banner>
+
+          <div
+            v-if="leaveCreditsLedgerLoading"
+            class="row items-center justify-center q-pa-xl text-grey-7"
+          >
+            <q-spinner color="secondary" size="28px" class="q-mr-sm" />
+            <span>Loading leave credits ledger...</span>
+          </div>
+
+          <div v-else class="ledger-preview-stage">
+            <div
+              class="ledger-sheet"
+              :class="`ledger-sheet--${ledgerPaperSize.toLowerCase()}`"
+              :style="ledgerSheetStyle"
+            >
+              <div class="ledger-sheet__identity">
+                <div class="ledger-sheet__identity-name" :style="ledgerIdentityNameStyle">
+                  {{ ledgerEmployeeHeadingName }}
+                </div>
+                <div class="ledger-sheet__identity-office" :style="ledgerIdentityOfficeStyle">
+                  {{ ledgerEmployeeHeadingOffice }}
+                </div>
+                <div class="ledger-sheet__identity-service">
+                  <span class="ledger-sheet__identity-service-label">1st Day of Service</span>
+                  <span class="ledger-sheet__identity-service-value" :style="ledgerIdentityServiceValueStyle">
+                    {{ ledgerEmployeeFirstDayOfService }}
+                  </span>
                 </div>
               </div>
-              <div class="ledger-sheet__field ledger-sheet__field--service">
-                <div class="ledger-sheet__label">1st Day of Service</div>
-                <div class="ledger-sheet__value">{{ ledgerEmployeeFirstDayOfService }}</div>
+
+              <div class="ledger-sheet__header">
+                <div class="ledger-sheet__field">
+                  <div class="ledger-sheet__label">Name</div>
+                </div>
+                <div class="ledger-sheet__field">
+                  <div class="ledger-sheet__label">Division Office</div>
+                </div>
+                <div class="ledger-sheet__field ledger-sheet__field--service">
+                  <div class="ledger-sheet__label">1st Day of Service</div>
+                </div>
               </div>
-            </div>
 
-            <q-banner
-              v-if="leaveCreditsLedgerError"
-              dense
-              rounded
-              class="bg-orange-1 text-orange-9 q-ma-md q-mb-none"
-            >
-              <template #avatar>
-                <q-icon name="warning" color="orange-8" />
-              </template>
-              {{ leaveCreditsLedgerError }}
-            </q-banner>
-
-            <div
-              v-if="leaveCreditsLedgerLoading"
-              class="row items-center justify-center q-pa-xl text-grey-7"
-            >
-              <q-spinner color="secondary" size="28px" class="q-mr-sm" />
-              <span>Loading leave credits ledger...</span>
-            </div>
-
-            <div v-else class="ledger-table-wrap">
-              <table class="ledger-table">
-                <thead>
-                  <tr>
-                    <th rowspan="2" class="ledger-table__primary-head">Period</th>
-                    <th rowspan="2" class="ledger-table__primary-head">Particulars</th>
-                    <th colspan="4" class="ledger-table__section-head">Vacation Leave</th>
-                    <th colspan="4" class="ledger-table__section-head">Sick Leave</th>
-                    <th rowspan="2" class="ledger-table__primary-head">
-                      Date and Action Taken on Application for Leave
-                    </th>
-                  </tr>
-                  <tr>
-                    <th>Earned</th>
-                    <th>Abs. Und. W/P</th>
-                    <th>Bal.</th>
-                    <th>Abs. Und. W/O/P</th>
-                    <th>Earned</th>
-                    <th>Abs. Und.</th>
-                    <th>Bal.</th>
-                    <th>Abs. Und. W/O/P</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="!leaveCreditsLedgerRows.length">
-                    <td colspan="11" class="ledger-table__empty">
-                      No leave credits ledger entries found.
-                    </td>
-                  </tr>
-                  <tr
-                    v-for="(entry, index) in leaveCreditsLedgerRows"
-                    :key="
-                      entry.id ||
-                      entry.key ||
-                      `${leaveCreditsLedgerEmployee?.control_no || 'employee'}-${index}`
-                    "
-                  >
-                    <td class="ledger-table__cell--period">{{ entry.period }}</td>
-                    <td class="ledger-table__cell--particulars">{{ entry.particulars }}</td>
-                    <td>{{ entry.vacationEarned }}</td>
-                    <td>{{ entry.vacationAbsUndWp }}</td>
-                    <td>{{ entry.vacationBalance }}</td>
-                    <td>{{ entry.vacationAbsUndWop }}</td>
-                    <td>{{ entry.sickEarned }}</td>
-                    <td>{{ entry.sickAbsUnd }}</td>
-                    <td>{{ entry.sickBalance }}</td>
-                    <td>{{ entry.sickAbsUndWop }}</td>
-                    <td class="ledger-table__cell--action">{{ entry.actionTaken }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="ledger-table-wrap">
+                <table class="ledger-table">
+                  <colgroup>
+                    <col
+                      v-for="(width, index) in ledgerColumnWidths"
+                      :key="`ledger-col-${index}`"
+                      :style="{ width }"
+                    />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th rowspan="2" class="ledger-table__primary-head">
+                        <span class="ledger-table__stacked-head">Period</span>
+                      </th>
+                      <th rowspan="2" class="ledger-table__primary-head">
+                        <span class="ledger-table__stacked-head">Particulars</span>
+                      </th>
+                      <th colspan="4" class="ledger-table__section-head">
+                        <span class="ledger-table__stacked-head">Vacation Leave</span>
+                      </th>
+                      <th colspan="4" class="ledger-table__section-head">
+                        <span class="ledger-table__stacked-head">Sick Leave</span>
+                      </th>
+                      <th rowspan="2" class="ledger-table__primary-head">
+                        <span class="ledger-table__stacked-head">
+                          Date &amp;<br />
+                          Action<br />
+                          Taken on<br />
+                          Application<br />
+                          for Leave
+                        </span>
+                      </th>
+                    </tr>
+                    <tr>
+                      <th><span class="ledger-table__stacked-head">Earned</span></th>
+                      <th>
+                        <span class="ledger-table__stacked-head">
+                          Abs.<br />
+                          Und.<br />
+                          W/P
+                        </span>
+                      </th>
+                      <th><span class="ledger-table__stacked-head">Bal.</span></th>
+                      <th>
+                        <span class="ledger-table__stacked-head">
+                          Abs.<br />
+                          Und.<br />
+                          W/oP
+                        </span>
+                      </th>
+                      <th><span class="ledger-table__stacked-head">Earned</span></th>
+                      <th>
+                        <span class="ledger-table__stacked-head">
+                          Abs.<br />
+                          Und.
+                        </span>
+                      </th>
+                      <th><span class="ledger-table__stacked-head">Bal.</span></th>
+                      <th>
+                        <span class="ledger-table__stacked-head">
+                          Abs.<br />
+                          Und.<br />
+                          W/oP
+                        </span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="entry in ledgerRenderedRows"
+                      :key="entry.key"
+                      :class="{ 'ledger-table__row--blank': entry.isBlank }"
+                    >
+                      <td class="ledger-table__cell--period">{{ entry.period }}</td>
+                      <td class="ledger-table__cell--particulars">{{ entry.particulars }}</td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.vacationEarned)">
+                          {{ entry.vacationEarned }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.vacationAbsUndWp)">
+                          {{ entry.vacationAbsUndWp }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.vacationBalance)">
+                          {{ entry.vacationBalance }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.vacationAbsUndWop)">
+                          {{ entry.vacationAbsUndWop }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.sickEarned)">
+                          {{ entry.sickEarned }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.sickAbsUnd)">
+                          {{ entry.sickAbsUnd }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.sickBalance)">
+                          {{ entry.sickBalance }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.sickAbsUndWop)">
+                          {{ entry.sickAbsUndWop }}
+                        </span>
+                      </td>
+                      <td class="ledger-table__cell--action">{{ entry.actionTaken }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </q-card-section>
 
-        <q-card-actions align="right" class="q-pa-md">
+        <q-card-actions class="ledger-dialog-actions q-pa-md">
+          <q-select
+            v-model="ledgerPaperSize"
+            dense
+            outlined
+            emit-value
+            map-options
+            options-dense
+            :options="ledgerPaperSizeOptions"
+            label="Paper Size"
+            class="ledger-paper-select"
+          />
+          <q-space />
+          <q-btn
+            unelevated
+            no-caps
+            label="Print Ledger"
+            color="secondary"
+            icon="print"
+            :loading="printingLeaveCreditsLedger"
+            :disable="leaveCreditsLedgerLoading || !leaveCreditsLedgerEmployee"
+            @click="printLeaveCreditsLedger"
+          />
           <q-btn flat no-caps label="Close" color="grey-7" v-close-popup />
         </q-card-actions>
       </q-card>
@@ -650,8 +755,12 @@ employee_id,leave_type,balance
 <script setup>
 import { computed, ref, watch, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
 const $q = useQuasar()
 
@@ -671,6 +780,8 @@ const leaveCreditsLedgerEmployee = ref(null)
 const leaveCreditsLedgerRows = ref([])
 const leaveCreditsLedgerLoading = ref(false)
 const leaveCreditsLedgerError = ref('')
+const printingLeaveCreditsLedger = ref(false)
+const ledgerPaperSize = ref('A4')
 
 // CSV import state
 const showImportDialog = ref(false)
@@ -778,14 +889,85 @@ const LEDGER_ENDPOINT_FACTORIES = [
   (controlNo) => `/hr/leave-balances/ledger/${encodeURIComponent(controlNo)}`,
 ]
 
+const LEDGER_PAPER_PRESETS = {
+  A4: {
+    label: 'A4',
+    previewWidth: 794,
+    previewHeight: 1123,
+    minimumRows: 43,
+    pageSize: 'A4',
+    pageMargins: [10, 12, 10, 12],
+    pdfHeaderRowHeight: 18,
+    pdfSubHeaderRowHeight: 21,
+    pdfBodyRowHeight: 17,
+  },
+  LONG: {
+    label: 'Long',
+    previewWidth: 816,
+    previewHeight: 1248,
+    minimumRows: 48,
+    pageSize: {
+      width: 612,
+      height: 936,
+    },
+    pageMargins: [10, 12, 10, 12],
+    pdfHeaderRowHeight: 18,
+    pdfSubHeaderRowHeight: 21,
+    pdfBodyRowHeight: 17,
+  },
+}
+
+const LEDGER_COLUMN_WIDTH_UNITS = [12, 16, 8, 8, 8, 8, 8, 8, 8, 8, 14]
+const LEDGER_COLUMN_WIDTH_TOTAL = LEDGER_COLUMN_WIDTH_UNITS.reduce(
+  (total, width) => total + width,
+  0,
+)
+const LEDGER_BLANK_ROW_TEMPLATE = Object.freeze({
+  period: '',
+  particulars: '',
+  vacationEarned: '',
+  vacationAbsUndWp: '',
+  vacationBalance: '',
+  vacationAbsUndWop: '',
+  sickEarned: '',
+  sickAbsUnd: '',
+  sickBalance: '',
+  sickAbsUndWop: '',
+  actionTaken: '',
+})
+
+const ledgerPaperSizeOptions = Object.entries(LEDGER_PAPER_PRESETS).map(([value, preset]) => ({
+  label: preset.label,
+  value,
+}))
+const ledgerColumnWidths = LEDGER_COLUMN_WIDTH_UNITS.map(
+  (width) => `${(width / LEDGER_COLUMN_WIDTH_TOTAL) * 100}%`,
+)
+const ledgerPaperPreset = computed(
+  () => LEDGER_PAPER_PRESETS[ledgerPaperSize.value] || LEDGER_PAPER_PRESETS.A4,
+)
+const ledgerSheetStyle = computed(() => ({
+  width: `${ledgerPaperPreset.value.previewWidth}px`,
+  minHeight: `${ledgerPaperPreset.value.previewHeight}px`,
+}))
+const ledgerRenderedRows = computed(() =>
+  buildLedgerRowsForPaper(leaveCreditsLedgerRows.value, ledgerPaperPreset.value),
+)
+
 const ledgerEmployeeDisplayName = computed(() =>
   getEmployeeFullName(leaveCreditsLedgerEmployee.value),
 )
-const ledgerEmployeeDivisionOffice = computed(() =>
-  getLedgerEmployeeOffice(leaveCreditsLedgerEmployee.value),
+const ledgerEmployeeHeadingName = computed(() =>
+  formatLedgerHeadingName(ledgerEmployeeDisplayName.value),
 )
-const ledgerEmployeeDesignation = computed(() =>
-  getLedgerEmployeeDesignation(leaveCreditsLedgerEmployee.value),
+const ledgerEmployeeHeadingOffice = computed(() =>
+  formatLedgerHeadingOffice(leaveCreditsLedgerEmployee.value),
+)
+const ledgerIdentityNameStyle = computed(() =>
+  buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingName.value),
+)
+const ledgerIdentityOfficeStyle = computed(() =>
+  buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingOffice.value),
 )
 const ledgerEmployeeFirstDayOfService = computed(() =>
   formatLedgerServiceDate(
@@ -804,6 +986,9 @@ const ledgerEmployeeFirstDayOfService = computed(() =>
       'serviceStartDate',
     ]),
   ),
+)
+const ledgerIdentityServiceValueStyle = computed(() =>
+  buildLedgerIdentityPreviewStyle(ledgerEmployeeFirstDayOfService.value),
 )
 
 function statusBadgeColor(status) {
@@ -991,6 +1176,53 @@ function getLedgerEmployeeDesignation(employee) {
   ])
 
   return String(designation || '').trim()
+}
+
+function formatLedgerHeadingName(value) {
+  return String(value || 'N/A')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
+function formatLedgerHeadingOffice(employee) {
+  const office = getLedgerEmployeeOffice(employee)
+  const officeCode = toDepartmentCode(office)
+  const designation = getLedgerEmployeeDesignation(employee)
+  const primaryOffice = officeCode && officeCode !== '-' ? officeCode : office
+
+  return [primaryOffice, designation].filter(Boolean).join(' - ') || 'N/A'
+}
+
+function resolveLedgerPreviewIdentityFontSize(value) {
+  const length = String(value || '').trim().length
+
+  if (length > 72) return '0.52rem'
+  if (length > 60) return '0.55rem'
+  if (length > 54) return '0.58rem'
+  if (length > 42) return '0.62rem'
+  if (length > 30) return '0.66rem'
+  return '0.72rem'
+}
+
+function resolveLedgerPdfIdentityFontSize(value) {
+  const length = String(value || '').trim().length
+
+  if (length > 72) return 5.2
+  if (length > 60) return 5.5
+  if (length > 54) return 5.8
+  if (length > 42) return 6.2
+  if (length > 30) return 6.6
+  return 7.1
+}
+
+function buildLedgerIdentityPreviewStyle(value) {
+  return {
+    fontSize: resolveLedgerPreviewIdentityFontSize(value),
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'clip',
+  }
 }
 
 async function fetchDepartments() {
@@ -1334,6 +1566,545 @@ function normalizeLedgerQuantityValue(value) {
   }
 
   return String(value).trim()
+}
+
+function normalizePersonName(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isMahusayLedgerPreviewEmployee(employee) {
+  if (!employee) return false
+
+  const firstname = normalizePersonName(employee.firstname ?? employee.first_name)
+  const middlename = normalizePersonName(employee.middlename ?? employee.middle_name)
+  const surname = normalizePersonName(employee.surname ?? employee.last_name)
+  const fullName = normalizePersonName(getEmployeeFullName(employee))
+
+  if (firstname === 'JOGRAD' && surname === 'MAHUSAY') return true
+
+  return (
+    fullName.includes('MAHUSAY') &&
+    fullName.includes('JOGRAD') &&
+    (fullName.includes('MASCARINAS') || middlename === 'MASCARINAS')
+  )
+}
+
+function buildMahusayLedgerPreviewRows() {
+  return [
+    {
+      id: 'preview-jan-2026',
+      period: 'Jan 2026',
+      particulars: 'Monthly earned credits',
+      vacationEarned: '+1.250',
+      vacationAbsUndWp: '',
+      vacationBalance: '10.250',
+      vacationAbsUndWop: '',
+      sickEarned: '+1.250',
+      sickAbsUnd: '',
+      sickBalance: '12.250',
+      sickAbsUndWop: '',
+      actionTaken: '1/31/26 - Monthly leave credits posted',
+    },
+    {
+      id: 'preview-feb-2026',
+      period: 'Feb 2026',
+      particulars: 'Approved vacation leave',
+      vacationEarned: '',
+      vacationAbsUndWp: '-1.000',
+      vacationBalance: '9.250',
+      vacationAbsUndWop: '',
+      sickEarned: '',
+      sickAbsUnd: '',
+      sickBalance: '12.250',
+      sickAbsUndWop: '',
+      actionTaken: '2/14/26 - Approved VL application',
+    },
+    {
+      id: 'preview-mar-2026',
+      period: 'Mar 2026',
+      particulars: 'Monthly earned credits',
+      vacationEarned: '+1.250',
+      vacationAbsUndWp: '',
+      vacationBalance: '10.500',
+      vacationAbsUndWop: '',
+      sickEarned: '+1.250',
+      sickAbsUnd: '',
+      sickBalance: '13.500',
+      sickAbsUndWop: '',
+      actionTaken: '3/31/26 - Monthly leave credits posted',
+    },
+    {
+      id: 'preview-apr-2026',
+      period: 'Apr 2026',
+      particulars: 'Approved sick leave',
+      vacationEarned: '',
+      vacationAbsUndWp: '',
+      vacationBalance: '10.500',
+      vacationAbsUndWop: '',
+      sickEarned: '',
+      sickAbsUnd: '-0.500',
+      sickBalance: '13.000',
+      sickAbsUndWop: '',
+      actionTaken: '4/10/26 - Approved SL application',
+    },
+    {
+      id: 'preview-may-2026',
+      period: 'May 2026',
+      particulars: 'Manual leave credit adjustment',
+      vacationEarned: '+0.500',
+      vacationAbsUndWp: '',
+      vacationBalance: '11.000',
+      vacationAbsUndWop: '',
+      sickEarned: '',
+      sickAbsUnd: '',
+      sickBalance: '13.000',
+      sickAbsUndWop: '',
+      actionTaken: '5/06/26 - HR credit adjustment entry',
+    },
+  ]
+}
+
+function resolveLedgerRowsForEmployee(employee, rows) {
+  if (rows.length) return rows
+  if (isMahusayLedgerPreviewEmployee(employee)) {
+    return buildMahusayLedgerPreviewRows()
+  }
+  return rows
+}
+
+function buildLedgerRowsForPaper(rows, preset) {
+  const normalizedRows = Array.isArray(rows)
+    ? rows.map((entry, index) => ({
+        ...LEDGER_BLANK_ROW_TEMPLATE,
+        ...entry,
+        key: entry?.key || entry?.id || `ledger-row-${index}`,
+        isBlank: false,
+      }))
+    : []
+  const minimumRows = Number(preset?.minimumRows ?? 0)
+  const blankRowsNeeded = Math.max(0, minimumRows - normalizedRows.length)
+
+  for (let index = 0; index < blankRowsNeeded; index += 1) {
+    normalizedRows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-blank-${index}`,
+      isBlank: true,
+    })
+  }
+
+  return normalizedRows
+}
+
+function getLedgerPdfPageWidth(preset) {
+  if (preset?.pageSize === 'A4') return 595.28
+
+  const customWidth = Number(preset?.pageSize?.width)
+  return Number.isFinite(customWidth) && customWidth > 0 ? customWidth : 595.28
+}
+
+function buildLedgerPdfTableWidths(preset) {
+  const pageWidth = getLedgerPdfPageWidth(preset)
+  const leftMargin = Number(preset?.pageMargins?.[0] ?? 10)
+  const rightMargin = Number(preset?.pageMargins?.[2] ?? 10)
+  const availableWidth = Math.max(480, pageWidth - leftMargin - rightMargin)
+
+  return LEDGER_COLUMN_WIDTH_UNITS.map((unit) =>
+    Number(((availableWidth * unit) / LEDGER_COLUMN_WIDTH_TOTAL).toFixed(2)),
+  )
+}
+
+function getLedgerValueTone(value) {
+  const normalizedValue = String(value ?? '').trim()
+
+  if (/^\+\s*\d/.test(normalizedValue)) return 'positive'
+  if (/^-\s*\d/.test(normalizedValue)) return 'negative'
+  return ''
+}
+
+function ledgerValueClass(value) {
+  const tone = getLedgerValueTone(value)
+
+  return {
+    'ledger-table__value': true,
+    'ledger-table__value--positive': tone === 'positive',
+    'ledger-table__value--negative': tone === 'negative',
+  }
+}
+
+function sanitizeLedgerPdfFilenamePart(value) {
+  return String(value ?? '')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getLedgerPdfFilename(employee) {
+  const safeName = sanitizeLedgerPdfFilenamePart(getEmployeeFullName(employee).replace(/,\s*/g, ' '))
+  return `${safeName || 'employee'} leave credits ledger.pdf`
+}
+
+function buildLedgerPdfIdentityCell(text, options = {}) {
+  return {
+    text: String(text || ' ').trim() || ' ',
+    fontSize: options.fontSize ?? 7.1,
+    bold: options.bold ?? true,
+    color: '#000000',
+    alignment: options.alignment || 'center',
+    margin: options.margin || [2, 1, 2, 1],
+    noWrap: options.noWrap ?? true,
+  }
+}
+
+function buildLedgerPdfIdentityServiceCell(value, options = {}) {
+  const fontSize = options.fontSize ?? 7.1
+  const labelFontSize = options.labelFontSize ?? fontSize
+
+  return {
+    text: [
+      {
+        text: '1ST DAY OF SERVICE',
+        fontSize: labelFontSize,
+        bold: true,
+        color: '#000000',
+      },
+      {
+        text: '  ',
+      },
+      {
+        text: String(value || 'N/A').trim() || 'N/A',
+        fontSize,
+        bold: true,
+        color: '#000000',
+      },
+    ],
+    alignment: options.alignment || 'center',
+    noWrap: options.noWrap ?? true,
+    margin: options.margin || [2, 1, 2, 1],
+  }
+}
+
+function buildLedgerPdfTopLabelCell(text) {
+  return {
+    text: String(text || '').toUpperCase(),
+    fontSize: 7.1,
+    bold: true,
+    color: '#000000',
+    alignment: 'center',
+    margin: [0, 2, 0, 2],
+  }
+}
+
+function buildLedgerPdfBodyCell(value, options = {}) {
+  const text = String(value ?? '').trim()
+
+  return {
+    text: text || ' ',
+    alignment: options.alignment || 'center',
+    bold: options.bold ?? false,
+    color: options.color || '#000000',
+    fillColor: options.fillColor,
+    fontSize: options.fontSize ?? 5.55,
+    lineHeight: options.lineHeight ?? 0.96,
+    margin: options.margin || [0.5, 1.25, 0.5, 0.2],
+  }
+}
+
+function buildLedgerPdfValueCell(value, fillColor, options = {}) {
+  const tone = getLedgerValueTone(value)
+
+  return buildLedgerPdfBodyCell(value, {
+    color: tone === 'positive' ? '#1b8f3a' : tone === 'negative' ? '#c62828' : '#000000',
+    bold: tone === 'positive' || tone === 'negative',
+    fillColor,
+    ...options,
+  })
+}
+
+function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') {
+  const preset = LEDGER_PAPER_PRESETS[paperSize] || LEDGER_PAPER_PRESETS.A4
+  const displayName = getEmployeeFullName(employee)
+  const headingName = formatLedgerHeadingName(displayName)
+  const headingOffice = formatLedgerHeadingOffice(employee)
+  const firstDayOfService = formatLedgerServiceDate(
+    pickFirstDefined(employee, [
+      'first_day_of_service',
+      'firstDayOfService',
+      'date_hired',
+      'dateHired',
+      'hire_date',
+      'hireDate',
+      'appointment_date',
+      'appointmentDate',
+      'employment_start_date',
+      'employmentStartDate',
+      'service_start_date',
+      'serviceStartDate',
+    ]),
+  )
+  const identityNameFontSize = resolveLedgerPdfIdentityFontSize(headingName)
+  const identityOfficeFontSize = resolveLedgerPdfIdentityFontSize(headingOffice)
+  const identityServiceFontSize = resolveLedgerPdfIdentityFontSize(firstDayOfService)
+  const renderedRows = buildLedgerRowsForPaper(rows, preset)
+  const tableBody = [
+    [
+      {
+        text: 'PERIOD',
+        rowSpan: 2,
+        style: 'ledgerPdfRowSpanHead',
+      },
+      {
+        text: 'PARTICULARS',
+        rowSpan: 2,
+        style: 'ledgerPdfRowSpanHead',
+      },
+      {
+        text: 'VACATION LEAVE',
+        colSpan: 4,
+        style: 'ledgerPdfGroupHead',
+      },
+      {},
+      {},
+      {},
+      {
+        text: 'SICK LEAVE',
+        colSpan: 4,
+        style: 'ledgerPdfGroupHead',
+      },
+      {},
+      {},
+      {},
+      {
+        text: 'DATE &\nACTION\nTAKEN ON\nAPPLICATION\nFOR LEAVE',
+        rowSpan: 2,
+        style: 'ledgerPdfActionHead',
+      },
+    ],
+    [
+      {},
+      {},
+      { text: 'EARNED', style: 'ledgerPdfSubHead' },
+      { text: 'ABS.\nUND.\nW/P', style: 'ledgerPdfSubHead' },
+      { text: 'BAL.', style: 'ledgerPdfSubHead' },
+      { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
+      { text: 'EARNED', style: 'ledgerPdfSubHead' },
+      { text: 'ABS.\nUND.', style: 'ledgerPdfSubHead' },
+      { text: 'BAL.', style: 'ledgerPdfSubHead' },
+      { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
+      {},
+    ],
+  ]
+
+  renderedRows.forEach((entry) => {
+    tableBody.push([
+      buildLedgerPdfBodyCell(entry.period, {
+        bold: Boolean(String(entry.period || '').trim()),
+        fontSize: 5.45,
+      }),
+      buildLedgerPdfBodyCell(entry.particulars, {
+        fontSize: 5.1,
+        lineHeight: 0.94,
+        margin: [0.4, 1.15, 0.4, 0.15],
+      }),
+      buildLedgerPdfValueCell(entry.vacationEarned, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.vacationAbsUndWp, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.vacationBalance, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.vacationAbsUndWop, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.sickEarned, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.sickAbsUnd, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.sickBalance, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.sickAbsUndWop, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfBodyCell(entry.actionTaken, {
+        fontSize: 4.75,
+        lineHeight: 0.9,
+        margin: [0.3, 0.75, 0.3, 0.1],
+      }),
+    ])
+  })
+
+  return {
+    pageSize: preset.pageSize,
+    pageOrientation: 'portrait',
+    pageMargins: preset.pageMargins,
+    info: {
+      title: `Leave Credits Ledger - ${displayName}`,
+      author: 'LMS Frontend',
+      subject: 'Employee leave credits ledger',
+    },
+    content: [
+      {
+        table: {
+          widths: ['34%', '42%', '24%'],
+          body: [
+            [
+              buildLedgerPdfIdentityCell(headingName, {
+                fontSize: identityNameFontSize,
+                alignment: 'center',
+              }),
+              buildLedgerPdfIdentityCell(headingOffice, {
+                fontSize: identityOfficeFontSize,
+                alignment: 'center',
+              }),
+              buildLedgerPdfIdentityServiceCell(firstDayOfService, {
+                fontSize: identityServiceFontSize,
+                alignment: 'center',
+              }),
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: () => 0,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000000',
+          vLineColor: () => '#000000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+        margin: [0, 0, 0, 2],
+      },
+      {
+        table: {
+          widths: ['34%', '42%', '24%'],
+          body: [
+            [
+              buildLedgerPdfTopLabelCell('Name'),
+              buildLedgerPdfTopLabelCell('Division Office'),
+              buildLedgerPdfTopLabelCell('1st Day of Service'),
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: () => 0.55,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000000',
+          vLineColor: () => '#000000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+        margin: [0, 0, 0, 0],
+      },
+      {
+        table: {
+          headerRows: 2,
+          widths: buildLedgerPdfTableWidths(preset),
+          heights: (rowIndex) => {
+            if (rowIndex === 0) return preset.pdfHeaderRowHeight
+            if (rowIndex === 1) return preset.pdfSubHeaderRowHeight
+            return preset.pdfBodyRowHeight
+          },
+          body: tableBody,
+        },
+        layout: {
+          hLineWidth: () => 0.55,
+          vLineWidth: () => 0.55,
+          hLineColor: () => '#000000',
+          vLineColor: () => '#000000',
+          paddingLeft: () => 0.2,
+          paddingRight: () => 0.2,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+        margin: [0, 0, 0, 0],
+      },
+    ],
+    styles: {
+      ledgerPdfRowSpanHead: {
+        color: '#000000',
+        fontSize: 5.9,
+        bold: true,
+        alignment: 'center',
+        margin: [1, 12.2, 1, 0],
+        lineHeight: 1.01,
+      },
+      ledgerPdfActionHead: {
+        color: '#000000',
+        fontSize: 5.45,
+        bold: true,
+        alignment: 'center',
+        margin: [0.5, 4.7, 0.5, 0],
+        lineHeight: 0.98,
+      },
+      ledgerPdfGroupHead: {
+        color: '#000000',
+        fontSize: 5.7,
+        bold: true,
+        alignment: 'center',
+        margin: [1, 4.15, 1, 0],
+        lineHeight: 1,
+      },
+      ledgerPdfSubHead: {
+        color: '#000000',
+        fontSize: 5.4,
+        bold: true,
+        alignment: 'center',
+        margin: [0.8, 2.8, 0.8, 0],
+        lineHeight: 0.98,
+      },
+    },
+    defaultStyle: {
+      fontSize: 5.9,
+      color: '#000000',
+    },
+  }
+}
+
+function printLeaveCreditsLedger() {
+  if (!leaveCreditsLedgerEmployee.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Select an employee ledger to print first.',
+      position: 'top',
+    })
+    return
+  }
+
+  printingLeaveCreditsLedger.value = true
+
+  try {
+    const docDefinition = buildLeaveCreditsLedgerDocDefinition(
+      leaveCreditsLedgerEmployee.value,
+      leaveCreditsLedgerRows.value,
+      ledgerPaperSize.value,
+    )
+
+    pdfMake.createPdf(docDefinition).print()
+
+    $q.notify({
+      type: 'positive',
+      message: `Preparing ${ledgerPaperPreset.value.label} ${getLedgerPdfFilename(leaveCreditsLedgerEmployee.value)} for print.`,
+      position: 'top',
+    })
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to print leave credits ledger right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    printingLeaveCreditsLedger.value = false
+  }
 }
 
 function buildLedgerActionText(entry) {
@@ -1680,6 +2451,7 @@ async function openLeaveCreditsLedgerDialog(employee) {
   const controlNo = String(employee?.control_no ?? '').trim()
   if (!controlNo) return
 
+  ledgerPaperSize.value = 'A4'
   leaveCreditsLedgerEmployee.value = { ...employee }
   leaveCreditsLedgerRows.value = []
   leaveCreditsLedgerError.value = ''
@@ -1697,10 +2469,21 @@ async function openLeaveCreditsLedgerDialog(employee) {
       }
     }
 
-    leaveCreditsLedgerRows.value = extractLedgerRows(payload).map((entry, index) =>
+    const normalizedRows = extractLedgerRows(payload).map((entry, index) =>
       normalizeLedgerRow(entry, index),
     )
+    leaveCreditsLedgerRows.value = resolveLedgerRowsForEmployee(
+      leaveCreditsLedgerEmployee.value,
+      normalizedRows,
+    )
   } catch (err) {
+    const fallbackRows = resolveLedgerRowsForEmployee(leaveCreditsLedgerEmployee.value, [])
+    if (fallbackRows.length) {
+      leaveCreditsLedgerError.value = ''
+      leaveCreditsLedgerRows.value = fallbackRows
+      return
+    }
+
     const message = err?.isMissingLedgerEndpoint
       ? 'Leave credits ledger is not available right now.'
       : resolveApiErrorMessage(err, 'Unable to load leave credits ledger right now.')
@@ -1937,8 +2720,10 @@ async function doImport() {
 }
 
 .leave-ledger-dialog {
-  width: min(1280px, 96vw);
-  max-width: 96vw;
+  width: min(1220px, 98vw);
+  max-width: 98vw;
+  max-height: 96vh;
+  background: #f4f4f1;
 }
 
 .employee-details-dialog {
@@ -1946,23 +2731,80 @@ async function doImport() {
   max-width: 90vw;
 }
 
-.ledger-sheet {
-  border: 1px solid #d7dee7;
+.ledger-preview-stage {
+  overflow: auto;
+  padding: 6px;
   border-radius: 12px;
+  background: #e5e7eb;
+}
+
+.ledger-sheet {
+  margin: 0 auto;
+  border: 1px solid #000000;
   overflow: hidden;
-  background: #fff;
+  background: #fffdf8;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.ledger-sheet__identity {
+  display: grid;
+  grid-template-columns: 34% 42% 24%;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid #000000;
+}
+
+.ledger-sheet__identity-name,
+.ledger-sheet__identity-office,
+.ledger-sheet__identity-service {
+  min-width: 0;
+  color: #000000;
+  font-weight: 700;
+  line-height: 1.04;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.ledger-sheet__identity-name {
+  letter-spacing: 0.005em;
+  text-align: center;
+}
+
+.ledger-sheet__identity-office {
+  text-align: center;
+  letter-spacing: 0.005em;
+}
+
+.ledger-sheet__identity-service {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.ledger-sheet__identity-service-label {
+  font-size: inherit;
+}
+
+.ledger-sheet__identity-service-value {
+  font-size: inherit;
 }
 
 .ledger-sheet__header {
   display: grid;
-  grid-template-columns: minmax(240px, 2fr) minmax(240px, 2fr) minmax(180px, 1.1fr);
-  border-bottom: 1px solid #d7dee7;
+  grid-template-columns: 34% 42% 24%;
+  border-bottom: 1px solid #000000;
 }
 
 .ledger-sheet__field {
-  padding: 12px 14px;
-  min-height: 84px;
-  border-right: 1px solid #d7dee7;
+  min-height: 20px;
+  padding: 2px 8px 3px;
+  border-right: 1px solid #000000;
 }
 
 .ledger-sheet__field:last-child {
@@ -1974,95 +2816,110 @@ async function doImport() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #607d8b;
-}
-
-.ledger-sheet__value {
-  margin-top: 8px;
-  font-size: 0.98rem;
-  font-weight: 700;
-  color: #102a43;
-  line-height: 1.35;
-}
-
-.ledger-sheet__subvalue {
-  margin-top: 4px;
-  font-size: 0.82rem;
-  color: #52667a;
+  color: #000000;
+  text-align: center;
 }
 
 .ledger-sheet__field--service {
-  text-align: right;
+  text-align: center;
 }
 
 .ledger-table-wrap {
-  overflow: auto;
-  max-height: 64vh;
+  overflow: visible;
 }
 
 .ledger-table {
   width: 100%;
-  min-width: 1120px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .ledger-table th,
 .ledger-table td {
-  border: 1px solid #d7dee7;
-  padding: 8px 10px;
-  font-size: 0.76rem;
-  line-height: 1.35;
-  vertical-align: top;
+  border: 1px solid #000000;
+  padding: 1px 2px;
+  font-size: 0.68rem;
+  line-height: 1.02;
+  vertical-align: middle;
+  color: #000000;
+  text-align: center;
 }
 
 .ledger-table th {
-  text-align: center;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #243b53;
-  background: #f8fafc;
+  letter-spacing: 0.02em;
+  background: #fffdf8;
+  color: #000000;
+  padding: 0;
 }
 
-.ledger-table__primary-head {
-  background: #edf6ef !important;
-  color: #1b5e20 !important;
+.ledger-table thead tr:first-child th {
+  height: 20px;
 }
 
-.ledger-table__section-head {
-  background: #f3f7fb !important;
-  color: #1f3a56 !important;
+.ledger-table thead tr:nth-child(2) th {
+  height: 34px;
 }
 
 .ledger-table td {
+  padding: 1px 3px;
+}
+
+.ledger-table tbody tr {
+  height: 20px;
+}
+
+.ledger-table__stacked-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1.01;
   text-align: center;
-  color: #243b53;
+  padding: 1px 2px;
+}
+
+.ledger-table__value {
+  display: inline-block;
+  min-width: 2.5ch;
+}
+
+.ledger-table__value--positive {
+  color: #1b8f3a;
+  font-weight: 700;
+}
+
+.ledger-table__value--negative {
+  color: #c62828;
+  font-weight: 700;
 }
 
 .ledger-table__cell--period,
 .ledger-table__cell--particulars,
 .ledger-table__cell--action {
-  text-align: left !important;
+  text-align: center !important;
 }
 
 .ledger-table__cell--period {
-  min-width: 110px;
   font-weight: 600;
 }
 
-.ledger-table__cell--particulars {
-  min-width: 180px;
-}
-
 .ledger-table__cell--action {
-  min-width: 220px;
   white-space: pre-line;
 }
 
-.ledger-table__empty {
-  padding: 24px !important;
-  text-align: center !important;
-  color: #607d8b !important;
+.ledger-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ledger-paper-select {
+  width: 140px;
+  min-width: 140px;
 }
 
 .leave-history-table :deep(.q-table__middle) {
@@ -2080,21 +2937,33 @@ async function doImport() {
 }
 
 @media (max-width: 900px) {
-  .ledger-sheet__header {
+  .leave-ledger-dialog {
+    width: min(100vw, 100vw);
+  }
+
+  .ledger-preview-stage {
+    padding: 4px;
+  }
+
+  .ledger-sheet__identity {
     grid-template-columns: 1fr;
+    row-gap: 6px;
   }
 
-  .ledger-sheet__field {
-    border-right: none;
-    border-bottom: 1px solid #d7dee7;
+  .ledger-sheet__identity-name,
+  .ledger-sheet__identity-office,
+  .ledger-sheet__identity-service {
+    text-align: center;
+    justify-content: center;
   }
 
-  .ledger-sheet__field:last-child {
-    border-bottom: none;
+  .ledger-paper-select {
+    width: 100%;
+    min-width: 0;
   }
 
-  .ledger-sheet__field--service {
-    text-align: left;
+  .ledger-dialog-actions {
+    align-items: stretch;
   }
 }
 </style>
