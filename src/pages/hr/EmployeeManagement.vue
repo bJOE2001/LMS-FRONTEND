@@ -276,7 +276,7 @@
     </q-dialog>
 
     <q-dialog v-model="showLeaveCreditsLedgerDialog">
-      <q-card class="rounded-borders leave-ledger-dialog">
+      <q-card class="rounded-borders leave-ledger-dialog" :style="ledgerDialogStyle">
         <q-card-section class="row items-center q-pb-none">
           <q-icon name="receipt_long" size="sm" color="secondary" class="q-mr-sm" />
           <div class="text-h6">Leave Credits Ledger</div>
@@ -284,7 +284,7 @@
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
 
-        <q-card-section class="q-pt-sm">
+        <q-card-section class="leave-ledger-dialog__body q-pt-sm">
           <q-banner
             v-if="leaveCreditsLedgerError"
             dense
@@ -299,7 +299,7 @@
 
           <div
             v-if="leaveCreditsLedgerLoading"
-            class="row items-center justify-center q-pa-xl text-grey-7"
+            class="leave-ledger-dialog__loading row items-center justify-center q-pa-xl text-grey-7"
           >
             <q-spinner color="secondary" size="28px" class="q-mr-sm" />
             <span>Loading leave credits ledger...</span>
@@ -485,7 +485,6 @@
             :disable="leaveCreditsLedgerLoading || !leaveCreditsLedgerEmployee"
             @click="printLeaveCreditsLedger"
           />
-          <q-btn flat no-caps label="Close" color="grey-7" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -888,6 +887,7 @@ const LEDGER_ENDPOINT_FACTORIES = [
   (controlNo) => `/hr/leave-balances/${encodeURIComponent(controlNo)}/ledger`,
   (controlNo) => `/hr/leave-balances/ledger/${encodeURIComponent(controlNo)}`,
 ]
+let preferredLedgerEndpointFactoryIndex = null
 
 const LEDGER_PAPER_PRESETS = {
   A4: {
@@ -949,6 +949,10 @@ const ledgerPaperPreset = computed(
 const ledgerSheetStyle = computed(() => ({
   width: `${ledgerPaperPreset.value.previewWidth}px`,
   minHeight: `${ledgerPaperPreset.value.previewHeight}px`,
+}))
+const ledgerDialogStyle = computed(() => ({
+  width: `min(${ledgerPaperPreset.value.previewWidth + 96}px, 96vw)`,
+  maxWidth: '96vw',
 }))
 const ledgerRenderedRows = computed(() =>
   buildLedgerRowsForPaper(leaveCreditsLedgerRows.value, ledgerPaperPreset.value),
@@ -1566,116 +1570,6 @@ function normalizeLedgerQuantityValue(value) {
   }
 
   return String(value).trim()
-}
-
-function normalizePersonName(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function isMahusayLedgerPreviewEmployee(employee) {
-  if (!employee) return false
-
-  const firstname = normalizePersonName(employee.firstname ?? employee.first_name)
-  const middlename = normalizePersonName(employee.middlename ?? employee.middle_name)
-  const surname = normalizePersonName(employee.surname ?? employee.last_name)
-  const fullName = normalizePersonName(getEmployeeFullName(employee))
-
-  if (firstname === 'JOGRAD' && surname === 'MAHUSAY') return true
-
-  return (
-    fullName.includes('MAHUSAY') &&
-    fullName.includes('JOGRAD') &&
-    (fullName.includes('MASCARINAS') || middlename === 'MASCARINAS')
-  )
-}
-
-function buildMahusayLedgerPreviewRows() {
-  return [
-    {
-      id: 'preview-jan-2026',
-      period: 'Jan 2026',
-      particulars: 'Monthly earned credits',
-      vacationEarned: '+1.250',
-      vacationAbsUndWp: '',
-      vacationBalance: '10.250',
-      vacationAbsUndWop: '',
-      sickEarned: '+1.250',
-      sickAbsUnd: '',
-      sickBalance: '12.250',
-      sickAbsUndWop: '',
-      actionTaken: '1/31/26 - Monthly leave credits posted',
-    },
-    {
-      id: 'preview-feb-2026',
-      period: 'Feb 2026',
-      particulars: 'Approved vacation leave',
-      vacationEarned: '',
-      vacationAbsUndWp: '-1.000',
-      vacationBalance: '9.250',
-      vacationAbsUndWop: '',
-      sickEarned: '',
-      sickAbsUnd: '',
-      sickBalance: '12.250',
-      sickAbsUndWop: '',
-      actionTaken: '2/14/26 - Approved VL application',
-    },
-    {
-      id: 'preview-mar-2026',
-      period: 'Mar 2026',
-      particulars: 'Monthly earned credits',
-      vacationEarned: '+1.250',
-      vacationAbsUndWp: '',
-      vacationBalance: '10.500',
-      vacationAbsUndWop: '',
-      sickEarned: '+1.250',
-      sickAbsUnd: '',
-      sickBalance: '13.500',
-      sickAbsUndWop: '',
-      actionTaken: '3/31/26 - Monthly leave credits posted',
-    },
-    {
-      id: 'preview-apr-2026',
-      period: 'Apr 2026',
-      particulars: 'Approved sick leave',
-      vacationEarned: '',
-      vacationAbsUndWp: '',
-      vacationBalance: '10.500',
-      vacationAbsUndWop: '',
-      sickEarned: '',
-      sickAbsUnd: '-0.500',
-      sickBalance: '13.000',
-      sickAbsUndWop: '',
-      actionTaken: '4/10/26 - Approved SL application',
-    },
-    {
-      id: 'preview-may-2026',
-      period: 'May 2026',
-      particulars: 'Manual leave credit adjustment',
-      vacationEarned: '+0.500',
-      vacationAbsUndWp: '',
-      vacationBalance: '11.000',
-      vacationAbsUndWop: '',
-      sickEarned: '',
-      sickAbsUnd: '',
-      sickBalance: '13.000',
-      sickAbsUndWop: '',
-      actionTaken: '5/06/26 - HR credit adjustment entry',
-    },
-  ]
-}
-
-function resolveLedgerRowsForEmployee(employee, rows) {
-  if (rows.length) return rows
-  if (isMahusayLedgerPreviewEmployee(employee)) {
-    return buildMahusayLedgerPreviewRows()
-  }
-  return rows
 }
 
 function buildLedgerRowsForPaper(rows, preset) {
@@ -2400,26 +2294,80 @@ function extractLedgerEmployee(payload) {
 }
 
 async function fetchLeaveCreditsLedgerPayload(controlNo) {
-  let lastNotFoundError = null
+  const endpointEntries = LEDGER_ENDPOINT_FACTORIES.map((buildEndpoint, index) => ({
+    buildEndpoint,
+    index,
+  }))
 
-  for (const buildEndpoint of LEDGER_ENDPOINT_FACTORIES) {
-    try {
-      const { data } = await api.get(buildEndpoint(controlNo))
-      return data
-    } catch (err) {
-      const statusCode = Number(err?.response?.status)
-      if (statusCode === 404 || statusCode === 405) {
-        lastNotFoundError = err
-        continue
+  const isMissingLedgerEndpointResponse = (err) => {
+    const statusCode = Number(err?.response?.status)
+    return statusCode === 404 || statusCode === 405
+  }
+
+  const probeLedgerEndpoints = async (entries) =>
+    new Promise((resolve, reject) => {
+      if (!entries.length) {
+        const error = new Error('Leave credits ledger endpoint was not found.')
+        error.isMissingLedgerEndpoint = true
+        reject(error)
+        return
       }
 
-      throw err
+      let pendingRequests = entries.length
+      let settled = false
+      let lastNotFoundError = null
+
+      entries.forEach(({ buildEndpoint, index }) => {
+        api
+          .get(buildEndpoint(controlNo))
+          .then(({ data }) => {
+            if (settled) return
+            settled = true
+            preferredLedgerEndpointFactoryIndex = index
+            resolve(data)
+          })
+          .catch((err) => {
+            if (settled) return
+            if (isMissingLedgerEndpointResponse(err)) {
+              lastNotFoundError = err
+              pendingRequests -= 1
+
+              if (pendingRequests === 0) {
+                settled = true
+                const error =
+                  lastNotFoundError || new Error('Leave credits ledger endpoint was not found.')
+                error.isMissingLedgerEndpoint = true
+                reject(error)
+              }
+              return
+            }
+
+            settled = true
+            reject(err)
+          })
+      })
+    })
+
+  if (preferredLedgerEndpointFactoryIndex !== null) {
+    const preferredEntry = endpointEntries.find(
+      ({ index }) => index === preferredLedgerEndpointFactoryIndex,
+    )
+
+    if (preferredEntry) {
+      try {
+        const { data } = await api.get(preferredEntry.buildEndpoint(controlNo))
+        return data
+      } catch (err) {
+        if (!isMissingLedgerEndpointResponse(err)) {
+          throw err
+        }
+
+        preferredLedgerEndpointFactoryIndex = null
+      }
     }
   }
 
-  const error = lastNotFoundError || new Error('Leave credits ledger endpoint was not found.')
-  error.isMissingLedgerEndpoint = true
-  throw error
+  return probeLedgerEndpoints(endpointEntries)
 }
 
 async function fetchEmployeeLeaveHistory(controlNo) {
@@ -2469,21 +2417,10 @@ async function openLeaveCreditsLedgerDialog(employee) {
       }
     }
 
-    const normalizedRows = extractLedgerRows(payload).map((entry, index) =>
+    leaveCreditsLedgerRows.value = extractLedgerRows(payload).map((entry, index) =>
       normalizeLedgerRow(entry, index),
     )
-    leaveCreditsLedgerRows.value = resolveLedgerRowsForEmployee(
-      leaveCreditsLedgerEmployee.value,
-      normalizedRows,
-    )
   } catch (err) {
-    const fallbackRows = resolveLedgerRowsForEmployee(leaveCreditsLedgerEmployee.value, [])
-    if (fallbackRows.length) {
-      leaveCreditsLedgerError.value = ''
-      leaveCreditsLedgerRows.value = fallbackRows
-      return
-    }
-
     const message = err?.isMissingLedgerEndpoint
       ? 'Leave credits ledger is not available right now.'
       : resolveApiErrorMessage(err, 'Unable to load leave credits ledger right now.')
@@ -2720,10 +2657,26 @@ async function doImport() {
 }
 
 .leave-ledger-dialog {
-  width: min(1220px, 98vw);
-  max-width: 98vw;
+  width: 96vw;
+  max-width: 96vw;
   max-height: 96vh;
   background: #f4f4f1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.leave-ledger-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.leave-ledger-dialog__loading {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .employee-details-dialog {
@@ -2732,8 +2685,10 @@ async function doImport() {
 }
 
 .ledger-preview-stage {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
-  padding: 6px;
+  padding: 4px;
   border-radius: 12px;
   background: #e5e7eb;
 }
