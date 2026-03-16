@@ -250,6 +250,7 @@ const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
+  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
 ]
 
@@ -260,59 +261,10 @@ const navItems = computed(() => {
   return []
 })
 
-const ACRONYM_STOP_WORDS = new Set([
-  'A',
-  'AN',
-  'AND',
-  'FOR',
-  'IN',
-  'OF',
-  'OFFICE',
-  'ON',
-  'THE',
-  'TO',
-])
-
-function toOfficeAcronym(input) {
-  const source = String(input || '').trim()
-  if (!source) return ''
-
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return ''
-
-  const filtered = words.filter((word) => !ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word))
-  const pick = filtered.length ? filtered : words
-
-  return pick.map((word) => word[0]).join('')
-}
-
-function deriveDepartmentAdminDisplayName(user) {
-  const departmentName = user?.department?.name
-  if (departmentName) {
-    const acronym = toOfficeAcronym(departmentName)
-    if (acronym) return `${acronym} Admin`
-  }
-
-  const rawName = String(user?.name || '').trim()
-  if (!rawName) return 'User'
-
-  const withoutAdminSuffix = rawName.replace(/\s+admin$/i, '').trim()
-  const acronym = toOfficeAcronym(withoutAdminSuffix)
-  if (acronym) return `${acronym} Admin`
-
-  return rawName
-}
-
 const userDisplayName = computed(() => {
   const user = authStore.user
-  if (!user) return 'User'
-  if (user.role !== 'department_admin') return user.name || 'User'
-  return deriveDepartmentAdminDisplayName(user)
+  const fullName = String(user?.name || '').trim()
+  return fullName !== '' ? fullName : 'User'
 })
 
 function confirmLogout() {

@@ -20,6 +20,7 @@ const routes = [
       { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
+      { path: 'hr/user-management', name: 'hr-user-management', component: () => import('pages/hr/UserManagement.vue') },
 
       // Common
       { path: 'notifications', name: 'notifications', component: () => import('pages/NotificationsPage.vue') },
