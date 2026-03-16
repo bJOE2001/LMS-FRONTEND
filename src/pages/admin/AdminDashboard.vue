@@ -298,56 +298,54 @@
     <!-- View dialog -->
     <q-dialog v-model="showDetailsDialog" position="standard">
       <q-card v-if="selectedApp" class="application-timeline-card" style="width: 680px; max-width: 96vw">
-        <q-card-section class="bg-primary text-white row items-center no-wrap application-timeline-header">
-          <div class="text-h6">Application Timeline</div>
-          <q-space />
-          <q-btn flat dense round icon="close" color="white" v-close-popup />
-        </q-card-section>
-        <q-card-section class="application-timeline-content">
-          <div class="application-timeline-summary q-mb-md">
-            <div class="application-timeline-summary-row">
-              <div class="application-timeline-summary-main">
-                <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
-                <div class="text-caption text-grey-7">
-                  {{ selectedApp.leaveType }}{{ selectedApp.is_monetization ? ' (Monetization)' : '' }}
-                </div>
-                <q-badge
-                  class="q-mt-sm"
-                  rounded
-                  :color="getApplicationStatusColor(selectedApp)"
-                  :label="getApplicationStatusLabel(selectedApp)"
-                />
-              </div>
-              <q-btn
-                v-if="canPrintApplication(selectedApp)"
-                unelevated
-                no-caps
-                color="blue-grey-7"
-                icon="print"
-                label="Print Form"
-                size="sm"
-                class="timeline-print-btn"
-                @click="printApplication(selectedApp)"
-              />
+        <q-card-section class="row items-start no-wrap application-timeline-header">
+          <div class="application-timeline-header-copy">
+            <div class="text-h6 application-timeline-header-title">Application Timeline</div>
+            <div class="application-timeline-header-caption">
+              Track your leave request through department and HR review
             </div>
           </div>
-          <q-timeline color="primary" layout="dense" class="application-timeline">
-            <q-timeline-entry
+          <q-space />
+          <q-btn flat dense round icon="close" color="grey-8" v-close-popup />
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="application-timeline-content">
+          <div class="application-timeline-panel">
+            <div
               v-for="(entry, index) in selectedAppTimeline"
               :key="`${entry.title}-${index}`"
-              :title="entry.title"
-              :subtitle="entry.subtitle"
-              :icon="entry.icon"
-              :color="entry.color"
+              class="application-timeline-item"
             >
-              <div class="text-body2 text-grey-8">
-                {{ entry.description }}
+              <div class="application-timeline-marker-column">
+                <div
+                  class="application-timeline-marker"
+                  :class="`application-timeline-marker--${getTimelineEntryTone(entry)}`"
+                >
+                  <q-icon :name="getTimelineEntryIcon(entry)" size="16px" />
+                </div>
+                <div
+                  v-if="index < selectedAppTimeline.length - 1"
+                  class="application-timeline-line"
+                  :class="`application-timeline-line--${getTimelineEntryTone(entry)}`"
+                />
               </div>
-              <div v-if="entry.actor" class="text-caption text-grey-7 q-mt-xs">
-                Action by: {{ entry.actor }}
+
+              <div class="application-timeline-body">
+                <div v-if="entry.subtitle" class="application-timeline-meta">
+                  {{ entry.subtitle }}
+                </div>
+                <div class="application-timeline-title">
+                  {{ entry.title }}
+                </div>
+                <div v-if="entry.actor" class="application-timeline-actor">
+                  Action by: {{ entry.actor }}
+                </div>
+                <div v-else-if="entry.description" class="application-timeline-actor">
+                  {{ entry.description }}
+                </div>
               </div>
-            </q-timeline-entry>
-          </q-timeline>
+            </div>
+          </div>
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -1638,7 +1636,15 @@ function buildApplicationTimeline(app) {
       subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Application closed',
       description: formatRecentRemarks(app) || 'Application was cancelled by the requester.',
       icon: 'cancel',
-      color: 'grey-7',
+      color: 'negative',
+      actor: resolveCancelledActor(app),
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Completed',
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
       actor: resolveCancelledActor(app),
     })
     return entries
@@ -1646,7 +1652,7 @@ function buildApplicationTimeline(app) {
 
   if (app.rawStatus === 'PENDING_ADMIN') {
     entries.push({
-      title: 'Pending Department Admin Review',
+      title: 'Department Admin Review Pending',
       subtitle: 'Current stage',
       description: 'Waiting for department admin approval or disapproval.',
       icon: 'pending_actions',
@@ -1660,9 +1666,9 @@ function buildApplicationTimeline(app) {
       color: 'grey-5',
     })
     entries.push({
-      title: 'Final Approval',
+      title: 'Application Closed',
       subtitle: 'Upcoming',
-      description: 'HR final decision will complete the application.',
+      description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     })
@@ -1670,24 +1676,46 @@ function buildApplicationTimeline(app) {
   }
 
   if (app.rawStatus === 'REJECTED') {
+    const disapprovedAt = formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed'
+    const disapprovedBy = resolveDisapprovalActor(app)
+
+    if (resolveDepartmentAdminActionDateValue(app)) {
+      entries.push({
+        title: 'Department Admin Review Completed',
+        subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+        description: 'Application was reviewed and forwarded to HR.',
+        icon: 'check_circle',
+        color: 'positive',
+        actor: resolveDepartmentAdminActor(app),
+      })
+    }
+
     entries.push({
       title: 'Application Disapproved',
-      subtitle: formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed',
+      subtitle: disapprovedAt,
       description: formatRecentRemarks(app) || 'Application was disapproved.',
       icon: 'cancel',
       color: 'negative',
-      actor: resolveDisapprovalActor(app),
+      actor: disapprovedBy,
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: disapprovedAt,
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: disapprovedBy,
     })
     return entries
   }
 
-    entries.push({
-      title: 'Department Admin Approved',
-      subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
-      description: 'Application was reviewed and forwarded to HR.',
-      icon: 'check_circle',
-      color: 'positive',
-      actor: resolveDepartmentAdminActor(app),
+  entries.push({
+    title: 'Department Admin Review Completed',
+    subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+    description: 'Application was reviewed and forwarded to HR.',
+    icon: 'check_circle',
+    color: 'positive',
+    actor: resolveDepartmentAdminActor(app),
   })
 
   if (app.rawStatus === 'PENDING_HR') {
@@ -1699,9 +1727,9 @@ function buildApplicationTimeline(app) {
       color: 'warning',
     })
     entries.push({
-      title: 'Final Approval',
+      title: 'Application Closed',
       subtitle: 'Upcoming',
-      description: 'HR final decision will complete the application.',
+      description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     })
@@ -1709,13 +1737,24 @@ function buildApplicationTimeline(app) {
   }
 
   if (app.rawStatus === 'APPROVED') {
+    const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app)) || 'Completed'
+    const approvedBy = resolveHrActor(app)
+
     entries.push({
-      title: 'Final Approval',
-      subtitle: formatDateTime(resolveFinalApprovalDateValue(app)) || 'Completed',
+      title: 'Approved by HR',
+      subtitle: approvedAt,
       description: 'Application is fully approved.',
       icon: 'task_alt',
       color: 'positive',
-      actor: resolveHrActor(app),
+      actor: approvedBy,
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: approvedAt,
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: approvedBy,
     })
     return entries
   }
@@ -1729,6 +1768,25 @@ function buildApplicationTimeline(app) {
   })
 
   return entries
+}
+
+function getTimelineEntryTone(entry) {
+  const color = String(entry?.color || '').toLowerCase()
+  const icon = String(entry?.icon || '').toLowerCase()
+
+  if (color.includes('negative') || icon.includes('cancel')) return 'negative'
+  if (color.includes('warning') || icon.includes('pending')) return 'warning'
+  if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
+  return 'positive'
+}
+
+function getTimelineEntryIcon(entry) {
+  const tone = getTimelineEntryTone(entry)
+
+  if (tone === 'negative') return 'close'
+  if (tone === 'warning') return 'schedule'
+  if (tone === 'neutral') return 'radio_button_unchecked'
+  return 'check'
 }
 
 function resolveFiledByActor(app) {
@@ -2266,43 +2324,132 @@ async function confirmDisapprove() {
   gap: 2px;
 }
 .application-timeline-card {
-  border-radius: 10px;
+  border-radius: 12px;
+  overflow: hidden;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
 .application-timeline-header {
-  padding-right: 8px;
+  padding: 12px 14px 10px;
+  background: #fff;
 }
-.application-timeline-summary {
-  border: 1px solid #e4e8ed;
-  border-radius: 8px;
-  background: #f8fafc;
-  padding: 10px 12px;
-}
-.application-timeline-summary-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.application-timeline-summary-main {
+.application-timeline-header-copy {
   min-width: 0;
 }
-.timeline-print-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
+.application-timeline-header-title {
+  color: #111827;
+  font-weight: 700;
+}
+.application-timeline-header-caption {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #6b7280;
 }
 .application-timeline-content {
+  padding: 14px;
+  background: #fff;
   overflow-y: auto;
 }
-.application-timeline {
-  padding-left: 12px;
-  padding-right: 8px;
+.application-timeline-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f7f8fb 0%, #f4f5f8 100%);
+  padding: 10px 12px;
+}
+.application-timeline-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+}
+.application-timeline-item + .application-timeline-item {
+  margin-top: 2px;
+}
+.application-timeline-marker-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.application-timeline-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.application-timeline-marker--positive {
+  background: #22c55e;
+}
+.application-timeline-marker--warning {
+  background: #f59e0b;
+}
+.application-timeline-marker--negative {
+  background: #ef4444;
+}
+.application-timeline-marker--neutral {
+  background: #cbd5e1;
+  color: #475569;
+}
+.application-timeline-line {
+  width: 2px;
+  flex: 1 1 auto;
+  min-height: 42px;
+  margin-top: 4px;
+  border-radius: 999px;
+}
+.application-timeline-line--positive {
+  background: #22c55e;
+}
+.application-timeline-line--warning {
+  background: #f59e0b;
+}
+.application-timeline-line--negative {
+  background: #ef4444;
+}
+.application-timeline-line--neutral {
+  background: #cbd5e1;
+}
+.application-timeline-body {
+  padding-bottom: 18px;
+}
+.application-timeline-meta {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.application-timeline-title {
+  margin-top: 2px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+.application-timeline-actor {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.45;
 }
 @media (max-width: 599px) {
-  .application-timeline-summary-row {
-    flex-direction: column;
+  .application-timeline-content {
+    padding: 12px;
+  }
+  .application-timeline-panel {
+    padding: 10px;
+  }
+  .application-timeline-item {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .application-timeline-marker {
+    width: 24px;
+    height: 24px;
   }
 }
 </style>
