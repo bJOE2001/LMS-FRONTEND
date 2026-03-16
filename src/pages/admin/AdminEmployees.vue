@@ -1,27 +1,28 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="row items-center q-mb-xs">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Employee Management</h1>
+  <q-page class="q-pa-md admin-employees-page">
+    <div class="row items-center q-mb-xs admin-employees-header">
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none admin-employees-title">Employee Management</h1>
       <q-space />
-      <div class="row q-gutter-sm">
+      <div class="row q-gutter-sm admin-employees-actions">
         <q-btn
           unelevated
           no-caps
           color="primary"
           icon="person_add"
           label="Add Employee"
+          class="add-employee-btn"
           :disable="!adminDepartmentId"
           @click="openCreateDialog"
         />
       </div>
     </div>
-    <p class="text-grey-7 q-mb-lg">{{ adminDepartmentName }} - Manage your staff and file leave on their behalf</p>
+    <p class="text-grey-7 q-mb-lg admin-employees-subtitle">{{ adminDepartmentName }} - Manage your staff and file leave on their behalf</p>
 
-    <div class="row q-col-gutter-md q-mb-lg">
+    <div class="row q-col-gutter-sm q-mb-md status-cards-row">
       <div
         v-for="card in statusCards"
         :key="card.key"
-        class="col-12 col-sm-6 col-md"
+        class="col-6 col-sm-6 col-md status-cards-row__item"
       >
         <q-card
           :class="['stat-card', 'bg-white', 'rounded-borders', { 'stat-card--active': isStatusCardActive(card) }]"
@@ -30,20 +31,18 @@
           bordered
           @click="applyStatusFilter(card.filterValue)"
         >
-          <q-card-section class="q-py-md">
-            <div class="row items-center no-wrap">
+          <q-card-section class="q-py-md status-card__section">
+            <div class="row items-center no-wrap status-card__content">
               <q-avatar
                 :style="{ background: card.bg }"
                 :text-color="card.color"
                 size="44px"
-                class="q-mr-md stat-icon"
+                class="q-mr-md stat-icon status-card__avatar"
               >
-                <q-icon :name="card.icon" size="22px" :color="card.color" />
+                <q-icon :name="card.icon" size="22px" :color="card.color" class="status-card__avatar-icon" />
               </q-avatar>
-              <div>
-                <div class="text-caption text-grey-7 text-weight-medium text-uppercase" style="letter-spacing: 0.04em">{{ card.label }}</div>
-                <div class="text-h5 text-weight-bold" :style="{ color: card.hex }">{{ card.value }}</div>
-              </div>
+              <div class="text-caption text-grey-7 text-weight-medium text-uppercase status-card__label" style="letter-spacing: 0.04em">{{ card.label }}</div>
+              <div class="text-h6 text-weight-bold status-card__value q-ml-auto" :style="{ color: card.hex }">{{ card.value }}</div>
             </div>
             <q-tooltip>{{ getStatusCardTooltip(card) }}</q-tooltip>
           </q-card-section>
@@ -51,9 +50,9 @@
       </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders">
-      <q-card-section>
-        <div class="row justify-between items-center">
+    <q-card flat bordered class="rounded-borders employee-records-card">
+      <q-card-section class="employee-records-card__section">
+        <div class="row justify-between items-center employee-records-toolbar">
           <div class="row items-center q-gutter-sm">
             <div class="text-h6">Employee Records</div>
             <q-chip
@@ -75,7 +74,7 @@
             debounce="400"
             placeholder="Search employees..."
             clearable
-            style="min-width: 240px"
+            class="employee-records-search"
             @update:model-value="fetchEmployees(1)"
           >
             <template #prepend>
@@ -87,7 +86,7 @@
 
       <q-table
         :rows="tableRows"
-        :columns="columns"
+        :columns="visibleColumns"
         row-key="control_no"
         flat
         :loading="loading"
@@ -559,6 +558,9 @@ const columns = [
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
   { name: 'actions', label: 'Actions', align: 'center' },
 ]
+const visibleColumns = computed(() =>
+  $q.screen.lt.sm ? columns.filter((column) => column.name !== 'control_no') : columns,
+)
 
 const statusCards = computed(() => [
   { key: 'TOTAL', label: 'Total Employees', value: totalEmployees.value, filterValue: '', icon: 'groups', hex: '#1565c0', color: 'primary', bg: '#e3f2fd' },
@@ -1133,6 +1135,31 @@ watch(adminDepartmentId, (id) => {
   flex-shrink: 0;
 }
 
+.status-card__section {
+  padding: 10px 12px;
+}
+
+.status-card__content {
+  min-height: 30px;
+}
+
+.status-card__label {
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 72%;
+}
+
+.status-card__value {
+  margin-left: auto;
+  line-height: 1;
+}
+
+.employee-records-search {
+  min-width: 240px;
+}
+
 .employee-name {
   font-size: 1rem;
   line-height: 1.2;
@@ -1146,16 +1173,20 @@ watch(adminDepartmentId, (id) => {
 }
 
 .apply-leave-dialog-card {
-  width: min(1280px, 88vw);
+  width: min(1280px, 96vw);
   max-width: none;
   max-height: calc(100vh - 24px);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .apply-leave-dialog-header {
   min-height: 56px;
   padding: 0 10px 0 14px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .apply-leave-dialog-close {
@@ -1172,7 +1203,112 @@ watch(adminDepartmentId, (id) => {
 }
 
 .apply-leave-dialog-body {
-  flex: 0 0 auto;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 600px) {
+  .admin-employees-page {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+    padding-right: calc(env(safe-area-inset-right, 0px) + 10px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+    padding-left: calc(env(safe-area-inset-left, 0px) + 10px) !important;
+  }
+
+  .admin-employees-title {
+    font-size: 2rem;
+    line-height: 1.05;
+  }
+
+  .admin-employees-header {
+    align-items: flex-start;
+  }
+
+  .admin-employees-actions {
+    margin-top: 4px;
+  }
+
+  .add-employee-btn {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.86rem;
+  }
+
+  .admin-employees-subtitle {
+    margin-bottom: 8px !important;
+    font-size: 0.9rem;
+    line-height: 1.28;
+  }
+
+  .status-cards-row {
+    margin-bottom: 8px !important;
+    margin-top: 2px;
+  }
+
+  .status-cards-row__item {
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+  }
+
+  .status-card__section {
+    padding: 6px 8px;
+  }
+
+  .status-card__avatar {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    margin-right: 6px !important;
+  }
+
+  .status-card__avatar-icon {
+    font-size: 14px !important;
+  }
+
+  .status-card__label {
+    font-size: 0.58rem;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    max-width: 66%;
+  }
+
+  .status-card__value {
+    font-size: 1.1rem !important;
+    line-height: 1;
+  }
+
+  .employee-records-card__section {
+    padding: 10px 10px 8px;
+  }
+
+  .employee-records-toolbar {
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .employee-records-toolbar > .row {
+    min-width: 0;
+  }
+
+  .employee-records-search {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .apply-leave-dialog-card {
+    width: min(100vw, 100vw);
+    max-height: calc(100vh - 8px);
+    border-radius: 10px;
+  }
+
+  .apply-leave-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 4px;
+  }
+
+  .apply-leave-dialog-header {
+    min-height: 52px;
+    padding: 0 8px 0 10px;
+  }
 }
 </style>

@@ -65,10 +65,10 @@
       </q-card>
     </q-dialog>
 
-    <div v-if="!props.applicationsOnly" class="row q-col-gutter-md q-mb-lg stat-cards-row">
-      <div class="col-12 col-sm-6 col-md-4">
+    <div v-if="!props.applicationsOnly" class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
+      <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders"
+          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
           flat
           elevation="1"
           role="button"
@@ -78,20 +78,20 @@
           @keyup.enter="openApplicationsView()"
           @keyup.space.prevent="openApplicationsView()"
         >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
+          <q-card-section class="stat-card-content dashboard-kpi-content">
+            <div class="stat-card-main dashboard-kpi-main">
+              <div class="stat-card-left dashboard-kpi-left">
+                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="description" size="28px" color="grey" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">Applications</div>
               </div>
-              <div class="stat-value text-primary">
+              <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
                 <template v-else>{{ dashboardData.total_count }}</template>
               </div>
             </div>
-            <div class="stat-breakdown">
+            <div class="stat-breakdown dashboard-kpi-breakdown">
               <div
                 v-for="card in totalApplicationBreakdownCards"
                 :key="card.key"
@@ -105,9 +105,9 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-4">
+      <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders"
+          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
           flat
           elevation="1"
           role="button"
@@ -117,16 +117,16 @@
           @keyup.enter="openApplicationsView('pending')"
           @keyup.space.prevent="openApplicationsView('pending')"
         >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
+          <q-card-section class="stat-card-content dashboard-kpi-content">
+            <div class="stat-card-main dashboard-kpi-main">
+              <div class="stat-card-left dashboard-kpi-left">
+                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="schedule" size="28px" color="warning" />
                   <q-icon v-if="dashboardData.pending_count > 5" name="warning" size="18px" color="warning" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Pending Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">Pending Applications</div>
               </div>
-              <div class="stat-value text-warning">
+              <div class="stat-value text-warning dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="warning" />
                 <template v-else>{{ dashboardData.pending_count }}</template>
               </div>
@@ -134,9 +134,9 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-4">
+      <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders"
+          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
           flat
           elevation="1"
           role="button"
@@ -146,15 +146,15 @@
           @keyup.enter="openApplicationsView('approved')"
           @keyup.space.prevent="openApplicationsView('approved')"
         >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
+          <q-card-section class="stat-card-content dashboard-kpi-content">
+            <div class="stat-card-main dashboard-kpi-main">
+              <div class="stat-card-left dashboard-kpi-left">
+                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="check_circle" size="28px" color="primary" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Total Approved</div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">Total Approved</div>
               </div>
-              <div class="stat-value text-primary">
+              <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
                 <template v-else>{{ dashboardData.total_approved }}</template>
               </div>
@@ -2267,17 +2267,37 @@ async function confirmDisapprove() {
   color: #7f8b97;
   font-weight: 600;
 }
+
+.dashboard-kpi-main {
+  align-items: center;
+}
+
+.dashboard-kpi-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-kpi-label {
+  margin-top: 0 !important;
+}
+
 .apply-leave-dialog-card {
-  width: min(1280px, 88vw);
+  width: min(1280px, 96vw);
   max-width: none;
   max-height: calc(100vh - 24px);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .apply-leave-dialog-header {
   min-height: 56px;
   padding: 0 10px 0 14px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 .apply-leave-dialog-close {
   width: 38px;
@@ -2290,8 +2310,9 @@ async function confirmDisapprove() {
   max-width: none !important;
 }
 .apply-leave-dialog-body {
-  flex: 0 0 auto;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 .pending-actions-cell {
   width: 150px;
@@ -2437,6 +2458,90 @@ async function confirmDisapprove() {
   line-height: 1.45;
 }
 @media (max-width: 599px) {
+  .apply-leave-dialog-card {
+    width: min(100vw, 100vw);
+    max-height: calc(100vh - 8px);
+    border-radius: 10px;
+  }
+
+  .apply-leave-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 4px;
+  }
+
+  .apply-leave-dialog-header {
+    min-height: 52px;
+    padding: 0 8px 0 10px;
+  }
+
+  .dashboard-kpi-row {
+    margin-bottom: 10px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .dashboard-kpi-col {
+    width: 100%;
+    flex: 0 0 100%;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .dashboard-kpi-card {
+    min-height: 68px;
+  }
+
+  .dashboard-kpi-content {
+    padding: 8px 10px 7px;
+    gap: 0;
+  }
+
+  .dashboard-kpi-main {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dashboard-kpi-left {
+    gap: 6px;
+  }
+
+  .dashboard-kpi-icon-wrap :deep(.q-icon) {
+    font-size: 18px !important;
+  }
+
+  .dashboard-kpi-label {
+    font-size: 0.64rem;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dashboard-kpi-value {
+    min-width: 0;
+    margin-top: 0;
+    font-size: 1.75rem;
+    line-height: 1;
+  }
+
+  .dashboard-kpi-breakdown {
+    margin-top: 4px;
+    gap: 4px;
+  }
+
+  .dashboard-kpi-breakdown .stat-mini-card {
+    padding: 2px 4px;
+    border-radius: 6px;
+  }
+
+  .dashboard-kpi-breakdown .stat-mini-label {
+    font-size: 0.5rem;
+  }
+
+  .dashboard-kpi-breakdown .stat-mini-value {
+    font-size: 0.6rem;
+  }
+
   .application-timeline-content {
     padding: 12px;
   }
