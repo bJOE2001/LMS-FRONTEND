@@ -31,28 +31,28 @@
     </div>
 
     <!-- Summary Cards -->
-    <div class="row q-col-gutter-md q-mb-lg">
-      <div class="col-12 col-sm-6 col-md-6">
-        <q-card class="bg-white rounded-borders" flat bordered>
-          <q-card-section>
-            <div class="row items-center no-wrap">
-              <q-icon name="groups" size="md" color="primary" class="q-mr-sm" />
-              <div>
-                <div class="text-caption text-weight-medium">Total Employees</div>
-                <div class="text-h4 text-primary">{{ totalEmployees }}</div>
+    <div class="row q-col-gutter-md q-mb-lg summary-strip">
+      <div class="col-12 col-sm-6 col-md-6 summary-strip__item">
+        <q-card class="bg-white rounded-borders summary-strip__card" flat bordered>
+          <q-card-section class="summary-strip__card-section">
+            <div class="row items-center no-wrap summary-strip__content">
+              <q-icon name="groups" size="md" color="primary" class="q-mr-sm summary-strip__icon" />
+              <div class="summary-strip__text">
+                <div class="text-caption text-weight-medium summary-strip__label">Total Employees</div>
+                <div class="text-h4 text-primary summary-strip__value">{{ totalEmployees }}</div>
               </div>
             </div>
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-6">
-        <q-card class="bg-white rounded-borders" flat bordered>
-          <q-card-section>
-            <div class="row items-center no-wrap">
-              <q-icon name="business" size="md" color="green-8" class="q-mr-sm" />
-              <div>
-                <div class="text-caption text-weight-medium">Departments</div>
-                <div class="text-h4 text-green-8">{{ allDepartments.length }}</div>
+      <div class="col-12 col-sm-6 col-md-6 summary-strip__item">
+        <q-card class="bg-white rounded-borders summary-strip__card" flat bordered>
+          <q-card-section class="summary-strip__card-section">
+            <div class="row items-center no-wrap summary-strip__content">
+              <q-icon name="business" size="md" color="green-8" class="q-mr-sm summary-strip__icon" />
+              <div class="summary-strip__text">
+                <div class="text-caption text-weight-medium summary-strip__label">Departments</div>
+                <div class="text-h4 text-green-8 summary-strip__value">{{ allDepartments.length }}</div>
               </div>
             </div>
           </q-card-section>
@@ -2645,6 +2645,23 @@ async function doImport() {
   font-weight: 600;
   letter-spacing: 0.02em;
 }
+
+.summary-strip__card-section {
+  padding: 14px 16px;
+}
+
+.summary-strip__icon {
+  margin-right: 12px;
+}
+
+.summary-strip__label {
+  letter-spacing: 0.04em;
+}
+
+.summary-strip__value {
+  line-height: 1.1;
+}
+
 .credit-btn {
   border-radius: 8px;
   font-weight: 600;
@@ -2919,6 +2936,50 @@ async function doImport() {
 
   .ledger-dialog-actions {
     align-items: stretch;
+  }
+}
+
+@media (max-width: 600px) {
+  .summary-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-left: 0;
+    margin-right: 0;
+    gap: 8px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .summary-strip__item {
+    width: auto;
+    min-width: 168px;
+    flex: 0 0 168px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .summary-strip__card {
+    border-radius: 10px;
+  }
+
+  .summary-strip__card-section {
+    padding: 10px 12px;
+  }
+
+  .summary-strip__icon {
+    margin-right: 8px !important;
+    font-size: 20px !important;
+  }
+
+  .summary-strip__label {
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+  }
+
+  .summary-strip__value {
+    margin-top: 2px;
+    font-size: 1.4rem !important;
+    line-height: 1;
   }
 }
 </style>

@@ -426,11 +426,11 @@
               :class="[
                 'dialog-section',
                 moveDialogActionsUp ? 'dialog-section--actions-raised' : 'dialog-section--actions',
+                { 'dialog-actions-bar': inDialog },
               ]"
             >
-              <div class="row q-gutter-md">
+              <div :class="['row', { 'q-gutter-md': !inDialog, 'dialog-actions-row': inDialog }]">
                 <template v-if="inDialog">
-                  <q-space />
                   <q-btn outline no-caps label="Cancel" color="grey-7" class="step-btn" @click="handleCancel" />
                   <q-btn
                     unelevated
@@ -2319,6 +2319,93 @@ async function onSubmit() {
 }
 .dialog-form-card :deep(.q-stepper__nav) {
   padding-top: 0;
+}
+.dialog-actions-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  margin-top: 8px;
+  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  border-top: 1px solid #e3e7eb;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(2px);
+}
+.dialog-actions-row {
+  width: 100%;
+  margin: 0 !important;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+.dialog-actions-row .step-btn {
+  min-width: 0;
+  margin: 0 !important;
+}
+.dialog-actions-row .step-btn:first-child {
+  flex: 0 0 116px;
+}
+.dialog-actions-row .step-btn:last-child {
+  flex: 1 1 auto;
+}
+.dialog-actions-row :deep(.q-btn__content) {
+  justify-content: center;
+}
+
+@media (max-width: 1024px) {
+  .dialog-application-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .dialog-section-stack--left,
+  .dialog-section--type,
+  .dialog-section--details,
+  .dialog-section--commutation,
+  .dialog-section--reason,
+  .dialog-section--dates,
+  .dialog-section--full,
+  .dialog-section--actions,
+  .dialog-section--actions-raised,
+  .dialog-section--dates-raised {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .dialog-section--actions-raised {
+    justify-self: stretch;
+    align-self: auto;
+  }
+
+  .dialog-dates-layout {
+    row-gap: 10px;
+  }
+
+  .dialog-form-card .section-block {
+    padding: 12px;
+  }
+
+  .dialog-form-card :deep(.q-date) {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .dialog-form-card :deep(.q-stepper__step-inner) {
+    padding: 6px 8px 10px;
+  }
+
+  .dialog-actions-bar {
+    padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .dialog-actions-row {
+    gap: 8px;
+  }
+
+  .dialog-actions-row .step-btn:first-child {
+    flex-basis: 104px;
+  }
 }
 </style>
 
