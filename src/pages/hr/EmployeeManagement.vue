@@ -163,6 +163,17 @@
               flat
               dense
               round
+              icon="receipt_long"
+              color="secondary"
+              size="sm"
+              @click.stop="openLeaveCreditsLedgerDialog(props.row)"
+            >
+              <q-tooltip>Leave Credits Ledger</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
               icon="visibility"
               color="primary"
               size="sm"
@@ -261,6 +272,113 @@
             </template>
           </q-table>
         </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showLeaveCreditsLedgerDialog">
+      <q-card class="rounded-borders leave-ledger-dialog">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="receipt_long" size="sm" color="secondary" class="q-mr-sm" />
+          <div class="text-h6">Leave Credits Ledger</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section class="q-pt-sm">
+          <div class="ledger-sheet">
+            <div class="ledger-sheet__header">
+              <div class="ledger-sheet__field">
+                <div class="ledger-sheet__label">Name</div>
+                <div class="ledger-sheet__value">{{ ledgerEmployeeDisplayName }}</div>
+              </div>
+              <div class="ledger-sheet__field">
+                <div class="ledger-sheet__label">Division Office</div>
+                <div class="ledger-sheet__value">{{ ledgerEmployeeDivisionOffice }}</div>
+                <div v-if="ledgerEmployeeDesignation" class="ledger-sheet__subvalue">
+                  {{ ledgerEmployeeDesignation }}
+                </div>
+              </div>
+              <div class="ledger-sheet__field ledger-sheet__field--service">
+                <div class="ledger-sheet__label">1st Day of Service</div>
+                <div class="ledger-sheet__value">{{ ledgerEmployeeFirstDayOfService }}</div>
+              </div>
+            </div>
+
+            <q-banner
+              v-if="leaveCreditsLedgerError"
+              dense
+              rounded
+              class="bg-orange-1 text-orange-9 q-ma-md q-mb-none"
+            >
+              <template #avatar>
+                <q-icon name="warning" color="orange-8" />
+              </template>
+              {{ leaveCreditsLedgerError }}
+            </q-banner>
+
+            <div
+              v-if="leaveCreditsLedgerLoading"
+              class="row items-center justify-center q-pa-xl text-grey-7"
+            >
+              <q-spinner color="secondary" size="28px" class="q-mr-sm" />
+              <span>Loading leave credits ledger...</span>
+            </div>
+
+            <div v-else class="ledger-table-wrap">
+              <table class="ledger-table">
+                <thead>
+                  <tr>
+                    <th rowspan="2" class="ledger-table__primary-head">Period</th>
+                    <th rowspan="2" class="ledger-table__primary-head">Particulars</th>
+                    <th colspan="4" class="ledger-table__section-head">Vacation Leave</th>
+                    <th colspan="4" class="ledger-table__section-head">Sick Leave</th>
+                    <th rowspan="2" class="ledger-table__primary-head">
+                      Date and Action Taken on Application for Leave
+                    </th>
+                  </tr>
+                  <tr>
+                    <th>Earned</th>
+                    <th>Abs. Und. W/P</th>
+                    <th>Bal.</th>
+                    <th>Abs. Und. W/O/P</th>
+                    <th>Earned</th>
+                    <th>Abs. Und.</th>
+                    <th>Bal.</th>
+                    <th>Abs. Und. W/O/P</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!leaveCreditsLedgerRows.length">
+                    <td colspan="11" class="ledger-table__empty">
+                      No leave credits ledger entries found.
+                    </td>
+                  </tr>
+                  <tr
+                    v-for="(entry, index) in leaveCreditsLedgerRows"
+                    :key="
+                      entry.id ||
+                      entry.key ||
+                      `${leaveCreditsLedgerEmployee?.control_no || 'employee'}-${index}`
+                    "
+                  >
+                    <td class="ledger-table__cell--period">{{ entry.period }}</td>
+                    <td class="ledger-table__cell--particulars">{{ entry.particulars }}</td>
+                    <td>{{ entry.vacationEarned }}</td>
+                    <td>{{ entry.vacationAbsUndWp }}</td>
+                    <td>{{ entry.vacationBalance }}</td>
+                    <td>{{ entry.vacationAbsUndWop }}</td>
+                    <td>{{ entry.sickEarned }}</td>
+                    <td>{{ entry.sickAbsUnd }}</td>
+                    <td>{{ entry.sickBalance }}</td>
+                    <td>{{ entry.sickAbsUndWop }}</td>
+                    <td class="ledger-table__cell--action">{{ entry.actionTaken }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </q-card-section>
+
         <q-card-actions align="right" class="q-pa-md">
           <q-btn flat no-caps label="Close" color="grey-7" v-close-popup />
         </q-card-actions>
@@ -530,7 +648,7 @@ employee_id,leave_type,balance
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
@@ -548,6 +666,11 @@ const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
 const leaveHistory = ref([])
 const leaveHistoryLoading = ref(false)
+const showLeaveCreditsLedgerDialog = ref(false)
+const leaveCreditsLedgerEmployee = ref(null)
+const leaveCreditsLedgerRows = ref([])
+const leaveCreditsLedgerLoading = ref(false)
+const leaveCreditsLedgerError = ref('')
 
 // CSV import state
 const showImportDialog = ref(false)
@@ -643,10 +766,79 @@ const historyColumns = [
   },
 ]
 
+const LEDGER_ENDPOINT_FACTORIES = [
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balance-ledger`,
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-credits-ledger`,
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balance-history`,
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-credits-history`,
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/ledger`,
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balances/ledger`,
+  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balances/history`,
+  (controlNo) => `/hr/leave-balances/${encodeURIComponent(controlNo)}/ledger`,
+  (controlNo) => `/hr/leave-balances/ledger/${encodeURIComponent(controlNo)}`,
+]
+
+const ledgerEmployeeDisplayName = computed(() =>
+  getEmployeeFullName(leaveCreditsLedgerEmployee.value),
+)
+const ledgerEmployeeDivisionOffice = computed(() =>
+  getLedgerEmployeeOffice(leaveCreditsLedgerEmployee.value),
+)
+const ledgerEmployeeDesignation = computed(() =>
+  getLedgerEmployeeDesignation(leaveCreditsLedgerEmployee.value),
+)
+const ledgerEmployeeFirstDayOfService = computed(() =>
+  formatLedgerServiceDate(
+    pickFirstDefined(leaveCreditsLedgerEmployee.value, [
+      'first_day_of_service',
+      'firstDayOfService',
+      'date_hired',
+      'dateHired',
+      'hire_date',
+      'hireDate',
+      'appointment_date',
+      'appointmentDate',
+      'employment_start_date',
+      'employmentStartDate',
+      'service_start_date',
+      'serviceStartDate',
+    ]),
+  ),
+)
+
 function statusBadgeColor(status) {
   if (!status) return 'grey'
   const c = { REGULAR: 'green', 'CO-TERMINOUS': 'blue', ELECTIVE: 'amber', CASUAL: 'orange' }
   return c[status] ?? 'blue'
+}
+
+function hasMeaningfulValue(value) {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  return true
+}
+
+function getNestedValue(source, path) {
+  if (!source || typeof source !== 'object') return undefined
+
+  return String(path)
+    .split('.')
+    .reduce(
+      (current, segment) => (current && typeof current === 'object' ? current[segment] : undefined),
+      source,
+    )
+}
+
+function pickFirstDefined(source, candidates, fallback = '') {
+  for (const candidate of candidates) {
+    const value = String(candidate).includes('.')
+      ? getNestedValue(source, candidate)
+      : source?.[candidate]
+
+    if (hasMeaningfulValue(value)) return value
+  }
+
+  return fallback
 }
 
 const DEPARTMENT_STOP_WORDS = new Set([
@@ -755,6 +947,50 @@ function resolveEmployeeSearch(value) {
 
 function isDepartmentHeadRecord(row) {
   return row?.is_department_head_record === true
+}
+
+function getEmployeeFullName(employee) {
+  if (!employee) return 'N/A'
+
+  const directName = String(employee.full_name ?? employee.fullName ?? employee.name ?? '').trim()
+  if (directName) return directName
+
+  const surname = String(employee.surname ?? employee.last_name ?? employee.lastName ?? '').trim()
+  const firstname = String(
+    employee.firstname ?? employee.first_name ?? employee.firstName ?? '',
+  ).trim()
+  const middlename = String(
+    employee.middlename ?? employee.middle_name ?? employee.middleName ?? '',
+  ).trim()
+
+  const fullName = [firstname, middlename, surname].filter(Boolean).join(' ').trim()
+  if (!fullName) return 'N/A'
+  if (!surname || !firstname) return fullName
+
+  return `${surname}, ${[firstname, middlename].filter(Boolean).join(' ')}`
+}
+
+function getLedgerEmployeeOffice(employee) {
+  const office = pickFirstDefined(employee, [
+    'office',
+    'department_name',
+    'department.name',
+    'division_office',
+    'divisionOffice',
+  ])
+
+  return String(office || 'N/A').trim() || 'N/A'
+}
+
+function getLedgerEmployeeDesignation(employee) {
+  const designation = pickFirstDefined(employee, [
+    'designation',
+    'position',
+    'job_title',
+    'jobTitle',
+  ])
+
+  return String(designation || '').trim()
 }
 
 async function fetchDepartments() {
@@ -1033,6 +1269,388 @@ function formatDate(value) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function formatLedgerServiceDate(value) {
+  if (!value) return 'N/A'
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return String(value)
+
+  return parsed.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  })
+}
+
+function formatLedgerActionDate(value) {
+  if (!value) return ''
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return String(value).trim()
+
+  return parsed.toLocaleDateString('en-US', {
+    year: '2-digit',
+    month: 'numeric',
+    day: 'numeric',
+  })
+}
+
+function formatLedgerNumber(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return String(value ?? '').trim()
+  return numericValue.toFixed(3)
+}
+
+function normalizeLedgerTextValue(value) {
+  if (!hasMeaningfulValue(value)) return ''
+  if (typeof value === 'object') {
+    return normalizeLedgerTextValue(
+      pickFirstDefined(value, ['label', 'name', 'text', 'value', 'description']),
+    )
+  }
+  return String(value).trim()
+}
+
+function normalizeLedgerQuantityValue(value) {
+  if (!hasMeaningfulValue(value)) return ''
+
+  if (typeof value === 'number') {
+    return formatLedgerNumber(value)
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed === '') return ''
+    if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+      return formatLedgerNumber(trimmed)
+    }
+    return trimmed
+  }
+
+  if (typeof value === 'object') {
+    return normalizeLedgerQuantityValue(
+      pickFirstDefined(value, ['value', 'amount', 'balance', 'total', 'days']),
+    )
+  }
+
+  return String(value).trim()
+}
+
+function buildLedgerActionText(entry) {
+  const directValue = normalizeLedgerTextValue(
+    pickFirstDefined(entry, [
+      'date_and_action',
+      'dateAndAction',
+      'date_action',
+      'dateAction',
+      'application_action',
+      'applicationAction',
+    ]),
+  )
+  if (directValue) return directValue
+
+  const actionDate = formatLedgerActionDate(
+    pickFirstDefined(entry, [
+      'action_date',
+      'actionDate',
+      'processed_at',
+      'processedAt',
+      'validated_at',
+      'validatedAt',
+      'created_at',
+      'createdAt',
+      'date',
+      'transaction_date',
+      'transactionDate',
+    ]),
+  )
+  const actionLabel = normalizeLedgerTextValue(
+    pickFirstDefined(entry, [
+      'action_taken',
+      'actionTaken',
+      'action',
+      'reference',
+      'reference_no',
+      'referenceNo',
+      'notes',
+      'remarks',
+    ]),
+  )
+
+  return [actionDate, actionLabel].filter(Boolean).join(actionDate && actionLabel ? ' - ' : '')
+}
+
+function normalizeLedgerRow(entry, index) {
+  return {
+    id: pickFirstDefined(
+      entry,
+      ['id', 'ledger_id', 'ledgerId', 'entry_id', 'entryId'],
+      `ledger-${index}`,
+    ),
+    period: normalizeLedgerTextValue(
+      pickFirstDefined(entry, [
+        'period',
+        'period_label',
+        'periodLabel',
+        'covered_period',
+        'coveredPeriod',
+        'month_period',
+        'monthPeriod',
+        'month',
+        'month_label',
+        'monthLabel',
+        'year_month',
+        'yearMonth',
+      ]),
+    ),
+    particulars: normalizeLedgerTextValue(
+      pickFirstDefined(entry, [
+        'particulars',
+        'particular',
+        'description',
+        'remarks',
+        'entry_type',
+        'entryType',
+        'transaction_type',
+        'transactionType',
+        'leave_type_name',
+        'leaveTypeName',
+        'leave_type',
+        'leaveType',
+        'type',
+        'notes',
+      ]),
+    ),
+    vacationEarned: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'vacation_earned',
+        'vacationEarned',
+        'vacation_leave_earned',
+        'vacationLeaveEarned',
+        'vl_earned',
+        'vacation.earned',
+        'vacation_leave.earned',
+      ]),
+    ),
+    vacationAbsUndWp: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'vacation_abs_und_wp',
+        'vacationAbsUndWp',
+        'vacation_leave_abs_und_wp',
+        'vacationLeaveAbsUndWp',
+        'vl_abs_und_wp',
+        'vacation.with_pay',
+        'vacation_leave.with_pay',
+        'vacation_leave.used_with_pay',
+        'vacation.used_with_pay',
+      ]),
+    ),
+    vacationBalance: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'vacation_balance',
+        'vacationBalance',
+        'vacation_leave_balance',
+        'vacationLeaveBalance',
+        'vl_balance',
+        'vacation.balance',
+        'vacation_leave.balance',
+      ]),
+    ),
+    vacationAbsUndWop: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'vacation_abs_und_wop',
+        'vacationAbsUndWop',
+        'vacation_leave_abs_und_wop',
+        'vacationLeaveAbsUndWop',
+        'vl_abs_und_wop',
+        'vacation.without_pay',
+        'vacation_leave.without_pay',
+        'vacation_leave.used_without_pay',
+        'vacation.used_without_pay',
+      ]),
+    ),
+    sickEarned: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'sick_earned',
+        'sickEarned',
+        'sick_leave_earned',
+        'sickLeaveEarned',
+        'sl_earned',
+        'sick.earned',
+        'sick_leave.earned',
+      ]),
+    ),
+    sickAbsUnd: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'sick_abs_und',
+        'sickAbsUnd',
+        'sick_abs_und_wp',
+        'sickAbsUndWp',
+        'sick_leave_abs_und',
+        'sickLeaveAbsUnd',
+        'sick_leave_abs_und_wp',
+        'sickLeaveAbsUndWp',
+        'sl_abs_und',
+        'sl_abs_und_wp',
+        'sick.with_pay',
+        'sick_leave.with_pay',
+        'sick_leave.used_with_pay',
+        'sick.used_with_pay',
+      ]),
+    ),
+    sickBalance: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'sick_balance',
+        'sickBalance',
+        'sick_leave_balance',
+        'sickLeaveBalance',
+        'sl_balance',
+        'sick.balance',
+        'sick_leave.balance',
+      ]),
+    ),
+    sickAbsUndWop: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'sick_abs_und_wop',
+        'sickAbsUndWop',
+        'sick_leave_abs_und_wop',
+        'sickLeaveAbsUndWop',
+        'sl_abs_und_wop',
+        'sick.without_pay',
+        'sick_leave.without_pay',
+        'sick_leave.used_without_pay',
+        'sick.used_without_pay',
+      ]),
+    ),
+    actionTaken: buildLedgerActionText(entry),
+  }
+}
+
+function extractLedgerRows(payload) {
+  if (Array.isArray(payload)) return payload
+
+  const nestedData = payload?.data && typeof payload.data === 'object' ? payload.data : null
+  const collections = [
+    payload?.ledger,
+    payload?.ledger_entries,
+    payload?.ledgerEntries,
+    payload?.entries,
+    payload?.records,
+    payload?.rows,
+    payload?.history,
+    payload?.leave_balance_ledger,
+    payload?.leaveBalanceLedger,
+    payload?.leave_credits_ledger,
+    payload?.leaveCreditsLedger,
+    nestedData?.ledger,
+    nestedData?.ledger_entries,
+    nestedData?.ledgerEntries,
+    nestedData?.entries,
+    nestedData?.records,
+    nestedData?.rows,
+    nestedData?.history,
+    nestedData?.leave_balance_ledger,
+    nestedData?.leaveBalanceLedger,
+    nestedData?.leave_credits_ledger,
+    nestedData?.leaveCreditsLedger,
+    Array.isArray(payload?.data) ? payload.data : null,
+  ]
+
+  return collections.find((collection) => Array.isArray(collection)) || []
+}
+
+function extractLedgerEmployee(payload) {
+  if (!payload || typeof payload !== 'object') return null
+
+  const nestedData = payload?.data && typeof payload.data === 'object' ? payload.data : null
+  const employee =
+    payload.employee ??
+    payload.employee_info ??
+    payload.employeeInfo ??
+    nestedData?.employee ??
+    nestedData?.employee_info ??
+    nestedData?.employeeInfo ??
+    payload.profile ??
+    null
+
+  const serviceDate = pickFirstDefined(payload, [
+    'first_day_of_service',
+    'firstDayOfService',
+    'date_hired',
+    'dateHired',
+    'hire_date',
+    'hireDate',
+  ])
+
+  const office = pickFirstDefined(payload, [
+    'office',
+    'department_name',
+    'division_office',
+    'divisionOffice',
+  ])
+
+  const designation = pickFirstDefined(payload, ['designation', 'position'])
+  const firstDayOfService =
+    (employee?.first_day_of_service ??
+      employee?.firstDayOfService ??
+      serviceDate ??
+      pickFirstDefined(nestedData, [
+        'first_day_of_service',
+        'firstDayOfService',
+        'date_hired',
+        'dateHired',
+        'hire_date',
+        'hireDate',
+      ])) ||
+    ''
+  const resolvedOffice =
+    (employee?.office ??
+      office ??
+      pickFirstDefined(nestedData, [
+        'office',
+        'department_name',
+        'division_office',
+        'divisionOffice',
+      ])) ||
+    ''
+  const resolvedDesignation =
+    (employee?.designation ??
+      employee?.position ??
+      designation ??
+      pickFirstDefined(nestedData, ['designation', 'position'])) ||
+    ''
+
+  return {
+    ...(employee || {}),
+    first_day_of_service: firstDayOfService,
+    office: resolvedOffice,
+    designation: resolvedDesignation,
+  }
+}
+
+async function fetchLeaveCreditsLedgerPayload(controlNo) {
+  let lastNotFoundError = null
+
+  for (const buildEndpoint of LEDGER_ENDPOINT_FACTORIES) {
+    try {
+      const { data } = await api.get(buildEndpoint(controlNo))
+      return data
+    } catch (err) {
+      const statusCode = Number(err?.response?.status)
+      if (statusCode === 404 || statusCode === 405) {
+        lastNotFoundError = err
+        continue
+      }
+
+      throw err
+    }
+  }
+
+  const error = lastNotFoundError || new Error('Leave credits ledger endpoint was not found.')
+  error.isMissingLedgerEndpoint = true
+  throw error
+}
+
 async function fetchEmployeeLeaveHistory(controlNo) {
   if (!controlNo) {
     leaveHistory.value = []
@@ -1055,6 +1673,43 @@ async function fetchEmployeeLeaveHistory(controlNo) {
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     leaveHistoryLoading.value = false
+  }
+}
+
+async function openLeaveCreditsLedgerDialog(employee) {
+  const controlNo = String(employee?.control_no ?? '').trim()
+  if (!controlNo) return
+
+  leaveCreditsLedgerEmployee.value = { ...employee }
+  leaveCreditsLedgerRows.value = []
+  leaveCreditsLedgerError.value = ''
+  showLeaveCreditsLedgerDialog.value = true
+  leaveCreditsLedgerLoading.value = true
+
+  try {
+    const payload = await fetchLeaveCreditsLedgerPayload(controlNo)
+    const payloadEmployee = extractLedgerEmployee(payload)
+
+    if (payloadEmployee) {
+      leaveCreditsLedgerEmployee.value = {
+        ...leaveCreditsLedgerEmployee.value,
+        ...payloadEmployee,
+      }
+    }
+
+    leaveCreditsLedgerRows.value = extractLedgerRows(payload).map((entry, index) =>
+      normalizeLedgerRow(entry, index),
+    )
+  } catch (err) {
+    const message = err?.isMissingLedgerEndpoint
+      ? 'Leave credits ledger is not available right now.'
+      : resolveApiErrorMessage(err, 'Unable to load leave credits ledger right now.')
+
+    leaveCreditsLedgerError.value = message
+    leaveCreditsLedgerRows.value = []
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    leaveCreditsLedgerLoading.value = false
   }
 }
 
@@ -1281,9 +1936,133 @@ async function doImport() {
   max-width: 96vw;
 }
 
+.leave-ledger-dialog {
+  width: min(1280px, 96vw);
+  max-width: 96vw;
+}
+
 .employee-details-dialog {
   width: min(860px, 90vw);
   max-width: 90vw;
+}
+
+.ledger-sheet {
+  border: 1px solid #d7dee7;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.ledger-sheet__header {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) minmax(240px, 2fr) minmax(180px, 1.1fr);
+  border-bottom: 1px solid #d7dee7;
+}
+
+.ledger-sheet__field {
+  padding: 12px 14px;
+  min-height: 84px;
+  border-right: 1px solid #d7dee7;
+}
+
+.ledger-sheet__field:last-child {
+  border-right: none;
+}
+
+.ledger-sheet__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #607d8b;
+}
+
+.ledger-sheet__value {
+  margin-top: 8px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #102a43;
+  line-height: 1.35;
+}
+
+.ledger-sheet__subvalue {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #52667a;
+}
+
+.ledger-sheet__field--service {
+  text-align: right;
+}
+
+.ledger-table-wrap {
+  overflow: auto;
+  max-height: 64vh;
+}
+
+.ledger-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: collapse;
+}
+
+.ledger-table th,
+.ledger-table td {
+  border: 1px solid #d7dee7;
+  padding: 8px 10px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  vertical-align: top;
+}
+
+.ledger-table th {
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #243b53;
+  background: #f8fafc;
+}
+
+.ledger-table__primary-head {
+  background: #edf6ef !important;
+  color: #1b5e20 !important;
+}
+
+.ledger-table__section-head {
+  background: #f3f7fb !important;
+  color: #1f3a56 !important;
+}
+
+.ledger-table td {
+  text-align: center;
+  color: #243b53;
+}
+
+.ledger-table__cell--period,
+.ledger-table__cell--particulars,
+.ledger-table__cell--action {
+  text-align: left !important;
+}
+
+.ledger-table__cell--period {
+  min-width: 110px;
+  font-weight: 600;
+}
+
+.ledger-table__cell--particulars {
+  min-width: 180px;
+}
+
+.ledger-table__cell--action {
+  min-width: 220px;
+  white-space: pre-line;
+}
+
+.ledger-table__empty {
+  padding: 24px !important;
+  text-align: center !important;
+  color: #607d8b !important;
 }
 
 .leave-history-table :deep(.q-table__middle) {
@@ -1298,5 +2077,24 @@ async function doImport() {
 .leave-history-table :deep(th),
 .leave-history-table :deep(td) {
   white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .ledger-sheet__header {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-sheet__field {
+    border-right: none;
+    border-bottom: 1px solid #d7dee7;
+  }
+
+  .ledger-sheet__field:last-child {
+    border-bottom: none;
+  }
+
+  .ledger-sheet__field--service {
+    text-align: left;
+  }
 }
 </style>
