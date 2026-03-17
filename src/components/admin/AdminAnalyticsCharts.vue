@@ -21,32 +21,6 @@
             </q-no-ssr>
           </div>
 
-          <div class="row q-col-gutter-sm q-mt-sm">
-            <div class="col-12 col-sm-4">
-              <q-card flat bordered class="trend-metric-card">
-                <q-card-section class="q-py-sm">
-                  <div class="text-caption text-grey-7">Yearly total leaves</div>
-                  <div class="text-subtitle1 text-weight-bold">{{ trendTotal }}</div>
-                </q-card-section>
-              </q-card>
-            </div>
-            <div class="col-12 col-sm-4">
-              <q-card flat bordered class="trend-metric-card">
-                <q-card-section class="q-py-sm">
-                  <div class="text-caption text-grey-7">Peak month</div>
-                  <div class="text-subtitle1 text-weight-bold">{{ trendPeakMonth }}</div>
-                </q-card-section>
-              </q-card>
-            </div>
-            <div class="col-12 col-sm-4">
-              <q-card flat bordered class="trend-metric-card">
-                <q-card-section class="q-py-sm">
-                  <div class="text-caption text-grey-7">Source</div>
-                  <div class="text-subtitle1 text-weight-bold">{{ trendSourceLabel }}</div>
-                </q-card-section>
-              </q-card>
-            </div>
-          </div>
         </q-card-section>
       </q-card>
     </div>
@@ -162,9 +136,6 @@ const trendAnalysis = computed(() => {
 })
 
 const monthlyLeaveTrend = computed(() => trendAnalysis.value.buckets)
-const trendSourceLabel = computed(() => (
-  trendAnalysis.value.hasCurrentYearData ? 'Live application data' : 'UI preview data'
-))
 
 const trendChartSeries = computed(() => [
   {
@@ -230,13 +201,6 @@ const trendChartOptions = computed(() => ({
     },
   },
 }))
-
-const trendTotal = computed(() => monthlyLeaveTrend.value.reduce((sum, value) => sum + value, 0))
-const trendPeakMonth = computed(() => {
-  const peakValue = Math.max(...monthlyLeaveTrend.value)
-  const peakIndex = monthlyLeaveTrend.value.findIndex((value) => value === peakValue)
-  return `${monthLabels[peakIndex]} (${peakValue})`
-})
 
 const leaveTypeMonthlyTrendMap = computed(() => {
   const trendMap = new Map()
@@ -357,9 +321,5 @@ const leaveTypeTrendChartOptions = computed(() => ({
 .trend-chart-wrapper {
   width: 100%;
   min-height: 320px;
-}
-
-.trend-metric-card {
-  background: #fafafa;
 }
 </style>
