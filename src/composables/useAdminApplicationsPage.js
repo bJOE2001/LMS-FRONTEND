@@ -1,0 +1,1705 @@
+import { computed, onMounted, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
+import { useRoute } from 'vue-router'
+import { api } from 'src/boot/axios'
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+
+const mobileApplicationColumnWidths = {
+  employee: '180px',
+  status: '134px',
+  leaveType: '148px',
+}
+
+const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Mandatory / Forced Leave',
+  'MCO6 Leave',
+  'Sick Leave',
+  'Vacation Leave',
+  'Wellness Leave',
+]
+
+const EVENT_BASED_LEAVE_BALANCE_TYPES = [
+  'Maternity Leave',
+  'Paternity Leave',
+  'Special Privilege Leave',
+  'Solo Parent Leave',
+  'Study Leave',
+  '10-Day VAWC Leave',
+  'Rehabilitation Privilege',
+  'Special Leave Benefits for Women',
+  'Special Emergency (Calamity) Leave',
+  'Adoption Leave',
+]
+
+export function useAdminApplicationsPage() {
+  const $q = useQuasar()
+  const route = useRoute()
+
+  const columns = [
+    { name: 'employee', label: 'Employee', align: 'left' },
+    {
+      name: 'leaveType',
+      label: 'Leave Type',
+      field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
+      align: 'left',
+    },
+    {
+      name: 'dateFiled',
+      label: 'Date Filed',
+      field: 'dateFiled',
+      align: 'left',
+    },
+    {
+      name: 'inclusiveDates',
+      label: 'Inclusive Dates',
+      field: 'selected_dates',
+      align: 'left',
+    },
+    {
+      name: 'leaveBalance',
+      label: 'Leave Balance',
+      field: 'leave_balance',
+      align: 'left',
+    },
+    {
+      name: 'days',
+      label: 'Duration',
+      field: (row) => getApplicationDurationDisplay(row),
+      align: 'center',
+    },
+    {
+      name: 'status',
+      label: 'Status',
+      field: 'status',
+      align: 'left',
+    },
+    {
+      name: 'actions',
+      label: 'Actions',
+      align: 'center',
+      style: 'width: 190px',
+      headerStyle: 'width: 190px',
+    },
+  ]
+
+  const loading = ref(true)
+  const actionLoading = ref(false)
+  const applicationRows = ref([])
+  const statusSearch = ref('')
+  const applicationsPagination = ref({
+    page: 1,
+    rowsPerPage: 10,
+  })
+  const showApplyLeaveDialog = ref(false)
+  const showDetailsDialog = ref(false)
+  const showDisapproveDialog = ref(false)
+  const showConfirmActionDialog = ref(false)
+  const showActionResultDialog = ref(false)
+  const selectedApp = ref(null)
+  const confirmActionType = ref('approve')
+  const confirmActionTarget = ref(null)
+  const disapproveId = ref('')
+  const remarks = ref('')
+  const rejectionMode = ref('disapprove')
+  const disapproveTargetApp = ref(null)
+  const actionResultType = ref('approved')
+  const actionResultApp = ref(null)
+
+  const applicationTableColumns = computed(() => {
+    if (!$q.screen.lt.sm) return columns
+
+    return ['employee', 'status', 'leaveType']
+      .map((name) => {
+        const column = columns.find((entry) => entry.name === name)
+        if (!column) return null
+
+        const mobileWidth = mobileApplicationColumnWidths[name]
+        if (!mobileWidth) return column
+
+        return {
+          ...column,
+          style: `min-width: ${mobileWidth};`,
+          headerStyle: `min-width: ${mobileWidth}; text-align: left;`,
+        }
+      })
+      .filter(Boolean)
+  })
+
+  const applicationsForTable = computed(() => {
+    const queryTokens = getSearchTokens(statusSearch.value)
+    const filteredApplications = queryTokens.length
+      ? applicationRows.value.filter((app) => {
+          const searchText = getApplicationSearchText(app)
+          return queryTokens.every((token) => searchText.includes(token))
+        })
+      : applicationRows.value
+
+    return [...filteredApplications].sort(compareApplicationsForTable)
+  })
+
+  const leaveApplicationRows = computed(() =>
+    (applicationRows.value ?? []).filter((application) => !isCocApplication(application)),
+  )
+
+  const latestLeaveBalanceEntriesByEmployee = computed(() => {
+    const entriesByEmployee = new Map()
+    const applications = [...(applicationRows.value ?? [])].sort(compareApplicationsByRecencyDesc)
+
+    for (const app of applications) {
+      const employeeKey = getEmployeeBalanceLookupKey(app)
+      if (!employeeKey) continue
+
+      const latestEntries = getLeaveBalanceEntriesFromSnapshot(app)
+      if (!latestEntries.length) continue
+
+      let employeeEntries = entriesByEmployee.get(employeeKey)
+      if (!employeeEntries) {
+        employeeEntries = new Map()
+        entriesByEmployee.set(employeeKey, employeeEntries)
+      }
+
+      for (const entry of latestEntries) {
+        const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+        if (!leaveTypeKey || employeeEntries.has(leaveTypeKey)) continue
+        employeeEntries.set(leaveTypeKey, entry)
+      }
+    }
+
+    return entriesByEmployee
+  })
+
+  const selectedAppTimeline = computed(() => buildApplicationTimeline(selectedApp.value))
+  const rejectionDialogTitle = computed(() =>
+    rejectionMode.value === 'cancel' ? 'Cancel Application' : 'Disapprove Application',
+  )
+  const rejectionDialogLabel = computed(() =>
+    rejectionMode.value === 'cancel' ? 'Reason for cancellation' : 'Reason for disapproval',
+  )
+
+  watch(statusSearch, () => {
+    applicationsPagination.value.page = 1
+  })
+
+  watch(
+    () => route.query.search,
+    (value) => {
+      statusSearch.value = String(value || '')
+    },
+    { immediate: true },
+  )
+
+  onMounted(fetchApplications)
+
+  function openApplyLeaveDialog() {
+    showApplyLeaveDialog.value = true
+  }
+
+  function closeApplyLeaveDialog() {
+    showApplyLeaveDialog.value = false
+  }
+
+  async function handleApplyLeaveSubmitted() {
+    closeApplyLeaveDialog()
+    await fetchApplications()
+  }
+
+  async function fetchApplications() {
+    loading.value = true
+    try {
+      const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
+        api.get('/admin/dashboard'),
+        api.get('/admin/leave-applications').catch(() => null),
+        api.get('/admin/coc-applications').catch(() => null),
+      ])
+
+      applicationRows.value = mergeApplications(
+        extractApplicationsFromPayload(dashboardResponse?.data),
+        extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+        extractApplicationsFromPayload(cocApplicationsResponse?.data),
+      )
+    } catch (err) {
+      const message = resolveApiErrorMessage(err, 'Unable to load applications right now.')
+      $q.notify({ type: 'negative', message, position: 'top' })
+      applicationRows.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return ''
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  function formatDateTime(dateStr) {
+    if (!dateStr) return ''
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr).trim())) {
+      return formatDate(dateStr)
+    }
+
+    const parsedDate = new Date(dateStr)
+    if (Number.isNaN(parsedDate.getTime())) return ''
+
+    return parsedDate.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
+  function formatDayValue(value) {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return '0'
+    return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
+  }
+
+  function normalizeDurationUnit(value) {
+    const normalized = String(value || '').trim().toLowerCase()
+    if (normalized.startsWith('hour')) return 'hour'
+    if (normalized.startsWith('day')) return 'day'
+    return ''
+  }
+
+  function formatDurationDisplay(value, unit) {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return unit === 'hour' ? '0 h' : '0 days'
+
+    const displayValue = formatDayValue(numericValue)
+    if (unit === 'hour') return `${displayValue} h`
+    return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
+  }
+
+  function resolveApplicationDuration(app) {
+    const explicitUnit = normalizeDurationUnit(app?.duration_unit)
+    const explicitValue = Number(app?.duration_value)
+    if (explicitUnit && Number.isFinite(explicitValue)) {
+      return { value: explicitValue, unit: explicitUnit }
+    }
+
+    if (isCocApplication(app)) {
+      const hourValue = Number(app?.days ?? app?.total_days)
+      if (Number.isFinite(hourValue)) return { value: hourValue, unit: 'hour' }
+
+      const minutes = Number(app?.total_no_of_coc_applied_minutes)
+      if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
+
+      return { value: 0, unit: 'hour' }
+    }
+
+    const derivedDays = Number(getApplicationDayCount(app))
+    if (Number.isFinite(derivedDays)) return { value: derivedDays, unit: 'day' }
+
+    const dayValue = Number(app?.days ?? app?.total_days)
+    if (Number.isFinite(dayValue)) return { value: dayValue, unit: 'day' }
+
+    return { value: 0, unit: 'day' }
+  }
+
+  function getApplicationDurationDisplay(app) {
+    const explicitLabel = String(app?.duration_label || '').trim()
+    if (explicitLabel) return explicitLabel
+
+    const resolved = resolveApplicationDuration(app)
+    return formatDurationDisplay(resolved.value, resolved.unit)
+  }
+
+  function formatLeaveBalanceValue(value) {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return ''
+    return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+  }
+
+  function extractApplicationsFromPayload(payload) {
+    if (!payload) return []
+    if (Array.isArray(payload)) return payload
+
+    const candidates = [
+      payload?.applications,
+      payload?.coc_applications,
+      payload?.leave_applications,
+      payload?.cocApplications,
+      payload?.leaveApplications,
+      payload?.rows,
+      payload?.items,
+      payload?.data,
+    ]
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate
+      if (candidate && typeof candidate === 'object' && Array.isArray(candidate.data)) {
+        return candidate.data
+      }
+    }
+
+    return []
+  }
+
+  function normalizeApplicationType(value) {
+    const normalized = String(value || '').trim().toUpperCase()
+    if (normalized === 'COC') return 'COC'
+    if (normalized === 'LEAVE') return 'LEAVE'
+    return ''
+  }
+
+  function getApplicationType(application) {
+    const explicitType = normalizeApplicationType(
+      application?.application_type ?? application?.applicationType ?? application?.type,
+    )
+    if (explicitType) return explicitType
+
+    const leaveTypeName = normalizeEmployeeName(
+      application?.leaveType ??
+        application?.leave_type ??
+        application?.leaveTypeName ??
+        application?.leave_type_name,
+    )
+
+    if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
+    return 'LEAVE'
+  }
+
+  function isCocApplication(application) {
+    return getApplicationType(application) === 'COC'
+  }
+
+  function getApplicationExplicitId(application) {
+    return (
+      application?.id ??
+      application?.application_id ??
+      application?.leave_application_id ??
+      application?.coc_application_id
+    )
+  }
+
+  function getApplicationRowKey(application, index = 0) {
+    const typeKey = getApplicationType(application)
+    const explicitId = getApplicationExplicitId(application)
+
+    if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+      return `${typeKey}:${String(explicitId).trim()}`
+    }
+
+    return `${typeKey}:index:${index}`
+  }
+
+  function normalizeLookupValue(value) {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+  }
+
+  function normalizeEmployeeName(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+  }
+
+  function getApplicationEmployeeDisplayName(application) {
+    return (
+      application?.employeeName ||
+      application?.employee_name ||
+      application?.employee?.name ||
+      application?.employee?.full_name ||
+      application?.employee?.employee_name ||
+      application?.name ||
+      application?.full_name ||
+      [
+        application?.employee?.firstname,
+        application?.employee?.middlename,
+        application?.employee?.surname,
+      ]
+        .filter(Boolean)
+        .join(' ') ||
+      [application?.firstname, application?.middlename, application?.surname]
+        .filter(Boolean)
+        .join(' ')
+    )
+  }
+
+  function getApplicationEmployeeLookupCandidates(application) {
+    return [
+      application?.employee_id,
+      application?.employeeId,
+      application?.control_no,
+      application?.controlNo,
+      application?.employee?.control_no,
+      application?.employee?.controlNo,
+      application?.employee?.employee_id,
+      application?.employee?.employeeId,
+      application?.user?.control_no,
+      application?.user?.controlNo,
+    ]
+      .map((value) => normalizeLookupValue(value))
+      .filter(Boolean)
+  }
+
+  function getApplicationMergeKey(application, index) {
+    const typeKey = getApplicationType(application)
+    const explicitId = getApplicationExplicitId(application)
+
+    if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+      return `id:${typeKey}:${String(explicitId).trim()}`
+    }
+
+    const employeeKey = getApplicationEmployeeLookupCandidates(application)[0]
+    const employeeName = normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
+    const leaveTypeKey = normalizeEmployeeName(
+      application?.leaveType ??
+        application?.leave_type ??
+        application?.leaveTypeName ??
+        application?.leave_type_name,
+    )
+    const filedDateKey = normalizeLookupValue(
+      application?.dateFiled ??
+        application?.date_filed ??
+        application?.filed_at ??
+        application?.filedAt ??
+        application?.created_at ??
+        application?.createdAt,
+    )
+    const inclusiveDatesKey = normalizeEmployeeName(getApplicationDurationLabel(application))
+
+    const fallbackKey = [employeeKey || employeeName, leaveTypeKey, filedDateKey, inclusiveDatesKey]
+      .filter(Boolean)
+      .join('|')
+
+    return fallbackKey ? `fallback:${fallbackKey}` : `index:${index}`
+  }
+
+  function getApplicationCompletenessScore(application) {
+    const candidates = [
+      getApplicationEmployeeDisplayName(application),
+      application?.employee_id,
+      application?.employeeId,
+      application?.leaveType,
+      application?.leave_type,
+      application?.leaveTypeName,
+      application?.dateFiled,
+      application?.date_filed,
+      application?.status,
+      application?.rawStatus,
+      application?.remarks,
+      application?.updated_at,
+      application?.updatedAt,
+      application?.selected_dates,
+      application?.selectedDates,
+      application?.startDate,
+      application?.start_date,
+      application?.endDate,
+      application?.end_date,
+    ]
+
+    return candidates.filter((value) => {
+      if (Array.isArray(value)) return value.length > 0
+      return value !== undefined && value !== null && String(value).trim() !== ''
+    }).length
+  }
+
+  function getApplicationTimestampValue(application) {
+    const candidates = [
+      application?.updated_at,
+      application?.updatedAt,
+      application?.disapprovedAt,
+      application?.hrActionAt,
+      application?.adminActionAt,
+      application?.dateFiled,
+      application?.date_filed,
+      application?.filed_at,
+      application?.filedAt,
+      application?.created_at,
+      application?.createdAt,
+    ]
+
+    for (const candidate of candidates) {
+      const timestamp = Date.parse(candidate)
+      if (!Number.isNaN(timestamp)) return timestamp
+    }
+
+    return 0
+  }
+
+  function choosePreferredApplication(existingApplication, incomingApplication) {
+    if (!existingApplication) return incomingApplication
+
+    const incomingCompleteness = getApplicationCompletenessScore(incomingApplication)
+    const existingCompleteness = getApplicationCompletenessScore(existingApplication)
+    if (incomingCompleteness !== existingCompleteness) {
+      return incomingCompleteness > existingCompleteness ? incomingApplication : existingApplication
+    }
+
+    const incomingTimestamp = getApplicationTimestampValue(incomingApplication)
+    const existingTimestamp = getApplicationTimestampValue(existingApplication)
+    if (incomingTimestamp !== existingTimestamp) {
+      return incomingTimestamp > existingTimestamp ? incomingApplication : existingApplication
+    }
+
+    return incomingApplication
+  }
+
+  function mergeApplications(...sources) {
+    const mergedApplications = new Map()
+
+    sources.flat().forEach((application, index) => {
+      const normalizedApplication = {
+        ...application,
+        application_type: getApplicationType(application),
+        application_uid: getApplicationRowKey(application, index),
+      }
+      const key = getApplicationMergeKey(normalizedApplication, index)
+      const existingApplication = mergedApplications.get(key)
+      mergedApplications.set(
+        key,
+        choosePreferredApplication(existingApplication, normalizedApplication),
+      )
+    })
+
+    return Array.from(mergedApplications.values())
+  }
+
+  function prettifyLeaveBalanceLabel(value) {
+    const label = String(value || '').trim()
+    if (!label) return ''
+
+    const normalized = label
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const lower = normalized.toLowerCase()
+    if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') {
+      return 'Mandatory / Forced Leave'
+    }
+    if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+    if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+    if (lower === 'vacation') return 'Vacation Leave'
+    if (lower === 'sick') return 'Sick Leave'
+    if (lower === 'vacation leave') return 'Vacation Leave'
+    if (lower === 'sick leave') return 'Sick Leave'
+    if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+    return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+
+  function toLeaveBalanceAcronym(value) {
+    const label = prettifyLeaveBalanceLabel(value)
+    if (!label) return ''
+
+    const lower = label.toLowerCase()
+    if (lower === 'mandatory / forced leave') return 'FL'
+    if (lower === 'mco6 leave') return 'MCO6'
+    if (lower === 'sick leave') return 'SL'
+    if (lower === 'vacation leave') return 'VL'
+    if (lower === 'wellness leave') return 'WL'
+
+    const normalized = label
+      .replace(/[^A-Za-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .map((part) => part.trim().toUpperCase())
+      .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+    if (!normalized.length) return ''
+    return normalized.map((part) => part[0]).join('')
+  }
+
+  function addLeaveBalanceEntry(entries, seen, label, value) {
+    const formattedValue = formatLeaveBalanceValue(value)
+    const formattedLabel = prettifyLeaveBalanceLabel(label)
+    if (!formattedLabel || formattedValue === '') return
+
+    const key = formattedLabel.toLowerCase()
+    if (seen.has(key)) return
+
+    seen.add(key)
+    entries.push({ label: formattedLabel, value: formattedValue })
+  }
+
+  function getEmployeeBalanceLookupKey(app) {
+    const explicitKey = app?.employee_id ?? app?.employeeId ?? app?.control_no ?? app?.controlNo
+    if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
+      return String(explicitKey).trim().toLowerCase()
+    }
+
+    const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employeeName]
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean)
+      .join('|')
+
+    return nameKey || ''
+  }
+
+  function getLeaveBalanceTypeKey(value) {
+    return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+  }
+
+  function isEventBasedLeaveBalanceType(value) {
+    const typeKey = getLeaveBalanceTypeKey(value)
+    return EVENT_BASED_LEAVE_BALANCE_TYPES.some(
+      (label) => getLeaveBalanceTypeKey(label) === typeKey,
+    )
+  }
+
+  function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
+    if (!source) return
+
+    if (Array.isArray(source)) {
+      for (const item of source) {
+        if (item == null || typeof item !== 'object') continue
+
+        addLeaveBalanceEntry(
+          entries,
+          seen,
+          item.leave_type_name ||
+            item.leave_type ||
+            item.type_name ||
+            item.type ||
+            item.name ||
+            item.label ||
+            fallbackLabel,
+          item.balance ??
+            item.remaining_balance ??
+            item.available_balance ??
+            item.credits ??
+            item.value,
+        )
+      }
+      return
+    }
+
+    if (typeof source !== 'object') {
+      addLeaveBalanceEntry(entries, seen, fallbackLabel, source)
+      return
+    }
+
+    for (const [key, value] of Object.entries(source)) {
+      if (value == null || key === 'as_of_date') continue
+
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        addLeaveBalanceEntry(
+          entries,
+          seen,
+          value.leave_type_name ||
+            value.leave_type ||
+            value.type_name ||
+            value.type ||
+            value.name ||
+            value.label ||
+            key,
+          value.balance ??
+            value.remaining_balance ??
+            value.available_balance ??
+            value.credits ??
+            value.value,
+        )
+        continue
+      }
+
+      addLeaveBalanceEntry(entries, seen, key, value)
+    }
+  }
+
+  function getLeaveBalanceEntriesFromSnapshot(app) {
+    const entries = []
+    const seen = new Set()
+
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.certificationLeaveCredits)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.certification_leave_credits)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveBalances)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balances)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveCredits)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_credits)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.balances)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balance)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leave_balance_summary)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.employee_leave_balances)
+    collectLeaveBalanceEntriesFromValue(entries, seen, app?.leaveBalance)
+
+    if (!entries.length) {
+      addLeaveBalanceEntry(
+        entries,
+        seen,
+        app?.leaveType || 'Leave Balance',
+        app?.balance ?? app?.leave_balance ?? app?.remaining_balance ?? app?.available_balance,
+      )
+    }
+
+    return entries
+  }
+
+  function resolveLatestLeaveBalanceEntries(app) {
+    const employeeKey = getEmployeeBalanceLookupKey(app)
+    if (!employeeKey) return getLeaveBalanceEntriesFromSnapshot(app)
+
+    const employeeEntries = latestLeaveBalanceEntriesByEmployee.value.get(employeeKey)
+    if (!employeeEntries || employeeEntries.size === 0) {
+      return getLeaveBalanceEntriesFromSnapshot(app)
+    }
+
+    return Array.from(employeeEntries.values())
+  }
+
+  function getLeaveBalanceEntries(app) {
+    const resolvedEntries = resolveLatestLeaveBalanceEntries(app).filter(
+      (entry) => !isEventBasedLeaveBalanceType(entry.label),
+    )
+    const requiredTypeKeys = new Set(
+      REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label)),
+    )
+    const entriesByType = new Map(
+      resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]),
+    )
+
+    const orderedEntries = REQUIRED_LEAVE_BALANCE_TYPES.map((label) => {
+      const existingEntry = entriesByType.get(getLeaveBalanceTypeKey(label))
+      return existingEntry || { label, value: '0' }
+    })
+
+    for (const entry of resolvedEntries) {
+      const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+      if (requiredTypeKeys.has(leaveTypeKey)) continue
+      orderedEntries.push(entry)
+    }
+
+    return orderedEntries
+  }
+
+  function getLeaveBalanceLines(app) {
+    return getLeaveBalanceEntries(app).map((entry) => {
+      const acronym = toLeaveBalanceAcronym(entry.label)
+      return `${acronym || entry.label}: ${entry.value}`
+    })
+  }
+
+  function getLeaveBalanceTextItems(app) {
+    return getLeaveBalanceEntries(app).map((entry) => {
+      const acronym = toLeaveBalanceAcronym(entry.label)
+      return {
+        label: `${acronym || entry.label}: ${entry.value}`,
+        tooltip: entry.label,
+      }
+    })
+  }
+
+  function getLeaveBalanceDisplay(app) {
+    return getLeaveBalanceLines(app).join(', ')
+  }
+
+  function toIsoDateString(dateValue) {
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return null
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  function enumerateInclusiveDateRange(startDateValue, endDateValue) {
+    const startDate = new Date(startDateValue)
+    const endDate = new Date(endDateValue)
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return []
+
+    const firstDate = new Date(startDate)
+    const lastDate = new Date(endDate)
+    if (firstDate > lastDate) {
+      const tempDate = new Date(firstDate)
+      firstDate.setTime(lastDate.getTime())
+      lastDate.setTime(tempDate.getTime())
+    }
+
+    const dates = []
+    const cursor = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate())
+    const last = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate())
+
+    while (cursor <= last) {
+      dates.push(toIsoDateString(cursor))
+      cursor.setDate(cursor.getDate() + 1)
+    }
+
+    return dates.filter(Boolean)
+  }
+
+  function formatGroupedInclusiveDateLines(dateValues) {
+    if (!Array.isArray(dateValues) || dateValues.length === 0) return []
+
+    const groupedByMonthYear = new Map()
+    const sortedDates = [...new Set(dateValues.filter(Boolean))].sort(
+      (left, right) => Date.parse(left) - Date.parse(right),
+    )
+
+    for (const rawDate of sortedDates) {
+      const parsedDate = new Date(rawDate)
+      if (Number.isNaN(parsedDate.getTime())) continue
+
+      const monthName = parsedDate.toLocaleDateString('en-US', { month: 'short' })
+      const year = parsedDate.getFullYear()
+      const day = parsedDate.getDate()
+      const groupKey = `${year}-${parsedDate.getMonth()}`
+
+      if (!groupedByMonthYear.has(groupKey)) {
+        groupedByMonthYear.set(groupKey, { monthName, year, days: [] })
+      }
+
+      groupedByMonthYear.get(groupKey).days.push(day)
+    }
+
+    return Array.from(groupedByMonthYear.values()).map((group) => {
+      const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
+      return `${group.monthName} ${uniqueDays.join(',')} ${group.year}`
+    })
+  }
+
+  function getApplicationInclusiveDateLines(app) {
+    if (!app) return ['N/A']
+
+    if (app.is_monetization) {
+      return [`${formatDayValue(app.days)} day(s)`]
+    }
+
+    if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
+      const groupedSelectedDates = formatGroupedInclusiveDateLines(app.selected_dates)
+      if (groupedSelectedDates.length > 0) return groupedSelectedDates
+    }
+
+    if (app.startDate || app.endDate) {
+      const startDate = app.startDate || app.endDate
+      const endDate = app.endDate || app.startDate
+      const rangedDates = enumerateInclusiveDateRange(startDate, endDate)
+      const groupedRangeDates = formatGroupedInclusiveDateLines(rangedDates)
+      if (groupedRangeDates.length > 0) return groupedRangeDates
+    }
+
+    const start = app.startDate ? formatDate(app.startDate) : 'N/A'
+    const end = app.endDate ? formatDate(app.endDate) : 'N/A'
+    return [`${start} - ${end}`]
+  }
+
+  function getApplicationDayCount(app) {
+    if (!app) return '0'
+
+    const parsedDays = Number(app?.days)
+    if (Number.isFinite(parsedDays) && parsedDays > 0) {
+      return formatDayValue(parsedDays)
+    }
+
+    if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
+      const uniqueSelectedDates = [...new Set(app.selected_dates.filter(Boolean))]
+      if (uniqueSelectedDates.length > 0) return String(uniqueSelectedDates.length)
+    }
+
+    if (app.startDate || app.endDate) {
+      const startDate = app.startDate || app.endDate
+      const endDate = app.endDate || app.startDate
+      const rangedDates = enumerateInclusiveDateRange(startDate, endDate)
+      if (rangedDates.length > 0) return String(rangedDates.length)
+    }
+
+    return formatDayValue(app.days)
+  }
+
+  function getApplicationDurationLabel(app) {
+    return getApplicationInclusiveDateLines(app).join(' ')
+  }
+
+  function isCancelledByUser(app) {
+    const remarksText = String(app?.remarks || '').trim()
+    return /^cancelled\b/i.test(remarksText)
+  }
+
+  function normalizeSearchText(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+  }
+
+  function normalizeSearchToken(token) {
+    if (!token) return ''
+    if (/^\d+$/.test(token)) return String(Number(token))
+    return token
+  }
+
+  function getSearchTokens(value) {
+    const normalized = normalizeSearchText(value)
+    if (!normalized) return []
+
+    return normalized
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((token) => normalizeSearchToken(token))
+  }
+
+  function getApplicationStatusLabel(app) {
+    if (isCancelledByUser(app)) return 'Cancelled'
+    if (app?.status) return app.status
+
+    if (app?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+    if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
+    if (app?.rawStatus === 'APPROVED') return 'Approved'
+    if (app?.rawStatus === 'REJECTED') return 'Rejected'
+    return 'Unknown'
+  }
+
+  function getApplicationStatusColor(app) {
+    if (isCancelledByUser(app)) return 'grey-7'
+    if (app?.rawStatus === 'PENDING_ADMIN') return 'warning'
+    if (app?.rawStatus === 'PENDING_HR') return 'blue-6'
+    if (app?.rawStatus === 'APPROVED') return 'green'
+    if (app?.rawStatus === 'REJECTED') return 'negative'
+    return 'grey-6'
+  }
+
+  function canPrintApplication(app) {
+    return getApplicationStatusLabel(app) !== 'Pending Admin'
+  }
+
+  function getDateSearchValues(dateValue) {
+    if (!dateValue) return []
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return [String(dateValue)]
+
+    const monthLong = date.toLocaleDateString('en-US', { month: 'long' })
+    const monthShort = date.toLocaleDateString('en-US', { month: 'short' })
+    const day = date.getDate()
+    const year = date.getFullYear()
+
+    return [
+      monthLong,
+      monthShort,
+      `${monthLong} ${day}`,
+      `${monthLong} ${day} ${year}`,
+      `${monthShort} ${day}`,
+      `${monthShort} ${day} ${year}`,
+      `day ${day}`,
+      String(day),
+      String(year),
+    ]
+  }
+
+  function getApplicationSearchText(app) {
+    const dateTerms = getDateSearchValues(app?.dateFiled)
+    const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
+
+    const searchValues = [
+      'application',
+      app?.id,
+      app?.rawStatus,
+      app?.status,
+      getApplicationStatusLabel(app),
+      isCancelledByUser(app) ? 'cancelled' : '',
+      app?.leaveType,
+      app?.employeeName,
+      app?.firstname,
+      app?.middlename,
+      app?.surname,
+      app?.employee_id,
+      getApplicationDurationLabel(app),
+      ...inclusiveDateTerms,
+      getLeaveBalanceDisplay(app),
+      getApplicationDayCount(app),
+      getApplicationDurationDisplay(app),
+      ...dateTerms,
+    ]
+
+    return searchValues
+      .map((value) => normalizeSearchText(value))
+      .filter(Boolean)
+      .join(' ')
+  }
+
+  function buildApplicationTimeline(app) {
+    if (!app) return []
+
+    const entries = [
+      {
+        title: 'Application Filed',
+        subtitle:
+          formatDateTime(resolveFiledDateValue(app)) ||
+          formatDate(app.dateFiled) ||
+          'Date unavailable',
+        description: `${app.employeeName || 'Employee'} submitted this leave request.`,
+        icon: 'check_circle',
+        color: 'positive',
+        actor: resolveFiledByActor(app),
+      },
+    ]
+
+    if (isCancelledByUser(app)) {
+      entries.push({
+        title: 'Application Cancelled',
+        subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Application closed',
+        description: formatRecentRemarks(app) || 'Application was cancelled by the requester.',
+        icon: 'cancel',
+        color: 'negative',
+        actor: resolveCancelledActor(app),
+      })
+      entries.push({
+        title: 'Application Closed',
+        subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Completed',
+        description: 'Application workflow is complete.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: resolveCancelledActor(app),
+      })
+      return entries
+    }
+
+    if (app.rawStatus === 'PENDING_ADMIN') {
+      entries.push({
+        title: 'Department Admin Review Pending',
+        subtitle: 'Current stage',
+        description: 'Waiting for department admin approval or disapproval.',
+        icon: 'pending_actions',
+        color: 'warning',
+      })
+      entries.push({
+        title: 'Pending HR Review',
+        subtitle: 'Upcoming',
+        description: 'This stage starts after department admin approval.',
+        icon: 'radio_button_unchecked',
+        color: 'grey-5',
+      })
+      entries.push({
+        title: 'Application Closed',
+        subtitle: 'Upcoming',
+        description: 'Application will be closed after final HR action.',
+        icon: 'radio_button_unchecked',
+        color: 'grey-5',
+      })
+      return entries
+    }
+
+    if (app.rawStatus === 'REJECTED') {
+      const disapprovedAt = formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed'
+      const disapprovedBy = resolveDisapprovalActor(app)
+
+      if (resolveDepartmentAdminActionDateValue(app)) {
+        entries.push({
+          title: 'Department Admin Review Completed',
+          subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+          description: 'Application was reviewed and forwarded to HR.',
+          icon: 'check_circle',
+          color: 'positive',
+          actor: resolveDepartmentAdminActor(app),
+        })
+      }
+
+      entries.push({
+        title: 'Application Disapproved',
+        subtitle: disapprovedAt,
+        description: formatRecentRemarks(app) || 'Application was disapproved.',
+        icon: 'cancel',
+        color: 'negative',
+        actor: disapprovedBy,
+      })
+      entries.push({
+        title: 'Application Closed',
+        subtitle: disapprovedAt,
+        description: 'Application workflow is complete.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: disapprovedBy,
+      })
+      return entries
+    }
+
+    entries.push({
+      title: 'Department Admin Review Completed',
+      subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+      description: 'Application was reviewed and forwarded to HR.',
+      icon: 'check_circle',
+      color: 'positive',
+      actor: resolveDepartmentAdminActor(app),
+    })
+
+    if (app.rawStatus === 'PENDING_HR') {
+      entries.push({
+        title: 'Pending HR Review',
+        subtitle: 'Current stage',
+        description: 'Waiting for HR final evaluation and approval.',
+        icon: 'pending_actions',
+        color: 'warning',
+      })
+      entries.push({
+        title: 'Application Closed',
+        subtitle: 'Upcoming',
+        description: 'Application will be closed after final HR action.',
+        icon: 'radio_button_unchecked',
+        color: 'grey-5',
+      })
+      return entries
+    }
+
+    if (app.rawStatus === 'APPROVED') {
+      const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app)) || 'Completed'
+      const approvedBy = resolveHrActor(app)
+
+      entries.push({
+        title: 'Approved by HR',
+        subtitle: approvedAt,
+        description: 'Application is fully approved.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: approvedBy,
+      })
+      entries.push({
+        title: 'Application Closed',
+        subtitle: approvedAt,
+        description: 'Application workflow is complete.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: approvedBy,
+      })
+      return entries
+    }
+
+    entries.push({
+      title: 'Current Status',
+      subtitle: getApplicationStatusLabel(app),
+      description: 'Latest application status.',
+      icon: 'info',
+      color: getApplicationStatusColor(app),
+    })
+
+    return entries
+  }
+
+  function getTimelineEntryTone(entry) {
+    const color = String(entry?.color || '').toLowerCase()
+    const icon = String(entry?.icon || '').toLowerCase()
+
+    if (color.includes('negative') || icon.includes('cancel')) return 'negative'
+    if (color.includes('warning') || icon.includes('pending')) return 'warning'
+    if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
+    return 'positive'
+  }
+
+  function getTimelineEntryIcon(entry) {
+    const tone = getTimelineEntryTone(entry)
+    if (tone === 'negative') return 'close'
+    if (tone === 'warning') return 'schedule'
+    if (tone === 'neutral') return 'radio_button_unchecked'
+    return 'check'
+  }
+
+  function resolveFiledByActor(app) {
+    return app?.filedBy || app?.employeeName || 'Unknown'
+  }
+
+  function resolveFiledDateValue(app) {
+    return (
+      app?.filed_at ||
+      app?.filedAt ||
+      app?.created_at ||
+      app?.createdAt ||
+      app?.submitted_at ||
+      app?.submittedAt ||
+      app?.dateFiled ||
+      app?.date_filed ||
+      null
+    )
+  }
+
+  function resolveDepartmentAdminActor(app) {
+    return app?.adminActionBy || 'Unknown'
+  }
+
+  function resolveDepartmentAdminActionDateValue(app) {
+    return app?.adminActionAt || app?.admin_action_at || null
+  }
+
+  function resolveHrActor(app) {
+    return app?.hrActionBy || 'Unknown'
+  }
+
+  function resolveFinalApprovalDateValue(app) {
+    return app?.hrActionAt || app?.hr_action_at || app?.reviewedAt || app?.reviewed_at || null
+  }
+
+  function resolveCancelledActor(app) {
+    return app?.cancelledBy || app?.employeeName || 'Unknown'
+  }
+
+  function resolveCancelledDateValue(app) {
+    return (
+      app?.cancelledAt ||
+      app?.cancelled_at ||
+      app?.disapprovedAt ||
+      app?.disapproved_at ||
+      null
+    )
+  }
+
+  function resolveDisapprovalActor(app) {
+    if (isCancelledByUser(app)) return resolveCancelledActor(app)
+    return app?.disapprovedBy || app?.hrActionBy || app?.adminActionBy || 'Unknown'
+  }
+
+  function resolveDisapprovedDateValue(app) {
+    return (
+      app?.disapprovedAt ||
+      app?.disapproved_at ||
+      app?.hrActionAt ||
+      app?.hr_action_at ||
+      app?.adminActionAt ||
+      app?.admin_action_at ||
+      null
+    )
+  }
+
+  function resolveProcessedBy(app) {
+    if (app?.processedBy) return app.processedBy
+    if (isCancelledByUser(app)) return resolveCancelledActor(app)
+    if (app?.rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
+    if (app?.rawStatus === 'APPROVED') return resolveHrActor(app)
+    if (app?.rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
+    return 'N/A'
+  }
+
+  function resolveReviewedDateValue(app) {
+    if (app?.reviewedAt) return app.reviewedAt
+    if (isCancelledByUser(app)) return app?.cancelledAt || app?.disapprovedAt || null
+    if (app?.rawStatus === 'PENDING_HR') return app?.adminActionAt || null
+    if (app?.rawStatus === 'APPROVED') return app?.hrActionAt || app?.adminActionAt || null
+    if (app?.rawStatus === 'REJECTED') {
+      return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
+    }
+    return null
+  }
+
+  function formatReviewedDate(app) {
+    const reviewedDate = resolveReviewedDateValue(app)
+    return reviewedDate ? formatDate(reviewedDate) : 'N/A'
+  }
+
+  function getApplicationStatusPriority(app) {
+    if (app?.rawStatus === 'PENDING_ADMIN') return 0
+    if (app?.rawStatus === 'PENDING_HR') return 1
+    if (app?.rawStatus === 'APPROVED') return 2
+    if (app?.rawStatus === 'REJECTED' && !isCancelledByUser(app)) return 3
+    if (isCancelledByUser(app)) return 4
+    return 5
+  }
+
+  function compareApplicationsForTable(a, b) {
+    const statusPriorityDiff = getApplicationStatusPriority(a) - getApplicationStatusPriority(b)
+    if (statusPriorityDiff !== 0) return statusPriorityDiff
+
+    const dateA = getApplicationRecencyTimestamp(a)
+    const dateB = getApplicationRecencyTimestamp(b)
+    if (dateA !== dateB) return dateB - dateA
+
+    const idA = Number(a?.id) || 0
+    const idB = Number(b?.id) || 0
+    return idB - idA
+  }
+
+  function getApplicationRecencyTimestamp(app) {
+    const candidateDates = [
+      app?.created_at,
+      app?.createdAt,
+      app?.submitted_at,
+      app?.submittedAt,
+      app?.filed_at,
+      app?.filedAt,
+      app?.dateFiled,
+    ]
+
+    for (const candidate of candidateDates) {
+      const timestamp = Date.parse(candidate || '')
+      if (Number.isFinite(timestamp)) return timestamp
+    }
+
+    return 0
+  }
+
+  function compareApplicationsByRecencyDesc(a, b) {
+    const timestampDiff = getApplicationRecencyTimestamp(b) - getApplicationRecencyTimestamp(a)
+    if (timestampDiff !== 0) return timestampDiff
+
+    const idDiff = (Number(b?.id) || 0) - (Number(a?.id) || 0)
+    if (idDiff !== 0) return idDiff
+    return 0
+  }
+
+  function formatRecentRemarks(app) {
+    const remarksText = String(app?.remarks || '').trim()
+    if (!remarksText) return ''
+    return remarksText.replace(/^cancelled(?:\s+via\s+erms)?\b:?\s*/i, '').trim()
+  }
+
+  function getConfirmActionTitle(type) {
+    if (type === 'approve') return 'Approve'
+    if (type === 'cancel') return 'Cancel'
+    return 'Disapprove'
+  }
+
+  function getConfirmActionMessage(type) {
+    if (type === 'approve') return 'This will forward the leave request to HR for final review.'
+    if (type === 'cancel') return 'You will continue to the cancellation form.'
+    return 'You will continue to the disapproval form.'
+  }
+
+  function getActionResultLabel(type) {
+    if (type === 'approved') return 'Approved'
+    if (type === 'cancelled') return 'Cancelled'
+    return 'Disapproved'
+  }
+
+  function getActionResultVerb(type) {
+    if (type === 'approved') return 'approved'
+    if (type === 'cancelled') return 'cancelled'
+    return 'disapproved'
+  }
+
+  function openDetails(app) {
+    selectedApp.value = app
+    showDetailsDialog.value = true
+  }
+
+  function hasMobileApplicationActions(app) {
+    return app?.rawStatus === 'PENDING_ADMIN' || app?.rawStatus === 'PENDING_HR'
+  }
+
+  function handleApplicationRowClick(_event, row) {
+    if (!row) return
+    openDetails(row)
+  }
+
+  function openActionConfirm(type, target) {
+    confirmActionType.value = type
+    confirmActionTarget.value = target
+    showConfirmActionDialog.value = true
+  }
+
+  function confirmPendingAction() {
+    const target = confirmActionTarget.value
+    const type = confirmActionType.value
+    showConfirmActionDialog.value = false
+
+    if (type === 'approve') {
+      handleApprove(target)
+      return
+    }
+
+    openDisapprove(target, type === 'cancel' ? 'cancel' : 'disapprove')
+  }
+
+  async function printApplication(app) {
+    if (!canPrintApplication(app)) return
+
+    try {
+      const { data } = await api.get('/admin/dashboard')
+      const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
+      const updated = updatedApplications.find(
+        (item) => getApplicationRowKey(item) === getApplicationRowKey(app),
+      )
+      await generateLeaveFormPdf(updated || app)
+    } catch {
+      await generateLeaveFormPdf(app)
+    }
+  }
+
+  function printApplicationsPdf() {
+    const rowsToPrint = applicationsForTable.value
+
+    if (!rowsToPrint.length) {
+      $q.notify({
+        type: 'warning',
+        message: 'No applications available to print.',
+        position: 'top',
+      })
+      return
+    }
+
+    const searchText = statusSearch.value.trim()
+    const title = searchText
+      ? `Applications Report (Filtered: ${searchText})`
+      : 'Applications Report (All)'
+
+    const printedAt = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+
+    const tableBody = [
+      [
+        { text: 'Employee', style: 'tableHeader' },
+        { text: 'Leave Type', style: 'tableHeader' },
+        { text: 'Date Filed', style: 'tableHeader' },
+        { text: 'Inclusive Dates', style: 'tableHeader' },
+        { text: 'Duration', style: 'tableHeader' },
+        { text: 'Status', style: 'tableHeader' },
+        { text: 'Processed By', style: 'tableHeader' },
+        { text: 'Reviewed Date', style: 'tableHeader' },
+      ],
+      ...rowsToPrint.map((app) => [
+        `${app.employeeName || ''}${app.employee_id ? `\n${app.employee_id}` : ''}`,
+        app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
+        formatDate(app.dateFiled) || 'N/A',
+        getApplicationInclusiveDateLines(app).join('\n'),
+        getApplicationDurationDisplay(app),
+        getApplicationStatusLabel(app),
+        resolveProcessedBy(app),
+        formatReviewedDate(app),
+      ]),
+    ]
+
+    const docDefinition = {
+      pageOrientation: 'landscape',
+      pageSize: 'A4',
+      pageMargins: [24, 24, 24, 24],
+      content: [
+        { text: title, style: 'title' },
+        { text: `Printed: ${printedAt}`, style: 'meta' },
+        {
+          text: `Total Applications: ${rowsToPrint.length}`,
+          style: 'meta',
+          margin: [0, 0, 0, 10],
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', '*', 72, 125, 38, 68, 100, 82],
+            body: tableBody,
+          },
+          layout: {
+            fillColor: (rowIndex) => (rowIndex === 0 ? '#ECEFF1' : null),
+            hLineColor: () => '#CFD8DC',
+            vLineColor: () => '#CFD8DC',
+          },
+        },
+      ],
+      styles: {
+        title: { fontSize: 15, bold: true, color: '#263238', margin: [0, 0, 0, 4] },
+        meta: { fontSize: 10, color: '#455A64', margin: [0, 0, 0, 2] },
+        tableHeader: { bold: true, color: '#263238', fontSize: 10 },
+      },
+      defaultStyle: {
+        fontSize: 9,
+      },
+    }
+
+    pdfMake.createPdf(docDefinition).open()
+  }
+
+  function resolveApp(target) {
+    if (target && typeof target === 'object') return target
+
+    const targetKey = String(target || '').trim()
+    if (!targetKey) return null
+
+    const keyedMatch = applicationRows.value.find(
+      (app) => getApplicationRowKey(app) === targetKey || app?.application_uid === targetKey,
+    )
+    if (keyedMatch) return keyedMatch
+
+    const id = Number(target)
+    if (!id) return null
+    return applicationRows.value.find((app) => Number(app.id) === id) || null
+  }
+
+  function mapStatusAfterAction(app, type) {
+    if (!app) return null
+    if (type === 'approved') {
+      return {
+        ...app,
+        rawStatus: 'PENDING_HR',
+        status: 'Pending HR',
+      }
+    }
+    if (type === 'cancelled') {
+      return {
+        ...app,
+        rawStatus: 'REJECTED',
+        status: 'Cancelled',
+        remarks: app.remarks || remarks.value,
+      }
+    }
+    return {
+      ...app,
+      rawStatus: 'REJECTED',
+      status: 'Rejected',
+      remarks: app.remarks || remarks.value,
+    }
+  }
+
+  function showPostActionDialog(type, id, fallbackApp = null) {
+    const fallbackKey = fallbackApp ? getApplicationRowKey(fallbackApp) : ''
+    const updated = fallbackKey
+      ? applicationRows.value.find((app) => getApplicationRowKey(app) === fallbackKey)
+      : applicationRows.value.find((app) => Number(app.id) === Number(id))
+    actionResultApp.value = updated || mapStatusAfterAction(fallbackApp, type)
+    actionResultType.value = type
+    showActionResultDialog.value = true
+  }
+
+  function printActionResult() {
+    if (!actionResultApp.value) return
+    printApplication(actionResultApp.value)
+  }
+
+  async function handleApprove(target) {
+    const app = resolveApp(target)
+    const id = app?.id ?? target
+    const isCoc = isCocApplication(app)
+    const approvalEndpoint = isCoc
+      ? `/admin/coc-applications/${id}/approve`
+      : `/admin/leave-applications/${id}/approve`
+    actionLoading.value = true
+    try {
+      await api.post(approvalEndpoint)
+      $q.notify({
+        type: 'positive',
+        message: isCoc
+          ? 'COC application approved and forwarded to HR!'
+          : 'Leave application approved and forwarded to HR!',
+        position: 'top',
+      })
+      showDetailsDialog.value = false
+      await fetchApplications()
+      showPostActionDialog('approved', id, app)
+    } catch (err) {
+      const message = resolveApiErrorMessage(err, 'Unable to approve this application right now.')
+      $q.notify({ type: 'negative', message, position: 'top' })
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  function openDisapprove(target, mode = 'disapprove') {
+    const app = resolveApp(target)
+    disapproveId.value = app?.id ?? target
+    disapproveTargetApp.value = app || null
+    rejectionMode.value = mode
+    remarks.value = ''
+    showDisapproveDialog.value = true
+  }
+
+  async function confirmDisapprove() {
+    if (!remarks.value.trim()) {
+      const message =
+        rejectionMode.value === 'cancel'
+          ? 'Please provide a reason for cancellation'
+          : 'Please provide a reason for disapproval'
+      $q.notify({ type: 'warning', message, position: 'top' })
+      return
+    }
+
+    actionLoading.value = true
+    try {
+      const targetApp = disapproveTargetApp.value || resolveApp(disapproveId.value)
+      const isCoc = isCocApplication(targetApp)
+      const actionType = rejectionMode.value === 'cancel' ? 'cancelled' : 'disapproved'
+      const payloadRemarks =
+        rejectionMode.value === 'cancel'
+          ? `Cancelled by Department Admin: ${remarks.value.trim()}`
+          : remarks.value
+
+      const disapprovalEndpoint = isCoc
+        ? `/admin/coc-applications/${disapproveId.value}/reject`
+        : `/admin/leave-applications/${disapproveId.value}/reject`
+
+      await api.post(disapprovalEndpoint, {
+        remarks: payloadRemarks,
+      })
+
+      const successMessage =
+        rejectionMode.value === 'cancel'
+          ? isCoc
+            ? 'COC application cancelled with remarks'
+            : 'Leave application cancelled with remarks'
+          : isCoc
+            ? 'COC application rejected with remarks'
+            : 'Leave application rejected with remarks'
+      $q.notify({ type: 'info', message: successMessage, position: 'top' })
+      showDisapproveDialog.value = false
+      await fetchApplications()
+
+      const fallback = disapproveTargetApp.value
+        ? { ...disapproveTargetApp.value, remarks: payloadRemarks }
+        : null
+      showPostActionDialog(actionType, disapproveId.value, fallback)
+    } catch (err) {
+      const fallbackError =
+        rejectionMode.value === 'cancel'
+          ? 'Unable to cancel this application right now.'
+          : 'Unable to reject this application right now.'
+      const message = resolveApiErrorMessage(err, fallbackError)
+      $q.notify({ type: 'negative', message, position: 'top' })
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  return {
+    $q,
+    loading,
+    actionLoading,
+    applicationRows,
+    leaveApplicationRows,
+    statusSearch,
+    applicationsPagination,
+    applicationTableColumns,
+    applicationsForTable,
+    showApplyLeaveDialog,
+    showDetailsDialog,
+    showDisapproveDialog,
+    showConfirmActionDialog,
+    showActionResultDialog,
+    selectedApp,
+    selectedAppTimeline,
+    rejectionDialogTitle,
+    rejectionDialogLabel,
+    confirmActionType,
+    remarks,
+    actionResultType,
+    actionResultApp,
+    openApplyLeaveDialog,
+    closeApplyLeaveDialog,
+    handleApplyLeaveSubmitted,
+    printApplicationsPdf,
+    handleApplicationRowClick,
+    getLeaveBalanceTextItems,
+    getApplicationInclusiveDateLines,
+    formatDate,
+    getApplicationStatusColor,
+    getApplicationStatusLabel,
+    openDetails,
+    canPrintApplication,
+    printApplication,
+    hasMobileApplicationActions,
+    openActionConfirm,
+    getTimelineEntryTone,
+    getTimelineEntryIcon,
+    getConfirmActionTitle,
+    getConfirmActionMessage,
+    confirmPendingAction,
+    confirmDisapprove,
+    getActionResultLabel,
+    getActionResultVerb,
+    printActionResult,
+  }
+}
