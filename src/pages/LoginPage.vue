@@ -202,13 +202,10 @@
         </div>
       </div>
     </q-card>
-      <!-- <div class="absolute-bottom text-center w-full q-pb-sm text-grey-6 text-body2">
-        &copy; {{ new Date().getFullYear() }} Developed by
-        <router-link to="/development-team" class="text-primary text-weight-medium">
-          DNSC Interns
-        </router-link>
-        · All rights reserved.
-      </div> -->
+    <div class="login-footer text-center">
+      &copy; 2026 Tagum City Hall. All Rights Reserved. |
+      <router-link to="/development-team" class="login-footer-link">Development Team</router-link>
+    </div>
   </q-page>
 
 </template>
@@ -274,6 +271,8 @@ async function onSubmit() {
   min-height: 100vh;
   background: #f5f5f5;
   padding: 24px;
+  padding-bottom: 72px;
+  position: relative;
 }
 
 /* ---- CENTERED CARD ---- */
@@ -404,6 +403,26 @@ async function onSubmit() {
   }
 }
 
+.login-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  padding: 0 12px;
+  color: #607d8b;
+  font-size: 0.85rem;
+}
+
+.login-footer-link {
+  color: #2e7d32;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 /* ---- RESPONSIVE ---- */
 @media (max-width: 1023px) {
   .login-card {
@@ -418,7 +437,7 @@ async function onSubmit() {
 
 @media (max-width: 599px) {
   .login-page {
-    padding: 20px 16px;
+    padding: 20px 16px 78px;
   }
 
   .login-card {
@@ -432,6 +451,11 @@ async function onSubmit() {
 
   .form-wrapper {
     max-width: 100%;
+  }
+
+  .login-footer {
+    bottom: 10px;
+    font-size: 0.8rem;
   }
 }
 </style>
