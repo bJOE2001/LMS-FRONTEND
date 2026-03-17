@@ -184,23 +184,22 @@
 
     <q-card v-if="props.applicationsOnly" flat bordered class="rounded-borders">
       <q-card-section>
-        <div class="row justify-between items-center q-col-gutter-sm">
-          <div class="row items-center q-gutter-sm">
-            <div class="text-h6">All Application</div>
-          </div>
-          <div class="row items-center q-gutter-sm">
+        <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
+          <div class="col application-toolbar__search">
             <q-input
               v-model="statusSearch"
               dense
               outlined
               clearable
               placeholder="Search all application columns"
-              class="application-status-search"
+              class="application-status-search application-status-search--left"
             >
               <template #prepend>
                 <q-icon name="search" />
               </template>
             </q-input>
+          </div>
+          <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
             <q-btn
               unelevated
               no-caps
@@ -645,7 +644,7 @@ const kpiBreakdown = computed(() => {
 })
 
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
-  { key: 'elective', label: 'Elective', accent: '#f9a825', bg: '#fff8e1' },
+  { key: 'elective', label: 'Elective', accent: '#8e24aa', bg: '#f3e5f5' },
   { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
   { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
   { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
@@ -2576,10 +2575,10 @@ async function confirmDisapprove() {
   padding-right: 8px;
 }
 .pending-actions-icon-btn {
-  width: 16px;
-  min-width: 16px;
-  height: 16px;
-  min-height: 16px;
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  min-height: 14px;
   padding: 0 !important;
   border-radius: 0;
 }
@@ -2589,10 +2588,23 @@ async function confirmDisapprove() {
   min-width: 0;
 }
 .pending-actions-icon-btn :deep(.q-icon) {
-  font-size: 11px;
+  font-size: 10px;
 }
 .application-status-search {
   width: min(440px, 84vw);
+}
+.application-toolbar {
+  row-gap: 8px;
+}
+.application-toolbar__search {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.application-status-search--left {
+  width: min(440px, 100%);
+}
+.application-status-search--left :deep(.q-field) {
+  width: 100%;
 }
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
@@ -2831,6 +2843,28 @@ async function confirmDisapprove() {
   .apply-leave-dialog-header {
     min-height: 52px;
     padding: 0 8px 0 10px;
+  }
+
+  .application-toolbar__search,
+  .application-toolbar__actions {
+    width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .application-toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .application-toolbar {
+    display: block;
+  }
+
+  .application-status-search--left {
+    width: 100%;
+  }
+
+  .application-status-search--left :deep(.q-field) {
+    width: 100%;
   }
 
   .dashboard-kpi-row {

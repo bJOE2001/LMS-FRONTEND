@@ -430,7 +430,7 @@ function statusColor(status) {
   const colors = {
     REGULAR: 'green-8',
     'CO-TERMINOUS': 'brown-7',
-    ELECTIVE: 'amber-8',
+    ELECTIVE: 'purple-8',
     CASUAL: 'orange-8',
     CONTRACTUAL: 'blue-9',
   }

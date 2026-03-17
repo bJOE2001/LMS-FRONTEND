@@ -27,13 +27,13 @@
     </q-dialog>
 
     <div class="row q-col-gutter-md q-mb-lg stat-cards-row">
-      <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('total')">
+      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+        <q-card class="stat-card stat-card--applications bg-white rounded-borders" flat elevation="1" @click="goToApplications('total')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
                 <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="description" size="28px" color="grey" />
+                  <q-icon name="description" size="28px" color="grey" class="stat-card-icon" />
                 </div>
                 <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
               </div>
@@ -56,14 +56,14 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('pending')">
+      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('pending')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
                 <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="schedule" size="28px" color="warning" />
-                  <q-icon v-if="dashboardData.pending_count > 5" name="warning" size="18px" color="warning" />
+                  <q-icon name="schedule" size="28px" color="warning" class="stat-card-icon" />
+                  <q-icon v-if="dashboardData.pending_count > 5" name="warning" size="18px" color="warning" class="stat-card-alert-icon" />
                 </div>
                 <div class="text-caption text-weight-medium q-mt-sm">Pending Applications</div>
               </div>
@@ -75,13 +75,13 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('approved')">
+      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('approved')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
                 <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="check_circle" size="28px" color="primary" />
+                  <q-icon name="check_circle" size="28px" color="primary" class="stat-card-icon" />
                 </div>
                 <div class="text-caption text-weight-medium q-mt-sm">Total Approved</div>
               </div>
@@ -93,13 +93,13 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-3">
-        <q-card class="stat-card bg-white rounded-borders" flat elevation="1" @click="goToApplications('rejected')">
+      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('rejected')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
                 <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="cancel" size="28px" color="negative" />
+                  <q-icon name="cancel" size="28px" color="negative" class="stat-card-icon" />
                 </div>
                 <div class="text-caption text-weight-medium q-mt-sm">Rejected Applications</div>
               </div>
@@ -537,7 +537,7 @@ const totalApplicationsBreakdown = computed(() => {
 })
 
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
-  { key: 'elective', label: 'Elective', accent: '#f9a825', bg: '#fff8e1' },
+  { key: 'elective', label: 'Elective', accent: '#8e24aa', bg: '#f3e5f5' },
   { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
   { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
   { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
@@ -989,8 +989,97 @@ onMounted(fetchDashboard)
 }
 
 @media (max-width: 599px) {
+  .stat-cards-row {
+    margin: 0 0 4px !important;
+  }
+
+  .stat-card-col {
+    padding: 2px 0 0 !important;
+  }
+
+  .stat-card {
+    min-height: 56px;
+  }
+
+  .stat-card--applications {
+    min-height: 60px;
+  }
+
+  .stat-card--compact {
+    min-height: 44px;
+  }
+
+  .stat-card-content {
+    padding: 6px 9px 5px;
+    gap: 2px;
+  }
+
+  .stat-card--compact .stat-card-content {
+    padding-top: 5px;
+    padding-bottom: 4px;
+  }
+
+  .stat-card-main {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .stat-card-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .stat-card-left > .row {
+    flex: 0 0 auto;
+  }
+
+  .stat-card-icon {
+    font-size: 18px !important;
+  }
+
+  .stat-card-alert-icon {
+    font-size: 11px !important;
+  }
+
+  .stat-card-left .text-caption {
+    margin-top: 0 !important;
+    font-size: 0.8rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stat-value {
+    min-width: 0;
+    margin-top: 0;
+    font-size: 1.7rem;
+  }
+
+  .stat-card--compact .stat-value {
+    font-size: 1.45rem;
+  }
+
   .stat-breakdown {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    margin-top: 0;
+  }
+
+  .stat-mini-card {
+    padding: 1px 4px;
+    border-radius: 4px;
+    gap: 2px;
+  }
+
+  .stat-mini-label {
+    font-size: 0.5rem;
+  }
+
+  .stat-mini-value {
+    font-size: 0.58rem;
   }
 }
 </style>
