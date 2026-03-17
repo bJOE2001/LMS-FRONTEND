@@ -3,7 +3,6 @@
     <div class="row justify-between items-center q-mb-lg">
       <div>
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Reports & Monitoring</h1>
-        <p class="text-grey-7">Generate and view comprehensive leave reports</p>
       </div>
     </div>
 
@@ -582,5 +581,12 @@ const summaryStats = computed(() => [
 
 .report-date-popup :deep(.q-date) {
   border-radius: 12px;
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 600px) {
+  .report-date-popup :deep(.q-date) {
+    width: calc(100vw - 24px);
+  }
 }
 </style>

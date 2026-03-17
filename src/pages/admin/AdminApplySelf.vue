@@ -1,10 +1,12 @@
 ﻿<template>
-  <component :is="inDialog ? 'div' : 'q-page'" :class="inDialog ? 'q-pa-sm' : 'q-pa-md'">
+  <component
+    :is="inDialog ? 'div' : 'q-page'"
+    :class="['apply-form-shell', inDialog ? 'q-pa-sm apply-form-shell--dialog' : 'q-pa-md']"
+  >
     <div v-if="!inDialog" class="q-mb-lg">
       <div class="row items-center q-mb-xs">
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Apply for Leave</h1>
       </div>
-      <p class="text-grey-7">Civil Service Form No. 6 â€” Application for Leave (Personal Application)</p>
     </div>
 
     <q-card flat bordered :class="['rounded-borders q-mb-lg', { 'dialog-form-card': inDialog }]">
@@ -19,10 +21,6 @@
             <div class="dialog-summary-meta-item dialog-summary-meta-item--filed">
               <span class="dialog-summary-meta-label">Date of Filing:</span>
               <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
-            </div>
-            <div class="dialog-summary-meta-item dialog-summary-meta-item--salary">
-              <span class="dialog-summary-meta-label">Salary:</span>
-              <span class="dialog-summary-meta-value">{{ dialogSalaryDisplay }}</span>
             </div>
             <div class="dialog-summary-meta-item dialog-summary-meta-item--leave-balance">
               <div class="dialog-summary-badges">
@@ -94,7 +92,7 @@
             </div>
 
             <div class="row q-col-gutter-md q-mt-xs">
-              <div class="col-12 col-md-4">
+              <div class="col-12 col-md-6">
                 <label class="input-label">3. Date of Filing</label>
                 <q-input
                   :model-value="todayFormatted"
@@ -108,7 +106,7 @@
                   </template>
                 </q-input>
               </div>
-              <div class="col-12 col-md-4">
+              <div class="col-12 col-md-6">
                 <label class="input-label">4. Position</label>
                 <q-input
                   v-model="form.position"
@@ -118,25 +116,6 @@
                   placeholder="Position"
                   class="form-input readonly-field"
                 />
-              </div>
-              <div class="col-12 col-md-4">
-                <label class="input-label">5. Salary</label>
-                <q-input
-                  :model-value="formatSalary(form.salary)"
-                  outlined
-                  dense
-                  placeholder="Enter Salary"
-                  :rules="[val => {
-                    const parsed = parseSalary(val || form.salary)
-                    return !!parsed || 'Salary is required'
-                  }]"
-                  class="form-input"
-                  @update:model-value="handleSalaryInput"
-                >
-                  <template #prepend>
-                    <span class="text-grey-6 text-body2">&#8369;</span>
-                  </template>
-                </q-input>
               </div>
             </div>
 
@@ -156,7 +135,8 @@
 
         <!-- ==================== STEP 2: Details of Application ==================== -->
         <q-step :name="2" title="Details of Application" icon="description" :done="step > 2">
-          <q-form ref="step2Form" @submit.prevent="onSubmit" greedy>
+          <q-form ref="step2Form" @submit.prevent="onSubmit" greedy :class="{ 'dialog-step-form': inDialog }">
+            <div :class="{ 'dialog-step-content-scroll': inDialog }">
             <div :class="{ 'dialog-application-grid': inDialog }">
             <!-- 6.A Type of Leave -->
             <div class="section-block q-mb-lg dialog-section dialog-section--type">
@@ -420,6 +400,7 @@
               </label>
               <q-input v-model="form.reason" type="textarea" :rows="inDialog ? 2 : 3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" class="form-input" />
             </div>
+            </div>
 
             <!-- Navigation -->
             <q-stepper-navigation
@@ -437,8 +418,8 @@
                     no-caps
                     color="primary"
                     type="button"
-                    :label="isMonetization ? 'Submit Monetization Request' : 'Submit Application'"
-                    icon="send"
+                    :label="isMonetization ? 'Submit Request' : 'Submit Application'"
+                    :icon="$q.screen.lt.sm ? void 0 : 'send'"
                     :loading="loading"
                     :disable="isMonetization && monetizationSubmitDisabled"
                     class="step-btn"
@@ -449,7 +430,7 @@
                   <q-btn flat no-caps label="Back" icon="arrow_back" color="grey-7" @click="step = 1" class="step-btn" />
                   <q-space />
                   <q-btn outline no-caps label="Cancel" color="grey-7" class="step-btn" @click="handleCancel" />
-                  <q-btn unelevated no-caps color="primary" type="submit" :label="isMonetization ? 'Submit Monetization Request' : 'Submit Application'" icon="send" :loading="loading" :disable="isMonetization && monetizationSubmitDisabled" class="step-btn" />
+                  <q-btn unelevated no-caps color="primary" type="submit" :label="isMonetization ? 'Submit Request' : 'Submit Application'" :icon="$q.screen.lt.sm ? void 0 : 'send'" :loading="loading" :disable="isMonetization && monetizationSubmitDisabled" class="step-btn" />
                 </template>
               </div>
             </q-stepper-navigation>
@@ -535,19 +516,9 @@ const form = ref({
   reason: '',
 })
 
-// Salary Formatting logic as per employee form
-function formatSalary(value) {
-  if (!value) return ''
-  const numericValue = String(value).replace(/[^\d]/g, '')
-  if (!numericValue) return ''
-  return Number(numericValue).toLocaleString('en-US')
-}
 function parseSalary(value) {
   if (!value) return ''
   return String(value).replace(/[^\d]/g, '')
-}
-function handleSalaryInput(value) {
-  form.value.salary = parseSalary(value)
 }
 
 const today = new Date()
@@ -569,11 +540,6 @@ const dialogOfficeDisplay = computed(() => {
   const office = String(form.value.office || '').trim()
   if (!office) return '-'
   return office.replace(/^office of the\s+/i, '') || office
-})
-
-const dialogSalaryDisplay = computed(() => {
-  const salary = formatSalary(form.value.salary)
-  return salary ? `PHP ${salary}` : '-'
 })
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
@@ -1958,6 +1924,20 @@ async function onSubmit() {
 .dialog-form-card {
   margin-bottom: 0;
 }
+.apply-form-shell--dialog {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dialog-form-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .dialog-form-card .section-block {
   padding: 14px;
 }
@@ -2095,8 +2075,42 @@ async function onSubmit() {
 .dialog-apply-stepper :deep(.q-stepper__header) {
   display: none;
 }
+.dialog-apply-stepper {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-apply-stepper :deep(.q-stepper__content) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-apply-stepper :deep(.q-stepper__step) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .dialog-apply-stepper :deep(.q-stepper__step-inner) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 8px 12px 12px;
+}
+.dialog-step-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-step-content-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 .dialog-application-grid {
   display: grid;
@@ -2321,14 +2335,11 @@ async function onSubmit() {
   padding-top: 0;
 }
 .dialog-actions-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 6;
-  margin-top: 8px;
+  flex: 0 0 auto;
+  margin-top: 10px;
   padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
   border-top: 1px solid #e3e7eb;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(2px);
+  background: #fff;
 }
 .dialog-actions-row {
   width: 100%;

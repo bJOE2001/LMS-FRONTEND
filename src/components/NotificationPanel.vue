@@ -119,6 +119,7 @@
       position="top"
       transition-show="jump-down"
       transition-hide="jump-up"
+      class="notif-detail-dialog"
     >
       <q-card v-if="selectedNotif" class="notif-detail-card">
         <div class="notif-detail-accent" />
@@ -504,8 +505,12 @@ function buildApplicationDetails(application) {
 
 <style lang="scss" scoped>
 .notification-panel {
-  width: 380px;
+  width: min(380px, calc(100vw - 20px));
+  max-width: calc(100vw - 20px);
   min-height: 300px;
+  max-height: min(560px, calc(100vh - 104px));
+  display: flex;
+  flex-direction: column;
 }
 
 .notif-header {
@@ -513,6 +518,8 @@ function buildApplicationDetails(application) {
 }
 
 .notif-list {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: 340px;
   overflow-y: auto;
 }
@@ -546,13 +553,34 @@ function buildApplicationDetails(application) {
   align-items: center;
   justify-content: center;
 }
+
+@media (max-width: 600px) {
+  .notification-panel {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+  }
+
+  .notif-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .notif-list {
+    max-height: none;
+  }
+}
 </style>
 
 <!-- Unscoped: q-dialog teleports to <body>, so scoped styles won't reach it -->
 <style lang="scss">
+.notif-detail-dialog .q-dialog__inner--minimized {
+  padding: 12px 14px 16px;
+}
+
 .notif-detail-card {
   width: 510px;
-  max-width: 170vw;
+  max-width: calc(100vw - 28px);
   min-height: 460px;
   max-height: 88vh;
   display: flex;
@@ -761,6 +789,16 @@ body.body--dark {
 }
 
 @media (max-width: 520px) {
+  .notif-detail-dialog .q-dialog__inner--minimized {
+    padding: 10px 10px 14px;
+  }
+
+  .notif-detail-card {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 24px);
+  }
+
   .notif-application-grid {
     grid-template-columns: 1fr;
   }

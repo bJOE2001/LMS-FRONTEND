@@ -267,8 +267,8 @@
     </div>
 
     <!-- Edit Profile Dialog -->
-    <q-dialog v-model="showEditDialog" persistent>
-      <q-card style="min-width: 400px">
+    <q-dialog v-model="showEditDialog" persistent class="settings-edit-dialog">
+      <q-card class="settings-edit-card">
         <q-card-section class="bg-primary text-white">
           <div class="text-h6">Edit Profile</div>
         </q-card-section>
@@ -289,7 +289,7 @@
           />
         </q-card-section>
 
-        <q-card-actions align="right">
+        <q-card-actions align="right" class="settings-edit-actions">
           <q-btn flat label="Cancel" color="grey-7" v-close-popup />
           <q-btn unelevated label="Save Changes" color="primary" :loading="editLoading" @click="handleUpdateProfile" />
         </q-card-actions>
@@ -483,4 +483,26 @@ function handleSaveNotifications() {
   $q.notify({ type: 'positive', message: 'Notification preferences saved!', position: 'top' })
 }
 </script>
+
+<style scoped>
+.settings-edit-card {
+  width: min(400px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 600px) {
+  .settings-edit-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 12px;
+  }
+
+  .settings-edit-card {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+
+  .settings-edit-actions {
+    padding: 0 16px 16px;
+  }
+}
+</style>
 

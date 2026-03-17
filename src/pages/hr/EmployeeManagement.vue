@@ -5,7 +5,6 @@
       <div class="row items-center justify-between">
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Employee Management</h1>
-          <p class="text-grey-7 q-mb-none">Manage and view all employee records</p>
         </div>
         <div class="row q-gutter-sm">
           <q-btn
@@ -100,7 +99,7 @@
       </q-card-section>
       <q-table
         :rows="employees"
-        :columns="employeeColumns"
+        :columns="visibleEmployeeColumns"
         row-key="control_no"
         flat
         :loading="loading"
@@ -139,7 +138,7 @@
           <q-td :props="props">
             <q-badge
               :color="statusBadgeColor(props.value)"
-              :label="props.value"
+              :label="formatResponsiveStatusLabel(props.value)"
               class="text-weight-medium"
               rounded
             />
@@ -824,6 +823,11 @@ const employeeColumns = [
   },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
 ]
+const visibleEmployeeColumns = computed(() =>
+  $q.screen.lt.sm
+    ? employeeColumns.filter((column) => !['control_no', 'status'].includes(column.name))
+    : employeeColumns,
+)
 
 const historyColumns = [
   {
@@ -999,6 +1003,12 @@ function statusBadgeColor(status) {
   if (!status) return 'grey'
   const c = { REGULAR: 'green', 'CO-TERMINOUS': 'blue', ELECTIVE: 'amber', CASUAL: 'orange' }
   return c[status] ?? 'blue'
+}
+
+function formatResponsiveStatusLabel(status) {
+  const normalizedStatus = String(status || '').trim().toUpperCase()
+  if (!normalizedStatus) return '-'
+  return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
 }
 
 function hasMeaningfulValue(value) {

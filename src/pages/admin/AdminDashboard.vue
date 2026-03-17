@@ -1,6 +1,6 @@
 <template>
   <q-page class="q-pa-md">
-    <div class="row items-center q-mb-xs">
+    <div class="row items-center q-mb-lg">
       <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">
         {{ props.applicationsOnly ? 'Applications' : 'Admin Dashboard' }}
       </h1>
@@ -14,10 +14,6 @@
         @click="openApplyLeaveDialog"
       />
     </div>
-    <p class="text-grey-7 q-mb-lg">
-      {{ props.applicationsOnly ? 'Review and manage leave applications' : 'Monitor leave application analytics and summaries' }}
-    </p>
-
     <q-dialog
       v-if="props.applicationsOnly"
       v-model="showApplyLeaveDialog"
@@ -699,7 +695,7 @@ async function fetchDepartmentEmployees() {
       const { data } = await api.get('/employees', {
         params: {
           department_id: adminDepartmentId.value,
-          per_page: 200,
+          per_page: 100,
           page,
         },
       })
@@ -2312,7 +2308,8 @@ async function confirmDisapprove() {
 .apply-leave-dialog-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
 }
 .pending-actions-cell {
   width: 150px;
