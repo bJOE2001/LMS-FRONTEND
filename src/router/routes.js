@@ -57,15 +57,15 @@ const routes = [
     ],
   },
 
-  // // Development Team (public, same layout as login)
-  // {
-  //   path: '/development-team',
-  //   component: () => import('layouts/EmptyLayout.vue'),
-  //   meta: { public: true },
-  //   children: [
-  //     { path: '', name: 'DevelopmentTeam', component: () => import('../../../node_modules/dti/DevelopmentTeam.vue') },
-  //   ],
-  // },
+  // Development Team (public, same layout as login)
+  {
+    path: '/development-team',
+    component: () => import('layouts/EmptyLayout.vue'),
+    meta: { public: true },
+    children: [
+      { path: '', name: 'development-team', component: () => import('pages/DevelopmentTeam.vue') },
+    ],
+  },
  
 
   // Always leave this as last one

@@ -1,59 +1,10 @@
 <template>
   <q-page class="q-pa-md">
-    <div :class="['row items-center q-mb-lg', { 'applications-page-header': props.applicationsOnly }]">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">
-        {{ props.applicationsOnly ? 'Applications' : 'Admin Dashboard' }}
-      </h1>
-      <q-space />
-      <q-btn
-        v-if="props.applicationsOnly"
-        unelevated
-        color="green-8"
-        icon="description"
-        label="Apply Leave"
-        class="applications-page-cta"
-        @click="openApplyLeaveDialog"
-      />
+    <div class="row items-center q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
     </div>
-    <q-dialog
-      v-if="props.applicationsOnly"
-      v-model="showApplyLeaveDialog"
-      persistent
-      class="apply-leave-dialog"
-      transition-show="scale"
-      transition-hide="scale"
-    >
-      <q-card class="apply-leave-dialog-card">
-        <q-bar class="apply-leave-dialog-header bg-primary text-white">
-          <div class="text-h6 text-weight-bold">Leave Application</div>
-          <q-space />
-          <q-btn
-            flat
-            round
-            icon="close"
-            color="white"
-            size="md"
-            class="apply-leave-dialog-close"
-            @click="closeApplyLeaveDialog"
-          />
-        </q-bar>
-        <q-card-section class="q-pa-none apply-leave-dialog-body">
-          <AdminApplySelf
-            in-dialog
-            :existing-applications="leaveApplicationRows"
-            @cancel="closeApplyLeaveDialog"
-            @submitted="handleApplyLeaveSubmitted"
-          />
-        </q-card-section>
-      </q-card>
-    </q-dialog>
 
-    <q-dialog
-      v-if="!props.applicationsOnly"
-      v-model="showPendingReminderDialog"
-      persistent
-      class="pending-reminder-dialog"
-    >
+    <q-dialog v-model="showPendingReminderDialog" persistent class="pending-reminder-dialog">
       <q-card class="pending-reminder-card">
         <q-card-section class="row items-center q-pb-none pending-reminder-card__header">
           <q-icon
@@ -90,10 +41,7 @@
       </q-card>
     </q-dialog>
 
-    <div
-      v-if="!props.applicationsOnly"
-      class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row"
-    >
+    <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
       <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
@@ -126,7 +74,6 @@
                 v-for="card in totalApplicationBreakdownCards"
                 :key="card.key"
                 class="stat-mini-card"
-                :style="getEmploymentTypeCardStyle(card)"
               >
                 <span class="stat-mini-label">{{ card.label }}</span>
                 <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
@@ -135,6 +82,7 @@
           </q-card-section>
         </q-card>
       </div>
+
       <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
@@ -171,6 +119,7 @@
           </q-card-section>
         </q-card>
       </div>
+
       <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
@@ -681,31 +630,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import pdfMake from 'pdfmake/build/pdfmake'
-import pdfFonts from 'pdfmake/build/vfs_fonts'
-import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
-import AdminApplySelf from 'pages/admin/AdminApplySelf.vue'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 
 const $q = useQuasar()
-const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
-const props = defineProps({
-  applicationsOnly: {
-    type: Boolean,
-    default: false,
-  },
-})
-pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
 function emptyEmploymentBreakdown() {
   return {
@@ -716,13 +653,16 @@ function emptyEmploymentBreakdown() {
   }
 }
 
+const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
+  { key: 'elective', label: 'Elective' },
+  { key: 'co_terminous', label: 'Co-term' },
+  { key: 'regular', label: 'Regular' },
+  { key: 'casual', label: 'Casual' },
+]
+
 const loading = ref(true)
-const actionLoading = ref(false)
-const departmentEmployees = ref([])
+const showPendingReminderDialog = ref(false)
 const applicationRows = ref([])
-const leaveApplicationRows = computed(() =>
-  (applicationRows.value ?? []).filter((application) => !isCocApplication(application)),
-)
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -734,7 +674,6 @@ const dashboardData = ref({
     total_approved: emptyEmploymentBreakdown(),
     total: emptyEmploymentBreakdown(),
   },
-  applications: [],
 })
 
 const kpiBreakdown = computed(() => {
@@ -747,169 +686,14 @@ const kpiBreakdown = computed(() => {
   }
 })
 
-const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
-  { key: 'elective', label: 'Elective', accent: '#8e24aa', bg: '#f3e5f5' },
-  { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
-  { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
-  { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
-]
-
-const statusSearch = ref('')
-const employmentTypeFilter = ref('')
-const applicationsPagination = ref({
-  page: 1,
-  rowsPerPage: 10,
-})
-const adminDepartmentId = computed(
-  () => authStore.user?.department_id ?? authStore.user?.department?.id,
-)
 const totalApplicationBreakdownCards = computed(() =>
   EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
     ...card,
     value: kpiBreakdown.value.total[card.key] ?? 0,
   })),
 )
-const applicationsForTable = computed(() => {
-  const queryTokens = getSearchTokens(statusSearch.value)
-  const applications = (applicationRows.value ?? []).filter((app) =>
-    matchesEmploymentTypeFilter(app),
-  )
-  const filteredApplications = queryTokens.length
-    ? applications.filter((app) => {
-        const searchText = getApplicationSearchText(app)
-        return queryTokens.every((token) => searchText.includes(token))
-      })
-    : applications
 
-  return [...filteredApplications].sort(compareApplicationsForTable)
-})
-
-watch([statusSearch, employmentTypeFilter], () => {
-  applicationsPagination.value.page = 1
-})
-
-watch(
-  () => route.query.search,
-  (value) => {
-    statusSearch.value = props.applicationsOnly ? String(value || '') : ''
-  },
-  { immediate: true },
-)
-
-const latestLeaveBalanceEntriesByEmployee = computed(() => {
-  const entriesByEmployee = new Map()
-  const applications = [...(applicationRows.value ?? [])].sort(compareApplicationsByRecencyDesc)
-
-  for (const app of applications) {
-    const employeeKey = getEmployeeBalanceLookupKey(app)
-    if (!employeeKey) continue
-
-    const latestEntries = getLeaveBalanceEntriesFromSnapshot(app)
-    if (!latestEntries.length) continue
-
-    let employeeEntries = entriesByEmployee.get(employeeKey)
-    if (!employeeEntries) {
-      employeeEntries = new Map()
-      entriesByEmployee.set(employeeKey, employeeEntries)
-    }
-
-    for (const entry of latestEntries) {
-      const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
-      if (!leaveTypeKey || employeeEntries.has(leaveTypeKey)) continue
-      employeeEntries.set(leaveTypeKey, entry)
-    }
-  }
-
-  return entriesByEmployee
-})
-
-const columns = [
-  { name: 'employee', label: 'Employee', align: 'left' },
-  {
-    name: 'leaveType',
-    label: 'Leave Type',
-    field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
-    align: 'left',
-  },
-  {
-    name: 'dateFiled',
-    label: 'Date Filed',
-    field: (row) => (row.dateFiled ? formatDate(row.dateFiled) : 'N/A'),
-    align: 'left',
-  },
-  {
-    name: 'inclusiveDates',
-    label: 'Inclusive Dates',
-    field: (row) => getApplicationDurationLabel(row),
-    align: 'left',
-  },
-  {
-    name: 'leaveBalance',
-    label: 'Leave Balance',
-    field: (row) => getLeaveBalanceDisplay(row),
-    align: 'left',
-  },
-  { name: 'days', label: 'Duration', field: (row) => getApplicationDurationDisplay(row), align: 'center' },
-  {
-    name: 'status',
-    label: 'Status',
-    field: (row) => getApplicationStatusLabel(row),
-    align: 'left',
-  },
-  {
-    name: 'actions',
-    label: 'Actions',
-    align: 'center',
-    style: 'width: 190px',
-    headerStyle: 'width: 190px',
-  },
-]
-const mobileApplicationColumnWidths = {
-  employee: '180px',
-  status: '134px',
-  leaveType: '148px',
-}
-const applicationTableColumns = computed(() => {
-  if (!$q.screen.lt.sm) return columns
-
-  return ['employee', 'status', 'leaveType']
-    .map((name) => {
-      const column = columns.find((entry) => entry.name === name)
-      if (!column) return null
-
-      const mobileWidth = mobileApplicationColumnWidths[name]
-      if (!mobileWidth) return column
-
-      return {
-        ...column,
-        style: `min-width: ${mobileWidth};`,
-        headerStyle: `min-width: ${mobileWidth}; text-align: left;`,
-      }
-    })
-    .filter(Boolean)
-})
-const showApplyLeaveDialog = ref(false)
-const showPendingReminderDialog = ref(false)
-const showDetailsDialog = ref(false)
-const showDisapproveDialog = ref(false)
-const selectedApp = ref(null)
-const disapproveId = ref('')
-const remarks = ref('')
-const rejectionMode = ref('disapprove')
-const disapproveTargetApp = ref(null)
-const showConfirmActionDialog = ref(false)
-const confirmActionType = ref('approve')
-const confirmActionTarget = ref(null)
-const showActionResultDialog = ref(false)
-const actionResultType = ref('approved')
-const actionResultApp = ref(null)
-const selectedAppTimeline = computed(() => buildApplicationTimeline(selectedApp.value))
-const rejectionDialogTitle = computed(() =>
-  rejectionMode.value === 'cancel' ? 'Cancel Application' : 'Disapprove Application',
-)
-const rejectionDialogLabel = computed(() =>
-  rejectionMode.value === 'cancel' ? 'Reason for cancellation' : 'Reason for disapproval',
-)
+onMounted(fetchDashboard)
 
 function pendingReminderSeenSessionKey() {
   return `lms_pending_reminder_seen:admin:${authStore.user?.id ?? 'unknown'}`
@@ -949,23 +733,9 @@ function syncPendingReminderNotification(pendingCount) {
   })
 }
 
-function openApplyLeaveDialog() {
-  showApplyLeaveDialog.value = true
-}
-
-function closeApplyLeaveDialog() {
-  showApplyLeaveDialog.value = false
-}
-
-async function handleApplyLeaveSubmitted() {
-  closeApplyLeaveDialog()
-  await fetchDashboard()
-}
-
 async function fetchDashboard() {
   loading.value = true
   try {
-    employmentTypeFilter.value = ''
     const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
       api.get('/admin/dashboard'),
       api.get('/admin/leave-applications').catch(() => null),
@@ -973,7 +743,19 @@ async function fetchDashboard() {
     ])
 
     const data = dashboardResponse?.data ?? {}
-    dashboardData.value = data
+    dashboardData.value = {
+      pending_count: Number(data.pending_count || 0),
+      approved_today: Number(data.approved_today || 0),
+      total_approved: Number(data.total_approved || 0),
+      total_count: Number(data.total_count || 0),
+      kpi_breakdown: data.kpi_breakdown ?? {
+        pending: emptyEmploymentBreakdown(),
+        approved_today: emptyEmploymentBreakdown(),
+        total_approved: emptyEmploymentBreakdown(),
+        total: emptyEmploymentBreakdown(),
+      },
+    }
+
     applicationRows.value = mergeApplications(
       extractApplicationsFromPayload(data),
       extractApplicationsFromPayload(leaveApplicationsResponse?.data),
@@ -981,69 +763,17 @@ async function fetchDashboard() {
     )
     maybeShowPendingReminder()
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to load dashboard data right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
+    const message = resolveApiErrorMessage(err, 'Unable to load dashboard data right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
     applicationRows.value = []
   } finally {
     loading.value = false
   }
 }
 
-async function fetchDepartmentEmployees() {
-  if (!adminDepartmentId.value) {
-    departmentEmployees.value = []
-    return
-  }
-
-  const employees = []
-  let page = 1
-  let lastPage = 1
-
-  try {
-    do {
-      const { data } = await api.get('/employees', {
-        params: {
-          department_id: adminDepartmentId.value,
-          per_page: 100,
-          page,
-        },
-      })
-
-      const pageData = data?.employees ?? {}
-      const rows = Array.isArray(pageData?.data) ? pageData.data : []
-      employees.push(...rows)
-
-      const currentPage = Number(pageData?.current_page ?? page)
-      const resolvedLastPage = Number(pageData?.last_page ?? currentPage)
-      lastPage =
-        Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
-      page = currentPage + 1
-    } while (page <= lastPage)
-
-    departmentEmployees.value = employees
-  } catch {
-    departmentEmployees.value = []
-  }
-}
-
-onMounted(fetchDashboard)
-
-watch(
-  adminDepartmentId,
-  () => {
-    fetchDepartmentEmployees()
-  },
-  { immediate: true },
-)
-
 function maybeShowPendingReminder() {
   const pendingCount = Number(dashboardData.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
-
-  if (props.applicationsOnly) {
-    showPendingReminderDialog.value = false
-    return
-  }
 
   if (pendingCount <= 0) {
     showPendingReminderDialog.value = false
@@ -1059,106 +789,12 @@ function maybeShowPendingReminder() {
 function openApplicationsView(search = '') {
   const normalizedSearch = String(search || '').trim()
   const query = normalizedSearch ? { search: normalizedSearch } : {}
-
-  router.push({
-    name: 'admin-applications',
-    query,
-  })
+  router.push({ name: 'admin-applications', query })
 }
 
 function focusPendingApplications() {
   showPendingReminderDialog.value = false
   openApplicationsView('pending')
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function formatDateTime(dateStr) {
-  if (!dateStr) return ''
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr).trim())) {
-    return formatDate(dateStr)
-  }
-
-  const parsedDate = new Date(dateStr)
-  if (Number.isNaN(parsedDate.getTime())) return ''
-
-  return parsedDate.toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-function formatDayValue(value) {
-  const numericValue = Number(value)
-  if (!Number.isFinite(numericValue)) return '0'
-  return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
-}
-
-function normalizeDurationUnit(value) {
-  const normalized = String(value || '').trim().toLowerCase()
-  if (normalized.startsWith('hour')) return 'hour'
-  if (normalized.startsWith('day')) return 'day'
-  return ''
-}
-
-function formatDurationDisplay(value, unit) {
-  const numericValue = Number(value)
-  if (!Number.isFinite(numericValue)) return unit === 'hour' ? '0 h' : '0 days'
-
-  const displayValue = formatDayValue(numericValue)
-  if (unit === 'hour') return `${displayValue} h`
-  return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
-}
-
-function resolveApplicationDuration(app) {
-  const explicitUnit = normalizeDurationUnit(app?.duration_unit)
-  const explicitValue = Number(app?.duration_value)
-  if (explicitUnit && Number.isFinite(explicitValue)) {
-    return { value: explicitValue, unit: explicitUnit }
-  }
-
-  if (isCocApplication(app)) {
-    const hourValue = Number(app?.days ?? app?.total_days)
-    if (Number.isFinite(hourValue)) return { value: hourValue, unit: 'hour' }
-
-    const minutes = Number(app?.total_no_of_coc_applied_minutes)
-    if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
-
-    return { value: 0, unit: 'hour' }
-  }
-
-  const derivedDays = Number(getApplicationDayCount(app))
-  if (Number.isFinite(derivedDays)) return { value: derivedDays, unit: 'day' }
-
-  const dayValue = Number(app?.days ?? app?.total_days)
-  if (Number.isFinite(dayValue)) return { value: dayValue, unit: 'day' }
-
-  return { value: 0, unit: 'day' }
-}
-
-function getApplicationDurationDisplay(app) {
-  const explicitLabel = String(app?.duration_label || '').trim()
-  if (explicitLabel) return explicitLabel
-
-  const resolved = resolveApplicationDuration(app)
-  return formatDurationDisplay(resolved.value, resolved.unit)
-}
-
-function formatLeaveBalanceValue(value) {
-  const numericValue = Number(value)
-  if (!Number.isFinite(numericValue)) return ''
-  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
 }
 
 function extractApplicationsFromPayload(payload) {
@@ -1167,7 +803,9 @@ function extractApplicationsFromPayload(payload) {
 
   const candidates = [
     payload?.applications,
+    payload?.coc_applications,
     payload?.leave_applications,
+    payload?.cocApplications,
     payload?.leaveApplications,
     payload?.rows,
     payload?.items,
@@ -1193,44 +831,19 @@ function normalizeApplicationType(value) {
 
 function getApplicationType(application) {
   const explicitType = normalizeApplicationType(
-    application?.application_type ??
-    application?.applicationType ??
-    application?.type,
+    application?.application_type ?? application?.applicationType ?? application?.type,
   )
   if (explicitType) return explicitType
 
   const leaveTypeName = normalizeEmployeeName(
     application?.leaveType ??
-    application?.leave_type ??
-    application?.leaveTypeName ??
-    application?.leave_type_name,
+      application?.leave_type ??
+      application?.leaveTypeName ??
+      application?.leave_type_name,
   )
 
   if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
   return 'LEAVE'
-}
-
-function isCocApplication(application) {
-  return getApplicationType(application) === 'COC'
-}
-
-function getApplicationExplicitId(application) {
-  return (
-    application?.id ??
-    application?.application_id ??
-    application?.leave_application_id
-  )
-}
-
-function getApplicationRowKey(application, index = 0) {
-  const typeKey = getApplicationType(application)
-  const explicitId = getApplicationExplicitId(application)
-
-  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
-    return `${typeKey}:${String(explicitId).trim()}`
-  }
-
-  return `${typeKey}:index:${index}`
 }
 
 function normalizeLookupValue(value) {
@@ -1249,44 +862,6 @@ function normalizeEmployeeName(value) {
     .trim()
 }
 
-function normalizeEmploymentTypeKey(value) {
-  const normalized = String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[_\s]+/g, '-')
-
-  if (!normalized) return ''
-  if (normalized.includes('ELECTIVE')) return 'elective'
-  if (
-    normalized.includes('CO-TER') ||
-    normalized.includes('CO-TERM') ||
-    normalized.includes('COTER')
-  )
-    return 'co_terminous'
-  if (normalized.includes('REGULAR')) return 'regular'
-  if (normalized.includes('CASUAL')) return 'casual'
-  return ''
-}
-
-function getEmployeeLookupCandidates(employee) {
-  return [employee?.control_no, employee?.controlNo, employee?.employee_id, employee?.employeeId]
-    .map((value) => normalizeLookupValue(value))
-    .filter(Boolean)
-}
-
-function getEmployeeNameCandidates(employee) {
-  const nameVariants = [
-    employee?.name,
-    employee?.full_name,
-    [employee?.firstname, employee?.middlename, employee?.surname].filter(Boolean).join(' '),
-    [employee?.firstname, employee?.surname].filter(Boolean).join(' '),
-    [employee?.surname, employee?.firstname, employee?.middlename].filter(Boolean).join(' '),
-    [employee?.surname, employee?.firstname].filter(Boolean).join(' '),
-  ]
-
-  return [...new Set(nameVariants.map((value) => normalizeEmployeeName(value)).filter(Boolean))]
-}
-
 function getApplicationEmployeeDisplayName(application) {
   return (
     application?.employeeName ||
@@ -1296,13 +871,6 @@ function getApplicationEmployeeDisplayName(application) {
     application?.employee?.employee_name ||
     application?.name ||
     application?.full_name ||
-    [
-      application?.employee?.firstname,
-      application?.employee?.middlename,
-      application?.employee?.surname,
-    ]
-      .filter(Boolean)
-      .join(' ') ||
     [application?.firstname, application?.middlename, application?.surname]
       .filter(Boolean)
       .join(' ')
@@ -1319,140 +887,27 @@ function getApplicationEmployeeLookupCandidates(application) {
     application?.employee?.controlNo,
     application?.employee?.employee_id,
     application?.employee?.employeeId,
-    application?.user?.control_no,
-    application?.user?.controlNo,
   ]
     .map((value) => normalizeLookupValue(value))
     .filter(Boolean)
 }
 
-function getApplicationEmployeeNameCandidates(application) {
-  const nameVariants = [
-    getApplicationEmployeeDisplayName(application),
-    application?.employeeName,
-    application?.employee_name,
-    application?.employee?.name,
-    application?.employee?.full_name,
-    application?.employee?.employee_name,
-    application?.name,
-    application?.full_name,
-    [application?.firstname, application?.middlename, application?.surname]
-      .filter(Boolean)
-      .join(' '),
-    [application?.firstname, application?.surname].filter(Boolean).join(' '),
-    [application?.surname, application?.firstname, application?.middlename]
-      .filter(Boolean)
-      .join(' '),
-    [application?.surname, application?.firstname].filter(Boolean).join(' '),
-    [
-      application?.employee?.firstname,
-      application?.employee?.middlename,
-      application?.employee?.surname,
-    ]
-      .filter(Boolean)
-      .join(' '),
-    [application?.employee?.firstname, application?.employee?.surname].filter(Boolean).join(' '),
-    [
-      application?.employee?.surname,
-      application?.employee?.firstname,
-      application?.employee?.middlename,
-    ]
-      .filter(Boolean)
-      .join(' '),
-    [application?.employee?.surname, application?.employee?.firstname].filter(Boolean).join(' '),
-  ]
-
-  return [...new Set(nameVariants.map((value) => normalizeEmployeeName(value)).filter(Boolean))]
-}
-
-function applicationMatchesEmployeeName(application, employee) {
-  const applicationName = normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
-  if (!applicationName) return false
-
-  const employeeFirstName = normalizeEmployeeName(employee?.firstname)
-  const employeeSurname = normalizeEmployeeName(employee?.surname)
-  if (
-    employeeFirstName &&
-    employeeSurname &&
-    applicationName.includes(employeeFirstName) &&
-    applicationName.includes(employeeSurname)
-  ) {
-    return true
-  }
-
-  const employeeNameTokens = [
-    employeeFirstName,
-    normalizeEmployeeName(employee?.middlename),
-    employeeSurname,
-  ]
-    .filter(Boolean)
-    .flatMap((value) => value.split(' '))
-    .filter(Boolean)
-
-  if (!employeeNameTokens.length) return false
-
-  return employeeNameTokens.every((token) => applicationName.includes(token))
-}
-
-const employeeEmploymentTypeLookup = computed(() => {
-  const byLookupValue = new Map()
-  const byName = new Map()
-
-  for (const employee of departmentEmployees.value) {
-    const employmentTypeKey = normalizeEmploymentTypeKey(employee?.status)
-    if (!employmentTypeKey) continue
-
-    for (const lookupValue of getEmployeeLookupCandidates(employee)) {
-      if (!byLookupValue.has(lookupValue)) {
-        byLookupValue.set(lookupValue, employmentTypeKey)
-      }
-    }
-
-    for (const nameValue of getEmployeeNameCandidates(employee)) {
-      if (!byName.has(nameValue)) {
-        byName.set(nameValue, employmentTypeKey)
-      }
-    }
-  }
-
-  return { byLookupValue, byName }
-})
-
-function getApplicationEmploymentTypeFromEmployees(application) {
-  for (const lookupValue of getApplicationEmployeeLookupCandidates(application)) {
-    const matched = employeeEmploymentTypeLookup.value.byLookupValue.get(lookupValue)
-    if (matched) return matched
-  }
-
-  for (const nameValue of getApplicationEmployeeNameCandidates(application)) {
-    const matched = employeeEmploymentTypeLookup.value.byName.get(nameValue)
-    if (matched) return matched
-  }
-
-  for (const employee of departmentEmployees.value) {
-    if (!applicationMatchesEmployeeName(application, employee)) continue
-    const matched = normalizeEmploymentTypeKey(employee?.status)
-    if (matched) return matched
-  }
-
-  return ''
-}
-
 function getApplicationMergeKey(application, index) {
   const typeKey = getApplicationType(application)
-  const explicitId = getApplicationExplicitId(application)
-
+  const explicitId =
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id ??
+    application?.coc_application_id
   if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
     return `id:${typeKey}:${String(explicitId).trim()}`
   }
 
-  const employeeKey = getApplicationEmployeeLookupCandidates(application)[0]
-  const employeeName = normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
+  const employeeKey =
+    getApplicationEmployeeLookupCandidates(application)[0] ||
+    normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
   const leaveTypeKey = normalizeEmployeeName(
-    application?.leaveType ??
-      application?.leave_type ??
-      application?.leaveTypeName ??
-      application?.leave_type_name,
+    application?.leaveType ?? application?.leave_type ?? application?.leaveTypeName,
   )
   const filedDateKey = normalizeLookupValue(
     application?.dateFiled ??
@@ -1462,12 +917,8 @@ function getApplicationMergeKey(application, index) {
       application?.created_at ??
       application?.createdAt,
   )
-  const inclusiveDatesKey = normalizeEmployeeName(getApplicationDurationLabel(application))
 
-  const fallbackKey = [typeKey, employeeKey || employeeName, leaveTypeKey, filedDateKey, inclusiveDatesKey]
-    .filter(Boolean)
-    .join('|')
-
+  const fallbackKey = [employeeKey, leaveTypeKey, filedDateKey].filter(Boolean).join('|')
   return fallbackKey ? `fallback:${fallbackKey}` : `index:${index}`
 }
 
@@ -1475,23 +926,14 @@ function getApplicationCompletenessScore(application) {
   const candidates = [
     getApplicationEmployeeDisplayName(application),
     application?.employee_id,
-    application?.employeeId,
     application?.leaveType,
-    application?.leave_type,
-    application?.leaveTypeName,
     application?.dateFiled,
-    application?.date_filed,
     application?.status,
     application?.rawStatus,
     application?.remarks,
-    application?.updated_at,
-    application?.updatedAt,
     application?.selected_dates,
-    application?.selectedDates,
     application?.startDate,
-    application?.start_date,
     application?.endDate,
-    application?.end_date,
   ]
 
   return candidates.filter((value) => {
@@ -1504,9 +946,6 @@ function getApplicationTimestampValue(application) {
   const candidates = [
     application?.updated_at,
     application?.updatedAt,
-    application?.disapprovedAt,
-    application?.hrActionAt,
-    application?.adminActionAt,
     application?.dateFiled,
     application?.date_filed,
     application?.filed_at,
@@ -1548,11 +987,13 @@ function mergeApplications(...sources) {
     const normalizedApplication = {
       ...application,
       application_type: getApplicationType(application),
-      application_uid: getApplicationRowKey(application, index),
     }
     const key = getApplicationMergeKey(normalizedApplication, index)
     const existingApplication = mergedApplications.get(key)
-    mergedApplications.set(key, choosePreferredApplication(existingApplication, normalizedApplication))
+    mergedApplications.set(
+      key,
+      choosePreferredApplication(existingApplication, normalizedApplication),
+    )
   })
 
   return Array.from(mergedApplications.values())
@@ -2877,53 +2318,17 @@ async function confirmDisapprove() {
   color: #7f8b97;
   font-weight: 600;
 }
-
 .dashboard-kpi-main {
   align-items: center;
 }
-
 .dashboard-kpi-left {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-
 .dashboard-kpi-label {
   margin-top: 0 !important;
-}
-
-.apply-leave-dialog-card {
-  width: min(1280px, 96vw);
-  max-width: none;
-  max-height: calc(100vh - 24px);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.apply-leave-dialog-header {
-  min-height: 56px;
-  padding: 0 10px 0 14px;
-  position: sticky;
-  top: 0;
-  z-index: 3;
-}
-.apply-leave-dialog-close {
-  width: 38px;
-  height: 38px;
-}
-.apply-leave-dialog :deep(.q-dialog__inner--minimized) {
-  padding: 12px;
-}
-.apply-leave-dialog :deep(.q-dialog__inner--minimized > div) {
-  max-width: none !important;
-}
-.apply-leave-dialog-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
 }
 .pending-reminder-card {
   min-width: 360px;
@@ -3236,59 +2641,6 @@ async function confirmDisapprove() {
   line-height: 1.45;
 }
 @media (max-width: 599px) {
-  .admin-action-dialog-card {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-    border-radius: 20px;
-  }
-
-  .admin-action-dialog-card__content {
-    padding: 4px 20px 10px;
-  }
-
-  .admin-action-dialog-card__title {
-    font-size: 1.55rem;
-  }
-
-  .admin-action-dialog-card__message {
-    margin-top: 14px;
-    font-size: 1rem;
-  }
-
-  .admin-action-dialog-card__actions {
-    gap: 12px;
-    padding: 0 20px 20px;
-  }
-
-  .admin-action-dialog-card__button {
-    min-height: 50px;
-    border-radius: 16px;
-  }
-
-  .apply-leave-dialog-card {
-    width: min(100vw, 100vw);
-    max-height: calc(100vh - 8px);
-    border-radius: 10px;
-  }
-
-  .apply-leave-dialog :deep(.q-dialog__inner--minimized) {
-    padding: 4px;
-  }
-
-  .apply-leave-dialog-header {
-    min-height: 52px;
-    padding: 0 8px 0 10px;
-  }
-
-  .applications-page-header {
-    align-items: flex-start;
-    row-gap: 14px;
-  }
-
-  .applications-page-cta {
-    margin-top: 10px;
-  }
-
   .pending-reminder-card {
     min-width: 0;
     width: calc(100vw - 18px);
@@ -3327,39 +2679,6 @@ async function confirmDisapprove() {
     min-height: 40px;
     padding-inline: 14px;
     font-size: 0.88rem;
-  }
-
-  .applications-table :deep(th),
-  .applications-table :deep(td) {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .application-status-cell {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-  }
-
-  .application-toolbar__search,
-  .application-toolbar__actions {
-    width: 100%;
-    flex: 0 0 100%;
-  }
-
-  .application-toolbar__actions {
-    justify-content: flex-start;
-  }
-
-  .application-toolbar {
-    display: block;
-  }
-
-  .application-status-search--left {
-    width: 100%;
-  }
-
-  .application-status-search--left :deep(.q-field) {
-    width: 100%;
   }
 
   .dashboard-kpi-row {
@@ -3429,31 +2748,6 @@ async function confirmDisapprove() {
 
   .dashboard-kpi-breakdown .stat-mini-value {
     font-size: 0.6rem;
-  }
-
-  .application-timeline-content {
-    padding: 12px;
-  }
-
-  .application-timeline-actions {
-    padding: 0 12px 12px;
-    justify-content: stretch;
-  }
-
-  .application-timeline-actions .q-btn {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .application-timeline-panel {
-    padding: 10px;
-  }
-  .application-timeline-item {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 10px;
-  }
-  .application-timeline-marker {
-    width: 24px;
-    height: 24px;
   }
 }
 </style>
