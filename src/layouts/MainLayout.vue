@@ -408,4 +408,12 @@ async function doLogout() {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12) !important;
   overflow: hidden;
 }
+
+@media (max-width: 600px) {
+  .notif-menu-wrapper {
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    border-radius: 16px !important;
+  }
+}
 </style>

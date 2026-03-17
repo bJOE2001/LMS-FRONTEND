@@ -4,7 +4,6 @@
       <div class="row items-center justify-between q-gutter-sm">
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Leave Types</h1>
-          <p class="text-grey-7 q-mb-none">Create and maintain leave types.</p>
         </div>
         <q-btn
           unelevated

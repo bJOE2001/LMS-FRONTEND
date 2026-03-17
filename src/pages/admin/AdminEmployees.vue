@@ -1,8 +1,8 @@
 <template>
   <q-page class="q-pa-md admin-employees-page">
-    <div class="row items-center q-mb-xs admin-employees-header">
+    <div class="row items-center q-mb-lg admin-employees-header">
       <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none admin-employees-title">Employee Management</h1>
-      <q-space />
+      <q-space class="admin-employees-spacer" />
       <div class="row q-gutter-sm admin-employees-actions">
         <q-btn
           unelevated
@@ -16,8 +16,6 @@
         />
       </div>
     </div>
-    <p class="text-grey-7 q-mb-lg admin-employees-subtitle">{{ adminDepartmentName }} - Manage your staff and file leave on their behalf</p>
-
     <div class="row q-col-gutter-sm q-mb-md status-cards-row">
       <div
         v-for="card in statusCards"
@@ -123,7 +121,7 @@
           <q-td :props="props">
             <q-badge
               :color="statusBadgeColor(props.row.status)"
-              :label="props.row.status"
+              :label="formatResponsiveStatusLabel(props.row.status)"
               class="text-weight-medium"
               rounded
             />
@@ -252,14 +250,36 @@
           </div>
         </q-card-section>
 
-        <q-card-actions class="q-pa-md" align="right">
-          <q-btn flat no-caps label="Edit" color="orange-8" icon="edit" @click="openEditDialog(selectedEmployee); showViewDialog = false" />
+        <q-card-actions class="q-pa-md employee-view-actions" align="right">
+          <q-btn
+            flat
+            dense
+            no-caps
+            label="Reassign"
+            color="secondary"
+            icon="badge"
+            class="employee-view-actions__btn"
+            :disable="!selectedEmployee || loadingDepartmentHead || savingDepartmentHead || isDepartmentHeadRecord(selectedEmployee)"
+            @click="reassignDepartmentHeadFromView"
+          />
+          <q-btn
+            flat
+            dense
+            no-caps
+            label="Edit"
+            color="orange-8"
+            icon="edit"
+            class="employee-view-actions__btn"
+            @click="openEditDialog(selectedEmployee); showViewDialog = false"
+          />
           <q-btn
             unelevated
+            dense
             no-caps
             label="Apply Leave"
             color="green-8"
             icon="description"
+            class="employee-view-actions__btn"
             @click="applyLeaveFor(selectedEmployee); showViewDialog = false"
           />
         </q-card-actions>
@@ -479,6 +499,8 @@ const formRef = ref(null)
 
 const selectedEmployee = ref(null)
 const employees = ref([])
+const fullEmployeeRows = ref([])
+const fullEmployeeRowsCacheKey = ref('')
 const loading = ref(false)
 const totalEmployees = ref(0)
 const statusCounts = ref({})
@@ -538,9 +560,17 @@ const noDataMessage = computed(() => {
   if (!adminDepartmentId.value) return 'Select or set your department to view employees.'
   return 'No employees found in this department.'
 })
+
 const tableRows = computed(() => {
-  const rows = (Array.isArray(employees.value) ? [...employees.value] : [])
-    .filter((row) => matchesStatusFilter(row?.status))
+  if (activeStatusFilter.value) {
+    return paginateClientRows(
+      buildClientFilteredRows(fullEmployeeRows.value),
+      pagination.value.page,
+      pagination.value.rowsPerPage,
+    )
+  }
+
+  const rows = Array.isArray(employees.value) ? [...employees.value] : []
   const headRow = buildSyntheticDepartmentHeadRow()
   if (!headRow) return rows
   if (!matchesStatusFilter(headRow.status)) return rows
@@ -559,7 +589,9 @@ const columns = [
   { name: 'actions', label: 'Actions', align: 'center' },
 ]
 const visibleColumns = computed(() =>
-  $q.screen.lt.sm ? columns.filter((column) => column.name !== 'control_no') : columns,
+  $q.screen.lt.sm
+    ? columns.filter((column) => !['control_no', 'status'].includes(column.name))
+    : columns,
 )
 
 const statusCards = computed(() => [
@@ -573,6 +605,15 @@ const statusCards = computed(() => [
 
 function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase()
+}
+
+function countStatusRows(sourceRows = []) {
+  return prependSyntheticDepartmentHeadRow(sourceRows).reduce((counts, row) => {
+    const status = normalizeStatus(row?.status)
+    if (!status) return counts
+    counts[status] = (counts[status] || 0) + 1
+    return counts
+  }, {})
 }
 
 function matchesStatusFilter(status) {
@@ -648,6 +689,49 @@ function normalizeControlNo(value) {
   return String(value ?? '').trim()
 }
 
+function invalidateEmployeeCollectionCache() {
+  fullEmployeeRows.value = []
+  fullEmployeeRowsCacheKey.value = ''
+}
+
+function buildEmployeeCollectionCacheKey() {
+  return JSON.stringify({
+    departmentId: adminDepartmentId.value ?? null,
+    search: String(search.value || '').trim().toLowerCase(),
+  })
+}
+
+function prependSyntheticDepartmentHeadRow(sourceRows = []) {
+  const rows = Array.isArray(sourceRows) ? [...sourceRows] : []
+  const headRow = buildSyntheticDepartmentHeadRow()
+
+  if (!headRow) return rows
+
+  const exists = rows.some((row) => normalizeControlNo(row?.control_no) === normalizeControlNo(headRow.control_no))
+  if (exists) return rows
+
+  return [headRow, ...rows]
+}
+
+function buildClientFilteredRows(sourceRows = []) {
+  return prependSyntheticDepartmentHeadRow(sourceRows)
+    .filter((row) => matchesEmployeeSearch(row))
+    .filter((row) => matchesStatusFilter(row?.status))
+}
+
+function paginateClientRows(sourceRows = [], page = 1, rowsPerPage = 10) {
+  const rows = Array.isArray(sourceRows) ? sourceRows : []
+  const perPage = Number(rowsPerPage)
+
+  if (!Number.isFinite(perPage) || perPage <= 0) {
+    return rows
+  }
+
+  const currentPage = Math.max(1, parseInt(page, 10) || 1)
+  const start = (currentPage - 1) * perPage
+  return rows.slice(start, start + perPage)
+}
+
 function buildSyntheticDepartmentHeadRow() {
   const controlNo = normalizeControlNo(departmentHeadForm.value.control_no)
   if (!controlNo) return null
@@ -679,6 +763,12 @@ function statusBadgeColor(status) {
     CONTRACTUAL: 'brown-7',
   }
   return colorMap[status] ?? 'blue'
+}
+
+function formatResponsiveStatusLabel(status) {
+  const normalizedStatus = normalizeStatus(status)
+  if (!normalizedStatus) return '-'
+  return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
 }
 
 function formatMoney(value) {
@@ -787,6 +877,7 @@ function confirmAssignDepartmentHead(employee) {
           : 'Department head assigned successfully.',
         position: 'top',
       })
+      invalidateEmployeeCollectionCache()
       await fetchEmployees(1)
     } catch (err) {
       const msg = resolveApiErrorMessage(err, 'Unable to assign department head right now.')
@@ -895,6 +986,7 @@ async function saveDepartmentHead() {
       await api.post('/admin/department-head', payload)
       $q.notify({ type: 'positive', message: 'Department head added successfully.' })
     }
+    invalidateEmployeeCollectionCache()
     await fetchEmployees(1)
     showDepartmentHeadDialog.value = false
   } catch (err) {
@@ -927,6 +1019,7 @@ async function saveEmployee() {
     }
 
     showFormDialog.value = false
+    invalidateEmployeeCollectionCache()
     await fetchEmployees(1)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to save employee right now.')
@@ -966,6 +1059,7 @@ function confirmDelete(employee) {
       try {
         await api.delete('/admin/department-head')
         $q.notify({ type: 'positive', message: 'Department head removed successfully.' })
+        invalidateEmployeeCollectionCache()
         await fetchEmployees(1)
       } catch (err) {
         const msg = resolveApiErrorMessage(err, 'Unable to remove department head right now.')
@@ -996,6 +1090,7 @@ function confirmDelete(employee) {
     try {
       await api.delete(`/admin/employees/${encodeURIComponent(employee.control_no)}`)
       $q.notify({ type: 'positive', message: 'Employee deleted successfully.' })
+      invalidateEmployeeCollectionCache()
       await fetchEmployees(1)
     } catch (err) {
       const msg = resolveApiErrorMessage(err, 'Unable to delete employee right now.')
@@ -1004,9 +1099,37 @@ function confirmDelete(employee) {
   })
 }
 
+async function fetchEmployeeCollection(baseParams = {}) {
+  const collectedRows = []
+  let page = 1
+  let lastPage = 1
+
+  do {
+    const { data } = await api.get('/employees', {
+      params: {
+        ...baseParams,
+        per_page: 100,
+        page,
+      },
+    })
+
+    const pageData = data?.employees ?? {}
+    const pageRows = Array.isArray(pageData?.data) ? pageData.data : []
+    collectedRows.push(...pageRows)
+
+    const currentPage = Number(pageData?.current_page ?? page)
+    const resolvedLastPage = Number(pageData?.last_page ?? currentPage)
+    lastPage = Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
+    page = currentPage + 1
+  } while (page <= lastPage)
+
+  return collectedRows
+}
+
 async function fetchEmployees(page = 1) {
   if (!adminDepartmentId.value) {
     employees.value = []
+    invalidateEmployeeCollectionCache()
     totalEmployees.value = 0
     statusCounts.value = {}
     pagination.value.rowsNumber = 0
@@ -1022,6 +1145,46 @@ async function fetchEmployees(page = 1) {
       department_id: adminDepartmentId.value,
       search: search.value || undefined,
     }
+
+    if (activeStatusFilter.value) {
+      const collectionCacheKey = buildEmployeeCollectionCacheKey()
+      const needsCollectionRefresh = fullEmployeeRowsCacheKey.value !== collectionCacheKey
+
+      const summaryRequest = api.get('/employees', {
+        params: {
+          ...baseParams,
+          per_page: 1,
+          page: 1,
+        },
+      }).catch(() => null)
+
+      const collectionRequest = needsCollectionRefresh
+        ? fetchEmployeeCollection(baseParams)
+        : Promise.resolve(fullEmployeeRows.value)
+
+      const [summaryResponse, collectionRows] = await Promise.all([summaryRequest, collectionRequest])
+
+      if (needsCollectionRefresh) {
+        fullEmployeeRows.value = Array.isArray(collectionRows) ? collectionRows : []
+        fullEmployeeRowsCacheKey.value = collectionCacheKey
+      }
+
+      const filteredRows = buildClientFilteredRows(fullEmployeeRows.value)
+      const summaryData = summaryResponse?.data ?? {}
+      const perPage = Number(pagination.value.rowsPerPage)
+      const maxPage = Number.isFinite(perPage) && perPage > 0
+        ? Math.max(1, Math.ceil(filteredRows.length / perPage))
+        : 1
+
+      employees.value = []
+      pagination.value.page = Math.min(pageNum, maxPage)
+      pagination.value.rowsNumber = filteredRows.length
+      totalEmployees.value = summaryData.total_employees ?? prependSyntheticDepartmentHeadRow(fullEmployeeRows.value).length
+      statusCounts.value = summaryData.status_counts ?? countStatusRows(fullEmployeeRows.value)
+      applyDepartmentHeadState(summaryData.department_head ?? null)
+      return
+    }
+
     const tableRequest = api.get('/employees', {
       params: {
         ...baseParams,
@@ -1044,6 +1207,7 @@ async function fetchEmployees(page = 1) {
     const data = tableResponse?.data ?? {}
     const summaryData = summaryResponse?.data ?? data
 
+    invalidateEmployeeCollectionCache()
     employees.value = data.employees?.data ?? []
     totalEmployees.value = summaryData.total_employees ?? 0
     statusCounts.value = summaryData.status_counts ?? {}
@@ -1059,6 +1223,7 @@ async function fetchEmployees(page = 1) {
       caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
     })
     employees.value = []
+    invalidateEmployeeCollectionCache()
     totalEmployees.value = 0
     statusCounts.value = {}
     pagination.value.rowsNumber = 0
@@ -1080,6 +1245,12 @@ function viewEmployee(employee) {
   showViewDialog.value = true
 }
 
+function reassignDepartmentHeadFromView() {
+  if (!selectedEmployee.value || isDepartmentHeadRecord(selectedEmployee.value)) return
+  showViewDialog.value = false
+  confirmAssignDepartmentHead(selectedEmployee.value)
+}
+
 function applyLeaveFor(employee) {
   if (!employee) return
   applyLeaveEmployee.value = employee
@@ -1097,9 +1268,11 @@ function handleApplyLeaveSubmitted() {
 
 watch(adminDepartmentId, (id) => {
   if (id) {
+    invalidateEmployeeCollectionCache()
     fetchEmployees(1)
   } else {
     employees.value = []
+    invalidateEmployeeCollectionCache()
     totalEmployees.value = 0
     statusCounts.value = {}
     pagination.value.rowsNumber = 0
@@ -1172,6 +1345,25 @@ watch(adminDepartmentId, (id) => {
   letter-spacing: 0.01em;
 }
 
+.employee-view-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.employee-view-actions__btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.employee-view-actions__btn :deep(.q-btn__content) {
+  justify-content: center;
+}
+
 .apply-leave-dialog-card {
   width: min(1280px, 96vw);
   max-width: none;
@@ -1205,7 +1397,8 @@ watch(adminDepartmentId, (id) => {
 .apply-leave-dialog-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
 }
 
 @media (max-width: 600px) {
@@ -1222,23 +1415,28 @@ watch(adminDepartmentId, (id) => {
   }
 
   .admin-employees-header {
+    flex-wrap: wrap;
     align-items: flex-start;
   }
 
+  .admin-employees-title {
+    width: 100%;
+  }
+
+  .admin-employees-spacer {
+    display: none;
+  }
+
   .admin-employees-actions {
-    margin-top: 4px;
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 8px;
   }
 
   .add-employee-btn {
     min-height: 34px;
     padding: 0 10px;
     font-size: 0.86rem;
-  }
-
-  .admin-employees-subtitle {
-    margin-bottom: 8px !important;
-    font-size: 0.9rem;
-    line-height: 1.28;
   }
 
   .status-cards-row {
@@ -1294,6 +1492,17 @@ watch(adminDepartmentId, (id) => {
   .employee-records-search {
     min-width: 0 !important;
     width: 100%;
+  }
+
+  .employee-view-actions {
+    gap: 6px;
+    padding-top: 8px !important;
+  }
+
+  .employee-view-actions__btn {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.8rem;
   }
 
   .apply-leave-dialog-card {

@@ -3,7 +3,6 @@
     <div class="row justify-between items-center q-mb-lg">
       <div>
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Reports</h1>
-        <p class="text-grey-7">View and export leave application reports</p>
       </div>
       <q-btn-dropdown
         v-model="showExportDropdown"
@@ -66,8 +65,8 @@
       </q-card-section>
     </q-card>
 
-    <q-dialog v-model="showReportModal" position="standard">
-      <q-card style="min-width: 560px; max-width: 90vw">
+    <q-dialog v-model="showReportModal" position="standard" class="report-preview-dialog">
+      <q-card class="report-preview-card">
         <q-card-section class="bg-primary text-white">
           <div class="text-h6">{{ reportType }} - Preview</div>
         </q-card-section>
@@ -77,8 +76,8 @@
             <div class="text-subtitle1">Leave Management System</div>
             <div class="text-caption text-grey-7">Generated: {{ new Date().toLocaleDateString() }}</div>
           </div>
-          <div class="row q-col-gutter-md">
-            <div class="col-4">
+          <div class="row q-col-gutter-md report-preview-stats">
+            <div class="col-12 col-sm-4">
               <q-card flat bordered>
                 <q-card-section class="text-center">
                   <div class="text-caption">Total</div>
@@ -86,7 +85,7 @@
                 </q-card-section>
               </q-card>
             </div>
-            <div class="col-4">
+            <div class="col-12 col-sm-4">
               <q-card flat bordered>
                 <q-card-section class="text-center">
                   <div class="text-caption">Approved</div>
@@ -94,7 +93,7 @@
                 </q-card-section>
               </q-card>
             </div>
-            <div class="col-4">
+            <div class="col-12 col-sm-4">
               <q-card flat bordered>
                 <q-card-section class="text-center">
                   <div class="text-caption">Pending</div>
@@ -104,7 +103,7 @@
             </div>
           </div>
         </q-card-section>
-        <q-card-actions align="right">
+        <q-card-actions align="right" class="report-preview-actions">
           <q-btn flat label="Close" v-close-popup />
           <q-btn
             unelevated
@@ -181,3 +180,29 @@ function exportData(format) {
   showExportDropdown.value = false
 }
 </script>
+
+<style scoped>
+.report-preview-card {
+  width: min(560px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 600px) {
+  .report-preview-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 12px;
+  }
+
+  .report-preview-card {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+
+  .report-preview-stats {
+    row-gap: 12px;
+  }
+
+  .report-preview-actions {
+    padding: 0 16px 16px;
+  }
+}
+</style>

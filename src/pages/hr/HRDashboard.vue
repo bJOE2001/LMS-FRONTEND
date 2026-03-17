@@ -3,7 +3,6 @@
     <div class="row justify-between items-center q-mb-lg">
       <div>
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">HR Dashboard</h1>
-        <p class="text-grey-7">Monitor leave applications across all departments</p>
       </div>
     </div>
 
