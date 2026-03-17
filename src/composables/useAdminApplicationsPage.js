@@ -9,48 +9,6 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
-const columns = [
-  { name: 'employee', label: 'Employee', align: 'left' },
-  {
-    name: 'leaveType',
-    label: 'Leave Type',
-    field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
-    align: 'left',
-  },
-  {
-    name: 'dateFiled',
-    label: 'Date Filed',
-    field: 'dateFiled',
-    align: 'left',
-  },
-  {
-    name: 'inclusiveDates',
-    label: 'Inclusive Dates',
-    field: 'selected_dates',
-    align: 'left',
-  },
-  {
-    name: 'leaveBalance',
-    label: 'Leave Balance',
-    field: 'leave_balance',
-    align: 'left',
-  },
-  { name: 'days', label: 'Days', field: 'days', align: 'center' },
-  {
-    name: 'status',
-    label: 'Status',
-    field: 'status',
-    align: 'left',
-  },
-  {
-    name: 'actions',
-    label: 'Actions',
-    align: 'center',
-    style: 'width: 190px',
-    headerStyle: 'width: 190px',
-  },
-]
-
 const mobileApplicationColumnWidths = {
   employee: '180px',
   status: '134px',
@@ -81,6 +39,53 @@ const EVENT_BASED_LEAVE_BALANCE_TYPES = [
 export function useAdminApplicationsPage() {
   const $q = useQuasar()
   const route = useRoute()
+
+  const columns = [
+    { name: 'employee', label: 'Employee', align: 'left' },
+    {
+      name: 'leaveType',
+      label: 'Leave Type',
+      field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
+      align: 'left',
+    },
+    {
+      name: 'dateFiled',
+      label: 'Date Filed',
+      field: 'dateFiled',
+      align: 'left',
+    },
+    {
+      name: 'inclusiveDates',
+      label: 'Inclusive Dates',
+      field: 'selected_dates',
+      align: 'left',
+    },
+    {
+      name: 'leaveBalance',
+      label: 'Leave Balance',
+      field: 'leave_balance',
+      align: 'left',
+    },
+    {
+      name: 'days',
+      label: 'Duration',
+      field: (row) => getApplicationDurationDisplay(row),
+      align: 'center',
+    },
+    {
+      name: 'status',
+      label: 'Status',
+      field: 'status',
+      align: 'left',
+    },
+    {
+      name: 'actions',
+      label: 'Actions',
+      align: 'center',
+      style: 'width: 190px',
+      headerStyle: 'width: 190px',
+    },
+  ]
 
   const loading = ref(true)
   const actionLoading = ref(false)
@@ -136,6 +141,10 @@ export function useAdminApplicationsPage() {
 
     return [...filteredApplications].sort(compareApplicationsForTable)
   })
+
+  const leaveApplicationRows = computed(() =>
+    (applicationRows.value ?? []).filter((application) => !isCocApplication(application)),
+  )
 
   const latestLeaveBalanceEntriesByEmployee = computed(() => {
     const entriesByEmployee = new Map()
@@ -202,14 +211,16 @@ export function useAdminApplicationsPage() {
   async function fetchApplications() {
     loading.value = true
     try {
-      const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+      const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
         api.get('/admin/dashboard'),
         api.get('/admin/leave-applications').catch(() => null),
+        api.get('/admin/coc-applications').catch(() => null),
       ])
 
       applicationRows.value = mergeApplications(
         extractApplicationsFromPayload(dashboardResponse?.data),
         extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+        extractApplicationsFromPayload(cocApplicationsResponse?.data),
       )
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to load applications right now.')
@@ -254,6 +265,56 @@ export function useAdminApplicationsPage() {
     return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
   }
 
+  function normalizeDurationUnit(value) {
+    const normalized = String(value || '').trim().toLowerCase()
+    if (normalized.startsWith('hour')) return 'hour'
+    if (normalized.startsWith('day')) return 'day'
+    return ''
+  }
+
+  function formatDurationDisplay(value, unit) {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return unit === 'hour' ? '0 h' : '0 days'
+
+    const displayValue = formatDayValue(numericValue)
+    if (unit === 'hour') return `${displayValue} h`
+    return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
+  }
+
+  function resolveApplicationDuration(app) {
+    const explicitUnit = normalizeDurationUnit(app?.duration_unit)
+    const explicitValue = Number(app?.duration_value)
+    if (explicitUnit && Number.isFinite(explicitValue)) {
+      return { value: explicitValue, unit: explicitUnit }
+    }
+
+    if (isCocApplication(app)) {
+      const hourValue = Number(app?.days ?? app?.total_days)
+      if (Number.isFinite(hourValue)) return { value: hourValue, unit: 'hour' }
+
+      const minutes = Number(app?.total_no_of_coc_applied_minutes)
+      if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
+
+      return { value: 0, unit: 'hour' }
+    }
+
+    const derivedDays = Number(getApplicationDayCount(app))
+    if (Number.isFinite(derivedDays)) return { value: derivedDays, unit: 'day' }
+
+    const dayValue = Number(app?.days ?? app?.total_days)
+    if (Number.isFinite(dayValue)) return { value: dayValue, unit: 'day' }
+
+    return { value: 0, unit: 'day' }
+  }
+
+  function getApplicationDurationDisplay(app) {
+    const explicitLabel = String(app?.duration_label || '').trim()
+    if (explicitLabel) return explicitLabel
+
+    const resolved = resolveApplicationDuration(app)
+    return formatDurationDisplay(resolved.value, resolved.unit)
+  }
+
   function formatLeaveBalanceValue(value) {
     const numericValue = Number(value)
     if (!Number.isFinite(numericValue)) return ''
@@ -266,7 +327,9 @@ export function useAdminApplicationsPage() {
 
     const candidates = [
       payload?.applications,
+      payload?.coc_applications,
       payload?.leave_applications,
+      payload?.cocApplications,
       payload?.leaveApplications,
       payload?.rows,
       payload?.items,
@@ -281,6 +344,54 @@ export function useAdminApplicationsPage() {
     }
 
     return []
+  }
+
+  function normalizeApplicationType(value) {
+    const normalized = String(value || '').trim().toUpperCase()
+    if (normalized === 'COC') return 'COC'
+    if (normalized === 'LEAVE') return 'LEAVE'
+    return ''
+  }
+
+  function getApplicationType(application) {
+    const explicitType = normalizeApplicationType(
+      application?.application_type ?? application?.applicationType ?? application?.type,
+    )
+    if (explicitType) return explicitType
+
+    const leaveTypeName = normalizeEmployeeName(
+      application?.leaveType ??
+        application?.leave_type ??
+        application?.leaveTypeName ??
+        application?.leave_type_name,
+    )
+
+    if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
+    return 'LEAVE'
+  }
+
+  function isCocApplication(application) {
+    return getApplicationType(application) === 'COC'
+  }
+
+  function getApplicationExplicitId(application) {
+    return (
+      application?.id ??
+      application?.application_id ??
+      application?.leave_application_id ??
+      application?.coc_application_id
+    )
+  }
+
+  function getApplicationRowKey(application, index = 0) {
+    const typeKey = getApplicationType(application)
+    const explicitId = getApplicationExplicitId(application)
+
+    if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+      return `${typeKey}:${String(explicitId).trim()}`
+    }
+
+    return `${typeKey}:index:${index}`
   }
 
   function normalizeLookupValue(value) {
@@ -339,11 +450,11 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationMergeKey(application, index) {
-    const explicitId =
-      application?.id ?? application?.application_id ?? application?.leave_application_id
+    const typeKey = getApplicationType(application)
+    const explicitId = getApplicationExplicitId(application)
 
     if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
-      return `id:${String(explicitId).trim()}`
+      return `id:${typeKey}:${String(explicitId).trim()}`
     }
 
     const employeeKey = getApplicationEmployeeLookupCandidates(application)[0]
@@ -445,9 +556,17 @@ export function useAdminApplicationsPage() {
     const mergedApplications = new Map()
 
     sources.flat().forEach((application, index) => {
-      const key = getApplicationMergeKey(application, index)
+      const normalizedApplication = {
+        ...application,
+        application_type: getApplicationType(application),
+        application_uid: getApplicationRowKey(application, index),
+      }
+      const key = getApplicationMergeKey(normalizedApplication, index)
       const existingApplication = mergedApplications.get(key)
-      mergedApplications.set(key, choosePreferredApplication(existingApplication, application))
+      mergedApplications.set(
+        key,
+        choosePreferredApplication(existingApplication, normalizedApplication),
+      )
     })
 
     return Array.from(mergedApplications.values())
@@ -897,6 +1016,7 @@ export function useAdminApplicationsPage() {
       ...inclusiveDateTerms,
       getLeaveBalanceDisplay(app),
       getApplicationDayCount(app),
+      getApplicationDurationDisplay(app),
       ...dateTerms,
     ]
 
@@ -1289,7 +1409,10 @@ export function useAdminApplicationsPage() {
 
     try {
       const { data } = await api.get('/admin/dashboard')
-      const updated = extractApplicationsFromPayload(data).find((item) => Number(item.id) === Number(app.id))
+      const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
+      const updated = updatedApplications.find(
+        (item) => getApplicationRowKey(item) === getApplicationRowKey(app),
+      )
       await generateLeaveFormPdf(updated || app)
     } catch {
       await generateLeaveFormPdf(app)
@@ -1327,7 +1450,7 @@ export function useAdminApplicationsPage() {
         { text: 'Leave Type', style: 'tableHeader' },
         { text: 'Date Filed', style: 'tableHeader' },
         { text: 'Inclusive Dates', style: 'tableHeader' },
-        { text: 'Days', style: 'tableHeader' },
+        { text: 'Duration', style: 'tableHeader' },
         { text: 'Status', style: 'tableHeader' },
         { text: 'Processed By', style: 'tableHeader' },
         { text: 'Reviewed Date', style: 'tableHeader' },
@@ -1337,7 +1460,7 @@ export function useAdminApplicationsPage() {
         app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
         formatDate(app.dateFiled) || 'N/A',
         getApplicationInclusiveDateLines(app).join('\n'),
-        formatDayValue(app.days),
+        getApplicationDurationDisplay(app),
         getApplicationStatusLabel(app),
         resolveProcessedBy(app),
         formatReviewedDate(app),
@@ -1384,6 +1507,15 @@ export function useAdminApplicationsPage() {
 
   function resolveApp(target) {
     if (target && typeof target === 'object') return target
+
+    const targetKey = String(target || '').trim()
+    if (!targetKey) return null
+
+    const keyedMatch = applicationRows.value.find(
+      (app) => getApplicationRowKey(app) === targetKey || app?.application_uid === targetKey,
+    )
+    if (keyedMatch) return keyedMatch
+
     const id = Number(target)
     if (!id) return null
     return applicationRows.value.find((app) => Number(app.id) === id) || null
@@ -1415,7 +1547,10 @@ export function useAdminApplicationsPage() {
   }
 
   function showPostActionDialog(type, id, fallbackApp = null) {
-    const updated = applicationRows.value.find((app) => Number(app.id) === Number(id))
+    const fallbackKey = fallbackApp ? getApplicationRowKey(fallbackApp) : ''
+    const updated = fallbackKey
+      ? applicationRows.value.find((app) => getApplicationRowKey(app) === fallbackKey)
+      : applicationRows.value.find((app) => Number(app.id) === Number(id))
     actionResultApp.value = updated || mapStatusAfterAction(fallbackApp, type)
     actionResultType.value = type
     showActionResultDialog.value = true
@@ -1429,12 +1564,18 @@ export function useAdminApplicationsPage() {
   async function handleApprove(target) {
     const app = resolveApp(target)
     const id = app?.id ?? target
+    const isCoc = isCocApplication(app)
+    const approvalEndpoint = isCoc
+      ? `/admin/coc-applications/${id}/approve`
+      : `/admin/leave-applications/${id}/approve`
     actionLoading.value = true
     try {
-      await api.post(`/admin/leave-applications/${id}/approve`)
+      await api.post(approvalEndpoint)
       $q.notify({
         type: 'positive',
-        message: 'Leave application approved and forwarded to HR!',
+        message: isCoc
+          ? 'COC application approved and forwarded to HR!'
+          : 'Leave application approved and forwarded to HR!',
         position: 'top',
       })
       showDetailsDialog.value = false
@@ -1469,20 +1610,30 @@ export function useAdminApplicationsPage() {
 
     actionLoading.value = true
     try {
+      const targetApp = disapproveTargetApp.value || resolveApp(disapproveId.value)
+      const isCoc = isCocApplication(targetApp)
       const actionType = rejectionMode.value === 'cancel' ? 'cancelled' : 'disapproved'
       const payloadRemarks =
         rejectionMode.value === 'cancel'
           ? `Cancelled by Department Admin: ${remarks.value.trim()}`
           : remarks.value
 
-      await api.post(`/admin/leave-applications/${disapproveId.value}/reject`, {
+      const disapprovalEndpoint = isCoc
+        ? `/admin/coc-applications/${disapproveId.value}/reject`
+        : `/admin/leave-applications/${disapproveId.value}/reject`
+
+      await api.post(disapprovalEndpoint, {
         remarks: payloadRemarks,
       })
 
       const successMessage =
         rejectionMode.value === 'cancel'
-          ? 'Leave application cancelled with remarks'
-          : 'Leave application rejected with remarks'
+          ? isCoc
+            ? 'COC application cancelled with remarks'
+            : 'Leave application cancelled with remarks'
+          : isCoc
+            ? 'COC application rejected with remarks'
+            : 'Leave application rejected with remarks'
       $q.notify({ type: 'info', message: successMessage, position: 'top' })
       showDisapproveDialog.value = false
       await fetchApplications()
@@ -1508,6 +1659,7 @@ export function useAdminApplicationsPage() {
     loading,
     actionLoading,
     applicationRows,
+    leaveApplicationRows,
     statusSearch,
     applicationsPagination,
     applicationTableColumns,

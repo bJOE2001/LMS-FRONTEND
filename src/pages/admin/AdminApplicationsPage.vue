@@ -37,7 +37,7 @@
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplySelf
             in-dialog
-            :existing-applications="applicationRows"
+            :existing-applications="leaveApplicationRows"
             @cancel="closeApplyLeaveDialog"
             @submitted="handleApplyLeaveSubmitted"
           />
@@ -78,7 +78,7 @@
       <q-table
         :rows="applicationsForTable"
         :columns="applicationTableColumns"
-        row-key="id"
+        row-key="application_uid"
         flat
         v-model:pagination="applicationsPagination"
         :rows-per-page-options="[5, 10, 15, 20]"
@@ -470,7 +470,7 @@ const {
   $q,
   loading,
   actionLoading,
-  applicationRows,
+  leaveApplicationRows,
   statusSearch,
   applicationsPagination,
   applicationTableColumns,

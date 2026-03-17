@@ -263,9 +263,10 @@ function syncPendingReminderNotification(pendingCount) {
 async function fetchDashboard() {
   loading.value = true
   try {
-    const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
       api.get('/admin/dashboard'),
       api.get('/admin/leave-applications').catch(() => null),
+      api.get('/admin/coc-applications').catch(() => null),
     ])
 
     const data = dashboardResponse?.data ?? {}
@@ -285,6 +286,7 @@ async function fetchDashboard() {
     applicationRows.value = mergeApplications(
       extractApplicationsFromPayload(data),
       extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+      extractApplicationsFromPayload(cocApplicationsResponse?.data),
     )
     maybeShowPendingReminder()
   } catch (err) {
@@ -328,7 +330,9 @@ function extractApplicationsFromPayload(payload) {
 
   const candidates = [
     payload?.applications,
+    payload?.coc_applications,
     payload?.leave_applications,
+    payload?.cocApplications,
     payload?.leaveApplications,
     payload?.rows,
     payload?.items,
@@ -343,6 +347,30 @@ function extractApplicationsFromPayload(payload) {
   }
 
   return []
+}
+
+function normalizeApplicationType(value) {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'COC') return 'COC'
+  if (normalized === 'LEAVE') return 'LEAVE'
+  return ''
+}
+
+function getApplicationType(application) {
+  const explicitType = normalizeApplicationType(
+    application?.application_type ?? application?.applicationType ?? application?.type,
+  )
+  if (explicitType) return explicitType
+
+  const leaveTypeName = normalizeEmployeeName(
+    application?.leaveType ??
+      application?.leave_type ??
+      application?.leaveTypeName ??
+      application?.leave_type_name,
+  )
+
+  if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
+  return 'LEAVE'
 }
 
 function normalizeLookupValue(value) {
@@ -392,10 +420,14 @@ function getApplicationEmployeeLookupCandidates(application) {
 }
 
 function getApplicationMergeKey(application, index) {
+  const typeKey = getApplicationType(application)
   const explicitId =
-    application?.id ?? application?.application_id ?? application?.leave_application_id
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id ??
+    application?.coc_application_id
   if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
-    return `id:${String(explicitId).trim()}`
+    return `id:${typeKey}:${String(explicitId).trim()}`
   }
 
   const employeeKey =
@@ -479,9 +511,16 @@ function mergeApplications(...sources) {
   const mergedApplications = new Map()
 
   sources.flat().forEach((application, index) => {
-    const key = getApplicationMergeKey(application, index)
+    const normalizedApplication = {
+      ...application,
+      application_type: getApplicationType(application),
+    }
+    const key = getApplicationMergeKey(normalizedApplication, index)
     const existingApplication = mergedApplications.get(key)
-    mergedApplications.set(key, choosePreferredApplication(existingApplication, application))
+    mergedApplications.set(
+      key,
+      choosePreferredApplication(existingApplication, normalizedApplication),
+    )
   })
 
   return Array.from(mergedApplications.values())
