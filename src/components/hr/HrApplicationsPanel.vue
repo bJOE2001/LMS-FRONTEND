@@ -34,12 +34,14 @@
     </q-card-section>
     <q-table
       :rows="applicationsForTable"
-      :columns="columns"
+      :columns="applicationTableColumns"
       row-key="id"
       flat
       v-model:pagination="tablePagination"
       :rows-per-page-options="[10]"
       :loading="loading"
+      class="applications-table applications-table--interactive"
+      @row-click="handleApplicationRowClick"
     >
       <template #no-data>
         <div class="full-width row flex-center q-pa-lg text-grey-7">
@@ -77,18 +79,18 @@
       <template #body-cell-actions="props">
         <q-td class="text-center">
           <div class="row inline no-wrap justify-center q-gutter-x-xs">
-            <q-btn flat dense round size="sm" icon="visibility" @click="openDetails(props.row)">
+            <q-btn flat dense round size="sm" icon="visibility" @click.stop="openDetails(props.row)">
               <q-tooltip>View</q-tooltip>
             </q-btn>
             <q-btn
-              v-if="canEditApplication(props.row)"
+              v-if="showApplicationEditAction && canEditApplication(props.row)"
               flat
               dense
               round
               size="sm"
               icon="edit"
               color="primary"
-              @click="openEdit(props.row)"
+              @click.stop="openEdit(props.row)"
             >
               <q-tooltip>Edit</q-tooltip>
             </q-btn>
@@ -98,11 +100,11 @@
               dense
               round
               size="sm"
-              icon="check_circle"
-              color="green-7"
-              @click="openActionConfirm('approve', props.row)"
+              icon="cancel"
+              color="negative"
+              @click.stop="openActionConfirm('reject', props.row)"
             >
-              <q-tooltip>Approve</q-tooltip>
+              <q-tooltip>Reject</q-tooltip>
             </q-btn>
             <q-btn
               v-if="props.row.rawStatus === 'PENDING_HR'"
@@ -110,11 +112,11 @@
               dense
               round
               size="sm"
-              icon="cancel"
-              color="negative"
-              @click="openActionConfirm('reject', props.row)"
+              icon="check_circle"
+              color="green-7"
+              @click.stop="openActionConfirm('approve', props.row)"
             >
-              <q-tooltip>Reject</q-tooltip>
+              <q-tooltip>Approve</q-tooltip>
             </q-btn>
           </div>
         </q-td>
@@ -122,9 +124,9 @@
     </q-table>
   </q-card>
 
-  <q-dialog v-model="showDetailsDialog" position="standard">
-    <q-card v-if="selectedApp" style="min-width: 480px">
-      <q-card-section class="bg-primary text-white row items-center no-wrap">
+  <q-dialog v-model="showDetailsDialog" persistent position="standard" class="hr-application-details-dialog">
+    <q-card v-if="selectedApp" class="hr-application-details-card">
+      <q-card-section class="bg-primary text-white row items-center no-wrap hr-application-details-header">
         <div class="text-h6">Application Details</div>
         <q-space />
         <q-btn
@@ -137,27 +139,31 @@
           v-close-popup
         />
       </q-card-section>
-      <q-card-section class="q-gutter-y-sm">
-        <div class="row q-col-gutter-md">
-          <div class="col-6">
+      <q-card-section class="q-gutter-y-sm hr-application-details-content">
+        <div class="hr-application-details-grid">
+          <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Employee</div>
             <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
           </div>
-          <div class="col-6">
+          <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Leave Type</div>
             <div class="text-weight-medium">
               {{ selectedApp.leaveType }}{{ selectedApp.is_monetization ? ' (Monetization)' : '' }}
             </div>
           </div>
-          <div class="col-6">
+          <div class="hr-application-details-item">
+            <div class="text-caption text-grey-7">Status</div>
+            <StatusBadge :status="selectedApp.displayStatus" />
+          </div>
+          <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Department</div>
             <div class="text-weight-medium">{{ selectedApp.officeShort || selectedApp.office }}</div>
           </div>
-          <div class="col-6">
+          <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Days</div>
             <div class="text-weight-medium">{{ selectedApp.days }}</div>
           </div>
-          <div class="col-6">
+          <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">
               {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Duration' }}
             </div>
@@ -167,32 +173,41 @@
                 Est. Amount: &#8369;{{ Number(selectedApp.equivalent_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) }}
               </div>
             </div>
-            <div v-else-if="selectedApp.selected_dates && selectedApp.selected_dates.length" class="text-weight-medium">
-              <div v-for="d in selectedApp.selected_dates.sort()" :key="d" class="text-caption">
-                {{ formatDate(d) }}
+            <div
+              v-else-if="selectedApp.selected_dates && selectedApp.selected_dates.length"
+              class="text-weight-medium hr-application-duration-columns"
+            >
+              <div
+                v-for="(column, columnIndex) in getSelectedDateColumns(selectedApp.selected_dates)"
+                :key="`duration-column-${columnIndex}`"
+                class="hr-application-duration-column"
+              >
+                <div
+                  v-for="dateText in column"
+                  :key="`${columnIndex}-${dateText}`"
+                  class="text-caption hr-application-duration-date"
+                >
+                  {{ dateText }}
+                </div>
               </div>
             </div>
             <div v-else class="text-weight-medium">
               {{ selectedApp.startDate ? formatDate(selectedApp.startDate) : 'N/A' }} - {{ selectedApp.endDate ? formatDate(selectedApp.endDate) : 'N/A' }}
             </div>
           </div>
-          <div class="col-6">
+          <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Date Filed</div>
             <div class="text-weight-medium">{{ formatDate(selectedApp.dateFiled) }}</div>
           </div>
-          <div class="col-6">
-            <div class="text-caption text-grey-7">Status</div>
-            <StatusBadge :status="selectedApp.displayStatus" />
-          </div>
-          <div class="col-12">
+          <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Reason</div>
             <div>{{ selectedApp.reason }}</div>
           </div>
-          <div v-if="selectedApp.remarks" class="col-12">
+          <div v-if="selectedApp.remarks" class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Remarks</div>
             <div>{{ selectedApp.remarks }}</div>
           </div>
-          <div class="col-12">
+          <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Available Leave Balance</div>
             <div
               class="text-weight-medium"
@@ -203,31 +218,75 @@
           </div>
         </div>
       </q-card-section>
+      <q-card-actions
+        v-if="$q.screen.lt.sm && selectedApp && hasMobileApplicationActions(selectedApp)"
+        align="right"
+        class="hr-application-details-actions"
+      >
+        <q-btn
+          v-if="showApplicationEditAction && canEditApplication(selectedApp)"
+          unelevated
+          no-caps
+          color="primary"
+          label="Edit"
+          @click="openEdit(selectedApp)"
+        />
+        <q-btn
+          v-if="selectedApp.rawStatus === 'PENDING_HR'"
+          unelevated
+          no-caps
+          color="negative"
+          label="Reject"
+          @click="openActionConfirm('reject', selectedApp)"
+        />
+        <q-btn
+          v-if="selectedApp.rawStatus === 'PENDING_HR'"
+          unelevated
+          no-caps
+          color="green-7"
+          label="Approve"
+          @click="openActionConfirm('approve', selectedApp)"
+        />
+      </q-card-actions>
     </q-card>
   </q-dialog>
 
   <q-dialog v-model="showConfirmActionDialog">
-    <q-card style="min-width: 360px; max-width: 440px">
-      <q-card-section class="text-center q-py-md">
-        <div class="text-h6">
+    <q-card
+      class="hr-action-dialog-card"
+      :class="
+        confirmActionType === 'approve'
+          ? 'hr-action-dialog-card--approve'
+          : 'hr-action-dialog-card--reject'
+      "
+    >
+      <q-card-section class="row justify-end hr-action-dialog-card__top">
+        <q-btn flat round dense icon="close" color="grey-6" aria-label="Close confirmation" v-close-popup />
+      </q-card-section>
+      <q-card-section class="text-center hr-action-dialog-card__content">
+        <div class="hr-action-dialog-card__title">
           {{ getConfirmActionTitle(confirmActionType) }}
         </div>
-        <div class="text-body2 text-grey-7 q-mt-sm">
+        <div class="hr-action-dialog-card__message">
           {{ getConfirmActionMessage(confirmActionType) }}
         </div>
       </q-card-section>
-      <q-card-actions align="center" class="q-pb-md">
+      <q-card-actions class="hr-action-dialog-card__actions">
         <q-btn
-          unelevated
-          label="Yes"
-          color="green-7"
-          @click="confirmPendingAction"
+          outline
+          no-caps
+          label="Cancel"
+          color="grey-7"
+          class="hr-action-dialog-card__button hr-action-dialog-card__button--cancel"
+          v-close-popup
         />
         <q-btn
           unelevated
-          label="No"
-          color="negative"
-          v-close-popup
+          no-caps
+          label="Confirm"
+          :color="confirmActionType === 'approve' ? 'green-7' : 'negative'"
+          class="hr-action-dialog-card__button"
+          @click="confirmPendingAction"
         />
       </q-card-actions>
     </q-card>
@@ -334,7 +393,7 @@
   </q-dialog>
 
   <q-dialog v-model="showRejectDialog" persistent>
-    <q-card style="min-width: 360px">
+    <q-card class="hr-action-dialog-card hr-action-dialog-card--reject" style="min-width: 360px">
       <q-card-section>
         <div class="text-h6">Reject Application</div>
       </q-card-section>
@@ -715,6 +774,37 @@ const columns = [
   { name: 'status', label: 'Status', align: 'left' },
   { name: 'actions', label: 'Actions', align: 'center' },
 ]
+const mobileApplicationColumnWidths = {
+  employee: {
+    style: 'min-width: 230px',
+    headerStyle: 'min-width: 230px',
+  },
+  status: {
+    style: 'min-width: 120px',
+    headerStyle: 'min-width: 120px',
+  },
+  office: {
+    style: 'min-width: 120px',
+    headerStyle: 'min-width: 120px',
+  },
+  leaveType: {
+    style: 'min-width: 145px',
+    headerStyle: 'min-width: 145px',
+  },
+}
+const applicationTableColumns = computed(() => {
+  if (!$q.screen.lt.sm) return columns
+
+  return ['employee', 'status', 'office', 'leaveType']
+    .map((name) => {
+      const column = columns.find((candidate) => candidate.name === name)
+      if (!column) return null
+
+      const mobileWidth = mobileApplicationColumnWidths[name]
+      return mobileWidth ? { ...column, ...mobileWidth } : column
+    })
+    .filter(Boolean)
+})
 
 const showDetailsDialog = ref(false)
 const showEditDialog = ref(false)
@@ -726,6 +816,7 @@ const remarks = ref('')
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
 const editForm = ref(getEmptyEditForm())
+const showApplicationEditAction = false
 
 function getEmptyEditForm() {
   return {
@@ -856,14 +947,41 @@ function formatDate(dateStr) {
   })
 }
 
+function getSelectedDateColumns(dates, columnCount = 3) {
+  const formattedDates = Array.isArray(dates)
+    ? [...dates].sort().map((date) => formatDate(date)).filter(Boolean)
+    : []
+
+  if (!formattedDates.length) return []
+
+  const itemsPerColumn = Math.ceil(formattedDates.length / columnCount)
+  const columns = []
+  for (let index = 0; index < columnCount; index += 1) {
+    const start = index * itemsPerColumn
+    const end = start + itemsPerColumn
+    columns.push(formattedDates.slice(start, end))
+  }
+
+  return columns
+}
+
 function openDetails(app) {
   selectedApp.value = app
   showDetailsDialog.value = true
 }
 
+function hasMobileApplicationActions(app) {
+  return String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR'
+}
+
+function handleApplicationRowClick(_evt, row) {
+  if (!row) return
+  openDetails(row)
+}
+
 function getConfirmActionTitle(type) {
-  if (type === 'approve') return 'Approve this application?'
-  return 'Reject this application?'
+  if (type === 'approve') return 'Approve'
+  return 'Reject'
 }
 
 function getConfirmActionMessage(type) {
@@ -881,7 +999,6 @@ function openActionConfirm(type, target) {
   confirmActionType.value = type
   confirmActionTarget.value = target
   showConfirmActionDialog.value = true
-  showDetailsDialog.value = false
 }
 
 function confirmPendingAction() {
@@ -1075,7 +1192,6 @@ function openReject(id) {
   rejectId.value = id
   remarks.value = ''
   showRejectDialog.value = true
-  showDetailsDialog.value = false
 }
 
 async function confirmReject() {
@@ -1099,6 +1215,7 @@ async function confirmReject() {
       position: 'top',
     })
     showRejectDialog.value = false
+    showDetailsDialog.value = false
     await fetchApplications()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to reject this application right now.')
@@ -1115,6 +1232,143 @@ async function confirmReject() {
   width: min(440px, 84vw);
 }
 
+.applications-table--interactive tbody tr {
+  cursor: pointer;
+}
+
+.hr-action-dialog-card {
+  width: min(560px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  border-radius: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+}
+
+.hr-action-dialog-card--approve {
+  border-color: #b7ddc1;
+}
+
+.hr-action-dialog-card--reject {
+  border-color: #e6b8b8;
+}
+
+.hr-action-dialog-card__top {
+  padding: 12px 12px 0;
+}
+
+.hr-action-dialog-card__content {
+  padding: 8px 28px 12px;
+}
+
+.hr-action-dialog-card__title {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 500;
+  color: #111827;
+}
+
+.hr-action-dialog-card__message {
+  margin-top: 20px;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.hr-action-dialog-card__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px;
+  padding: 0 28px 28px;
+}
+
+.hr-action-dialog-card__button {
+  flex: 1 1 0;
+  min-height: 56px;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.hr-action-dialog-card__button--cancel {
+  background: #ffffff;
+  border-color: #d6dbe1;
+  color: #111827;
+}
+
+.hr-application-details-dialog .q-dialog__inner--minimized {
+  padding: 16px;
+}
+
+.hr-application-details-dialog .q-dialog__inner--minimized > div {
+  width: min(520px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 32px));
+}
+
+.hr-application-details-card {
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hr-application-details-header {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hr-application-details-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hr-application-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-content: start;
+}
+
+.hr-application-details-item {
+  min-width: 0;
+}
+
+.hr-application-details-item--full {
+  grid-column: 1 / -1;
+}
+
+.hr-application-details-actions {
+  flex: 0 0 auto;
+  padding: 10px 16px 16px;
+  gap: 8px;
+  border-top: 1px solid #e5e7eb;
+  background: #faf8f3;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  box-shadow: 0 -10px 20px rgba(15, 23, 42, 0.06);
+}
+
+.hr-application-duration-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 12px;
+  width: 100%;
+}
+
+.hr-application-duration-column {
+  min-width: 0;
+}
+
+.hr-application-duration-date {
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
 .hr-edit-dialog .q-dialog__inner--minimized {
   padding: 16px;
 }
@@ -1129,6 +1383,76 @@ async function confirmReject() {
 }
 
 @media (max-width: 599px) {
+  .hr-action-dialog-card {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    border-radius: 20px;
+  }
+
+  .hr-action-dialog-card__content {
+    padding: 4px 20px 10px;
+  }
+
+  .hr-action-dialog-card__title {
+    font-size: 1.55rem;
+  }
+
+  .hr-action-dialog-card__message {
+    margin-top: 14px;
+    font-size: 1rem;
+  }
+
+  .hr-action-dialog-card__actions {
+    gap: 12px;
+    padding: 0 20px 20px;
+  }
+
+  .hr-action-dialog-card__button {
+    min-height: 50px;
+    border-radius: 16px;
+  }
+
+  .hr-application-details-dialog .q-dialog__inner--minimized {
+    padding: 12px;
+  }
+
+  .hr-application-details-dialog .q-dialog__inner--minimized > div {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+
+  .hr-application-details-card {
+    max-height: calc(100vh - 24px);
+  }
+
+  .hr-application-details-content {
+    padding: 12px !important;
+  }
+
+  .hr-application-details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 12px;
+  }
+
+  .hr-application-duration-columns {
+    gap: 4px 10px;
+  }
+
+  .hr-application-duration-date {
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+
+  .hr-application-details-actions {
+    padding: 10px 12px 12px;
+    justify-content: stretch;
+  }
+
+  .hr-application-details-actions .q-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .hr-edit-dialog .q-dialog__inner--minimized {
     padding: 12px;
   }

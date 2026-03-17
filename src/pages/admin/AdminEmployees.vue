@@ -40,7 +40,10 @@
                 <q-icon :name="card.icon" size="22px" :color="card.color" class="status-card__avatar-icon" />
               </q-avatar>
               <div class="text-caption text-grey-7 text-weight-medium text-uppercase status-card__label" style="letter-spacing: 0.04em">{{ card.label }}</div>
-              <div class="text-h6 text-weight-bold status-card__value q-ml-auto" :style="{ color: card.hex }">{{ card.value }}</div>
+              <div class="text-h6 text-weight-bold status-card__value q-ml-auto" :style="{ color: card.hex }">
+                <q-spinner v-if="loading" size="28px" :color="card.color" />
+                <template v-else>{{ card.value }}</template>
+              </div>
             </div>
             <q-tooltip>{{ getStatusCardTooltip(card) }}</q-tooltip>
           </q-card-section>
@@ -53,17 +56,6 @@
         <div class="row justify-between items-center employee-records-toolbar">
           <div class="row items-center q-gutter-sm">
             <div class="text-h6">Employee Records</div>
-            <q-chip
-              v-if="activeStatusFilterLabel"
-              dense
-              removable
-              color="primary"
-              text-color="white"
-              icon="filter_alt"
-              @remove="clearStatusFilter"
-            >
-              {{ activeStatusFilterLabel }}
-            </q-chip>
           </div>
           <q-input
             v-model="search"
@@ -90,6 +82,7 @@
         :loading="loading"
         :rows-per-page-options="[10, 20, 50]"
         v-model:pagination="pagination"
+        class="employee-records-table"
         @request="onRequest"
       >
         <template #body-cell-name="props">
@@ -278,7 +271,6 @@
             no-caps
             label="Apply Leave"
             color="green-8"
-            icon="description"
             class="employee-view-actions__btn"
             @click="applyLeaveFor(selectedEmployee); showViewDialog = false"
           />
@@ -550,11 +542,6 @@ const statusOptions = [
 
 const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
 const adminDepartmentName = computed(() => authStore.user?.department?.name ?? '-')
-const activeStatusFilterLabel = computed(() => {
-  if (!activeStatusFilter.value) return ''
-  const matched = statusOptions.find((option) => option.value === activeStatusFilter.value)
-  return matched?.label || activeStatusFilter.value
-})
 
 const noDataMessage = computed(() => {
   if (!adminDepartmentId.value) return 'Select or set your department to view employees.'
@@ -597,10 +584,10 @@ const visibleColumns = computed(() =>
 const statusCards = computed(() => [
   { key: 'TOTAL', label: 'Total Employees', value: totalEmployees.value, filterValue: '', icon: 'groups', hex: '#1565c0', color: 'primary', bg: '#e3f2fd' },
   { key: 'ELECTIVE', label: 'Elective', value: statusCounts.value.ELECTIVE || 0, filterValue: 'ELECTIVE', icon: 'how_to_vote', hex: '#f9a825', color: 'amber-9', bg: '#fff8e1' },
-  { key: 'CO-TERMINOUS', label: 'Co-terminous', value: statusCounts.value['CO-TERMINOUS'] || 0, filterValue: 'CO-TERMINOUS', icon: 'event_repeat', hex: '#0277bd', color: 'blue-8', bg: '#e1f5fe' },
+  { key: 'CO-TERMINOUS', label: 'Co-terminous', value: statusCounts.value['CO-TERMINOUS'] || 0, filterValue: 'CO-TERMINOUS', icon: 'event_repeat', hex: '#6d4c41', color: 'brown-7', bg: '#efebe9' },
   { key: 'REGULAR', label: 'Regular', value: statusCounts.value.REGULAR || 0, filterValue: 'REGULAR', icon: 'verified_user', hex: '#2e7d32', color: 'green-8', bg: '#e8f5e9' },
   { key: 'CASUAL', label: 'Casual', value: statusCounts.value.CASUAL || 0, filterValue: 'CASUAL', icon: 'person_outline', hex: '#e65100', color: 'orange-9', bg: '#fff3e0' },
-  { key: 'CONTRACTUAL', label: 'Contractual', value: statusCounts.value.CONTRACTUAL || 0, filterValue: 'CONTRACTUAL', icon: 'badge', hex: '#6d4c41', color: 'brown-7', bg: '#efebe9' },
+  { key: 'CONTRACTUAL', label: 'Contractual', value: statusCounts.value.CONTRACTUAL || 0, filterValue: 'CONTRACTUAL', icon: 'badge', hex: '#0d47a1', color: 'blue-9', bg: '#e3f2fd' },
 ])
 
 function normalizeStatus(value) {
@@ -657,12 +644,6 @@ function getStatusCardTooltip(card) {
     return card.filterValue ? 'Click to clear this status filter' : 'Showing all employees'
   }
   return card.filterValue ? `Filter by ${card.label}` : 'Show all employees'
-}
-
-function clearStatusFilter() {
-  if (!activeStatusFilter.value) return
-  activeStatusFilter.value = ''
-  fetchEmployees(1)
 }
 
 function applyStatusFilter(status) {
@@ -757,12 +738,12 @@ function statusBadgeColor(status) {
   if (!status) return 'grey'
   const colorMap = {
     REGULAR: 'green',
-    'CO-TERMINOUS': 'blue',
+    'CO-TERMINOUS': 'brown-7',
     ELECTIVE: 'amber',
     CASUAL: 'orange',
-    CONTRACTUAL: 'brown-7',
+    CONTRACTUAL: 'blue-9',
   }
-  return colorMap[status] ?? 'blue'
+  return colorMap[status] ?? 'blue-9'
 }
 
 function formatResponsiveStatusLabel(status) {
@@ -1289,19 +1270,30 @@ watch(adminDepartmentId, (id) => {
 
 .stat-card {
   cursor: pointer;
-  transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  border-color: #d9dee7;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
 .stat-card:hover {
   background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
+  border-color: var(--stat-card-accent, #d6dde6) !important;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08), inset 0 0 0 1px var(--stat-card-accent, #d6dde6);
   transform: translateY(-2px);
 }
 
 .stat-card--active {
   background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08), inset 0 0 0 2px var(--stat-card-accent, #2563eb);
+  border-color: var(--stat-card-accent, #2563eb) !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1), inset 0 0 0 2px var(--stat-card-accent, #2563eb);
   transform: translateY(-1px);
+}
+
+.stat-card--active .status-card__label {
+  color: var(--stat-card-accent, #2563eb) !important;
+}
+
+.stat-card--active .status-card__value {
+  transform: scale(1.03);
 }
 
 .stat-icon {
@@ -1331,6 +1323,10 @@ watch(adminDepartmentId, (id) => {
 
 .employee-records-search {
   min-width: 240px;
+}
+
+.employee-records-table :deep(.q-table__middle) {
+  overflow-x: auto;
 }
 
 .employee-name {
@@ -1492,6 +1488,22 @@ watch(adminDepartmentId, (id) => {
   .employee-records-search {
     min-width: 0 !important;
     width: 100%;
+  }
+
+  .employee-records-table :deep(table) {
+    min-width: 520px;
+  }
+
+  .employee-records-table :deep(th:first-child),
+  .employee-records-table :deep(td:first-child) {
+    width: 320px;
+    min-width: 320px;
+  }
+
+  .employee-records-table :deep(th:last-child),
+  .employee-records-table :deep(td:last-child) {
+    width: 200px;
+    min-width: 200px;
   }
 
   .employee-view-actions {

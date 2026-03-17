@@ -61,7 +61,7 @@
     <div v-else class="text-center q-pa-xl text-grey-7">Application not found</div>
 
     <q-dialog v-model="showDisapprove" persistent>
-      <q-card style="min-width: 360px">
+      <q-card class="admin-review-action-dialog-card admin-review-action-dialog-card--reject" style="min-width: 360px">
         <q-card-section><div class="text-h6">Disapprove Application</div></q-card-section>
         <q-card-section class="q-pt-none">
           <q-input v-model="remarks" type="textarea" label="Reason for disapproval" rows="4" outlined />
@@ -106,3 +106,14 @@ async function printApplication() {
   await generateLeaveFormPdf(application.value)
 }
 </script>
+
+<style scoped>
+.admin-review-action-dialog-card {
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.admin-review-action-dialog-card--reject {
+  border-color: #e6b8b8;
+}
+</style>

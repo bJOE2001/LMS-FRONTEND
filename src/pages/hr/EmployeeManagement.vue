@@ -38,7 +38,10 @@
               <q-icon name="groups" size="md" color="primary" class="q-mr-sm summary-strip__icon" />
               <div class="summary-strip__text">
                 <div class="text-caption text-weight-medium summary-strip__label">Total Employees</div>
-                <div class="text-h4 text-primary summary-strip__value">{{ totalEmployees }}</div>
+                <div class="text-h4 text-primary summary-strip__value">
+                  <q-spinner v-if="loading" size="32px" color="primary" />
+                  <template v-else>{{ totalEmployees }}</template>
+                </div>
               </div>
             </div>
           </q-card-section>
@@ -51,7 +54,10 @@
               <q-icon name="business" size="md" color="green-8" class="q-mr-sm summary-strip__icon" />
               <div class="summary-strip__text">
                 <div class="text-caption text-weight-medium summary-strip__label">Departments</div>
-                <div class="text-h4 text-green-8 summary-strip__value">{{ allDepartments.length }}</div>
+                <div class="text-h4 text-green-8 summary-strip__value">
+                  <q-spinner v-if="loadingDepartments" size="32px" color="green-8" />
+                  <template v-else>{{ allDepartments.length }}</template>
+                </div>
               </div>
             </div>
           </q-card-section>
@@ -105,6 +111,7 @@
         :loading="loading"
         v-model:pagination="employeePagination"
         :rows-per-page-options="[10]"
+        class="employee-records-table"
         @request="onEmployeeRequest"
         @row-click="onEmployeeRowClick"
       >
@@ -764,6 +771,7 @@ const $q = useQuasar()
 
 const search = ref('')
 const loading = ref(false)
+const loadingDepartments = ref(false)
 
 const employees = ref([])
 const allDepartments = ref([])
@@ -1001,8 +1009,8 @@ const ledgerIdentityServiceValueStyle = computed(() =>
 
 function statusBadgeColor(status) {
   if (!status) return 'grey'
-  const c = { REGULAR: 'green', 'CO-TERMINOUS': 'blue', ELECTIVE: 'amber', CASUAL: 'orange' }
-  return c[status] ?? 'blue'
+  const c = { REGULAR: 'green', 'CO-TERMINOUS': 'brown-7', ELECTIVE: 'amber', CASUAL: 'orange', CONTRACTUAL: 'blue-9' }
+  return c[status] ?? 'blue-9'
 }
 
 function formatResponsiveStatusLabel(status) {
@@ -1240,6 +1248,7 @@ function buildLedgerIdentityPreviewStyle(value) {
 }
 
 async function fetchDepartments() {
+  loadingDepartments.value = true
   try {
     const { data } = await api.get('/departments')
     allDepartments.value = data.departments ?? []
@@ -1247,6 +1256,8 @@ async function fetchDepartments() {
     console.error('Failed to load departments:', err)
     const msg = resolveApiErrorMessage(err, 'Unable to load departments right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    loadingDepartments.value = false
   }
 }
 
@@ -2908,6 +2919,10 @@ async function doImport() {
   overflow-x: hidden;
 }
 
+.employee-records-table :deep(.q-table__middle) {
+  overflow-x: auto;
+}
+
 .leave-history-table :deep(table) {
   table-layout: fixed;
   width: 100%;
@@ -2990,6 +3005,28 @@ async function doImport() {
     margin-top: 2px;
     font-size: 1.4rem !important;
     line-height: 1;
+  }
+
+  .employee-records-table :deep(table) {
+    min-width: 640px;
+  }
+
+  .employee-records-table :deep(th:nth-child(1)),
+  .employee-records-table :deep(td:nth-child(1)) {
+    width: 300px;
+    min-width: 300px;
+  }
+
+  .employee-records-table :deep(th:nth-child(2)),
+  .employee-records-table :deep(td:nth-child(2)) {
+    width: 160px;
+    min-width: 160px;
+  }
+
+  .employee-records-table :deep(th:nth-child(3)),
+  .employee-records-table :deep(td:nth-child(3)) {
+    width: 180px;
+    min-width: 180px;
   }
 }
 </style>
