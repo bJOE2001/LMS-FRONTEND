@@ -1,6 +1,6 @@
 <template>
   <q-page class="q-pa-md">
-    <div class="row items-center q-mb-lg">
+    <div :class="['row items-center q-mb-lg', { 'applications-page-header': props.applicationsOnly }]">
       <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">
         {{ props.applicationsOnly ? 'Applications' : 'Admin Dashboard' }}
       </h1>
@@ -11,6 +11,7 @@
         color="green-8"
         icon="description"
         label="Apply Leave"
+        class="applications-page-cta"
         @click="openApplyLeaveDialog"
       />
     </div>
@@ -47,22 +48,44 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-if="!props.applicationsOnly" v-model="showPendingReminderDialog" persistent>
-      <q-card style="min-width: 360px; max-width: 480px">
-        <q-card-section class="row items-center q-pb-none">
-          <q-icon name="pending_actions" color="warning" size="28px" class="q-mr-sm" />
-          <div class="text-h6">Pending Leave Applications</div>
+    <q-dialog
+      v-if="!props.applicationsOnly"
+      v-model="showPendingReminderDialog"
+      persistent
+      class="pending-reminder-dialog"
+    >
+      <q-card class="pending-reminder-card">
+        <q-card-section class="row items-center q-pb-none pending-reminder-card__header">
+          <q-icon
+            name="pending_actions"
+            color="warning"
+            size="28px"
+            class="q-mr-sm pending-reminder-card__icon"
+          />
+          <div class="text-h6 pending-reminder-card__title">Pending Leave Applications</div>
         </q-card-section>
-        <q-card-section>
-          <div class="text-body2 text-grey-8">
+        <q-card-section class="pending-reminder-card__body">
+          <div class="text-body2 text-grey-8 pending-reminder-card__message">
             You have
             <span class="text-weight-bold">{{ dashboardData.pending_count }}</span>
             pending leave application(s) that need review and approval.
           </div>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat color="grey-7" label="Later" v-close-popup />
-          <q-btn unelevated color="warning" label="Review Now" @click="focusPendingApplications" />
+        <q-card-actions align="right" class="pending-reminder-card__actions">
+          <q-btn
+            flat
+            color="grey-7"
+            label="Later"
+            class="pending-reminder-card__button"
+            v-close-popup
+          />
+          <q-btn
+            unelevated
+            color="warning"
+            label="Review Now"
+            class="pending-reminder-card__button"
+            @click="focusPendingApplications"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -267,12 +290,12 @@
           </q-td>
         </template>
         <template #body-cell-status="props">
-          <q-td class="text-center">
+          <q-td class="application-status-cell">
             <q-badge
               :color="getApplicationStatusColor(props.row)"
               :label="getApplicationStatusLabel(props.row)"
               rounded
-              class="text-weight-medium q-pa-xs"
+              class="text-weight-medium q-pa-xs application-status-badge"
               style="padding-left: 10px; padding-right: 10px"
             />
           </q-td>
@@ -289,6 +312,18 @@
                 @click.stop="openDetails(props.row)"
               >
                 <q-tooltip>View</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canPrintApplication(props.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="print"
+                color="blue-grey-7"
+                @click.stop="printApplication(props.row)"
+              >
+                <q-tooltip>Print PDF</q-tooltip>
               </q-btn>
               <template v-if="props.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
@@ -409,10 +444,22 @@
           </div>
         </q-card-section>
         <q-card-actions
-          v-if="$q.screen.lt.sm && selectedApp && hasMobileApplicationActions(selectedApp)"
+          v-if="
+            $q.screen.lt.sm &&
+            selectedApp &&
+            (hasMobileApplicationActions(selectedApp) || canPrintApplication(selectedApp))
+          "
           align="right"
           class="application-timeline-actions"
         >
+          <q-btn
+            v-if="canPrintApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="blue-grey-7"
+            label="Print"
+            @click="printApplication(selectedApp)"
+          />
           <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
             <q-btn
               unelevated
@@ -753,21 +800,38 @@ const columns = [
     name: 'status',
     label: 'Status',
     field: (row) => getApplicationStatusLabel(row),
-    align: 'center',
+    align: 'left',
   },
   {
     name: 'actions',
     label: 'Actions',
     align: 'center',
-    style: 'width: 150px',
-    headerStyle: 'width: 150px',
+    style: 'width: 190px',
+    headerStyle: 'width: 190px',
   },
 ]
+const mobileApplicationColumnWidths = {
+  employee: '180px',
+  status: '134px',
+  leaveType: '148px',
+}
 const applicationTableColumns = computed(() => {
   if (!$q.screen.lt.sm) return columns
 
   return ['employee', 'status', 'leaveType']
-    .map((name) => columns.find((column) => column.name === name))
+    .map((name) => {
+      const column = columns.find((entry) => entry.name === name)
+      if (!column) return null
+
+      const mobileWidth = mobileApplicationColumnWidths[name]
+      if (!mobileWidth) return column
+
+      return {
+        ...column,
+        style: `min-width: ${mobileWidth};`,
+        headerStyle: `min-width: ${mobileWidth}; text-align: left;`,
+      }
+    })
     .filter(Boolean)
 })
 const showApplyLeaveDialog = ref(false)
@@ -2694,8 +2758,34 @@ async function confirmDisapprove() {
   overflow: hidden;
   display: flex;
 }
+.pending-reminder-card {
+  min-width: 360px;
+  max-width: 480px;
+  width: min(480px, calc(100vw - 32px));
+  border-radius: 18px;
+}
+.pending-reminder-card__header {
+  padding: 20px 24px 0;
+}
+.pending-reminder-card__title {
+  font-weight: 700;
+}
+.pending-reminder-card__body {
+  padding: 14px 24px 10px;
+}
+.pending-reminder-card__message {
+  line-height: 1.5;
+}
+.pending-reminder-card__actions {
+  gap: 10px;
+  padding: 6px 24px 22px;
+}
+.pending-reminder-card__button {
+  min-height: 44px;
+  padding-inline: 18px;
+}
 .pending-actions-cell {
-  width: 150px;
+  width: 190px;
   padding-right: 8px;
 }
 .pending-actions-icon-btn {
@@ -2729,6 +2819,16 @@ async function confirmDisapprove() {
 }
 .application-status-search--left :deep(.q-field) {
   width: 100%;
+}
+.application-status-cell {
+  text-align: left;
+  white-space: nowrap;
+}
+.application-status-badge {
+  display: inline-flex;
+  justify-content: flex-start;
+  margin-left: 0;
+  max-width: none;
 }
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
@@ -2967,6 +3067,66 @@ async function confirmDisapprove() {
   .apply-leave-dialog-header {
     min-height: 52px;
     padding: 0 8px 0 10px;
+  }
+
+  .applications-page-header {
+    align-items: flex-start;
+    row-gap: 14px;
+  }
+
+  .applications-page-cta {
+    margin-top: 10px;
+  }
+
+  .pending-reminder-card {
+    min-width: 0;
+    width: calc(100vw - 18px);
+    max-width: calc(100vw - 18px);
+    border-radius: 16px;
+  }
+
+  .pending-reminder-card__header {
+    padding: 16px 18px 0;
+  }
+
+  .pending-reminder-card__icon {
+    font-size: 22px !important;
+  }
+
+  .pending-reminder-card__title {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+
+  .pending-reminder-card__body {
+    padding: 12px 18px 8px;
+  }
+
+  .pending-reminder-card__message {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .pending-reminder-card__actions {
+    gap: 8px;
+    padding: 2px 18px 16px;
+  }
+
+  .pending-reminder-card__button {
+    min-height: 40px;
+    padding-inline: 14px;
+    font-size: 0.88rem;
+  }
+
+  .applications-table :deep(th),
+  .applications-table :deep(td) {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .application-status-cell {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
   }
 
   .application-toolbar__search,

@@ -157,7 +157,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLeaveStore } from 'stores/leave-store'
@@ -173,7 +173,7 @@ const leaveStore = useLeaveStore()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
 
-const leftDrawer = ref(true)
+const leftDrawer = ref($q.screen.gt.sm)
 const logoutDialog = ref(false)
 const layoutReady = ref(false)
 const navbarRef = ref(null)
@@ -203,6 +203,14 @@ function initDarkMode() {
   // If no preference saved, keep Quasar default (light)
 }
 initDarkMode()
+
+watch(
+  () => $q.screen.gt.sm,
+  (isDesktop, wasDesktop) => {
+    if (isDesktop === wasDesktop) return
+    leftDrawer.value = isDesktop
+  },
+)
 
 // When authenticated, refresh user from API so department_admin gets department_id/department
 // (avoids stale localStorage from before we added those fields)

@@ -6,22 +6,39 @@
       </div>
     </div>
 
-    <q-dialog v-model="showPendingReminderDialog" persistent>
-      <q-card style="min-width: 360px; max-width: 480px">
-        <q-card-section class="row items-center q-pb-none">
-          <q-icon name="pending_actions" color="warning" size="28px" class="q-mr-sm" />
-          <div class="text-h6">Pending Leave Applications</div>
+    <q-dialog v-model="showPendingReminderDialog" persistent class="pending-reminder-dialog">
+      <q-card class="pending-reminder-card">
+        <q-card-section class="row items-center q-pb-none pending-reminder-card__header">
+          <q-icon
+            name="pending_actions"
+            color="warning"
+            size="28px"
+            class="q-mr-sm pending-reminder-card__icon"
+          />
+          <div class="text-h6 pending-reminder-card__title">Pending Leave Applications</div>
         </q-card-section>
-        <q-card-section>
-          <div class="text-body2 text-grey-8">
+        <q-card-section class="pending-reminder-card__body">
+          <div class="text-body2 text-grey-8 pending-reminder-card__message">
             You have
             <span class="text-weight-bold">{{ dashboardData.pending_count }}</span>
             pending leave application(s) that need review and approval.
           </div>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat color="grey-7" label="Later" v-close-popup />
-          <q-btn unelevated color="warning" label="Review Now" @click="reviewPendingApplications" />
+        <q-card-actions align="right" class="pending-reminder-card__actions">
+          <q-btn
+            flat
+            color="grey-7"
+            label="Later"
+            class="pending-reminder-card__button"
+            v-close-popup
+          />
+          <q-btn
+            unelevated
+            color="warning"
+            label="Review Now"
+            class="pending-reminder-card__button"
+            @click="reviewPendingApplications"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -988,7 +1005,80 @@ onMounted(fetchDashboard)
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 
+.pending-reminder-card {
+  min-width: 360px;
+  max-width: 480px;
+  width: min(480px, calc(100vw - 32px));
+  border-radius: 18px;
+}
+
+.pending-reminder-card__header {
+  padding: 20px 24px 0;
+}
+
+.pending-reminder-card__title {
+  font-weight: 700;
+}
+
+.pending-reminder-card__body {
+  padding: 14px 24px 10px;
+}
+
+.pending-reminder-card__message {
+  line-height: 1.5;
+}
+
+.pending-reminder-card__actions {
+  gap: 10px;
+  padding: 6px 24px 22px;
+}
+
+.pending-reminder-card__button {
+  min-height: 44px;
+  padding-inline: 18px;
+}
+
 @media (max-width: 599px) {
+  .pending-reminder-card {
+    min-width: 0;
+    width: calc(100vw - 18px);
+    max-width: calc(100vw - 18px);
+    border-radius: 16px;
+  }
+
+  .pending-reminder-card__header {
+    padding: 16px 18px 0;
+  }
+
+  .pending-reminder-card__icon {
+    font-size: 22px !important;
+  }
+
+  .pending-reminder-card__title {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+
+  .pending-reminder-card__body {
+    padding: 12px 18px 8px;
+  }
+
+  .pending-reminder-card__message {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .pending-reminder-card__actions {
+    gap: 8px;
+    padding: 2px 18px 16px;
+  }
+
+  .pending-reminder-card__button {
+    min-height: 40px;
+    padding-inline: 14px;
+    font-size: 0.88rem;
+  }
+
   .stat-cards-row {
     margin: 0 0 4px !important;
   }
