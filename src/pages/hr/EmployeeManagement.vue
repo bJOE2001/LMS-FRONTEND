@@ -1009,7 +1009,7 @@ const ledgerIdentityServiceValueStyle = computed(() =>
 
 function statusBadgeColor(status) {
   if (!status) return 'grey'
-  const c = { REGULAR: 'green', 'CO-TERMINOUS': 'brown-7', ELECTIVE: 'amber', CASUAL: 'orange', CONTRACTUAL: 'blue-9' }
+  const c = { REGULAR: 'green', 'CO-TERMINOUS': 'brown-7', ELECTIVE: 'purple-8', CASUAL: 'orange', CONTRACTUAL: 'blue-9' }
   return c[status] ?? 'blue-9'
 }
 

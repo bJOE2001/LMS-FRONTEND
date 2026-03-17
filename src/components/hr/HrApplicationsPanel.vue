@@ -1,9 +1,22 @@
 <template>
   <q-card flat bordered class="hr-applications-panel rounded-borders q-mb-lg">
     <q-card-section>
-      <div class="row justify-between items-center q-mb-md">
-        <div class="row items-center q-gutter-sm">
-          <div class="text-h6">All Applications</div>
+      <div class="row items-center justify-between q-mb-md q-col-gutter-sm applications-panel-toolbar">
+        <div class="col applications-panel-toolbar__search">
+          <q-input
+            v-model="statusSearch"
+            dense
+            outlined
+            clearable
+            placeholder="Search all applications columns"
+            class="application-status-search application-status-search--left"
+          >
+            <template #prepend>
+              <q-icon name="search" />
+            </template>
+          </q-input>
+        </div>
+        <div class="col-auto row items-center q-gutter-sm applications-panel-toolbar__actions">
           <q-chip
             v-if="employmentTypeFilterLabel"
             dense
@@ -15,20 +28,6 @@
           >
             {{ employmentTypeFilterLabel }}
           </q-chip>
-        </div>
-        <div class="row items-center q-gutter-sm">
-          <q-input
-            v-model="statusSearch"
-            dense
-            outlined
-            clearable
-            placeholder="Search all applications columns"
-            class="application-status-search"
-          >
-            <template #prepend>
-              <q-icon name="search" />
-            </template>
-          </q-input>
         </div>
       </div>
     </q-card-section>
@@ -1231,6 +1230,22 @@ async function confirmReject() {
 .hr-applications-panel .application-status-search {
   width: min(440px, 84vw);
 }
+.hr-applications-panel .applications-panel-toolbar {
+  row-gap: 8px;
+}
+
+.hr-applications-panel .applications-panel-toolbar__search {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hr-applications-panel .application-status-search--left {
+  width: min(440px, 100%);
+}
+
+.hr-applications-panel .application-status-search--left .q-field {
+  width: 100%;
+}
 
 .applications-table--interactive tbody tr {
   cursor: pointer;
@@ -1383,6 +1398,28 @@ async function confirmReject() {
 }
 
 @media (max-width: 599px) {
+  .hr-applications-panel .applications-panel-toolbar__search,
+  .hr-applications-panel .applications-panel-toolbar__actions {
+    width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .hr-applications-panel .applications-panel-toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .hr-applications-panel .applications-panel-toolbar {
+    display: block;
+  }
+
+  .hr-applications-panel .application-status-search--left {
+    width: 100%;
+  }
+
+  .hr-applications-panel .application-status-search--left .q-field {
+    width: 100%;
+  }
+
   .hr-action-dialog-card {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);

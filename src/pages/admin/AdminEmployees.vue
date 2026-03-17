@@ -583,7 +583,7 @@ const visibleColumns = computed(() =>
 
 const statusCards = computed(() => [
   { key: 'TOTAL', label: 'Total Employees', value: totalEmployees.value, filterValue: '', icon: 'groups', hex: '#1565c0', color: 'primary', bg: '#e3f2fd' },
-  { key: 'ELECTIVE', label: 'Elective', value: statusCounts.value.ELECTIVE || 0, filterValue: 'ELECTIVE', icon: 'how_to_vote', hex: '#f9a825', color: 'amber-9', bg: '#fff8e1' },
+  { key: 'ELECTIVE', label: 'Elective', value: statusCounts.value.ELECTIVE || 0, filterValue: 'ELECTIVE', icon: 'how_to_vote', hex: '#8e24aa', color: 'purple-8', bg: '#f3e5f5' },
   { key: 'CO-TERMINOUS', label: 'Co-terminous', value: statusCounts.value['CO-TERMINOUS'] || 0, filterValue: 'CO-TERMINOUS', icon: 'event_repeat', hex: '#6d4c41', color: 'brown-7', bg: '#efebe9' },
   { key: 'REGULAR', label: 'Regular', value: statusCounts.value.REGULAR || 0, filterValue: 'REGULAR', icon: 'verified_user', hex: '#2e7d32', color: 'green-8', bg: '#e8f5e9' },
   { key: 'CASUAL', label: 'Casual', value: statusCounts.value.CASUAL || 0, filterValue: 'CASUAL', icon: 'person_outline', hex: '#e65100', color: 'orange-9', bg: '#fff3e0' },
@@ -739,7 +739,7 @@ function statusBadgeColor(status) {
   const colorMap = {
     REGULAR: 'green',
     'CO-TERMINOUS': 'brown-7',
-    ELECTIVE: 'amber',
+    ELECTIVE: 'purple-8',
     CASUAL: 'orange',
     CONTRACTUAL: 'blue-9',
   }
