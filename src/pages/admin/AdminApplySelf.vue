@@ -10,34 +10,6 @@
     </div>
 
     <q-card flat bordered :class="['rounded-borders q-mb-lg', { 'dialog-form-card': inDialog }]">
-      <q-form v-if="inDialog" ref="dialogStep1Form" greedy class="section-block q-ma-md q-mb-none">
-        <div class="dialog-summary-header">
-          <div class="dialog-summary-main">
-            <div class="dialog-summary-line dialog-summary-line--name">{{ dialogEmployeeName }}</div>
-            <div class="dialog-summary-line dialog-summary-line--position">{{ form.position || '-' }}</div>
-            <div class="dialog-summary-line dialog-summary-line--department">{{ dialogOfficeDisplay }}</div>
-          </div>
-          <div class="dialog-summary-meta">
-            <div class="dialog-summary-meta-item dialog-summary-meta-item--filed">
-              <span class="dialog-summary-meta-label">Date of Filing:</span>
-              <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
-            </div>
-            <div class="dialog-summary-meta-item dialog-summary-meta-item--leave-balance">
-              <div class="dialog-summary-badges">
-                <span
-                  v-for="item in dialogLeaveBalanceItems"
-                  :key="item.key"
-                  class="dialog-summary-badge"
-                >
-                  {{ item.label }}
-                  <q-tooltip>{{ item.tooltip }}</q-tooltip>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </q-form>
-
       <!-- Stepper -->
       <q-stepper
         v-model="step"
@@ -137,6 +109,68 @@
         <q-step :name="2" title="Details of Application" icon="description" :done="step > 2">
           <q-form ref="step2Form" @submit.prevent="onSubmit" greedy :class="{ 'dialog-step-form': inDialog }">
             <div :class="{ 'dialog-step-content-scroll': inDialog }">
+            <div v-if="inDialog" class="section-block dialog-summary-panel q-mb-lg">
+              <div class="dialog-summary-header">
+                <div class="dialog-summary-main">
+                  <div class="dialog-summary-line dialog-summary-line--name">
+                    <q-skeleton
+                      v-if="dialogSummaryLoading"
+                      type="text"
+                      animation="fade"
+                      class="dialog-summary-skeleton dialog-summary-skeleton--name"
+                    />
+                    <template v-else>{{ dialogEmployeeName }}</template>
+                  </div>
+                  <div class="dialog-summary-line dialog-summary-line--position">
+                    <q-skeleton
+                      v-if="dialogSummaryLoading"
+                      type="text"
+                      animation="fade"
+                      class="dialog-summary-skeleton dialog-summary-skeleton--position"
+                    />
+                    <template v-else>{{ form.position || '-' }}</template>
+                  </div>
+                  <div class="dialog-summary-line dialog-summary-line--department">
+                    <q-skeleton
+                      v-if="dialogSummaryLoading"
+                      type="text"
+                      animation="fade"
+                      class="dialog-summary-skeleton dialog-summary-skeleton--department"
+                    />
+                    <template v-else>{{ dialogOfficeDisplay }}</template>
+                  </div>
+                </div>
+                <div class="dialog-summary-meta">
+                  <div class="dialog-summary-meta-item dialog-summary-meta-item--filed">
+                    <span class="dialog-summary-meta-label">Date of Filing:</span>
+                    <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
+                  </div>
+                  <div class="dialog-summary-meta-item dialog-summary-meta-item--leave-balance">
+                    <div :class="['dialog-summary-badges', { 'dialog-summary-badges--loading': dialogSummaryLoading }]">
+                      <template v-if="dialogSummaryLoading">
+                        <q-skeleton
+                          v-for="index in 5"
+                          :key="`dialog-balance-${index}`"
+                          type="rect"
+                          animation="fade"
+                          class="dialog-summary-badge-skeleton"
+                        />
+                      </template>
+                      <template v-else>
+                        <span
+                          v-for="item in dialogLeaveBalanceItems"
+                          :key="item.key"
+                          class="dialog-summary-badge"
+                        >
+                          {{ item.label }}
+                          <q-tooltip>{{ item.tooltip }}</q-tooltip>
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div :class="{ 'dialog-application-grid': inDialog }">
             <!-- 6.A Type of Leave -->
             <div class="section-block q-mb-lg dialog-section dialog-section--type">
@@ -401,6 +435,7 @@
               <q-input v-model="form.reason" type="textarea" :rows="inDialog ? 2 : 3" outlined dense :placeholder="isMonetization ? 'Enter reason for monetization request' : 'Enter Reason / Purpose'" class="form-input" />
             </div>
             </div>
+            </div>
 
             <!-- Navigation -->
             <q-stepper-navigation
@@ -434,7 +469,6 @@
                 </template>
               </div>
             </q-stepper-navigation>
-            </div>
           </q-form>
         </q-step>
       </q-stepper>
@@ -478,10 +512,10 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const step = ref(props.inDialog ? 2 : 1)
-const dialogStep1Form = ref(null)
 const step1Form = ref(null)
 const step2Form = ref(null)
 const loading = ref(false)
+const dialogSummaryLoading = ref(Boolean(props.inDialog))
 const selectedDateDurations = ref({})
 const calendarDateWarning = ref('')
 const calendarDateWarningDate = ref('')
@@ -1083,6 +1117,8 @@ onMounted(async () => {
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load leave types right now.')
     $q.notify({ type: 'negative', message: msg })
+  } finally {
+    dialogSummaryLoading.value = false
   }
 })
 
@@ -1775,9 +1811,6 @@ async function goToStep2() {
 }
 
 async function submitDialogForm() {
-  const employeeValid = await dialogStep1Form.value?.validate?.()
-  if (!employeeValid) return
-
   const detailsValid = await step2Form.value?.validate?.()
   if (!detailsValid) return
 
@@ -1941,6 +1974,9 @@ async function onSubmit() {
 .dialog-form-card .section-block {
   padding: 14px;
 }
+.dialog-summary-panel {
+  margin-bottom: 14px;
+}
 .dialog-form-card :deep(.q-field--dense .q-field__control) {
   min-height: 34px;
 }
@@ -1959,6 +1995,9 @@ async function onSubmit() {
   line-height: 1.12;
   color: #2d3436;
   text-transform: uppercase;
+  min-height: 1.15rem;
+  display: flex;
+  align-items: center;
 }
 .dialog-summary-line--name {
   grid-column: 1;
@@ -2022,6 +2061,9 @@ async function onSubmit() {
   min-height: 1rem;
   max-width: 100%;
 }
+.dialog-summary-badges--loading {
+  min-height: 20px;
+}
 .dialog-summary-badge {
   padding: 1px 7px;
   border-radius: 999px;
@@ -2032,6 +2074,30 @@ async function onSubmit() {
   font-weight: 700;
   line-height: 1.1;
   white-space: nowrap;
+}
+.dialog-summary-skeleton {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 999px;
+}
+.dialog-summary-skeleton--name {
+  width: min(320px, 72%);
+  height: 28px;
+}
+.dialog-summary-skeleton--position {
+  width: min(240px, 52%);
+  height: 18px;
+}
+.dialog-summary-skeleton--department {
+  width: min(300px, 64%);
+  height: 18px;
+}
+.dialog-summary-badge-skeleton {
+  flex: 0 0 auto;
+  width: 58px;
+  height: 22px;
+  border-radius: 999px;
 }
 @media (max-width: 768px) {
   .dialog-summary-header {
@@ -2105,6 +2171,7 @@ async function onSubmit() {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .dialog-step-content-scroll {
   flex: 1 1 auto;
@@ -2334,16 +2401,28 @@ async function onSubmit() {
 .dialog-form-card :deep(.q-stepper__nav) {
   padding-top: 0;
 }
-.dialog-actions-bar {
+.dialog-form-card :deep(.q-stepper__nav.dialog-actions-bar) {
   flex: 0 0 auto;
+  width: 100%;
   margin-top: 10px;
-  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
-  border-top: 1px solid #e3e7eb;
+  padding: 18px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   background: #fff;
+  border-top: none !important;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  align-self: stretch;
+  justify-self: stretch;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  box-shadow: none;
 }
 .dialog-actions-row {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   margin: 0 !important;
+  margin-left: auto !important;
   display: flex;
   flex-wrap: nowrap;
   justify-content: flex-end;
@@ -2358,7 +2437,8 @@ async function onSubmit() {
   flex: 0 0 116px;
 }
 .dialog-actions-row .step-btn:last-child {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  min-width: 184px;
 }
 .dialog-actions-row :deep(.q-btn__content) {
   justify-content: center;
@@ -2406,16 +2486,22 @@ async function onSubmit() {
     padding: 6px 8px 10px;
   }
 
-  .dialog-actions-bar {
-    padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  .dialog-form-card :deep(.q-stepper__nav.dialog-actions-bar) {
+    padding: 16px 10px calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
 
   .dialog-actions-row {
     gap: 8px;
+    width: 100%;
   }
 
   .dialog-actions-row .step-btn:first-child {
-    flex-basis: 104px;
+    flex: 0 0 104px;
+  }
+
+  .dialog-actions-row .step-btn:last-child {
+    flex: 0 0 auto;
+    min-width: 164px;
   }
 }
 </style>

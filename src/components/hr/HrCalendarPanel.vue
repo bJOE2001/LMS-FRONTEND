@@ -80,7 +80,7 @@
           @click="cell.date && openDateDialog(cell.date)"
         >
           <div v-if="cell.day" class="calendar-day-content">
-            <div class="row justify-between items-start">
+            <div class="row justify-between items-start calendar-day-header">
               <span :class="cell.dayClass">{{ cell.day }}</span>
               <q-badge
                 v-if="cell.count"
@@ -112,16 +112,16 @@
     </q-card-section>
   </q-card>
 
-  <q-dialog v-model="showDateDialog">
-    <q-card style="min-width: 520px; max-width: 640px" class="rounded-borders">
-      <q-card-section class="row items-center bg-primary text-white">
+  <q-dialog v-model="showDateDialog" class="calendar-date-dialog">
+    <q-card class="rounded-borders calendar-date-dialog-card">
+      <q-card-section class="row items-center bg-primary text-white calendar-date-dialog-header">
         <q-icon name="calendar_today" size="sm" class="q-mr-sm" />
         <div class="text-subtitle1 text-weight-bold">{{ selectedDateLabel }}</div>
         <q-space />
         <q-btn icon="close" flat round dense color="white" v-close-popup />
       </q-card-section>
 
-      <q-card-section>
+      <q-card-section class="calendar-date-dialog-body">
         <div v-if="selectedDateEmployees.length" class="text-caption text-grey-7 q-mb-md">
           {{ selectedDateEmployees.length }} employee(s) on leave
         </div>
@@ -139,31 +139,31 @@
           </q-badge>
         </div>
 
-        <div v-if="selectedDateEmployees.length" class="q-gutter-sm">
+        <div v-if="selectedDateEmployees.length" class="q-gutter-sm calendar-date-employee-list">
           <q-card
             v-for="emp in selectedDateEmployees"
             :key="emp.id"
             flat
             bordered
-            class="rounded-borders"
+            class="rounded-borders calendar-date-employee-card"
           >
-            <q-card-section class="q-pa-md">
-              <div class="row items-center no-wrap q-mb-xs">
+            <q-card-section class="q-pa-md calendar-date-employee-card-section">
+              <div class="row items-center no-wrap q-mb-xs calendar-date-employee-top">
                 <q-avatar size="32px" color="primary" text-color="white" class="q-mr-sm">
                   {{ emp.employeeName.charAt(0) }}
                 </q-avatar>
-                <div class="col">
+                <div class="col calendar-date-employee-identity">
                   <div class="text-weight-medium">{{ emp.employeeName }}</div>
                   <div class="text-caption text-grey-6">{{ emp.employee_id }}</div>
                 </div>
-                <q-badge color="positive" label="Approved" />
+                <q-badge color="positive" label="Approved" class="calendar-date-employee-status" />
               </div>
-              <div class="row q-gutter-xs q-mt-xs">
-                <q-badge outline color="primary" :label="emp.leaveType" />
-                <q-badge outline color="grey-7" :label="emp.office" />
-                <q-badge outline color="orange" :label="emp.days + ' day(s)'" />
+              <div class="row q-gutter-xs q-mt-xs calendar-date-employee-meta">
+                <q-badge outline color="primary" :label="emp.leaveType" class="calendar-date-employee-badge" />
+                <q-badge outline color="grey-7" :label="emp.office" class="calendar-date-employee-badge calendar-date-employee-badge--office" />
+                <q-badge outline color="orange" :label="emp.days + ' day(s)'" class="calendar-date-employee-badge" />
               </div>
-              <div class="text-caption text-grey-6 q-mt-xs">
+              <div class="text-caption text-grey-6 q-mt-xs calendar-date-employee-range">
                 {{ formatDate(emp.startDate) }} - {{ formatDate(emp.endDate) }}
               </div>
             </q-card-section>
@@ -607,9 +607,16 @@ function nextMonth() {
   gap: 4px;
 }
 .calendar-day-content {
+  position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
   gap: 4px;
+}
+.calendar-day-header {
+  position: relative;
+  min-height: 24px;
 }
 .calendar-grid-header {
   margin-bottom: 4px;
@@ -640,12 +647,145 @@ function nextMonth() {
   line-height: 1;
 }
 .min-h-80 {
-  min-height: 96px;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
 }
 .today-strong {
   background-color: #90caf9 !important;
 }
 .selected-outline {
   box-shadow: inset 0 0 0 1.5px #4fc3f7;
+}
+.calendar-date-dialog-card {
+  width: min(640px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+}
+.calendar-date-dialog-header {
+  min-height: 52px;
+}
+.calendar-date-dialog-body {
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+}
+.calendar-date-employee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.calendar-date-employee-card-section {
+  padding: 14px;
+}
+.calendar-date-employee-identity {
+  min-width: 0;
+}
+.calendar-date-employee-meta {
+  align-items: flex-start;
+}
+.calendar-date-employee-badge {
+  max-width: 100%;
+}
+.calendar-date-employee-badge--office {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+}
+.calendar-date-employee-range {
+  line-height: 1.35;
+}
+
+@media (max-width: 599px) {
+  .calendar-grid {
+    gap: 3px;
+  }
+
+  .calendar-grid > .min-h-80 {
+    padding: 4px !important;
+  }
+
+  .calendar-day-content {
+    gap: 2px;
+  }
+
+  .calendar-day-header {
+    position: static;
+    min-height: 20px;
+    justify-content: flex-start;
+  }
+
+  .calendar-leave-breakdown {
+    display: none;
+  }
+
+  .leave-balance-cell {
+    gap: 2px;
+  }
+
+  .leave-balance-badge {
+    padding: 1px 4px;
+    font-size: 0.58rem;
+  }
+
+  .calendar-total-badge {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 2px 6px;
+    font-size: 0.78rem;
+  }
+
+  .calendar-date-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 8px;
+  }
+
+  .calendar-date-dialog-card {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+
+  .calendar-date-dialog-header {
+    min-height: 48px;
+    padding: 8px 10px;
+  }
+
+  .calendar-date-dialog-header .text-subtitle1 {
+    min-width: 0;
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+
+  .calendar-date-dialog-body {
+    max-height: calc(100vh - 92px);
+    padding: 12px 10px;
+  }
+
+  .calendar-date-employee-card-section {
+    padding: 10px;
+  }
+
+  .calendar-date-employee-top {
+    align-items: flex-start;
+  }
+
+  .calendar-date-employee-status {
+    margin-left: 8px;
+    align-self: flex-start;
+  }
+
+  .calendar-date-employee-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .calendar-date-employee-badge {
+    max-width: 100%;
+    font-size: 0.7rem;
+  }
+
+  .calendar-date-employee-badge--office {
+    width: 100%;
+  }
 }
 </style>

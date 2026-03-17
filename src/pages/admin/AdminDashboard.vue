@@ -22,13 +22,19 @@
       transition-show="scale"
       transition-hide="scale"
     >
-      <q-card
-        class="apply-leave-dialog-card"
-      >
+      <q-card class="apply-leave-dialog-card">
         <q-bar class="apply-leave-dialog-header bg-primary text-white">
           <div class="text-h6 text-weight-bold">Leave Application</div>
           <q-space />
-          <q-btn flat round icon="close" color="white" size="md" class="apply-leave-dialog-close" @click="closeApplyLeaveDialog" />
+          <q-btn
+            flat
+            round
+            icon="close"
+            color="white"
+            size="md"
+            class="apply-leave-dialog-close"
+            @click="closeApplyLeaveDialog"
+          />
         </q-bar>
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplySelf
@@ -61,7 +67,10 @@
       </q-card>
     </q-dialog>
 
-    <div v-if="!props.applicationsOnly" class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
+    <div
+      v-if="!props.applicationsOnly"
+      class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row"
+    >
       <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
@@ -80,7 +89,9 @@
                 <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="description" size="28px" color="grey" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                  Applications
+                </div>
               </div>
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
@@ -118,9 +129,16 @@
               <div class="stat-card-left dashboard-kpi-left">
                 <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="schedule" size="28px" color="warning" />
-                  <q-icon v-if="dashboardData.pending_count > 5" name="warning" size="18px" color="warning" />
+                  <q-icon
+                    v-if="dashboardData.pending_count > 5"
+                    name="warning"
+                    size="18px"
+                    color="warning"
+                  />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">Pending Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                  Pending Applications
+                </div>
               </div>
               <div class="stat-value text-warning dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="warning" />
@@ -148,7 +166,9 @@
                 <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="check_circle" size="28px" color="primary" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">Total Approved</div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                  Total Approved
+                </div>
               </div>
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
@@ -160,30 +180,26 @@
       </div>
     </div>
 
-    <AdminAnalyticsCharts
-      v-if="!props.applicationsOnly"
-      :applications="applicationRows"
-    />
+    <AdminAnalyticsCharts v-if="!props.applicationsOnly" :applications="applicationRows" />
 
     <q-card v-if="props.applicationsOnly" flat bordered class="rounded-borders">
       <q-card-section>
-        <div class="row justify-between items-center q-col-gutter-sm">
-          <div class="row items-center q-gutter-sm">
-            <div class="text-h6">All Application</div>
-          </div>
-          <div class="row items-center q-gutter-sm">
+        <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
+          <div class="col application-toolbar__search">
             <q-input
               v-model="statusSearch"
               dense
               outlined
               clearable
               placeholder="Search all application columns"
-              class="application-status-search"
+              class="application-status-search application-status-search--left"
             >
               <template #prepend>
                 <q-icon name="search" />
               </template>
             </q-input>
+          </div>
+          <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
             <q-btn
               unelevated
               no-caps
@@ -198,12 +214,14 @@
       </q-card-section>
       <q-table
         :rows="applicationsForTable"
-        :columns="columns"
+        :columns="applicationTableColumns"
         row-key="application_uid"
         flat
         v-model:pagination="applicationsPagination"
         :rows-per-page-options="[5, 10, 15, 20]"
         :loading="loading"
+        class="applications-table applications-table--interactive"
+        @row-click="handleApplicationRowClick"
       >
         <template #body-cell-employee="props">
           <q-td>
@@ -243,7 +261,9 @@
         </template>
         <template #body-cell-dateFiled="props">
           <q-td>
-            <span class="text-weight-medium text-grey-9">{{ formatDate(props.row.dateFiled) || 'N/A' }}</span>
+            <span class="text-weight-medium text-grey-9">{{
+              formatDate(props.row.dateFiled) || 'N/A'
+            }}</span>
           </q-td>
         </template>
         <template #body-cell-status="props">
@@ -253,29 +273,70 @@
               :label="getApplicationStatusLabel(props.row)"
               rounded
               class="text-weight-medium q-pa-xs"
-              style="padding-left:10px;padding-right:10px"
+              style="padding-left: 10px; padding-right: 10px"
             />
           </q-td>
         </template>
         <template #body-cell-actions="props">
           <q-td class="pending-actions-cell text-center">
             <div class="row no-wrap justify-center items-center q-gutter-x-xs">
-              <q-btn flat dense round size="sm" icon="visibility" @click="openDetails(props.row)">
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                icon="visibility"
+                @click.stop="openDetails(props.row)"
+              >
                 <q-tooltip>View</q-tooltip>
               </q-btn>
               <template v-if="props.row.rawStatus === 'PENDING_ADMIN'">
-                <q-btn flat dense round size="sm" icon="check_circle" color="green-7" @click="openActionConfirm('approve', props.row)">
-                  <q-tooltip>Approve</q-tooltip>
+                <q-btn
+                  unelevated
+                  dense
+                  size="sm"
+                  icon="close"
+                  color="blue-grey-7"
+                  text-color="white"
+                  class="pending-actions-icon-btn pending-actions-icon-btn--cancel"
+                  @click.stop="openActionConfirm('cancel', props.row)"
+                >
+                  <q-tooltip>Cancel</q-tooltip>
                 </q-btn>
-                <q-btn flat dense round size="sm" icon="cancel" color="negative" @click="openActionConfirm('disapprove', props.row)">
+                <q-btn
+                  flat
+                  dense
+                  round
+                  size="sm"
+                  icon="cancel"
+                  color="negative"
+                  @click.stop="openActionConfirm('disapprove', props.row)"
+                >
                   <q-tooltip>Disapprove</q-tooltip>
                 </q-btn>
-                <q-btn flat dense round size="sm" icon="event_busy" color="blue-grey-7" @click="openActionConfirm('cancel', props.row)">
-                  <q-tooltip>Cancel</q-tooltip>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  size="sm"
+                  icon="check_circle"
+                  color="green-7"
+                  @click.stop="openActionConfirm('approve', props.row)"
+                >
+                  <q-tooltip>Approve</q-tooltip>
                 </q-btn>
               </template>
               <template v-else-if="props.row.rawStatus === 'PENDING_HR'">
-                <q-btn flat dense round size="sm" icon="event_busy" color="blue-grey-7" @click="openActionConfirm('cancel', props.row)">
+                <q-btn
+                  unelevated
+                  dense
+                  size="sm"
+                  icon="close"
+                  color="blue-grey-7"
+                  text-color="white"
+                  class="pending-actions-icon-btn pending-actions-icon-btn--cancel"
+                  @click.stop="openActionConfirm('cancel', props.row)"
+                >
                   <q-tooltip>Cancel</q-tooltip>
                 </q-btn>
               </template>
@@ -292,8 +353,12 @@
     </q-card>
 
     <!-- View dialog -->
-    <q-dialog v-model="showDetailsDialog" position="standard">
-      <q-card v-if="selectedApp" class="application-timeline-card" style="width: 680px; max-width: 96vw">
+    <q-dialog v-model="showDetailsDialog" persistent position="standard">
+      <q-card
+        v-if="selectedApp"
+        class="application-timeline-card"
+        style="width: 560px; max-width: 94vw"
+      >
         <q-card-section class="row items-start no-wrap application-timeline-header">
           <div class="application-timeline-header-copy">
             <div class="text-h6 application-timeline-header-title">Application Timeline</div>
@@ -343,32 +408,98 @@
             </div>
           </div>
         </q-card-section>
+        <q-card-actions
+          v-if="$q.screen.lt.sm && selectedApp && hasMobileApplicationActions(selectedApp)"
+          align="right"
+          class="application-timeline-actions"
+        >
+          <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
+            <q-btn
+              unelevated
+              no-caps
+              color="blue-grey-7"
+              label="Cancel"
+              @click="openActionConfirm('cancel', selectedApp)"
+            />
+            <q-btn
+              unelevated
+              no-caps
+              color="negative"
+              label="Disapprove"
+              @click="openActionConfirm('disapprove', selectedApp)"
+            />
+            <q-btn
+              unelevated
+              no-caps
+              color="green-7"
+              label="Approve"
+              @click="openActionConfirm('approve', selectedApp)"
+            />
+          </template>
+          <template v-else-if="selectedApp.rawStatus === 'PENDING_HR'">
+            <q-btn
+              unelevated
+              no-caps
+              color="blue-grey-7"
+              label="Cancel"
+              @click="openActionConfirm('cancel', selectedApp)"
+            />
+          </template>
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
     <!-- Action confirmation dialog -->
     <q-dialog v-model="showConfirmActionDialog">
-      <q-card style="min-width: 360px; max-width: 440px">
-        <q-card-section class="text-center q-py-md">
-          <div class="text-h6">
+      <q-card
+        class="admin-action-dialog-card"
+        :class="
+          confirmActionType === 'approve'
+            ? 'admin-action-dialog-card--approve'
+            : 'admin-action-dialog-card--reject'
+        "
+      >
+        <q-card-section class="row justify-end admin-action-dialog-card__top">
+          <q-btn
+            flat
+            round
+            dense
+            icon="close"
+            color="grey-6"
+            aria-label="Close confirmation"
+            v-close-popup
+          />
+        </q-card-section>
+        <q-card-section class="text-center admin-action-dialog-card__content">
+          <div class="admin-action-dialog-card__title">
             {{ getConfirmActionTitle(confirmActionType) }}
           </div>
-          <div class="text-body2 text-grey-7 q-mt-sm">
+          <div class="admin-action-dialog-card__message">
             {{ getConfirmActionMessage(confirmActionType) }}
           </div>
         </q-card-section>
-        <q-card-actions align="center" class="q-pb-md">
+        <q-card-actions class="admin-action-dialog-card__actions">
           <q-btn
-            unelevated
-            label="Yes"
-            color="green-7"
-            @click="confirmPendingAction"
+            outline
+            no-caps
+            label="Cancel"
+            color="grey-7"
+            class="admin-action-dialog-card__button admin-action-dialog-card__button--cancel"
+            v-close-popup
           />
           <q-btn
             unelevated
-            label="No"
-            color="negative"
-            v-close-popup
+            no-caps
+            label="Confirm"
+            :color="
+              confirmActionType === 'approve'
+                ? 'green-7'
+                : confirmActionType === 'cancel'
+                  ? 'blue-grey-7'
+                  : 'negative'
+            "
+            class="admin-action-dialog-card__button"
+            @click="confirmPendingAction"
           />
         </q-card-actions>
       </q-card>
@@ -376,12 +507,21 @@
 
     <!-- Disapprove dialog -->
     <q-dialog v-model="showDisapproveDialog" persistent>
-      <q-card style="min-width: 360px">
+      <q-card
+        class="admin-action-dialog-card admin-action-dialog-card--reject"
+        style="min-width: 360px"
+      >
         <q-card-section>
           <div class="text-h6">{{ rejectionDialogTitle }}</div>
         </q-card-section>
         <q-card-section class="q-pt-none">
-          <q-input v-model="remarks" type="textarea" :label="rejectionDialogLabel" rows="4" outlined />
+          <q-input
+            v-model="remarks"
+            type="textarea"
+            :label="rejectionDialogLabel"
+            rows="4"
+            outlined
+          />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancel" v-close-popup />
@@ -402,18 +542,22 @@
         <q-card-section class="row items-center">
           <q-icon
             :name="actionResultType === 'approved' ? 'check_circle' : 'cancel'"
-            :color="actionResultType === 'approved' ? 'green-7' : (actionResultType === 'cancelled' ? 'blue-grey-7' : 'negative')"
+            :color="
+              actionResultType === 'approved'
+                ? 'green-7'
+                : actionResultType === 'cancelled'
+                  ? 'blue-grey-7'
+                  : 'negative'
+            "
             size="28px"
             class="q-mr-sm"
           />
-          <div class="text-h6">
-            Application {{ getActionResultLabel(actionResultType) }}
-          </div>
+          <div class="text-h6">Application {{ getActionResultLabel(actionResultType) }}</div>
         </q-card-section>
         <q-card-section class="q-pt-none">
           <div class="text-body2 text-grey-8">
-            The application has been {{ getActionResultVerb(actionResultType) }}.
-            You can print the finalized form now.
+            The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
+            finalized form now.
           </div>
           <div v-if="actionResultApp" class="text-caption text-grey-7 q-mt-sm">
             {{ actionResultApp.employeeName }} - {{ actionResultApp.leaveType }}
@@ -503,7 +647,7 @@ const kpiBreakdown = computed(() => {
 })
 
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
-  { key: 'elective', label: 'Elective', accent: '#f9a825', bg: '#fff8e1' },
+  { key: 'elective', label: 'Elective', accent: '#8e24aa', bg: '#f3e5f5' },
   { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
   { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
   { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
@@ -515,20 +659,25 @@ const applicationsPagination = ref({
   page: 1,
   rowsPerPage: 10,
 })
-const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
-const totalApplicationBreakdownCards = computed(() => EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
-  ...card,
-  value: kpiBreakdown.value.total[card.key] ?? 0,
-})))
+const adminDepartmentId = computed(
+  () => authStore.user?.department_id ?? authStore.user?.department?.id,
+)
+const totalApplicationBreakdownCards = computed(() =>
+  EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
+    ...card,
+    value: kpiBreakdown.value.total[card.key] ?? 0,
+  })),
+)
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
-  const applications = (applicationRows.value ?? [])
-    .filter((app) => matchesEmploymentTypeFilter(app))
+  const applications = (applicationRows.value ?? []).filter((app) =>
+    matchesEmploymentTypeFilter(app),
+  )
   const filteredApplications = queryTokens.length
     ? applications.filter((app) => {
-      const searchText = getApplicationSearchText(app)
-      return queryTokens.every((token) => searchText.includes(token))
-    })
+        const searchText = getApplicationSearchText(app)
+        return queryTokens.every((token) => searchText.includes(token))
+      })
     : applications
 
   return [...filteredApplications].sort(compareApplicationsForTable)
@@ -548,8 +697,7 @@ watch(
 
 const latestLeaveBalanceEntriesByEmployee = computed(() => {
   const entriesByEmployee = new Map()
-  const applications = [...(applicationRows.value ?? [])]
-    .sort(compareApplicationsByRecencyDesc)
+  const applications = [...(applicationRows.value ?? [])].sort(compareApplicationsByRecencyDesc)
 
   for (const app of applications) {
     const employeeKey = getEmployeeBalanceLookupKey(app)
@@ -576,14 +724,52 @@ const latestLeaveBalanceEntriesByEmployee = computed(() => {
 
 const columns = [
   { name: 'employee', label: 'Employee', align: 'left' },
-  { name: 'leaveType', label: 'Leave Type', field: (row) => row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType, align: 'left' },
-  { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
-  { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
-  { name: 'leaveBalance', label: 'Leave Balance', field: (row) => getLeaveBalanceDisplay(row), align: 'left' },
+  {
+    name: 'leaveType',
+    label: 'Leave Type',
+    field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
+    align: 'left',
+  },
+  {
+    name: 'dateFiled',
+    label: 'Date Filed',
+    field: (row) => (row.dateFiled ? formatDate(row.dateFiled) : 'N/A'),
+    align: 'left',
+  },
+  {
+    name: 'inclusiveDates',
+    label: 'Inclusive Dates',
+    field: (row) => getApplicationDurationLabel(row),
+    align: 'left',
+  },
+  {
+    name: 'leaveBalance',
+    label: 'Leave Balance',
+    field: (row) => getLeaveBalanceDisplay(row),
+    align: 'left',
+  },
   { name: 'days', label: 'Duration', field: (row) => getApplicationDurationDisplay(row), align: 'center' },
-  { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'center' },
-  { name: 'actions', label: 'Actions', align: 'center', style: 'width: 150px', headerStyle: 'width: 150px' },
+  {
+    name: 'status',
+    label: 'Status',
+    field: (row) => getApplicationStatusLabel(row),
+    align: 'center',
+  },
+  {
+    name: 'actions',
+    label: 'Actions',
+    align: 'center',
+    style: 'width: 150px',
+    headerStyle: 'width: 150px',
+  },
 ]
+const applicationTableColumns = computed(() => {
+  if (!$q.screen.lt.sm) return columns
+
+  return ['employee', 'status', 'leaveType']
+    .map((name) => columns.find((column) => column.name === name))
+    .filter(Boolean)
+})
 const showApplyLeaveDialog = ref(false)
 const showPendingReminderDialog = ref(false)
 const showDetailsDialog = ref(false)
@@ -601,10 +787,10 @@ const actionResultType = ref('approved')
 const actionResultApp = ref(null)
 const selectedAppTimeline = computed(() => buildApplicationTimeline(selectedApp.value))
 const rejectionDialogTitle = computed(() =>
-  rejectionMode.value === 'cancel' ? 'Cancel Application' : 'Disapprove Application'
+  rejectionMode.value === 'cancel' ? 'Cancel Application' : 'Disapprove Application',
 )
 const rejectionDialogLabel = computed(() =>
-  rejectionMode.value === 'cancel' ? 'Reason for cancellation' : 'Reason for disapproval'
+  rejectionMode.value === 'cancel' ? 'Reason for cancellation' : 'Reason for disapproval',
 )
 
 function pendingReminderSeenSessionKey() {
@@ -711,7 +897,8 @@ async function fetchDepartmentEmployees() {
 
       const currentPage = Number(pageData?.current_page ?? page)
       const resolvedLastPage = Number(pageData?.last_page ?? currentPage)
-      lastPage = Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
+      lastPage =
+        Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
       page = currentPage + 1
     } while (page <= lastPage)
 
@@ -723,9 +910,13 @@ async function fetchDepartmentEmployees() {
 
 onMounted(fetchDashboard)
 
-watch(adminDepartmentId, () => {
-  fetchDepartmentEmployees()
-}, { immediate: true })
+watch(
+  adminDepartmentId,
+  () => {
+    fetchDepartmentEmployees()
+  },
+  { immediate: true },
+)
 
 function maybeShowPendingReminder() {
   const pendingCount = Number(dashboardData.value.pending_count || 0)
@@ -764,7 +955,11 @@ function focusPendingApplications() {
 
 function formatDate(dateStr) {
   if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 function formatDateTime(dateStr) {
@@ -944,19 +1139,19 @@ function normalizeEmploymentTypeKey(value) {
 
   if (!normalized) return ''
   if (normalized.includes('ELECTIVE')) return 'elective'
-  if (normalized.includes('CO-TER') || normalized.includes('CO-TERM') || normalized.includes('COTER')) return 'co_terminous'
+  if (
+    normalized.includes('CO-TER') ||
+    normalized.includes('CO-TERM') ||
+    normalized.includes('COTER')
+  )
+    return 'co_terminous'
   if (normalized.includes('REGULAR')) return 'regular'
   if (normalized.includes('CASUAL')) return 'casual'
   return ''
 }
 
 function getEmployeeLookupCandidates(employee) {
-  return [
-    employee?.control_no,
-    employee?.controlNo,
-    employee?.employee_id,
-    employee?.employeeId,
-  ]
+  return [employee?.control_no, employee?.controlNo, employee?.employee_id, employee?.employeeId]
     .map((value) => normalizeLookupValue(value))
     .filter(Boolean)
 }
@@ -971,11 +1166,7 @@ function getEmployeeNameCandidates(employee) {
     [employee?.surname, employee?.firstname].filter(Boolean).join(' '),
   ]
 
-  return [...new Set(
-    nameVariants
-      .map((value) => normalizeEmployeeName(value))
-      .filter(Boolean),
-  )]
+  return [...new Set(nameVariants.map((value) => normalizeEmployeeName(value)).filter(Boolean))]
 }
 
 function getApplicationEmployeeDisplayName(application) {
@@ -987,8 +1178,16 @@ function getApplicationEmployeeDisplayName(application) {
     application?.employee?.employee_name ||
     application?.name ||
     application?.full_name ||
-    [application?.employee?.firstname, application?.employee?.middlename, application?.employee?.surname].filter(Boolean).join(' ') ||
-    [application?.firstname, application?.middlename, application?.surname].filter(Boolean).join(' ')
+    [
+      application?.employee?.firstname,
+      application?.employee?.middlename,
+      application?.employee?.surname,
+    ]
+      .filter(Boolean)
+      .join(' ') ||
+    [application?.firstname, application?.middlename, application?.surname]
+      .filter(Boolean)
+      .join(' ')
   )
 }
 
@@ -1019,21 +1218,33 @@ function getApplicationEmployeeNameCandidates(application) {
     application?.employee?.employee_name,
     application?.name,
     application?.full_name,
-    [application?.firstname, application?.middlename, application?.surname].filter(Boolean).join(' '),
+    [application?.firstname, application?.middlename, application?.surname]
+      .filter(Boolean)
+      .join(' '),
     [application?.firstname, application?.surname].filter(Boolean).join(' '),
-    [application?.surname, application?.firstname, application?.middlename].filter(Boolean).join(' '),
+    [application?.surname, application?.firstname, application?.middlename]
+      .filter(Boolean)
+      .join(' '),
     [application?.surname, application?.firstname].filter(Boolean).join(' '),
-    [application?.employee?.firstname, application?.employee?.middlename, application?.employee?.surname].filter(Boolean).join(' '),
+    [
+      application?.employee?.firstname,
+      application?.employee?.middlename,
+      application?.employee?.surname,
+    ]
+      .filter(Boolean)
+      .join(' '),
     [application?.employee?.firstname, application?.employee?.surname].filter(Boolean).join(' '),
-    [application?.employee?.surname, application?.employee?.firstname, application?.employee?.middlename].filter(Boolean).join(' '),
+    [
+      application?.employee?.surname,
+      application?.employee?.firstname,
+      application?.employee?.middlename,
+    ]
+      .filter(Boolean)
+      .join(' '),
     [application?.employee?.surname, application?.employee?.firstname].filter(Boolean).join(' '),
   ]
 
-  return [...new Set(
-    nameVariants
-      .map((value) => normalizeEmployeeName(value))
-      .filter(Boolean),
-  )]
+  return [...new Set(nameVariants.map((value) => normalizeEmployeeName(value)).filter(Boolean))]
 }
 
 function applicationMatchesEmployeeName(application, employee) {
@@ -1042,7 +1253,12 @@ function applicationMatchesEmployeeName(application, employee) {
 
   const employeeFirstName = normalizeEmployeeName(employee?.firstname)
   const employeeSurname = normalizeEmployeeName(employee?.surname)
-  if (employeeFirstName && employeeSurname && applicationName.includes(employeeFirstName) && applicationName.includes(employeeSurname)) {
+  if (
+    employeeFirstName &&
+    employeeSurname &&
+    applicationName.includes(employeeFirstName) &&
+    applicationName.includes(employeeSurname)
+  ) {
     return true
   }
 
@@ -1115,7 +1331,10 @@ function getApplicationMergeKey(application, index) {
   const employeeKey = getApplicationEmployeeLookupCandidates(application)[0]
   const employeeName = normalizeEmployeeName(getApplicationEmployeeDisplayName(application))
   const leaveTypeKey = normalizeEmployeeName(
-    application?.leaveType ?? application?.leave_type ?? application?.leaveTypeName ?? application?.leave_type_name,
+    application?.leaveType ??
+      application?.leave_type ??
+      application?.leaveTypeName ??
+      application?.leave_type_name,
   )
   const filedDateKey = normalizeLookupValue(
     application?.dateFiled ??
@@ -1294,7 +1513,8 @@ function prettifyLeaveBalanceLabel(value) {
     .trim()
 
   const lower = normalized.toLowerCase()
-  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave')
+    return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
   if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
   if (lower === 'vacation') return 'Vacation Leave'
@@ -1345,13 +1565,12 @@ function getEmployeeBalanceLookupKey(app) {
     return String(explicitKey).trim().toLowerCase()
   }
 
-  const nameKey = [
-    app?.surname,
-    app?.firstname,
-    app?.middlename,
-    app?.employeeName,
-  ]
-    .map((value) => String(value || '').trim().toLowerCase())
+  const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employeeName]
+    .map((value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase(),
+    )
     .filter(Boolean)
     .join('|')
 
@@ -1364,8 +1583,7 @@ function getLeaveBalanceTypeKey(value) {
 
 function isEventBasedLeaveBalanceType(value) {
   const typeKey = getLeaveBalanceTypeKey(value)
-  return EVENT_BASED_LEAVE_BALANCE_TYPES
-    .some((label) => getLeaveBalanceTypeKey(label) === typeKey)
+  return EVENT_BASED_LEAVE_BALANCE_TYPES.some((label) => getLeaveBalanceTypeKey(label) === typeKey)
 }
 
 function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
@@ -1379,8 +1597,18 @@ function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabe
       addLeaveBalanceEntry(
         entries,
         seen,
-        item.leave_type_name || item.leave_type || item.type_name || item.type || item.name || item.label || fallbackLabel,
-        item.balance ?? item.remaining_balance ?? item.available_balance ?? item.credits ?? item.value
+        item.leave_type_name ||
+          item.leave_type ||
+          item.type_name ||
+          item.type ||
+          item.name ||
+          item.label ||
+          fallbackLabel,
+        item.balance ??
+          item.remaining_balance ??
+          item.available_balance ??
+          item.credits ??
+          item.value,
       )
     }
     return
@@ -1398,8 +1626,18 @@ function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabe
       addLeaveBalanceEntry(
         entries,
         seen,
-        value.leave_type_name || value.leave_type || value.type_name || value.type || value.name || value.label || key,
-        value.balance ?? value.remaining_balance ?? value.available_balance ?? value.credits ?? value.value
+        value.leave_type_name ||
+          value.leave_type ||
+          value.type_name ||
+          value.type ||
+          value.name ||
+          value.label ||
+          key,
+        value.balance ??
+          value.remaining_balance ??
+          value.available_balance ??
+          value.credits ??
+          value.value,
       )
       continue
     }
@@ -1429,7 +1667,7 @@ function getLeaveBalanceEntriesFromSnapshot(app) {
       entries,
       seen,
       app?.leaveType || 'Leave Balance',
-      app?.balance ?? app?.leave_balance ?? app?.remaining_balance ?? app?.available_balance
+      app?.balance ?? app?.leave_balance ?? app?.remaining_balance ?? app?.available_balance,
     )
   }
 
@@ -1449,13 +1687,14 @@ function resolveLatestLeaveBalanceEntries(app) {
 }
 
 function getLeaveBalanceEntries(app) {
-  const resolvedEntries = resolveLatestLeaveBalanceEntries(app)
-    .filter((entry) => !isEventBasedLeaveBalanceType(entry.label))
+  const resolvedEntries = resolveLatestLeaveBalanceEntries(app).filter(
+    (entry) => !isEventBasedLeaveBalanceType(entry.label),
+  )
   const requiredTypeKeys = new Set(
-    REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label))
+    REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label)),
   )
   const entriesByType = new Map(
-    resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry])
+    resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]),
   )
 
   const orderedEntries = REQUIRED_LEAVE_BALANCE_TYPES.map((label) => {
@@ -1531,8 +1770,9 @@ function formatGroupedInclusiveDateLines(dateValues) {
   if (!Array.isArray(dateValues) || dateValues.length === 0) return []
 
   const groupedByMonthYear = new Map()
-  const sortedDates = [...new Set(dateValues.filter(Boolean))]
-    .sort((left, right) => Date.parse(left) - Date.parse(right))
+  const sortedDates = [...new Set(dateValues.filter(Boolean))].sort(
+    (left, right) => Date.parse(left) - Date.parse(right),
+  )
 
   for (const rawDate of sortedDates) {
     const parsedDate = new Date(rawDate)
@@ -1726,7 +1966,10 @@ function buildApplicationTimeline(app) {
   const entries = [
     {
       title: 'Application Filed',
-      subtitle: formatDateTime(resolveFiledDateValue(app)) || formatDate(app.dateFiled) || 'Date unavailable',
+      subtitle:
+        formatDateTime(resolveFiledDateValue(app)) ||
+        formatDate(app.dateFiled) ||
+        'Date unavailable',
       description: `${app.employeeName || 'Employee'} submitted this leave request.`,
       icon: 'check_circle',
       color: 'positive',
@@ -1966,7 +2209,8 @@ function resolveReviewedDateValue(app) {
   if (isCancelledByUser(app)) return app?.cancelledAt || app?.disapprovedAt || null
   if (app?.rawStatus === 'PENDING_HR') return app?.adminActionAt || null
   if (app?.rawStatus === 'APPROVED') return app?.hrActionAt || app?.adminActionAt || null
-  if (app?.rawStatus === 'REJECTED') return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
+  if (app?.rawStatus === 'REJECTED')
+    return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
   return null
 }
 
@@ -2033,9 +2277,9 @@ function formatRecentRemarks(app) {
 }
 
 function getConfirmActionTitle(type) {
-  if (type === 'approve') return 'Approve this application?'
-  if (type === 'cancel') return 'Cancel this application?'
-  return 'Disapprove this application?'
+  if (type === 'approve') return 'Approve'
+  if (type === 'cancel') return 'Cancel'
+  return 'Disapprove'
 }
 
 function getConfirmActionMessage(type) {
@@ -2065,11 +2309,19 @@ function openDetails(app) {
   showDetailsDialog.value = true
 }
 
+function hasMobileApplicationActions(app) {
+  return app?.rawStatus === 'PENDING_ADMIN' || app?.rawStatus === 'PENDING_HR'
+}
+
+function handleApplicationRowClick(_evt, row) {
+  if (!row) return
+  openDetails(row)
+}
+
 function openActionConfirm(type, target) {
   confirmActionType.value = type
   confirmActionTarget.value = target
   showConfirmActionDialog.value = true
-  showDetailsDialog.value = false
 }
 
 function confirmPendingAction() {
@@ -2130,16 +2382,16 @@ function printApplicationsPdf() {
       { text: 'Processed By', style: 'tableHeader' },
       { text: 'Reviewed Date', style: 'tableHeader' },
     ],
-    ...rowsToPrint.map((app) => ([
+    ...rowsToPrint.map((app) => [
       `${app.employeeName || ''}${app.employee_id ? `\n${app.employee_id}` : ''}`,
-      app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : (app.leaveType || 'N/A'),
+      app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
       formatDate(app.dateFiled) || 'N/A',
       getApplicationInclusiveDateLines(app).join('\n'),
       getApplicationDurationDisplay(app),
       getApplicationStatusLabel(app),
       resolveProcessedBy(app),
       formatReviewedDate(app),
-    ])),
+    ]),
   ]
 
   const docDefinition = {
@@ -2157,7 +2409,7 @@ function printApplicationsPdf() {
           body: tableBody,
         },
         layout: {
-          fillColor: (rowIndex) => rowIndex === 0 ? '#ECEFF1' : null,
+          fillColor: (rowIndex) => (rowIndex === 0 ? '#ECEFF1' : null),
           hLineColor: () => '#CFD8DC',
           vLineColor: () => '#CFD8DC',
         },
@@ -2258,14 +2510,14 @@ function openDisapprove(target, mode = 'disapprove') {
   rejectionMode.value = mode
   remarks.value = ''
   showDisapproveDialog.value = true
-  showDetailsDialog.value = false
 }
 
 async function confirmDisapprove() {
   if (!remarks.value.trim()) {
-    const message = rejectionMode.value === 'cancel'
-      ? 'Please provide a reason for cancellation'
-      : 'Please provide a reason for disapproval'
+    const message =
+      rejectionMode.value === 'cancel'
+        ? 'Please provide a reason for cancellation'
+        : 'Please provide a reason for disapproval'
     $q.notify({ type: 'warning', message, position: 'top' })
     return
   }
@@ -2274,9 +2526,10 @@ async function confirmDisapprove() {
     const targetApp = disapproveTargetApp.value || resolveApp(disapproveId.value)
     const isCoc = isCocApplication(targetApp)
     const actionType = rejectionMode.value === 'cancel' ? 'cancelled' : 'disapproved'
-    const payloadRemarks = rejectionMode.value === 'cancel'
-      ? `Cancelled by Department Admin: ${remarks.value.trim()}`
-      : remarks.value
+    const payloadRemarks =
+      rejectionMode.value === 'cancel'
+        ? `Cancelled by Department Admin: ${remarks.value.trim()}`
+        : remarks.value
 
     const disapprovalEndpoint = isCoc
       ? `/admin/coc-applications/${disapproveId.value}/reject`
@@ -2296,16 +2549,16 @@ async function confirmDisapprove() {
       : null
     showPostActionDialog(actionType, disapproveId.value, fallback)
   } catch (err) {
-    const fallbackError = rejectionMode.value === 'cancel'
-      ? 'Unable to cancel this application right now.'
-      : 'Unable to reject this application right now.'
+    const fallbackError =
+      rejectionMode.value === 'cancel'
+        ? 'Unable to cancel this application right now.'
+        : 'Unable to reject this application right now.'
     const msg = resolveApiErrorMessage(err, fallbackError)
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     actionLoading.value = false
   }
 }
-
 </script>
 
 <style scoped>
@@ -2319,7 +2572,10 @@ async function confirmDisapprove() {
 }
 .stat-card--interactive {
   cursor: pointer;
-  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 .stat-card--interactive:hover,
 .stat-card--interactive:focus-visible {
@@ -2442,8 +2698,89 @@ async function confirmDisapprove() {
   width: 150px;
   padding-right: 8px;
 }
+.pending-actions-icon-btn {
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  min-height: 14px;
+  padding: 0 !important;
+  border-radius: 0;
+}
+.pending-actions-icon-btn :deep(.q-btn__content) {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+.pending-actions-icon-btn :deep(.q-icon) {
+  font-size: 10px;
+}
 .application-status-search {
   width: min(440px, 84vw);
+}
+.application-toolbar {
+  row-gap: 8px;
+}
+.application-toolbar__search {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.application-status-search--left {
+  width: min(440px, 100%);
+}
+.application-status-search--left :deep(.q-field) {
+  width: 100%;
+}
+.applications-table--interactive :deep(tbody tr) {
+  cursor: pointer;
+}
+.admin-action-dialog-card {
+  width: min(560px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  border-radius: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+}
+.admin-action-dialog-card--approve {
+  border-color: #b7ddc1;
+}
+.admin-action-dialog-card--reject {
+  border-color: #e6b8b8;
+}
+.admin-action-dialog-card__top {
+  padding: 12px 12px 0;
+}
+.admin-action-dialog-card__content {
+  padding: 8px 28px 12px;
+}
+.admin-action-dialog-card__title {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 500;
+  color: #111827;
+}
+.admin-action-dialog-card__message {
+  margin-top: 20px;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: #6b7280;
+}
+.admin-action-dialog-card__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px;
+  padding: 0 28px 28px;
+}
+.admin-action-dialog-card__button {
+  flex: 1 1 0;
+  min-height: 56px;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.admin-action-dialog-card__button--cancel {
+  background: #ffffff;
+  border-color: #d6dbe1;
+  color: #111827;
 }
 .leave-balance-cell {
   min-width: 150px;
@@ -2496,6 +2833,12 @@ async function confirmDisapprove() {
   padding: 14px;
   background: #fff;
   overflow-y: auto;
+}
+.application-timeline-actions {
+  padding: 0 14px 14px;
+  gap: 8px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
 }
 .application-timeline-panel {
   border: 1px solid #e5e7eb;
@@ -2582,6 +2925,35 @@ async function confirmDisapprove() {
   line-height: 1.45;
 }
 @media (max-width: 599px) {
+  .admin-action-dialog-card {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    border-radius: 20px;
+  }
+
+  .admin-action-dialog-card__content {
+    padding: 4px 20px 10px;
+  }
+
+  .admin-action-dialog-card__title {
+    font-size: 1.55rem;
+  }
+
+  .admin-action-dialog-card__message {
+    margin-top: 14px;
+    font-size: 1rem;
+  }
+
+  .admin-action-dialog-card__actions {
+    gap: 12px;
+    padding: 0 20px 20px;
+  }
+
+  .admin-action-dialog-card__button {
+    min-height: 50px;
+    border-radius: 16px;
+  }
+
   .apply-leave-dialog-card {
     width: min(100vw, 100vw);
     max-height: calc(100vh - 8px);
@@ -2595,6 +2967,28 @@ async function confirmDisapprove() {
   .apply-leave-dialog-header {
     min-height: 52px;
     padding: 0 8px 0 10px;
+  }
+
+  .application-toolbar__search,
+  .application-toolbar__actions {
+    width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .application-toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .application-toolbar {
+    display: block;
+  }
+
+  .application-status-search--left {
+    width: 100%;
+  }
+
+  .application-status-search--left :deep(.q-field) {
+    width: 100%;
   }
 
   .dashboard-kpi-row {
@@ -2668,6 +3062,16 @@ async function confirmDisapprove() {
 
   .application-timeline-content {
     padding: 12px;
+  }
+
+  .application-timeline-actions {
+    padding: 0 12px 12px;
+    justify-content: stretch;
+  }
+
+  .application-timeline-actions .q-btn {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .application-timeline-panel {
     padding: 10px;

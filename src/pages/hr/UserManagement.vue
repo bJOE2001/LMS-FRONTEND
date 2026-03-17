@@ -429,10 +429,10 @@ function statusColor(status) {
     .toUpperCase()
   const colors = {
     REGULAR: 'green-8',
-    'CO-TERMINOUS': 'blue-8',
-    ELECTIVE: 'amber-8',
+    'CO-TERMINOUS': 'brown-7',
+    ELECTIVE: 'purple-8',
     CASUAL: 'orange-8',
-    CONTRACTUAL: 'brown-7',
+    CONTRACTUAL: 'blue-9',
   }
 
   return colors[normalized] || 'grey-6'
