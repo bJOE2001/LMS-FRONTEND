@@ -190,15 +190,27 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showViewDialog" persistent>
-      <q-card style="width: 90vw; max-width: 520px" class="rounded-borders dialog-card">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Employee Details</div>
+    <q-dialog v-model="showViewDialog" persistent class="employee-view-dialog">
+      <q-card class="rounded-borders dialog-card employee-view-dialog-card">
+        <q-card-section class="row items-center q-pb-none employee-view-dialog-header">
+          <div class="row items-center no-wrap q-gutter-sm employee-view-dialog-header-main">
+            <div class="text-h6">Employee Details</div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              label="Edit"
+              color="orange-8"
+              icon="edit"
+              class="employee-view-dialog-edit-btn"
+              @click="openEditDialog(selectedEmployee); showViewDialog = false"
+            />
+          </div>
           <q-space />
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
 
-        <q-card-section v-if="selectedEmployee">
+        <q-card-section v-if="selectedEmployee" class="employee-view-dialog-body">
           <div class="row q-col-gutter-md">
             <div class="col-12 text-center q-mb-sm">
               <q-avatar size="64px" color="primary" text-color="white" class="text-h5">
@@ -243,7 +255,7 @@
           </div>
         </q-card-section>
 
-        <q-card-actions class="q-pa-md employee-view-actions" align="right">
+        <q-card-actions class="q-pa-md employee-view-actions employee-view-dialog-actions" align="right">
           <q-btn
             flat
             dense
@@ -254,16 +266,6 @@
             class="employee-view-actions__btn"
             :disable="!selectedEmployee || loadingDepartmentHead || savingDepartmentHead || isDepartmentHeadRecord(selectedEmployee)"
             @click="reassignDepartmentHeadFromView"
-          />
-          <q-btn
-            flat
-            dense
-            no-caps
-            label="Edit"
-            color="orange-8"
-            icon="edit"
-            class="employee-view-actions__btn"
-            @click="openEditDialog(selectedEmployee); showViewDialog = false"
           />
           <q-btn
             unelevated
@@ -1341,6 +1343,33 @@ watch(adminDepartmentId, (id) => {
   letter-spacing: 0.01em;
 }
 
+.employee-view-dialog-card {
+  width: min(90vw, 520px);
+  max-width: 520px;
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+}
+
+.employee-view-dialog-header {
+  flex: 0 0 auto;
+  padding: 16px 16px 0;
+}
+
+.employee-view-dialog-header-main {
+  min-width: 0;
+}
+
+.employee-view-dialog-edit-btn {
+  flex-shrink: 0;
+}
+
+.employee-view-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
 .employee-view-actions {
   display: flex;
   flex-wrap: nowrap;
@@ -1348,6 +1377,15 @@ watch(adminDepartmentId, (id) => {
   align-items: center;
   gap: 8px;
   width: 100%;
+}
+
+.employee-view-dialog-actions {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #fff;
+  padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
 }
 
 .employee-view-actions__btn {
@@ -1358,6 +1396,9 @@ watch(adminDepartmentId, (id) => {
 
 .employee-view-actions__btn :deep(.q-btn__content) {
   justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  gap: 6px;
 }
 
 .apply-leave-dialog-card {
@@ -1509,6 +1550,39 @@ watch(adminDepartmentId, (id) => {
   .employee-view-actions {
     gap: 6px;
     padding-top: 8px !important;
+  }
+
+  .employee-view-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 4px;
+  }
+
+  .employee-view-dialog-card {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 8px);
+    border-radius: 10px;
+  }
+
+  .employee-view-dialog-header {
+    padding: 12px 12px 0;
+  }
+
+  .employee-view-dialog-header-main {
+    gap: 6px;
+  }
+
+  .employee-view-dialog-edit-btn {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.8rem;
+  }
+
+  .employee-view-dialog-body {
+    padding: 12px;
+  }
+
+  .employee-view-dialog-actions {
+    padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
 
   .employee-view-actions__btn {

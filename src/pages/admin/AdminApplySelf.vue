@@ -306,7 +306,7 @@
                 { 'dialog-section--dates-raised': moveDialogActionsUp },
               ]"
             >
-              <div class="text-subtitle1 text-weight-bold q-mb-md">Number of Working Days Applied For</div>
+              <div class="text-subtitle1 text-weight-bold q-mb-md">Number of Working Days Applied</div>
 
               <div class="row q-col-gutter-md" :class="{ 'dialog-dates-layout': inDialog }">
                 <div :class="inDialog ? 'col-12 col-sm-6' : 'col-12 col-md-6'">
@@ -2502,6 +2502,64 @@ async function onSubmit() {
   .dialog-actions-row .step-btn:last-child {
     flex: 0 0 auto;
     min-width: 164px;
+  }
+}
+
+@media (max-width: 599px) {
+  .dialog-step-content-scroll {
+    overflow-x: hidden;
+  }
+
+  .dialog-dates-layout {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    row-gap: 8px;
+  }
+
+  .dialog-dates-layout > [class*='col-'] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .dialog-selected-dates-panel {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .dialog-form-card :deep(.q-date__view) {
+    min-height: 0;
+    padding: 8px 4px 6px;
+  }
+
+  .dialog-form-card :deep(.q-date__calendar-item) {
+    height: 24px;
+  }
+
+  .dialog-form-card :deep(.q-date__calendar-item div) {
+    min-width: 22px;
+    height: 22px;
+  }
+
+  .dialog-form-card :deep(.q-stepper__nav.dialog-actions-bar) {
+    padding: 14px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .dialog-actions-row {
+    gap: 6px;
+  }
+
+  .dialog-actions-row .step-btn {
+    min-height: 42px;
+    font-size: 0.9rem;
+  }
+
+  .dialog-actions-row .step-btn:first-child {
+    flex: 0 0 88px;
+  }
+
+  .dialog-actions-row .step-btn:last-child {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 }
 </style>

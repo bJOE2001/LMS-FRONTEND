@@ -28,6 +28,213 @@ function getOfficeDepartmentFontSize(value) {
   return 9
 }
 
+function formatCredit(val) {
+  if (val == null || val === '') return ''
+  const n = Number(val)
+  if (Number.isNaN(n)) return ''
+  return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2)
+}
+
+function prettifyLeaveBalanceLabel(value) {
+  const label = String(value || '').trim()
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave')
+    return 'Mandatory / Forced Leave'
+  if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+  if (lower === 'cto' || lower === 'cto leave' || lower === 'compensatory time off')
+    return 'CTO Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getLeaveBalanceTypeKey(value) {
+  return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function createEmptyCertificationEntry(label) {
+  return {
+    label: prettifyLeaveBalanceLabel(label),
+    totalEarned: '',
+    lessThisApplication: '',
+    balance: '',
+  }
+}
+
+function createCertificationEntry(label, value) {
+  const normalizedLabel = prettifyLeaveBalanceLabel(label)
+  if (!normalizedLabel) return null
+
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return {
+      label: normalizedLabel,
+      totalEarned: formatCredit(value.total_earned ?? value.totalEarned ?? value.earned),
+      lessThisApplication: formatCredit(
+        value.less_this_application ?? value.lessThisApplication ?? value.applied ?? value.used,
+      ),
+      balance: formatCredit(
+        value.balance ??
+          value.remaining_balance ??
+          value.available_balance ??
+          value.remainingBalance ??
+          value.availableBalance ??
+          value.value,
+      ),
+    }
+  }
+
+  return {
+    label: normalizedLabel,
+    totalEarned: '',
+    lessThisApplication: '',
+    balance: formatCredit(value),
+  }
+}
+
+function mergeCertificationEntry(existing, next) {
+  if (!existing) return next
+  if (!next) return existing
+
+  return {
+    label: existing.label || next.label,
+    totalEarned: existing.totalEarned || next.totalEarned,
+    lessThisApplication: existing.lessThisApplication || next.lessThisApplication,
+    balance: existing.balance || next.balance,
+  }
+}
+
+function collectCertificationEntries(map, source, fallbackLabel = '') {
+  if (!source) return
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (item == null || typeof item !== 'object') continue
+      const entry = createCertificationEntry(
+        item.leave_type_name ||
+          item.leave_type ||
+          item.type_name ||
+          item.type ||
+          item.name ||
+          item.label ||
+          fallbackLabel,
+        item,
+      )
+      if (!entry) continue
+      const key = getLeaveBalanceTypeKey(entry.label)
+      map.set(key, mergeCertificationEntry(map.get(key), entry))
+    }
+    return
+  }
+
+  if (typeof source !== 'object') {
+    const entry = createCertificationEntry(fallbackLabel, source)
+    if (!entry) return
+    const key = getLeaveBalanceTypeKey(entry.label)
+    map.set(key, mergeCertificationEntry(map.get(key), entry))
+    return
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value == null || key === 'as_of_date') continue
+    const entry = createCertificationEntry(key, value)
+    if (!entry) continue
+    const typeKey = getLeaveBalanceTypeKey(entry.label)
+    map.set(typeKey, mergeCertificationEntry(map.get(typeKey), entry))
+  }
+}
+
+function buildCertificationEntryMap(app) {
+  const entries = new Map()
+
+  collectCertificationEntries(entries, app?.certificationLeaveCredits)
+  collectCertificationEntries(entries, app?.certification_leave_credits)
+  collectCertificationEntries(entries, app?.leaveBalances)
+  collectCertificationEntries(entries, app?.leave_balances)
+  collectCertificationEntries(entries, app?.leaveCredits)
+  collectCertificationEntries(entries, app?.leave_credits)
+  collectCertificationEntries(entries, app?.balances)
+  collectCertificationEntries(entries, app?.leave_balance)
+  collectCertificationEntries(entries, app?.leave_balance_summary)
+  collectCertificationEntries(entries, app?.employee_leave_balances)
+  collectCertificationEntries(entries, app?.leaveBalance)
+
+  return entries
+}
+
+function buildCertificationColumns(app) {
+  const entryMap = buildCertificationEntryMap(app)
+  const selectedLabel = prettifyLeaveBalanceLabel(app?.leaveType || 'Leave Credits')
+  const selectedKey = getLeaveBalanceTypeKey(selectedLabel)
+  const vacationKey = getLeaveBalanceTypeKey('Vacation Leave')
+  const sickKey = getLeaveBalanceTypeKey('Sick Leave')
+  const showDualColumns = selectedKey === vacationKey || selectedKey === sickKey
+
+  if (showDualColumns) {
+    return [
+      entryMap.get(vacationKey) || createEmptyCertificationEntry('Vacation Leave'),
+      entryMap.get(sickKey) || createEmptyCertificationEntry('Sick Leave'),
+    ]
+  }
+
+  return [entryMap.get(selectedKey) || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
+}
+
+function buildCertificationTable(columns) {
+  const isDualColumns = columns.length > 1
+  const widths = isDualColumns ? ['38%', '31%', '31%'] : ['52%', '48%']
+  const headerRow = [{ text: '', fontSize: 7 }]
+
+  for (const column of columns) {
+    headerRow.push({
+      text: column.label,
+      fontSize: 7,
+      bold: true,
+      alignment: 'center',
+    })
+  }
+
+  const rows = [
+    ['Total Earned', 'totalEarned', false, false],
+    ['Less this application', 'lessThisApplication', false, false],
+    ['Balance', 'balance', true, false],
+  ]
+
+  return {
+    table: {
+      widths,
+      body: [
+        headerRow,
+        ...rows.map(([label, key, bold, italics]) => [
+          { text: label, fontSize: 7, bold, italics },
+          ...columns.map((column) => ({
+            text: column[key] || '',
+            fontSize: 7,
+            alignment: 'center',
+          })),
+        ]),
+      ],
+    },
+    layout: {
+      hLineWidth: () => 0.3,
+      vLineWidth: () => 0.3,
+    },
+    margin: [8, 0, 8, 14],
+  }
+}
+
 /**
  * Convert an image URL to a base64 data URL for pdfmake.
  */
@@ -73,6 +280,9 @@ export async function generateLeaveFormPdf(app) {
   const commutation = printableApp.commutation || 'Not Requested'
   const status = printableApp.status || ''
   const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
+  const cert = printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
+  const asOfDate = cert.as_of_date || ''
+  const certificationColumns = buildCertificationColumns(printableApp)
 
   // ── Checkbox helper: canvas rectangle + optional checkmark ──
   function cbLine(checked, label, opts = {}) {
@@ -202,39 +412,8 @@ export async function generateLeaveFormPdf(app) {
   const section7A = {
     stack: [
       { text: '7.A  CERTIFICATION OF LEAVE CREDITS', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-      { text: '       As of  ________________________', fontSize: 7, margin: [0, 0, 0, 6] },
-      {
-        table: {
-          widths: ['38%', '31%', '31%'],
-          body: [
-            [
-              { text: '', fontSize: 7 },
-              { text: 'Vacation Leave', fontSize: 7, bold: true, alignment: 'center' },
-              { text: 'Sick Leave', fontSize: 7, bold: true, alignment: 'center' },
-            ],
-            [
-              { text: 'Total Earned', fontSize: 7, italics: true },
-              { text: '', fontSize: 7 },
-              { text: '', fontSize: 7 },
-            ],
-            [
-              { text: 'Less this application', fontSize: 7, italics: true },
-              { text: '', fontSize: 7 },
-              { text: '', fontSize: 7 },
-            ],
-            [
-              { text: 'Balance', fontSize: 7, bold: true },
-              { text: '', fontSize: 7 },
-              { text: '', fontSize: 7 },
-            ],
-          ],
-        },
-        layout: {
-          hLineWidth: () => 0.3,
-          vLineWidth: () => 0.3,
-        },
-        margin: [8, 0, 8, 14],
-      },
+      { text: `       As of  ${asOfDate || '________________________'}`, fontSize: 7, margin: [0, 0, 0, 6] },
+      buildCertificationTable(certificationColumns),
       { text: '______________________________________', alignment: 'center', fontSize: 8 },
       { text: 'CHRMO Leave In-charge', alignment: 'center', fontSize: 7, margin: [0, 2, 0, 0] },
     ],
