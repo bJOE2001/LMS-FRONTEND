@@ -33,7 +33,7 @@
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplySelf
             in-dialog
-            :existing-applications="applicationRows"
+            :existing-applications="leaveApplicationRows"
             @cancel="closeApplyLeaveDialog"
             @submitted="handleApplyLeaveSubmitted"
           />
@@ -199,7 +199,7 @@
       <q-table
         :rows="applicationsForTable"
         :columns="columns"
-        row-key="id"
+        row-key="application_uid"
         flat
         v-model:pagination="applicationsPagination"
         :rows-per-page-options="[5, 10, 15, 20]"
@@ -475,6 +475,9 @@ const loading = ref(true)
 const actionLoading = ref(false)
 const departmentEmployees = ref([])
 const applicationRows = ref([])
+const leaveApplicationRows = computed(() =>
+  (applicationRows.value ?? []).filter((application) => !isCocApplication(application)),
+)
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -577,7 +580,7 @@ const columns = [
   { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
   { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
   { name: 'leaveBalance', label: 'Leave Balance', field: (row) => getLeaveBalanceDisplay(row), align: 'left' },
-  { name: 'days', label: 'Days', field: (row) => getApplicationDayCount(row), align: 'center' },
+  { name: 'days', label: 'Duration', field: (row) => getApplicationDurationDisplay(row), align: 'center' },
   { name: 'status', label: 'Status', field: (row) => getApplicationStatusLabel(row), align: 'center' },
   { name: 'actions', label: 'Actions', align: 'center', style: 'width: 150px', headerStyle: 'width: 150px' },
 ]
@@ -659,9 +662,10 @@ async function fetchDashboard() {
   loading.value = true
   try {
     employmentTypeFilter.value = ''
-    const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
       api.get('/admin/dashboard'),
       api.get('/admin/leave-applications').catch(() => null),
+      api.get('/admin/coc-applications').catch(() => null),
     ])
 
     const data = dashboardResponse?.data ?? {}
@@ -669,6 +673,7 @@ async function fetchDashboard() {
     applicationRows.value = mergeApplications(
       extractApplicationsFromPayload(data),
       extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+      extractApplicationsFromPayload(cocApplicationsResponse?.data),
     )
     maybeShowPendingReminder()
   } catch (err) {
@@ -787,6 +792,56 @@ function formatDayValue(value) {
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
 }
 
+function normalizeDurationUnit(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized.startsWith('hour')) return 'hour'
+  if (normalized.startsWith('day')) return 'day'
+  return ''
+}
+
+function formatDurationDisplay(value, unit) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return unit === 'hour' ? '0 h' : '0 days'
+
+  const displayValue = formatDayValue(numericValue)
+  if (unit === 'hour') return `${displayValue} h`
+  return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
+}
+
+function resolveApplicationDuration(app) {
+  const explicitUnit = normalizeDurationUnit(app?.duration_unit)
+  const explicitValue = Number(app?.duration_value)
+  if (explicitUnit && Number.isFinite(explicitValue)) {
+    return { value: explicitValue, unit: explicitUnit }
+  }
+
+  if (isCocApplication(app)) {
+    const hourValue = Number(app?.days ?? app?.total_days)
+    if (Number.isFinite(hourValue)) return { value: hourValue, unit: 'hour' }
+
+    const minutes = Number(app?.total_no_of_coc_applied_minutes)
+    if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
+
+    return { value: 0, unit: 'hour' }
+  }
+
+  const derivedDays = Number(getApplicationDayCount(app))
+  if (Number.isFinite(derivedDays)) return { value: derivedDays, unit: 'day' }
+
+  const dayValue = Number(app?.days ?? app?.total_days)
+  if (Number.isFinite(dayValue)) return { value: dayValue, unit: 'day' }
+
+  return { value: 0, unit: 'day' }
+}
+
+function getApplicationDurationDisplay(app) {
+  const explicitLabel = String(app?.duration_label || '').trim()
+  if (explicitLabel) return explicitLabel
+
+  const resolved = resolveApplicationDuration(app)
+  return formatDurationDisplay(resolved.value, resolved.unit)
+}
+
 function formatLeaveBalanceValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return ''
@@ -814,6 +869,55 @@ function extractApplicationsFromPayload(payload) {
   }
 
   return []
+}
+
+function normalizeApplicationType(value) {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'COC') return 'COC'
+  if (normalized === 'LEAVE') return 'LEAVE'
+  return ''
+}
+
+function getApplicationType(application) {
+  const explicitType = normalizeApplicationType(
+    application?.application_type ??
+    application?.applicationType ??
+    application?.type,
+  )
+  if (explicitType) return explicitType
+
+  const leaveTypeName = normalizeEmployeeName(
+    application?.leaveType ??
+    application?.leave_type ??
+    application?.leaveTypeName ??
+    application?.leave_type_name,
+  )
+
+  if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
+  return 'LEAVE'
+}
+
+function isCocApplication(application) {
+  return getApplicationType(application) === 'COC'
+}
+
+function getApplicationExplicitId(application) {
+  return (
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id
+  )
+}
+
+function getApplicationRowKey(application, index = 0) {
+  const typeKey = getApplicationType(application)
+  const explicitId = getApplicationExplicitId(application)
+
+  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+    return `${typeKey}:${String(explicitId).trim()}`
+  }
+
+  return `${typeKey}:index:${index}`
 }
 
 function normalizeLookupValue(value) {
@@ -1001,13 +1105,11 @@ function getApplicationEmploymentTypeFromEmployees(application) {
 }
 
 function getApplicationMergeKey(application, index) {
-  const explicitId =
-    application?.id ??
-    application?.application_id ??
-    application?.leave_application_id
+  const typeKey = getApplicationType(application)
+  const explicitId = getApplicationExplicitId(application)
 
   if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
-    return `id:${String(explicitId).trim()}`
+    return `id:${typeKey}:${String(explicitId).trim()}`
   }
 
   const employeeKey = getApplicationEmployeeLookupCandidates(application)[0]
@@ -1025,7 +1127,7 @@ function getApplicationMergeKey(application, index) {
   )
   const inclusiveDatesKey = normalizeEmployeeName(getApplicationDurationLabel(application))
 
-  const fallbackKey = [employeeKey || employeeName, leaveTypeKey, filedDateKey, inclusiveDatesKey]
+  const fallbackKey = [typeKey, employeeKey || employeeName, leaveTypeKey, filedDateKey, inclusiveDatesKey]
     .filter(Boolean)
     .join('|')
 
@@ -1106,9 +1208,14 @@ function mergeApplications(...sources) {
   const mergedApplications = new Map()
 
   sources.flat().forEach((application, index) => {
-    const key = getApplicationMergeKey(application, index)
+    const normalizedApplication = {
+      ...application,
+      application_type: getApplicationType(application),
+      application_uid: getApplicationRowKey(application, index),
+    }
+    const key = getApplicationMergeKey(normalizedApplication, index)
     const existingApplication = mergedApplications.get(key)
-    mergedApplications.set(key, choosePreferredApplication(existingApplication, application))
+    mergedApplications.set(key, choosePreferredApplication(existingApplication, normalizedApplication))
   })
 
   return Array.from(mergedApplications.values())
@@ -1603,6 +1710,7 @@ function getApplicationSearchText(app) {
     ...inclusiveDateTerms,
     getLeaveBalanceDisplay(app),
     getApplicationDayCount(app),
+    getApplicationDurationDisplay(app),
     ...dateTerms,
   ]
 
@@ -1932,7 +2040,7 @@ function getConfirmActionTitle(type) {
 
 function getConfirmActionMessage(type) {
   if (type === 'approve') {
-    return 'This will forward the leave request to HR for final review.'
+    return 'This will forward the application to HR for final review.'
   }
   if (type === 'cancel') {
     return 'You will continue to the cancellation form.'
@@ -2017,7 +2125,7 @@ function printApplicationsPdf() {
       { text: 'Leave Type', style: 'tableHeader' },
       { text: 'Date Filed', style: 'tableHeader' },
       { text: 'Inclusive Dates', style: 'tableHeader' },
-      { text: 'Days', style: 'tableHeader' },
+      { text: 'Duration', style: 'tableHeader' },
       { text: 'Status', style: 'tableHeader' },
       { text: 'Processed By', style: 'tableHeader' },
       { text: 'Reviewed Date', style: 'tableHeader' },
@@ -2027,7 +2135,7 @@ function printApplicationsPdf() {
       app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : (app.leaveType || 'N/A'),
       formatDate(app.dateFiled) || 'N/A',
       getApplicationInclusiveDateLines(app).join('\n'),
-      formatDayValue(app.days),
+      getApplicationDurationDisplay(app),
       getApplicationStatusLabel(app),
       resolveProcessedBy(app),
       formatReviewedDate(app),
@@ -2072,7 +2180,7 @@ function resolveApp(target) {
   if (target && typeof target === 'object') return target
   const id = Number(target)
   if (!id) return null
-  return applicationRows.value.find((a) => Number(a.id) === id) || null
+  return applicationRows.value.find((a) => Number(a?.id) === id) || null
 }
 
 function mapStatusAfterAction(app, type) {
@@ -2101,7 +2209,10 @@ function mapStatusAfterAction(app, type) {
 }
 
 function showPostActionDialog(type, id, fallbackApp = null) {
-  const updated = applicationRows.value.find((a) => Number(a.id) === Number(id))
+  const fallbackKey = fallbackApp ? getApplicationRowKey(fallbackApp) : ''
+  const updated = fallbackKey
+    ? applicationRows.value.find((a) => getApplicationRowKey(a) === fallbackKey)
+    : applicationRows.value.find((a) => Number(a?.id) === Number(id))
   actionResultApp.value = updated || mapStatusAfterAction(fallbackApp, type)
   actionResultType.value = type
   showActionResultDialog.value = true
@@ -2115,10 +2226,20 @@ function printActionResult() {
 async function handleApprove(target) {
   const app = resolveApp(target)
   const id = app?.id ?? target
+  const isCoc = isCocApplication(app)
+  const approvalEndpoint = isCoc
+    ? `/admin/coc-applications/${id}/approve`
+    : `/admin/leave-applications/${id}/approve`
   actionLoading.value = true
   try {
-    await api.post(`/admin/leave-applications/${id}/approve`)
-    $q.notify({ type: 'positive', message: 'Leave application approved and forwarded to HR!', position: 'top' })
+    await api.post(approvalEndpoint)
+    $q.notify({
+      type: 'positive',
+      message: isCoc
+        ? 'COC application approved and forwarded to HR!'
+        : 'Leave application approved and forwarded to HR!',
+      position: 'top',
+    })
     showDetailsDialog.value = false
     await fetchDashboard()
     showPostActionDialog('approved', id, app)
@@ -2150,17 +2271,23 @@ async function confirmDisapprove() {
   }
   actionLoading.value = true
   try {
+    const targetApp = disapproveTargetApp.value || resolveApp(disapproveId.value)
+    const isCoc = isCocApplication(targetApp)
     const actionType = rejectionMode.value === 'cancel' ? 'cancelled' : 'disapproved'
     const payloadRemarks = rejectionMode.value === 'cancel'
       ? `Cancelled by Department Admin: ${remarks.value.trim()}`
       : remarks.value
 
-    await api.post(`/admin/leave-applications/${disapproveId.value}/reject`, {
+    const disapprovalEndpoint = isCoc
+      ? `/admin/coc-applications/${disapproveId.value}/reject`
+      : `/admin/leave-applications/${disapproveId.value}/reject`
+
+    await api.post(disapprovalEndpoint, {
       remarks: payloadRemarks,
     })
     const successMessage = rejectionMode.value === 'cancel'
-      ? 'Leave application cancelled with remarks'
-      : 'Leave application rejected with remarks'
+      ? (isCoc ? 'COC application cancelled with remarks' : 'Leave application cancelled with remarks')
+      : (isCoc ? 'COC application rejected with remarks' : 'Leave application rejected with remarks')
     $q.notify({ type: 'info', message: successMessage, position: 'top' })
     showDisapproveDialog.value = false
     await fetchDashboard()

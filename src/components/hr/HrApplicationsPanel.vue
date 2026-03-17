@@ -35,7 +35,7 @@
     <q-table
       :rows="applicationsForTable"
       :columns="columns"
-      row-key="id"
+      row-key="application_uid"
       flat
       v-model:pagination="tablePagination"
       :rows-per-page-options="[10]"
@@ -58,7 +58,7 @@
           <div class="application-details-cell">
             <span
               v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
-              :key="`${props.row.id}-inclusive-${index}`"
+              :key="`${props.row.application_uid || props.row.id}-inclusive-${index}`"
               class="text-weight-medium text-grey-9 block"
             >
               {{ line }}
@@ -154,12 +154,12 @@
             <div class="text-weight-medium">{{ selectedApp.officeShort || selectedApp.office }}</div>
           </div>
           <div class="col-6">
-            <div class="text-caption text-grey-7">Days</div>
-            <div class="text-weight-medium">{{ selectedApp.days }}</div>
+            <div class="text-caption text-grey-7">Duration</div>
+            <div class="text-weight-medium">{{ getApplicationDurationDisplay(selectedApp) }}</div>
           </div>
           <div class="col-6">
             <div class="text-caption text-grey-7">
-              {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Duration' }}
+              {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Inclusive Dates' }}
             </div>
             <div v-if="selectedApp.is_monetization" class="text-weight-medium">
               {{ selectedApp.days }} day(s)
@@ -386,6 +386,132 @@ const EMPLOYMENT_TYPE_FILTER_LABELS = {
 }
 const employmentTypeFilterLabel = computed(() => EMPLOYMENT_TYPE_FILTER_LABELS[employmentTypeFilter.value] || '')
 
+function normalizeApplicationType(value) {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'COC') return 'COC'
+  if (normalized === 'LEAVE') return 'LEAVE'
+  return ''
+}
+
+function getApplicationType(application) {
+  const explicitType = normalizeApplicationType(
+    application?.application_type ??
+    application?.applicationType ??
+    application?.type,
+  )
+  if (explicitType) return explicitType
+
+  const leaveTypeName = String(
+    application?.leaveType ??
+    application?.leave_type ??
+    application?.leaveTypeName ??
+    application?.leave_type_name ??
+    '',
+  )
+    .trim()
+    .toLowerCase()
+
+  if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
+  return 'LEAVE'
+}
+
+function isCocApplication(application) {
+  return getApplicationType(application) === 'COC'
+}
+
+function getApplicationExplicitId(application) {
+  return (
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id
+  )
+}
+
+function getApplicationRowKey(application, index = 0) {
+  const typeKey = getApplicationType(application)
+  const explicitId = getApplicationExplicitId(application)
+  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+    return `${typeKey}:${String(explicitId).trim()}`
+  }
+  return `${typeKey}:index:${index}`
+}
+
+function getApplicationMergeKey(application, index) {
+  const rowKey = getApplicationRowKey(application, index)
+  if (!rowKey.includes(':index:')) return `id:${rowKey}`
+
+  const employeeKey = String(
+    application?.employee_id ??
+    application?.employeeId ??
+    application?.control_no ??
+    application?.controlNo ??
+    '',
+  ).trim()
+  const leaveTypeKey = String(
+    application?.leaveType ??
+    application?.leave_type ??
+    application?.leaveTypeName ??
+    application?.leave_type_name ??
+    '',
+  ).trim().toLowerCase()
+  const dateKey = String(
+    application?.dateFiled ??
+    application?.date_filed ??
+    application?.created_at ??
+    application?.createdAt ??
+    '',
+  ).trim()
+
+  const fallback = [getApplicationType(application), employeeKey, leaveTypeKey, dateKey]
+    .filter(Boolean)
+    .join('|')
+
+  return fallback ? `fallback:${fallback}` : `index:${index}`
+}
+
+function extractApplicationsFromPayload(payload) {
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload
+
+  const candidates = [
+    payload?.applications,
+    payload?.leave_applications,
+    payload?.leaveApplications,
+    payload?.rows,
+    payload?.items,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+    if (candidate && typeof candidate === 'object' && Array.isArray(candidate.data)) {
+      return candidate.data
+    }
+  }
+
+  return []
+}
+
+function mergeApplications(...sources) {
+  const merged = new Map()
+
+  sources.flat().forEach((application, index) => {
+    if (!application || typeof application !== 'object') return
+
+    const normalized = {
+      ...application,
+      application_type: getApplicationType(application),
+      application_uid: getApplicationRowKey(application, index),
+    }
+
+    const key = getApplicationMergeKey(normalized, index)
+    const existing = merged.get(key)
+    merged.set(key, existing ? { ...existing, ...normalized } : normalized)
+  })
+
+  return Array.from(merged.values())
+}
+
 function mergeStatus(app) {
   const raw = String(app.rawStatus || '').toUpperCase()
   const status = String(app.status || '').toUpperCase()
@@ -510,6 +636,50 @@ function formatDayValue(value) {
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
 }
 
+function normalizeDurationUnit(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized.startsWith('hour')) return 'hour'
+  if (normalized.startsWith('day')) return 'day'
+  return ''
+}
+
+function formatDurationDisplay(value, unit) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return unit === 'hour' ? '0 h' : '0 days'
+
+  const displayValue = formatDayValue(numericValue)
+  if (unit === 'hour') return `${displayValue} h`
+  return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
+}
+
+function getApplicationDurationDisplay(app) {
+  if (!app) return '0 days'
+
+  const explicitLabel = String(app?.duration_label || '').trim()
+  if (explicitLabel) return explicitLabel
+
+  const explicitUnit = normalizeDurationUnit(app?.duration_unit)
+  const explicitValue = Number(app?.duration_value)
+  if (explicitUnit && Number.isFinite(explicitValue)) {
+    return formatDurationDisplay(explicitValue, explicitUnit)
+  }
+
+  if (isCocApplication(app)) {
+    const hourValue = Number(app?.days ?? app?.total_days)
+    if (Number.isFinite(hourValue)) return formatDurationDisplay(hourValue, 'hour')
+
+    const minutes = Number(app?.total_no_of_coc_applied_minutes)
+    if (Number.isFinite(minutes)) return formatDurationDisplay(minutes / 60, 'hour')
+
+    return '0 h'
+  }
+
+  const dayValue = Number(app?.days ?? app?.total_days)
+  if (Number.isFinite(dayValue)) return formatDurationDisplay(dayValue, 'day')
+
+  return '0 days'
+}
+
 function toIsoDateString(dateValue) {
   const date = new Date(dateValue)
   if (Number.isNaN(date.getTime())) return null
@@ -626,7 +796,11 @@ function compareApplicationsForTable(a, b) {
 
   const idA = Number(a?.id) || 0
   const idB = Number(b?.id) || 0
-  return idB - idA
+  if (idB !== idA) return idB - idA
+
+  const keyA = String(a?.application_uid || '')
+  const keyB = String(b?.application_uid || '')
+  return keyB.localeCompare(keyA)
 }
 
 function getDateSearchValues(dateValue) {
@@ -672,6 +846,7 @@ function getApplicationSearchTokenSet(app) {
     app?.officeShort,
     app?.days,
     formatDayValue(app?.days),
+    getApplicationDurationDisplay(app),
     ...inclusiveDateTerms,
     ...dateTerms,
   ]
@@ -711,7 +886,7 @@ const columns = [
   },
   { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
   { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
-  { name: 'days', label: 'Days', field: 'days', align: 'left' },
+  { name: 'days', label: 'Duration', field: (row) => getApplicationDurationDisplay(row), align: 'left' },
   { name: 'status', label: 'Status', align: 'left' },
   { name: 'actions', label: 'Actions', align: 'center' },
 ]
@@ -722,6 +897,7 @@ const showRejectDialog = ref(false)
 const showConfirmActionDialog = ref(false)
 const selectedApp = ref(null)
 const rejectId = ref('')
+const rejectTargetApp = ref(null)
 const remarks = ref('')
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
@@ -746,7 +922,10 @@ function getEmptyEditForm() {
 }
 
 function canEditApplication(app) {
-  return String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR'
+  return (
+    String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR' &&
+    !isCocApplication(app)
+  )
 }
 
 function toIsoDate(value) {
@@ -798,10 +977,23 @@ function buildWeekdayDateRange(startDate, endDate) {
 async function fetchApplications() {
   loading.value = true
   try {
-    const { data } = await api.get('/hr/dashboard')
-    const rawApps = Array.isArray(data.applications) ? data.applications : []
-    applications.value = rawApps.map((app) => ({
+    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
+      api.get('/hr/dashboard'),
+      api.get('/hr/leave-applications').catch(() => null),
+      api.get('/hr/coc-applications').catch(() => null),
+    ])
+
+    const dashboardData = dashboardResponse?.data ?? {}
+    const mergedApplications = mergeApplications(
+      extractApplicationsFromPayload(dashboardData),
+      extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+      extractApplicationsFromPayload(cocApplicationsResponse?.data),
+    )
+
+    applications.value = mergedApplications.map((app, index) => ({
       ...app,
+      application_type: getApplicationType(app),
+      application_uid: app?.application_uid || getApplicationRowKey(app, index),
       employeeName: app?.employeeName || app?.applicantName || app?.employee?.full_name || 'Unknown',
       officeShort: toDepartmentCode(app?.office),
       displayStatus: mergeStatus(app),
@@ -868,13 +1060,20 @@ function getConfirmActionTitle(type) {
 
 function getConfirmActionMessage(type) {
   if (type === 'approve') {
-    return 'This will finalize the approval of the leave request.'
+    return 'This will finalize the approval of this application.'
   }
   return 'You will continue to the rejection form.'
 }
 
 function getApplicationId(target) {
-  return target?.id ?? target
+  return target?.id ?? target?.application_id ?? target?.leave_application_id ?? target
+}
+
+function resolveApplication(target) {
+  if (target && typeof target === 'object') return target
+  const id = String(target ?? '').trim()
+  if (!id) return null
+  return applications.value.find((application) => String(getApplicationId(application)) === id) || null
 }
 
 function openActionConfirm(type, target) {
@@ -890,11 +1089,11 @@ function confirmPendingAction() {
   showConfirmActionDialog.value = false
 
   if (type === 'approve') {
-    handleApprove(getApplicationId(target))
+    handleApprove(target)
     return
   }
 
-  openReject(getApplicationId(target))
+  openReject(target)
 }
 
 function openEdit(app) {
@@ -1052,13 +1251,22 @@ async function saveEdit() {
   }
 }
 
-async function handleApprove(id) {
+async function handleApprove(target) {
+  const application = resolveApplication(target)
+  const id = getApplicationId(application || target)
+  const isCoc = isCocApplication(application)
+  const endpoint = isCoc
+    ? `/hr/coc-applications/${id}/approve`
+    : `/hr/leave-applications/${id}/approve`
+
   actionLoading.value = true
   try {
-    await api.post(`/hr/leave-applications/${id}/approve`)
+    await api.post(endpoint)
     $q.notify({
       type: 'positive',
-      message: 'Leave application approved! Balance deducted if credit-based.',
+      message: isCoc
+        ? 'COC application approved and converted to CTO credits.'
+        : 'Leave application approved! Balance deducted if credit-based.',
       position: 'top',
     })
     showDetailsDialog.value = false
@@ -1071,8 +1279,10 @@ async function handleApprove(id) {
   }
 }
 
-function openReject(id) {
-  rejectId.value = id
+function openReject(target) {
+  const application = resolveApplication(target)
+  rejectId.value = getApplicationId(application || target)
+  rejectTargetApp.value = application
   remarks.value = ''
   showRejectDialog.value = true
   showDetailsDialog.value = false
@@ -1090,16 +1300,25 @@ async function confirmReject() {
 
   actionLoading.value = true
   try {
-    await api.post(`/hr/leave-applications/${rejectId.value}/reject`, {
+    const targetApplication = rejectTargetApp.value || resolveApplication(rejectId.value)
+    const isCoc = isCocApplication(targetApplication)
+    const endpoint = isCoc
+      ? `/hr/coc-applications/${rejectId.value}/reject`
+      : `/hr/leave-applications/${rejectId.value}/reject`
+
+    await api.post(endpoint, {
       remarks: remarks.value,
     })
     $q.notify({
       type: 'info',
-      message: 'Leave application rejected with remarks',
+      message: isCoc
+        ? 'COC application rejected with remarks'
+        : 'Leave application rejected with remarks',
       position: 'top',
     })
     showRejectDialog.value = false
     await fetchApplications()
+    rejectTargetApp.value = null
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to reject this application right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
