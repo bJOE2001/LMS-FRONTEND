@@ -193,14 +193,18 @@
                 <q-select
                   v-model="form.employee_control_no"
                   :options="eligibleEmployeeOptions"
+                  :display-value="selectedEmployeeDisplay"
                   emit-value
                   map-options
+                  use-input
+                  input-debounce="200"
                   outlined
                   dense
                   label="Select Employee *"
                   :loading="loadingEligibleEmployees"
                   :disable="saving || loadingEligibleEmployees"
                   :rules="[requiredRule('Employee')]"
+                  @filter="filterEligibleEmployees"
                 >
                   <template #no-option>
                     <q-item>
@@ -212,7 +216,7 @@
                 </q-select>
               </div>
 
-              <div class="col-12 col-md-6">
+              <div :class="isEditMode ? 'col-12 col-md-6' : 'col-12'">
                 <q-input
                   v-model="form.username"
                   outlined
@@ -223,13 +227,13 @@
                 />
               </div>
 
-              <div class="col-12 col-md-6">
+              <div v-if="isEditMode" class="col-12 col-md-6">
                 <q-input
                   v-model="form.password"
                   outlined
                   dense
                   :type="showPassword ? 'text' : 'password'"
-                  :label="isEditMode ? 'New Password (optional)' : 'Password *'"
+                  label="New Password (optional)"
                   :disable="saving"
                   :rules="[passwordRule]"
                 >
@@ -241,6 +245,13 @@
                     />
                   </template>
                 </q-input>
+              </div>
+
+              <div v-else class="col-12">
+                <q-banner class="bg-amber-1 text-amber-10 rounded-borders">
+                  Default password will be the selected employee birthdate in <strong>MMDDYY</strong>.
+                  The user will be required to change password on first login.
+                </q-banner>
               </div>
 
             </div>
@@ -283,6 +294,7 @@ const formRef = ref(null)
 const search = ref('')
 const departments = ref([])
 const eligibleEmployees = ref([])
+const eligibleEmployeeSearch = ref('')
 const selectedDepartment = ref(null)
 const selectedDepartmentAdmin = ref(null)
 
@@ -341,12 +353,50 @@ const filteredRows = computed(() => {
   })
 })
 
+function formatEmployeeOptionLabel(employee) {
+  return `${employee.full_name}${employee.designation ? ` (${employee.designation})` : ''}`
+}
+
 const eligibleEmployeeOptions = computed(() =>
-  eligibleEmployees.value.map((employee) => ({
-    label: `${employee.full_name}${employee.designation ? ` (${employee.designation})` : ''}`,
-    value: employee.control_no,
-  })),
+  eligibleEmployees.value
+    .filter((employee) => {
+      const needle = String(eligibleEmployeeSearch.value || '')
+        .trim()
+        .toLowerCase()
+      if (!needle) return true
+
+      const fullName = String(employee.full_name || '').toLowerCase()
+      const designation = String(employee.designation || '').toLowerCase()
+
+      return fullName.includes(needle) || designation.includes(needle)
+    })
+    .map((employee) => ({
+      label: formatEmployeeOptionLabel(employee),
+      value: employee.control_no,
+    })),
 )
+
+const selectedEmployeeDisplay = computed(() => {
+  const selectedControlNo = String(form.value.employee_control_no || '').trim()
+  if (!selectedControlNo) return ''
+
+  const selectedOption = eligibleEmployeeOptions.value.find(
+    (option) => String(option.value) === selectedControlNo,
+  )
+  if (selectedOption) {
+    return selectedOption.label
+  }
+
+  const currentEmployee = selectedDepartmentAdmin.value?.employee
+  if (
+    currentEmployee &&
+    String(currentEmployee.control_no || '').trim() === selectedControlNo
+  ) {
+    return formatEmployeeOptionLabel(currentEmployee)
+  }
+
+  return String(selectedDepartmentAdmin.value?.full_name || '').trim()
+})
 
 onMounted(fetchDepartments)
 
@@ -359,19 +409,20 @@ function defaultForm() {
   }
 }
 
+function filterEligibleEmployees(value, update) {
+  update(() => {
+    eligibleEmployeeSearch.value = value
+  })
+}
+
 function requiredRule(label) {
   return (value) => !!String(value ?? '').trim() || `${label} is required.`
 }
 
 function passwordRule(value) {
   const text = String(value ?? '').trim()
-
-  if (!isEditMode.value) {
-    if (!text) return 'Password is required.'
-    return text.length >= 3 || 'Password must be at least 3 characters.'
-  }
-
   if (!text) return true
+
   return text.length >= 3 || 'Password must be at least 3 characters.'
 }
 
@@ -431,6 +482,7 @@ async function fetchEligibleEmployees(departmentId) {
 async function openAssignDialog(department) {
   selectedDepartment.value = department
   selectedDepartmentAdmin.value = department.department_admin || null
+  const currentEmployee = selectedDepartmentAdmin.value?.employee
   isEditMode.value = selectedDepartmentAdmin.value !== null
   showPassword.value = false
 
@@ -441,10 +493,11 @@ async function openAssignDialog(department) {
     password: '',
   }
 
+  eligibleEmployeeSearch.value = ''
+  eligibleEmployees.value = currentEmployee ? [currentEmployee] : []
   showAssignmentDialog.value = true
   await fetchEligibleEmployees(department.id)
 
-  const currentEmployee = selectedDepartmentAdmin.value?.employee
   const currentControlNo = String(selectedDepartmentAdmin.value?.employee_control_no || '').trim()
 
   if (
@@ -464,7 +517,7 @@ function buildAssignmentPayload() {
   }
 
   const password = String(form.value.password || '').trim()
-  if (!isEditMode.value || password !== '') {
+  if (password !== '') {
     payload.password = password
   }
 
@@ -500,6 +553,7 @@ async function saveAssignment() {
 
     showAssignmentDialog.value = false
     form.value = defaultForm()
+    eligibleEmployeeSearch.value = ''
     eligibleEmployees.value = []
     await fetchDepartments()
   } catch (err) {

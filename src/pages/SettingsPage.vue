@@ -15,7 +15,15 @@
       narrow-indicator
       dense
     >
-      <q-tab v-for="tab in tabs" :key="tab.id" :name="tab.id" :icon="tab.icon" :label="tab.label" no-caps />
+      <q-tab
+        v-for="tab in tabs"
+        :key="tab.id"
+        :name="tab.id"
+        :icon="tab.icon"
+        :label="tab.label"
+        :disable="mustChangePassword && tab.id !== 'password'"
+        no-caps
+      />
     </q-tabs>
 
     <q-separator class="q-mb-lg" />
@@ -114,6 +122,16 @@
                 <q-icon name="info" color="blue" />
               </template>
               Make sure your new password is at least 8 characters long and includes a mix of letters, numbers, and symbols.
+            </q-banner>
+
+            <q-banner
+              v-if="mustChangePassword"
+              class="bg-orange-1 text-orange-10 rounded-borders q-mb-lg"
+            >
+              <template #avatar>
+                <q-icon name="warning" color="orange-8" />
+              </template>
+              Your account is using a temporary password. You must change it now to continue using the system.
             </q-banner>
 
             <div class="q-gutter-y-md" style="max-width: 480px;">
@@ -299,15 +317,18 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
+import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
+const authStore = useAuthStore()
+const mustChangePassword = computed(() => Boolean(authStore.user?.must_change_password))
 
 // ==================== TABS ====================
-const activeTab = ref('information')
+const activeTab = ref(mustChangePassword.value ? 'password' : 'information')
 const tabs = [
   { id: 'information', label: 'Information', icon: 'person', description: 'View your personal details' },
   { id: 'password', label: 'Change Password', icon: 'lock', description: 'Update your password' },
@@ -349,6 +370,12 @@ async function fetchProfile() {
 }
 
 onMounted(fetchProfile)
+
+watch(mustChangePassword, (required) => {
+  if (required) {
+    activeTab.value = 'password'
+  }
+})
 
 function openEditProfile() {
   editForm.fullName = userInfo.value.fullName
@@ -465,6 +492,16 @@ async function handleChangePassword() {
       password_confirmation: passwordForm.confirmPassword
     })
     $q.notify({ type: 'positive', message: 'Password updated successfully!', position: 'top' })
+    if (mustChangePassword.value) {
+      authStore.setAuth({
+        token: authStore.getToken(),
+        user: {
+          ...(authStore.user || {}),
+          must_change_password: false,
+        },
+      })
+      activeTab.value = 'information'
+    }
     passwordForm.currentPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''

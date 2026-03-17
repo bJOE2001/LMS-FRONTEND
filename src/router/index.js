@@ -31,6 +31,9 @@ const ROLE_ROUTES = [
   { prefix: ADMIN_PREFIX, roles: ['admin', 'department_admin'] },
 ]
 
+const requiresPasswordChange = (user) =>
+  user?.role === 'department_admin' && Boolean(user?.must_change_password)
+
 export default defineRouter(function (/* { store, ssrContext } */) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
@@ -54,7 +57,11 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
     if (to.path === '/login') {
       if (isAuth && hasSupportedRole) {
-        next(ROLE_DASHBOARDS[user.role])
+        if (requiresPasswordChange(user)) {
+          next('/settings')
+        } else {
+          next(ROLE_DASHBOARDS[user.role])
+        }
       } else if (isAuth && user?.role && !hasSupportedRole) {
         // Session belongs to a role no longer supported by frontend routes.
         localStorage.removeItem('lms_token')
@@ -68,6 +75,11 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
     if (to.meta.requiresAuth && !isAuth) {
       next('/login')
+      return
+    }
+
+    if (isAuth && requiresPasswordChange(user) && !to.path.startsWith('/settings')) {
+      next('/settings')
       return
     }
 

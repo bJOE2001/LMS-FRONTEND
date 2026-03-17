@@ -17,7 +17,7 @@
             class="credit-btn"
             @click="openLeaveCreditsDialog()"
           />
-          <q-btn
+          <!-- <q-btn
             unelevated
             no-caps
             color="primary"
@@ -25,7 +25,7 @@
             label="Import Leave Balances"
             class="import-btn"
             @click="showImportDialog = true"
-          />
+          /> -->
         </div>
       </div>
     </div>
