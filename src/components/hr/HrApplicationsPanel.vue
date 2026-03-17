@@ -57,13 +57,33 @@
       <template #body-cell-inclusiveDates="props">
         <q-td>
           <div class="application-details-cell">
-            <span
-              v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
-              :key="`${props.row.application_uid || props.row.id}-inclusive-${index}`"
-              class="text-weight-medium text-grey-9 block"
-            >
-              {{ line }}
-            </span>
+            <template v-if="hasPendingDateUpdate(props.row)">
+              <span class="text-caption text-grey-7 block">Current</span>
+              <span
+                v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
+                :key="`${props.row.application_uid || props.row.id}-inclusive-current-${index}`"
+                class="text-weight-medium text-grey-9 block"
+              >
+                {{ line }}
+              </span>
+              <span class="text-caption text-deep-purple-8 block application-date-change-label">Requested</span>
+              <span
+                v-for="(line, index) in getPendingUpdateInclusiveDateLines(props.row)"
+                :key="`${props.row.application_uid || props.row.id}-inclusive-requested-${index}`"
+                class="text-weight-medium text-deep-purple-8 block"
+              >
+                {{ line }}
+              </span>
+            </template>
+            <template v-else>
+              <span
+                v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
+                :key="`${props.row.application_uid || props.row.id}-inclusive-${index}`"
+                class="text-weight-medium text-grey-9 block"
+              >
+                {{ line }}
+              </span>
+            </template>
           </div>
         </q-td>
       </template>
@@ -73,7 +93,19 @@
         </q-td>
       </template>
       <template #body-cell-status="props">
-        <q-td><StatusBadge :status="props.row.displayStatus" /></q-td>
+        <q-td>
+          <div class="status-cell-wrap">
+            <StatusBadge :status="props.row.displayStatus" />
+            <q-badge
+              v-if="isEditUpdateRequest(props.row)"
+              color="deep-purple-7"
+              text-color="white"
+              rounded
+              class="text-weight-medium q-pa-xs status-edit-request-badge"
+              label="Edit Request"
+            />
+          </div>
+        </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td class="text-center">
@@ -170,6 +202,27 @@
               {{ selectedApp.days }} day(s)
               <div v-if="selectedApp.equivalent_amount" class="text-caption text-grey-6 q-mt-xs">
                 Est. Amount: &#8369;{{ Number(selectedApp.equivalent_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) }}
+              </div>
+            </div>
+            <div
+              v-else-if="hasPendingDateUpdate(selectedApp)"
+              class="text-weight-medium hr-application-date-change-preview"
+            >
+              <div class="text-caption text-grey-7">Current</div>
+              <div
+                v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
+                :key="`current-inclusive-${index}`"
+                class="text-caption hr-application-duration-date"
+              >
+                {{ line }}
+              </div>
+              <div class="text-caption text-deep-purple-8 hr-application-date-change-label">Requested</div>
+              <div
+                v-for="(line, index) in getPendingUpdateInclusiveDateLines(selectedApp)"
+                :key="`requested-inclusive-${index}`"
+                class="text-caption hr-application-duration-date text-deep-purple-8"
+              >
+                {{ line }}
               </div>
             </div>
             <div
@@ -592,6 +645,23 @@ function mergeStatus(app) {
   return app.status || ''
 }
 
+function isEditUpdateRequest(app) {
+  if (!app || typeof app !== 'object') return false
+
+  const candidates = [
+    app?.has_pending_update_request,
+    app?.hasPendingUpdateRequest,
+    app?.raw?.has_pending_update_request,
+    app?.raw?.hasPendingUpdateRequest,
+  ]
+
+  if (candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')) {
+    return true
+  }
+
+  return Boolean(app?.pending_update || app?.raw?.pending_update)
+}
+
 function normalizeSearchText(value) {
   return String(value || '')
     .toLowerCase()
@@ -801,6 +871,109 @@ function formatGroupedInclusiveDateLines(dateValues) {
   })
 }
 
+function parseSelectedDatesValue(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return []
+
+  const trimmed = value.trim()
+  if (!trimmed) return []
+
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      // Ignore malformed selected_dates JSON and fall back to token parsing.
+    }
+  }
+
+  if (trimmed.includes(',')) {
+    return trimmed
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+
+  return [trimmed]
+}
+
+function normalizeIsoDateList(dateValues) {
+  if (!Array.isArray(dateValues)) return []
+  return [...new Set(
+    dateValues
+      .map((value) => toIsoDateString(value))
+      .filter(Boolean),
+  )].sort((left, right) => Date.parse(left) - Date.parse(right))
+}
+
+function resolveDateSetFromSource(source) {
+  if (!source || typeof source !== 'object') return []
+
+  const selectedDates = normalizeIsoDateList(parseSelectedDatesValue(source?.selected_dates))
+  if (selectedDates.length > 0) return selectedDates
+
+  const startDate = source?.startDate || source?.start_date || null
+  const endDate = source?.endDate || source?.end_date || null
+  if (!startDate && !endDate) return []
+
+  const firstDate = startDate || endDate
+  const lastDate = endDate || startDate
+  return enumerateInclusiveDateRange(firstDate, lastDate)
+}
+
+function getPendingUpdatePayload(app) {
+  const candidates = [
+    app?.pending_update,
+    app?.pendingUpdate,
+    app?.raw?.pending_update,
+    app?.raw?.pendingUpdate,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (candidate && typeof candidate === 'object') return candidate
+
+    if (typeof candidate !== 'string') continue
+    const trimmed = candidate.trim()
+    if (!trimmed) continue
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') return parsed
+    } catch {
+      // Ignore malformed payload and continue scanning candidates.
+    }
+  }
+
+  return null
+}
+
+function getPendingUpdateInclusiveDateLines(app) {
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || payload.is_monetization) return []
+
+  const requestedDateSet = resolveDateSetFromSource(payload)
+  if (!requestedDateSet.length) return []
+
+  const groupedRequestedDates = formatGroupedInclusiveDateLines(requestedDateSet)
+  return groupedRequestedDates.length ? groupedRequestedDates : requestedDateSet
+}
+
+function hasPendingDateUpdate(app) {
+  if (!isEditUpdateRequest(app)) return false
+
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || payload.is_monetization) return false
+
+  const currentDateSet = resolveDateSetFromSource(app)
+  const requestedDateSet = resolveDateSetFromSource(payload)
+  if (!requestedDateSet.length) return false
+  if (!currentDateSet.length) return true
+  if (currentDateSet.length !== requestedDateSet.length) return true
+
+  return requestedDateSet.some((date, index) => date !== currentDateSet[index])
+}
+
 function getApplicationInclusiveDateLines(app) {
   if (!app) return ['N/A']
 
@@ -808,17 +981,10 @@ function getApplicationInclusiveDateLines(app) {
     return [`${formatDayValue(app.days)} day(s)`]
   }
 
-  if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
-    const groupedSelectedDates = formatGroupedInclusiveDateLines(app.selected_dates)
-    if (groupedSelectedDates.length > 0) return groupedSelectedDates
-  }
-
-  if (app.startDate || app.endDate) {
-    const startDate = app.startDate || app.endDate
-    const endDate = app.endDate || app.startDate
-    const rangedDates = enumerateInclusiveDateRange(startDate, endDate)
-    const groupedRangeDates = formatGroupedInclusiveDateLines(rangedDates)
-    if (groupedRangeDates.length > 0) return groupedRangeDates
+  const dateSet = resolveDateSetFromSource(app)
+  if (dateSet.length > 0) {
+    const groupedDates = formatGroupedInclusiveDateLines(dateSet)
+    if (groupedDates.length > 0) return groupedDates
   }
 
   const start = app.startDate ? formatDate(app.startDate) : 'N/A'
@@ -1468,6 +1634,31 @@ async function confirmReject() {
 
 .applications-table--interactive tbody tr {
   cursor: pointer;
+}
+
+.status-cell-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-edit-request-badge {
+  font-size: 11px;
+}
+
+.application-date-change-label {
+  margin-top: 4px;
+}
+
+.hr-application-date-change-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hr-application-date-change-label {
+  margin-top: 6px;
 }
 
 .hr-action-dialog-card {
