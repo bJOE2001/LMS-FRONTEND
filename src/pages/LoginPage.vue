@@ -250,7 +250,12 @@ async function onSubmit() {
       message: 'Logged in successfully!',
       position: 'top',
     })
-    const route = data.redirect_to || data.dashboard_route || '/admin/dashboard'
+    const requiresPasswordChange = Boolean(
+      data.must_change_password ?? data.user?.must_change_password,
+    )
+    const route = requiresPasswordChange
+      ? '/settings'
+      : (data.redirect_to || data.dashboard_route || '/admin/dashboard')
     router.push(route)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to sign in. Please check your credentials and try again.')

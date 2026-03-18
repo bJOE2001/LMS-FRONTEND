@@ -32,7 +32,7 @@ const ROLE_ROUTES = [
 ]
 
 const requiresPasswordChange = (user) =>
-  user?.role === 'department_admin' && Boolean(user?.must_change_password)
+  ['department_admin', 'hr'].includes(user?.role) && Boolean(user?.must_change_password)
 
 export default defineRouter(function (/* { store, ssrContext } */) {
   const createHistory = process.env.SERVER
