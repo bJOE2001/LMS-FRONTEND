@@ -192,8 +192,14 @@
 
         <template #no-data>
           <div class="full-width text-center q-pa-lg">
-            <q-icon name="people_outline" size="48px" color="grey-5" />
-            <div class="text-grey-6 q-mt-sm">No employees found</div>
+            <template v-if="loading">
+              <q-spinner color="primary" size="40px" />
+              <div class="text-grey-6 q-mt-sm">Loading employees...</div>
+            </template>
+            <template v-else>
+              <q-icon name="people_outline" size="48px" color="grey-5" />
+              <div class="text-grey-6 q-mt-sm">No employees found</div>
+            </template>
           </div>
         </template>
       </q-table>
@@ -273,7 +279,13 @@
             </template>
             <template #no-data>
               <div class="full-width text-center q-pa-md text-grey-6">
-                No leave history found for this employee.
+                <template v-if="leaveHistoryLoading">
+                  <q-spinner color="primary" size="24px" class="q-mr-sm" />
+                  <span>Loading leave history...</span>
+                </template>
+                <template v-else>
+                  No leave history found for this employee.
+                </template>
               </div>
             </template>
           </q-table>

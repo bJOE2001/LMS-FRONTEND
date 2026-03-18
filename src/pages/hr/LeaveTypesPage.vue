@@ -112,8 +112,14 @@
 
         <template #no-data>
           <div class="full-width text-center q-pa-lg text-grey-7">
-            <q-icon name="inbox" size="36px" />
-            <div class="q-mt-sm">No leave types found.</div>
+            <template v-if="loading">
+              <q-spinner color="primary" size="32px" />
+              <div class="q-mt-sm">Loading leave types...</div>
+            </template>
+            <template v-else>
+              <q-icon name="inbox" size="36px" />
+              <div class="q-mt-sm">No leave types found.</div>
+            </template>
           </div>
         </template>
       </q-table>
