@@ -201,6 +201,21 @@
             <div class="text-caption text-grey-7">{{ props.row.employee_id }}</div>
           </q-td>
         </template>
+        <template #body-cell-leaveType="props">
+          <q-td>
+            <div class="application-details-cell">
+              <template v-if="hasPendingLeaveTypeUpdate(props.row)">
+                <span class="text-caption text-grey-7">Current</span>
+                <span class="text-weight-medium text-grey-9">{{ getCurrentLeaveTypeLabel(props.row) }}</span>
+                <span class="text-caption text-deep-purple-8 application-date-change-label">Requested</span>
+                <span class="text-weight-medium text-deep-purple-8">{{ getRequestedLeaveTypeLabel(props.row) }}</span>
+              </template>
+              <template v-else>
+                <span class="text-weight-medium text-grey-9">{{ getCurrentLeaveTypeLabel(props.row) }}</span>
+              </template>
+            </div>
+          </q-td>
+        </template>
         <template #body-cell-leaveBalance="props">
           <q-td>
             <div class="leave-balance-cell">
@@ -386,28 +401,42 @@
         <q-separator />
         <q-card-section class="application-timeline-content">
           <div
-            v-if="hasPendingDateUpdate(selectedApp)"
+            v-if="hasPendingUpdatePreview(selectedApp)"
             class="application-date-change-preview"
           >
-            <div class="application-date-change-preview__title">Date Change Request</div>
-            <div class="application-date-change-preview__label">Current</div>
-            <div
-              v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
-              :key="`timeline-current-inclusive-${index}`"
-              class="application-date-change-preview__line"
-            >
-              {{ line }}
-            </div>
-            <div class="application-date-change-preview__label application-date-change-preview__label--requested">
-              Requested
-            </div>
-            <div
-              v-for="(line, index) in getPendingUpdateInclusiveDateLines(selectedApp)"
-              :key="`timeline-requested-inclusive-${index}`"
-              class="application-date-change-preview__line application-date-change-preview__line--requested"
-            >
-              {{ line }}
-            </div>
+            <div class="application-date-change-preview__title">Update Request Preview</div>
+            <template v-if="hasPendingLeaveTypeUpdate(selectedApp)">
+              <div class="application-date-change-preview__section-label">Leave Type</div>
+              <div class="application-date-change-preview__label">Current</div>
+              <div class="application-date-change-preview__line">{{ getCurrentLeaveTypeLabel(selectedApp) }}</div>
+              <div class="application-date-change-preview__label application-date-change-preview__label--requested">
+                Requested
+              </div>
+              <div class="application-date-change-preview__line application-date-change-preview__line--requested">
+                {{ getRequestedLeaveTypeLabel(selectedApp) }}
+              </div>
+            </template>
+            <template v-if="hasPendingDateUpdate(selectedApp)">
+              <div class="application-date-change-preview__section-label">Inclusive Dates</div>
+              <div class="application-date-change-preview__label">Current</div>
+              <div
+                v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
+                :key="`timeline-current-inclusive-${index}`"
+                class="application-date-change-preview__line"
+              >
+                {{ line }}
+              </div>
+              <div class="application-date-change-preview__label application-date-change-preview__label--requested">
+                Requested
+              </div>
+              <div
+                v-for="(line, index) in getPendingUpdateInclusiveDateLines(selectedApp)"
+                :key="`timeline-requested-inclusive-${index}`"
+                class="application-date-change-preview__line application-date-change-preview__line--requested"
+              >
+                {{ line }}
+              </div>
+            </template>
           </div>
           <div class="application-timeline-panel">
             <div
@@ -630,19 +659,85 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+
+const props = defineProps({
+  applicationsOnly: {
+    type: Boolean,
+    default: false,
+  },
+})
+
 const $q = useQuasar()
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+
+const mobileApplicationColumnWidths = {
+  employee: '180px',
+  status: '134px',
+  leaveType: '148px',
+}
+
+const columns = [
+  { name: 'employee', label: 'Employee', align: 'left' },
+  {
+    name: 'leaveType',
+    label: 'Leave Type',
+    field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
+    align: 'left',
+  },
+  {
+    name: 'dateFiled',
+    label: 'Date Filed',
+    field: 'dateFiled',
+    align: 'left',
+  },
+  {
+    name: 'inclusiveDates',
+    label: 'Inclusive Dates',
+    field: 'selected_dates',
+    align: 'left',
+  },
+  {
+    name: 'leaveBalance',
+    label: 'Leave Balance',
+    field: 'leave_balance',
+    align: 'left',
+  },
+  {
+    name: 'days',
+    label: 'Duration',
+    field: (row) => getApplicationDurationDisplay(row),
+    align: 'center',
+  },
+  {
+    name: 'status',
+    label: 'Status',
+    field: 'status',
+    align: 'left',
+  },
+  {
+    name: 'actions',
+    label: 'Actions',
+    align: 'center',
+    style: 'width: 190px',
+    headerStyle: 'width: 190px',
+  },
+]
 
 function emptyEmploymentBreakdown() {
   return {
@@ -661,8 +756,27 @@ const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
 ]
 
 const loading = ref(true)
+const actionLoading = ref(false)
 const showPendingReminderDialog = ref(false)
 const applicationRows = ref([])
+const statusSearch = ref('')
+const applicationsPagination = ref({
+  page: 1,
+  rowsPerPage: 10,
+})
+const showDetailsDialog = ref(false)
+const showDisapproveDialog = ref(false)
+const showConfirmActionDialog = ref(false)
+const showActionResultDialog = ref(false)
+const selectedApp = ref(null)
+const confirmActionType = ref('approve')
+const confirmActionTarget = ref(null)
+const disapproveId = ref('')
+const remarks = ref('')
+const rejectionMode = ref('disapprove')
+const disapproveTargetApp = ref(null)
+const actionResultType = ref('approved')
+const actionResultApp = ref(null)
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -691,6 +805,85 @@ const totalApplicationBreakdownCards = computed(() =>
     ...card,
     value: kpiBreakdown.value.total[card.key] ?? 0,
   })),
+)
+
+const applicationTableColumns = computed(() => {
+  if (!$q.screen.lt.sm) return columns
+
+  return ['employee', 'status', 'leaveType']
+    .map((name) => {
+      const column = columns.find((entry) => entry.name === name)
+      if (!column) return null
+
+      const mobileWidth = mobileApplicationColumnWidths[name]
+      if (!mobileWidth) return column
+
+      return {
+        ...column,
+        style: `min-width: ${mobileWidth};`,
+        headerStyle: `min-width: ${mobileWidth}; text-align: left;`,
+      }
+    })
+    .filter(Boolean)
+})
+
+const applicationsForTable = computed(() => {
+  const queryTokens = getSearchTokens(statusSearch.value)
+  const filteredApplications = queryTokens.length
+    ? applicationRows.value.filter((app) => {
+        const searchText = getApplicationSearchText(app)
+        return queryTokens.every((token) => searchText.includes(token))
+      })
+    : applicationRows.value
+
+  return [...filteredApplications].sort(compareApplicationsForTable)
+})
+
+const latestLeaveBalanceEntriesByEmployee = computed(() => {
+  const entriesByEmployee = new Map()
+  const applications = [...(applicationRows.value ?? [])].sort(compareApplicationsByRecencyDesc)
+
+  for (const app of applications) {
+    const employeeKey = getEmployeeBalanceLookupKey(app)
+    if (!employeeKey) continue
+
+    const latestEntries = getLeaveBalanceEntriesFromSnapshot(app)
+    if (!latestEntries.length) continue
+
+    let employeeEntries = entriesByEmployee.get(employeeKey)
+    if (!employeeEntries) {
+      employeeEntries = new Map()
+      entriesByEmployee.set(employeeKey, employeeEntries)
+    }
+
+    for (const entry of latestEntries) {
+      const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+      if (!leaveTypeKey || employeeEntries.has(leaveTypeKey)) continue
+      employeeEntries.set(leaveTypeKey, entry)
+    }
+  }
+
+  return entriesByEmployee
+})
+
+const selectedAppTimeline = computed(() => buildApplicationTimeline(selectedApp.value))
+const rejectionDialogTitle = computed(() =>
+  rejectionMode.value === 'cancel' ? 'Cancel Application' : 'Disapprove Application',
+)
+const rejectionDialogLabel = computed(() =>
+  rejectionMode.value === 'cancel' ? 'Reason for cancellation' : 'Reason for disapproval',
+)
+
+watch(statusSearch, () => {
+  applicationsPagination.value.page = 1
+})
+
+watch(
+  () => route.query.search,
+  (value) => {
+    statusSearch.value = String(value || '')
+  },
+  { immediate: true },
 )
 
 onMounted(fetchDashboard)
@@ -822,6 +1015,96 @@ function extractApplicationsFromPayload(payload) {
   return []
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return ''
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr).trim())) {
+    return formatDate(dateStr)
+  }
+
+  const parsedDate = new Date(dateStr)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  return parsedDate.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function formatDayValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return '0'
+  return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
+}
+
+function normalizeDurationUnit(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized.startsWith('hour')) return 'hour'
+  if (normalized.startsWith('day')) return 'day'
+  return ''
+}
+
+function formatDurationDisplay(value, unit) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return unit === 'hour' ? '0 h' : '0 days'
+
+  const displayValue = formatDayValue(numericValue)
+  if (unit === 'hour') return `${displayValue} h`
+  return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
+}
+
+function resolveApplicationDuration(app) {
+  const explicitUnit = normalizeDurationUnit(app?.duration_unit)
+  const explicitValue = Number(app?.duration_value)
+  if (explicitUnit && Number.isFinite(explicitValue)) {
+    return { value: explicitValue, unit: explicitUnit }
+  }
+
+  if (isCocApplication(app)) {
+    const hourValue = Number(app?.days ?? app?.total_days)
+    if (Number.isFinite(hourValue)) return { value: hourValue, unit: 'hour' }
+
+    const minutes = Number(app?.total_no_of_coc_applied_minutes)
+    if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
+
+    return { value: 0, unit: 'hour' }
+  }
+
+  const derivedDays = Number(getApplicationDayCount(app))
+  if (Number.isFinite(derivedDays)) return { value: derivedDays, unit: 'day' }
+
+  const dayValue = Number(app?.days ?? app?.total_days)
+  if (Number.isFinite(dayValue)) return { value: dayValue, unit: 'day' }
+
+  return { value: 0, unit: 'day' }
+}
+
+function getApplicationDurationDisplay(app) {
+  const explicitLabel = String(app?.duration_label || '').trim()
+  if (explicitLabel) return explicitLabel
+
+  const resolved = resolveApplicationDuration(app)
+  return formatDurationDisplay(resolved.value, resolved.unit)
+}
+
+function formatLeaveBalanceValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+  return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+}
+
 function normalizeApplicationType(value) {
   const normalized = String(value || '').trim().toUpperCase()
   if (normalized === 'COC') return 'COC'
@@ -844,6 +1127,30 @@ function getApplicationType(application) {
 
   if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
   return 'LEAVE'
+}
+
+function isCocApplication(application) {
+  return getApplicationType(application) === 'COC'
+}
+
+function getApplicationExplicitId(application) {
+  return (
+    application?.id ??
+    application?.application_id ??
+    application?.leave_application_id ??
+    application?.coc_application_id
+  )
+}
+
+function getApplicationRowKey(application, index = 0) {
+  const typeKey = getApplicationType(application)
+  const explicitId = getApplicationExplicitId(application)
+
+  if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
+    return `${typeKey}:${String(explicitId).trim()}`
+  }
+
+  return `${typeKey}:index:${index}`
 }
 
 function normalizeLookupValue(value) {
@@ -887,6 +1194,8 @@ function getApplicationEmployeeLookupCandidates(application) {
     application?.employee?.controlNo,
     application?.employee?.employee_id,
     application?.employee?.employeeId,
+    application?.user?.control_no,
+    application?.user?.controlNo,
   ]
     .map((value) => normalizeLookupValue(value))
     .filter(Boolean)
@@ -894,11 +1203,7 @@ function getApplicationEmployeeLookupCandidates(application) {
 
 function getApplicationMergeKey(application, index) {
   const typeKey = getApplicationType(application)
-  const explicitId =
-    application?.id ??
-    application?.application_id ??
-    application?.leave_application_id ??
-    application?.coc_application_id
+  const explicitId = getApplicationExplicitId(application)
   if (explicitId !== undefined && explicitId !== null && String(explicitId).trim() !== '') {
     return `id:${typeKey}:${String(explicitId).trim()}`
   }
@@ -987,6 +1292,7 @@ function mergeApplications(...sources) {
     const normalizedApplication = {
       ...application,
       application_type: getApplicationType(application),
+      application_uid: getApplicationRowKey(application, index),
     }
     const key = getApplicationMergeKey(normalizedApplication, index)
     const existingApplication = mergedApplications.get(key)
@@ -997,47 +1303,6 @@ function mergeApplications(...sources) {
   })
 
   return Array.from(mergedApplications.values())
-}
-
-function getApplicationEmploymentTypeKey(application) {
-  const employeeMatchedKey = getApplicationEmploymentTypeFromEmployees(application)
-  if (employeeMatchedKey) return employeeMatchedKey
-
-  const candidates = [
-    application?.employment_status,
-    application?.employmentStatus,
-    application?.appointment_status,
-    application?.appointmentStatus,
-    application?.employee_status,
-    application?.employeeStatus,
-    application?.status_type,
-    application?.statusType,
-    application?.employee?.status,
-    application?.employee?.employment_status,
-    application?.employee?.employmentStatus,
-    application?.user?.status,
-    application?.user?.employment_status,
-    application?.user?.employmentStatus,
-  ]
-
-  for (const candidate of candidates) {
-    const normalizedKey = normalizeEmploymentTypeKey(candidate)
-    if (normalizedKey) return normalizedKey
-  }
-
-  return ''
-}
-
-function matchesEmploymentTypeFilter(application) {
-  if (!employmentTypeFilter.value) return true
-  return getApplicationEmploymentTypeKey(application) === employmentTypeFilter.value
-}
-
-function getEmploymentTypeCardStyle(card) {
-  return {
-    '--stat-mini-card-accent': card.accent,
-    '--stat-mini-card-hover-bg': card.bg,
-  }
 }
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
@@ -1430,6 +1695,75 @@ function getPendingUpdatePayload(app) {
   }
 
   return null
+}
+
+function getCurrentLeaveTypeId(app) {
+  const rawValue = app?.leave_type_id ?? app?.leaveTypeId ?? app?.raw?.leave_type_id ?? app?.raw?.leaveTypeId
+  const leaveTypeId = Number(rawValue)
+  return Number.isFinite(leaveTypeId) && leaveTypeId > 0 ? leaveTypeId : null
+}
+
+function getRequestedLeaveTypeId(app) {
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || typeof payload !== 'object') return null
+  const leaveTypeId = Number(payload.leave_type_id)
+  return Number.isFinite(leaveTypeId) && leaveTypeId > 0 ? leaveTypeId : null
+}
+
+function getCurrentLeaveTypeLabel(app) {
+  const leaveTypeName = String(
+    app?.leaveType ??
+    app?.leave_type_name ??
+    app?.leave_type ??
+    app?.leaveTypeName ??
+    app?.raw?.leave_type_name ??
+    app?.raw?.leaveType ??
+    app?.raw?.leave_type ??
+    '',
+  ).trim()
+
+  const resolvedName = leaveTypeName || 'Unknown Leave Type'
+  return app?.is_monetization ? `${resolvedName} (Monetization)` : resolvedName
+}
+
+function getRequestedLeaveTypeLabel(app) {
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || typeof payload !== 'object') return ''
+
+  const requestedName = String(
+    payload.leave_type_name ??
+    payload.leaveTypeName ??
+    payload.leave_type ??
+    payload.leaveType ??
+    '',
+  ).trim()
+
+  const fallbackId = getRequestedLeaveTypeId(app)
+  const resolvedName = requestedName || (fallbackId ? `Leave Type #${fallbackId}` : '')
+  if (!resolvedName) return ''
+
+  const isMonetization = payload?.is_monetization === true || app?.is_monetization === true
+  return isMonetization ? `${resolvedName} (Monetization)` : resolvedName
+}
+
+function hasPendingLeaveTypeUpdate(app) {
+  if (!isEditUpdateRequest(app)) return false
+
+  const requestedLeaveTypeId = getRequestedLeaveTypeId(app)
+  const currentLeaveTypeId = getCurrentLeaveTypeId(app)
+  if (requestedLeaveTypeId && currentLeaveTypeId) {
+    return requestedLeaveTypeId !== currentLeaveTypeId
+  }
+
+  const currentName = String(getCurrentLeaveTypeLabel(app) || '').trim().toLowerCase()
+  const requestedName = String(getRequestedLeaveTypeLabel(app) || '').trim().toLowerCase()
+  if (!requestedName) return false
+  if (!currentName) return true
+  return requestedName !== currentName
+}
+
+function hasPendingUpdatePreview(app) {
+  return hasPendingLeaveTypeUpdate(app) || hasPendingDateUpdate(app)
 }
 
 function getPendingUpdateInclusiveDateLines(app) {
@@ -2532,6 +2866,17 @@ async function confirmDisapprove() {
   text-transform: uppercase;
   color: #0f172a;
   margin-bottom: 6px;
+}
+.application-date-change-preview__section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+  margin-top: 2px;
+}
+.application-date-change-preview__section-label + .application-date-change-preview__label {
+  margin-top: 4px;
 }
 .application-date-change-preview__label {
   font-size: 0.72rem;
