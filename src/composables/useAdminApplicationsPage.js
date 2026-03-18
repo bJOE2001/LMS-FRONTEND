@@ -5,6 +5,7 @@ import { api } from 'src/boot/axios'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
+import { generateCocApplicationPdf } from 'src/utils/coc-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -344,6 +345,33 @@ export function useAdminApplicationsPage() {
     }
 
     return []
+  }
+
+  function extractSingleApplicationFromPayload(payload) {
+    if (!payload) return null
+
+    if (Array.isArray(payload)) {
+      return payload.length ? payload[0] : null
+    }
+
+    const candidates = [
+      payload?.application,
+      payload?.coc_application,
+      payload?.leave_application,
+      payload?.cocApplication,
+      payload?.leaveApplication,
+      payload?.item,
+      payload?.row,
+      payload?.data,
+    ]
+
+    for (const candidate of candidates) {
+      if (!candidate) continue
+      if (Array.isArray(candidate)) return candidate.length ? candidate[0] : null
+      if (candidate && typeof candidate === 'object') return candidate
+    }
+
+    return payload && typeof payload === 'object' ? payload : null
   }
 
   function normalizeApplicationType(value) {
@@ -1406,6 +1434,16 @@ export function useAdminApplicationsPage() {
 
   async function printApplication(app) {
     if (!canPrintApplication(app)) return
+    const cocApplication = isCocApplication(app)
+
+    const openApplicationPdf = async (application) => {
+      if (cocApplication) {
+        await generateCocApplicationPdf(application)
+        return
+      }
+
+      await generateLeaveFormPdf(application)
+    }
 
     try {
       const { data } = await api.get('/admin/dashboard')
@@ -1413,9 +1451,34 @@ export function useAdminApplicationsPage() {
       const updated = updatedApplications.find(
         (item) => getApplicationRowKey(item) === getApplicationRowKey(app),
       )
-      await generateLeaveFormPdf(updated || app)
+      let printableApplication = updated || app
+
+      if (cocApplication) {
+        const cocId =
+          printableApplication?.id ??
+          printableApplication?.coc_application_id ??
+          app?.id ??
+          app?.coc_application_id
+
+        if (cocId !== undefined && cocId !== null && String(cocId).trim() !== '') {
+          try {
+            const cocResponse = await api.get(`/admin/coc-applications/${cocId}`)
+            const detailedApplication = extractSingleApplicationFromPayload(cocResponse?.data)
+            if (detailedApplication && typeof detailedApplication === 'object') {
+              printableApplication = {
+                ...printableApplication,
+                ...detailedApplication,
+              }
+            }
+          } catch {
+            // Ignore detail endpoint failures and print with the best available data.
+          }
+        }
+      }
+
+      await openApplicationPdf(printableApplication)
     } catch {
-      await generateLeaveFormPdf(app)
+      await openApplicationPdf(app)
     }
   }
 
