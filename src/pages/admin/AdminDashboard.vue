@@ -152,7 +152,11 @@
       </div>
     </div>
 
-    <AdminAnalyticsCharts v-if="!props.applicationsOnly" :applications="applicationRows" />
+    <AdminAnalyticsCharts
+      v-if="!props.applicationsOnly"
+      :applications="applicationRows"
+      :analytics="dashboardData.analytics"
+    />
 
     <q-card v-if="props.applicationsOnly" flat bordered class="rounded-borders">
       <q-card-section>
@@ -748,6 +752,43 @@ function emptyEmploymentBreakdown() {
   }
 }
 
+function emptyDashboardAnalytics() {
+  return {
+    trend_year: new Date().getFullYear(),
+    monthly_leave_trend: Array.from({ length: 12 }, () => 0),
+    leave_type_monthly_trend: {},
+  }
+}
+
+function normalizeTrendBuckets(value) {
+  return Array.from({ length: 12 }, (_unused, index) => {
+    const parsed = Number(value?.[index] ?? 0)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.round(parsed)
+  })
+}
+
+function normalizeLeaveTypeMonthlyTrend(value) {
+  if (!value || typeof value !== 'object') return {}
+
+  return Object.entries(value).reduce((result, [rawLeaveType, buckets]) => {
+    const normalizedLeaveType = String(rawLeaveType || '').trim() || 'Unknown'
+    result[normalizedLeaveType] = normalizeTrendBuckets(buckets)
+    return result
+  }, {})
+}
+
+function normalizeDashboardAnalytics(value) {
+  if (!value || typeof value !== 'object') return emptyDashboardAnalytics()
+
+  const trendYear = Number(value.trend_year)
+  return {
+    trend_year: Number.isFinite(trendYear) && trendYear >= 2000 ? Math.round(trendYear) : new Date().getFullYear(),
+    monthly_leave_trend: normalizeTrendBuckets(value.monthly_leave_trend),
+    leave_type_monthly_trend: normalizeLeaveTypeMonthlyTrend(value.leave_type_monthly_trend),
+  }
+}
+
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
   { key: 'elective', label: 'Elective' },
   { key: 'co_terminous', label: 'Co-term' },
@@ -782,6 +823,7 @@ const dashboardData = ref({
   approved_today: 0,
   total_approved: 0,
   total_count: 0,
+  analytics: null,
   kpi_breakdown: {
     pending: emptyEmploymentBreakdown(),
     approved_today: emptyEmploymentBreakdown(),
@@ -941,6 +983,10 @@ async function fetchDashboard() {
       approved_today: Number(data.approved_today || 0),
       total_approved: Number(data.total_approved || 0),
       total_count: Number(data.total_count || 0),
+      analytics:
+        data.analytics && typeof data.analytics === 'object'
+          ? normalizeDashboardAnalytics(data.analytics)
+          : null,
       kpi_breakdown: data.kpi_breakdown ?? {
         pending: emptyEmploymentBreakdown(),
         approved_today: emptyEmploymentBreakdown(),
@@ -958,6 +1004,7 @@ async function fetchDashboard() {
   } catch (err) {
     const message = resolveApiErrorMessage(err, 'Unable to load dashboard data right now.')
     $q.notify({ type: 'negative', message, position: 'top' })
+    dashboardData.value.analytics = null
     applicationRows.value = []
   } finally {
     loading.value = false
@@ -2348,7 +2395,22 @@ async function printApplication(app) {
 
   try {
     const { data } = await api.get('/admin/dashboard')
-    dashboardData.value = data
+    dashboardData.value = {
+      pending_count: Number(data?.pending_count || 0),
+      approved_today: Number(data?.approved_today || 0),
+      total_approved: Number(data?.total_approved || 0),
+      total_count: Number(data?.total_count || 0),
+      analytics:
+        data?.analytics && typeof data.analytics === 'object'
+          ? normalizeDashboardAnalytics(data.analytics)
+          : null,
+      kpi_breakdown: data?.kpi_breakdown ?? {
+        pending: emptyEmploymentBreakdown(),
+        approved_today: emptyEmploymentBreakdown(),
+        total_approved: emptyEmploymentBreakdown(),
+        total: emptyEmploymentBreakdown(),
+      },
+    }
     const updated = data.applications?.find((a) => a.id === app.id)
     await generateLeaveFormPdf(updated || app)
   } catch {

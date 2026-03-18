@@ -71,13 +71,29 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  analytics: {
+    type: Object,
+    default: null,
+  },
 })
 
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const fallbackMonthlyTrend = [4, 6, 5, 8, 7, 9, 11, 10, 8, 7, 9, 6]
-const trendYearLabel = new Date().getFullYear()
+const currentYear = new Date().getFullYear()
+const trendYearLabel = computed(() => {
+  const parsed = Number(props.analytics?.trend_year)
+  if (!Number.isFinite(parsed) || parsed < 2000) return currentYear
+  return Math.round(parsed)
+})
 const leaveTypeFilter = ref('All')
 const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
+
+function normalizeTrendBuckets(rawBuckets) {
+  return Array.from({ length: 12 }, (_unused, monthIndex) => {
+    const parsed = Number(rawBuckets?.[monthIndex] ?? 0)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.round(parsed)
+  })
+}
 
 function getApplicationDate(application) {
   return (
@@ -114,8 +130,16 @@ function getApplicationLeaveType(application) {
 }
 
 const trendAnalysis = computed(() => {
+  const hasBackendMonthlyTrend = props.analytics && typeof props.analytics === 'object' && props.analytics.monthly_leave_trend != null
+  if (hasBackendMonthlyTrend) {
+    const buckets = normalizeTrendBuckets(props.analytics.monthly_leave_trend)
+    return {
+      buckets,
+      hasCurrentYearData: buckets.some((bucket) => bucket > 0),
+    }
+  }
+
   const buckets = Array(12).fill(0)
-  let hasCurrentYearData = false
 
   for (const application of props.applications) {
     const rawDate = getApplicationDate(application)
@@ -123,15 +147,14 @@ const trendAnalysis = computed(() => {
 
     const parsedDate = new Date(rawDate)
     if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== trendYearLabel) continue
+    if (parsedDate.getFullYear() !== trendYearLabel.value) continue
 
     buckets[parsedDate.getMonth()] += 1
-    hasCurrentYearData = true
   }
 
   return {
-    buckets: hasCurrentYearData ? buckets : fallbackMonthlyTrend,
-    hasCurrentYearData,
+    buckets,
+    hasCurrentYearData: buckets.some((bucket) => bucket > 0),
   }
 })
 
@@ -204,6 +227,26 @@ const trendChartOptions = computed(() => ({
 
 const leaveTypeMonthlyTrendMap = computed(() => {
   const trendMap = new Map()
+  const leaveTypeTrendPayload = props.analytics?.leave_type_monthly_trend
+
+  if (leaveTypeTrendPayload && typeof leaveTypeTrendPayload === 'object') {
+    for (const [rawLeaveType, buckets] of Object.entries(leaveTypeTrendPayload)) {
+      const leaveTypeName = normalizeLeaveTypeName(rawLeaveType)
+      const normalizedBuckets = normalizeTrendBuckets(buckets)
+      const existingBuckets = trendMap.get(leaveTypeName)
+
+      if (existingBuckets) {
+        trendMap.set(
+          leaveTypeName,
+          existingBuckets.map((count, index) => count + normalizedBuckets[index]),
+        )
+      } else {
+        trendMap.set(leaveTypeName, normalizedBuckets)
+      }
+    }
+
+    return trendMap
+  }
 
   for (const application of props.applications) {
     const rawDate = getApplicationDate(application)
@@ -211,7 +254,7 @@ const leaveTypeMonthlyTrendMap = computed(() => {
 
     const parsedDate = new Date(rawDate)
     if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== trendYearLabel) continue
+    if (parsedDate.getFullYear() !== trendYearLabel.value) continue
 
     const leaveTypeName = getApplicationLeaveType(application)
     if (!trendMap.has(leaveTypeName)) {

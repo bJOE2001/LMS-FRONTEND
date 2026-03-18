@@ -136,10 +136,10 @@
           <q-card-section class="manpower-card-section">
             <div class="row items-center justify-between q-mb-sm">
               <div>
-                <div class="text-h6">Monthly Manpower Percentage</div>
-                <!-- <p class="text-caption text-grey-7 q-mb-none">
-                  Based on active employees minus approved leaves per month (current year)
-                </p> -->
+                <div class="text-h6">Daily Manpower Percentage</div>
+                <p class="text-caption text-grey-7 q-mb-none">
+                  Daily view for {{ manpowerPeriodLabel }}
+                </p>
               </div>
               <div class="text-right">
                 <div class="text-caption text-grey-7">Active Employees</div>
@@ -478,16 +478,28 @@ function getEmployeeKey(application) {
   return String(key || '').trim()
 }
 
-const manpowerMonths = computed(() => {
-  const currentYear = new Date().getFullYear()
-  return Array.from({ length: 12 }, (_, index) => {
-    const month = String(index + 1).padStart(2, '0')
-    return `${currentYear}-${month}`
+const manpowerDateRange = computed(() => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const daysInMonth = new Date(year, month, 0).getDate()
+
+  return Array.from({ length: daysInMonth }, (_, index) => {
+    const day = String(index + 1).padStart(2, '0')
+    return `${year}-${String(month).padStart(2, '0')}-${day}`
   })
 })
 
-const manpowerMonthlyOnLeave = computed(() => {
-  const monthSetMap = new Map(manpowerMonths.value.map((month) => [month, new Set()]))
+const manpowerPeriodLabel = computed(() => {
+  const firstDate = manpowerDateRange.value[0]
+  if (!firstDate) return ''
+
+  const parsedDate = new Date(`${firstDate}T00:00:00`)
+  return parsedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+})
+
+const manpowerDailyOnLeave = computed(() => {
+  const dateSetMap = new Map(manpowerDateRange.value.map((date) => [date, new Set()]))
 
   for (const application of dashboardApplications.value) {
     if (mergeStatus(application) !== 'Approved') continue
@@ -497,20 +509,19 @@ const manpowerMonthlyOnLeave = computed(() => {
 
     const leaveDates = getApplicationLeaveDates(application)
     for (const leaveDate of leaveDates) {
-      const monthKey = leaveDate.slice(0, 7)
-      const bucket = monthSetMap.get(monthKey)
+      const bucket = dateSetMap.get(leaveDate)
       if (bucket) bucket.add(employeeKey)
     }
   }
 
-  return manpowerMonths.value.map((month) => monthSetMap.get(month)?.size ?? 0)
+  return manpowerDateRange.value.map((date) => dateSetMap.get(date)?.size ?? 0)
 })
 
-const manpowerMonthlyPercentage = computed(() => {
+const manpowerDailyPercentage = computed(() => {
   const totalActive = Number(activeEmployeeCount.value || 0)
-  if (totalActive <= 0) return manpowerMonthlyOnLeave.value.map(() => 0)
+  if (totalActive <= 0) return manpowerDailyOnLeave.value.map(() => 0)
 
-  return manpowerMonthlyOnLeave.value.map((onLeaveCount) => {
+  return manpowerDailyOnLeave.value.map((onLeaveCount) => {
     const available = Math.max(totalActive - onLeaveCount, 0)
     return Number(((available / totalActive) * 100).toFixed(2))
   })
@@ -519,7 +530,7 @@ const manpowerMonthlyPercentage = computed(() => {
 const manpowerChartSeries = computed(() => [
   {
     name: 'Manpower %',
-    data: manpowerMonthlyPercentage.value,
+    data: manpowerDailyPercentage.value,
   },
 ])
 
@@ -574,7 +585,7 @@ function getEmploymentTypeCardStyle(card) {
 
 const manpowerChartOptions = computed(() => ({
   chart: {
-    id: 'hr-manpower-monthly-percentage',
+    id: 'hr-manpower-daily-percentage',
     toolbar: { show: false },
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
@@ -605,13 +616,10 @@ const manpowerChartOptions = computed(() => ({
     xaxis: { lines: { show: false } },
   },
   xaxis: {
-    categories: manpowerMonths.value.map((month) => {
-      const parsedDate = new Date(`${month}-01T00:00:00`)
-      return parsedDate.toLocaleDateString('en-US', { month: 'short' })
-    }),
+    categories: manpowerDateRange.value.map((date) => Number(date.slice(8, 10))),
     labels: {
       hideOverlappingLabels: true,
-      rotate: -45,
+      rotate: 0,
       style: { colors: '#6b7280' },
     },
     axisBorder: { show: false },
@@ -627,12 +635,25 @@ const manpowerChartOptions = computed(() => ({
     },
   },
   tooltip: {
+    x: {
+      formatter: (_value, context) => {
+        const date = manpowerDateRange.value[context?.dataPointIndex ?? -1]
+        if (!date) return ''
+
+        const parsedDate = new Date(`${date}T00:00:00`)
+        return parsedDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      },
+    },
     y: {
       formatter: (value) => `${Number(value).toFixed(2)}%`,
     },
   },
   noData: {
-    text: 'No manpower data available.',
+    text: 'No daily manpower data available.',
   },
 }))
 
