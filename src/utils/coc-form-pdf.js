@@ -1,0 +1,974 @@
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from './department-head-signature'
+
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+
+const COC_VISIBLE_ROW_COUNT = 15
+const MAYOR_NAME = 'REY T. UY'
+const MAYOR_TITLE = 'City Mayor'
+const HEADER_BAR_HEIGHT = 26
+const HEADER_BAR_TEXT_SIZE = 14
+const HEADER_SMALL_BAR_TOP_OFFSET = 47
+const HEADER_TEXT_LEFT_INSET = 8
+const SIGNATURE_LINE_WIDTH = '82%'
+
+function normalizeText(value) {
+  return String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function firstPresentValue(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue
+    if (typeof value === 'string' && normalizeText(value) === '') continue
+    return value
+  }
+  return ''
+}
+
+function toFiniteNumber(value) {
+  if (value === undefined || value === null || value === '') return null
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+function tryParseDate(value) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date
+}
+
+function formatDateForRow(value) {
+  const parsedDate = tryParseDate(value)
+  if (!parsedDate) return normalizeText(value)
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+}
+
+function parseTimeToMinutesOfDay(value) {
+  const rawValue = normalizeText(value)
+  if (!rawValue) return null
+
+  const meridiemMatch = rawValue.match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])$/)
+  if (meridiemMatch) {
+    const parsedHours = Number(meridiemMatch[1])
+    const parsedMinutes = Number(meridiemMatch[2] || '0')
+    if (parsedHours < 1 || parsedHours > 12 || parsedMinutes > 59) return null
+
+    const isPm = meridiemMatch[3].toUpperCase() === 'PM'
+    const hours24 = parsedHours % 12 + (isPm ? 12 : 0)
+    return hours24 * 60 + parsedMinutes
+  }
+
+  const twentyFourHourMatch = rawValue.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/)
+  if (twentyFourHourMatch) {
+    const parsedHours = Number(twentyFourHourMatch[1])
+    const parsedMinutes = Number(twentyFourHourMatch[2])
+    return parsedHours * 60 + parsedMinutes
+  }
+
+  const parsedDate = tryParseDate(rawValue)
+  if (!parsedDate) return null
+  return parsedDate.getHours() * 60 + parsedDate.getMinutes()
+}
+
+function formatTimeForDisplay(value) {
+  const rawValue = normalizeText(value)
+  if (!rawValue) return ''
+
+  const minuteOfDay = parseTimeToMinutesOfDay(rawValue)
+  if (minuteOfDay === null) return rawValue
+
+  const hours24 = Math.floor(minuteOfDay / 60) % 24
+  const minutes = minuteOfDay % 60
+  const period = hours24 >= 12 ? 'PM' : 'AM'
+  const displayHour = hours24 % 12 || 12
+  return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
+function parseDurationTextToMinutes(value) {
+  if (value === undefined || value === null || value === '') return null
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.round(value))
+  }
+
+  const rawValue = normalizeText(value)
+  if (!rawValue) return null
+
+  const numericValue = Number(rawValue)
+  if (Number.isFinite(numericValue)) return Math.max(0, Math.round(numericValue))
+
+  const hhMmMatch = rawValue.match(/^(\d{1,2})\s*:\s*(\d{1,2})$/)
+  if (hhMmMatch) {
+    const hours = Number(hhMmMatch[1])
+    const minutes = Number(hhMmMatch[2])
+    if (minutes >= 60) return null
+    return hours * 60 + minutes
+  }
+
+  const hoursMatch = rawValue.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/i)
+  const minutesMatch = rawValue.match(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/i)
+
+  if (!hoursMatch && !minutesMatch) return null
+
+  const parsedHours = hoursMatch ? Number(hoursMatch[1]) : 0
+  const parsedMinutes = minutesMatch ? Number(minutesMatch[1]) : 0
+  if (!Number.isFinite(parsedHours) || !Number.isFinite(parsedMinutes)) return null
+
+  return Math.max(0, Math.round(parsedHours * 60 + parsedMinutes))
+}
+
+function formatMinutesAsHoursAndMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes)) return ''
+  const safeMinutes = Math.max(0, Math.round(totalMinutes))
+  const hours = Math.floor(safeMinutes / 60)
+  const minutes = safeMinutes % 60
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`
+}
+
+function unwrapArray(value) {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+
+  const nestedCandidates = [value.rows, value.items, value.data, value.entries, value.details]
+  for (const candidate of nestedCandidates) {
+    if (Array.isArray(candidate)) return candidate
+  }
+
+  return []
+}
+
+function buildNameFromParts(source) {
+  if (!source || typeof source !== 'object') return ''
+
+  const parts = [
+    normalizeText(source.firstname),
+    normalizeText(source.middlename),
+    normalizeText(source.surname),
+  ].filter(Boolean)
+
+  return parts.join(' ').trim()
+}
+
+function resolveEmployeeName(app) {
+  const directValue = firstPresentValue(
+    app?.employeeName,
+    app?.employee_name,
+    app?.full_name,
+    app?.name,
+    app?.employee?.full_name,
+    app?.employee?.employee_name,
+    app?.employee?.name,
+  )
+  if (directValue) return normalizeText(directValue)
+
+  const fullNameFromRoot = buildNameFromParts(app)
+  if (fullNameFromRoot) return fullNameFromRoot
+
+  const fullNameFromEmployee = buildNameFromParts(app?.employee)
+  if (fullNameFromEmployee) return fullNameFromEmployee
+
+  return ''
+}
+
+function resolveEmployeePosition(app) {
+  return normalizeText(
+    firstPresentValue(
+      app?.position,
+      app?.designation,
+      app?.job_title,
+      app?.jobTitle,
+      app?.employee?.position,
+      app?.employee?.designation,
+      app?.employee?.job_title,
+      app?.employee?.jobTitle,
+      app?.employee?.rank,
+    ),
+  )
+}
+
+function resolveEmployeeDepartment(app) {
+  return normalizeText(
+    firstPresentValue(
+      app?.office,
+      app?.department_name,
+      app?.departmentName,
+      app?.department?.name,
+      app?.department,
+    ),
+  )
+}
+
+function normalizeCocEntry(entry) {
+  if (entry && typeof entry === 'object') return entry
+  return { date: entry }
+}
+
+function extractCocEntries(app) {
+  const candidateCollections = [
+    app?.overtime_details,
+    app?.overtimeDetails,
+    app?.overtime_entries,
+    app?.overtimeEntries,
+    app?.coc_details,
+    app?.cocDetails,
+    app?.details,
+    app?.entries,
+    app?.line_items,
+    app?.lineItems,
+    app?.application_details,
+    app?.applicationDetails,
+    app?.overtime,
+  ]
+
+  for (const collection of candidateCollections) {
+    const normalizedRows = unwrapArray(collection)
+      .map((row) => normalizeCocEntry(row))
+      .filter(Boolean)
+
+    if (normalizedRows.length) return normalizedRows
+  }
+
+  const selectedDates = Array.isArray(app?.selected_dates)
+    ? app.selected_dates
+    : Array.isArray(app?.selectedDates)
+      ? app.selectedDates
+      : []
+
+  if (selectedDates.length) {
+    return selectedDates.map((dateValue) => ({ date: dateValue }))
+  }
+
+  const fallbackDate = firstPresentValue(
+    app?.startDate,
+    app?.start_date,
+    app?.dateFiled,
+    app?.date_filed,
+    app?.created_at,
+    app?.createdAt,
+  )
+
+  return fallbackDate ? [{ date: fallbackDate }] : []
+}
+
+function resolveEntryDate(entry) {
+  return firstPresentValue(
+    entry?.date,
+    entry?.overtime_date,
+    entry?.overtimeDate,
+    entry?.work_date,
+    entry?.workDate,
+    entry?.rendered_date,
+    entry?.renderedDate,
+    entry?.duty_date,
+    entry?.dutyDate,
+    entry?.entry_date,
+    entry?.entryDate,
+  )
+}
+
+function resolveEntryNature(entry) {
+  return normalizeText(
+    firstPresentValue(
+      entry?.nature_of_overtime,
+      entry?.natureOfOvertime,
+      entry?.overtime_nature,
+      entry?.overtimeNature,
+      entry?.nature,
+      entry?.purpose,
+      entry?.description,
+      entry?.reason,
+      entry?.activity,
+    ),
+  )
+}
+
+function resolveEntryFromTime(entry) {
+  return firstPresentValue(
+    entry?.from_time,
+    entry?.fromTime,
+    entry?.time_from,
+    entry?.timeFrom,
+    entry?.start_time,
+    entry?.startTime,
+    entry?.time_start,
+    entry?.timeStart,
+  )
+}
+
+function resolveEntryToTime(entry) {
+  return firstPresentValue(
+    entry?.to_time,
+    entry?.toTime,
+    entry?.time_to,
+    entry?.timeTo,
+    entry?.end_time,
+    entry?.endTime,
+    entry?.time_end,
+    entry?.timeEnd,
+  )
+}
+
+function resolveEntryMinutes(entry, fromTimeValue, toTimeValue) {
+  const explicitHours = toFiniteNumber(
+    firstPresentValue(entry?.no_of_hours, entry?.noOfHours, entry?.hours, entry?.hour),
+  )
+  const explicitMinutePart = toFiniteNumber(
+    firstPresentValue(entry?.no_of_minutes, entry?.noOfMinutes, entry?.minutes, entry?.minute),
+  )
+
+  if (explicitHours !== null) {
+    return Math.max(0, Math.round(explicitHours * 60 + (explicitMinutePart || 0)))
+  }
+
+  const explicitMinuteCandidates = [
+    entry?.total_no_of_coc_applied_minutes,
+    entry?.totalNoOfCocAppliedMinutes,
+    entry?.total_minutes,
+    entry?.totalMinutes,
+    entry?.duration_minutes,
+    entry?.durationMinutes,
+    entry?.applied_minutes,
+    entry?.appliedMinutes,
+    explicitMinutePart,
+  ]
+
+  for (const candidate of explicitMinuteCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
+
+    const parsedDuration = parseDurationTextToMinutes(candidate)
+    if (parsedDuration !== null) return parsedDuration
+  }
+
+  const mixedDurationCandidates = [
+    entry?.no_of_hours_and_minutes,
+    entry?.noOfHoursAndMinutes,
+    entry?.hours_and_minutes,
+    entry?.hoursAndMinutes,
+    entry?.duration,
+    entry?.duration_label,
+    entry?.durationLabel,
+  ]
+
+  for (const candidate of mixedDurationCandidates) {
+    const parsedDuration = parseDurationTextToMinutes(candidate)
+    if (parsedDuration !== null) return parsedDuration
+  }
+
+  const fromMinutes = parseTimeToMinutesOfDay(fromTimeValue)
+  const toMinutes = parseTimeToMinutesOfDay(toTimeValue)
+  if (fromMinutes === null || toMinutes === null) return null
+
+  let difference = toMinutes - fromMinutes
+  if (difference < 0) difference += 24 * 60
+  return Math.max(0, difference)
+}
+
+function resolveTotalMinutesFromApplication(app, fallbackMinutes = null) {
+  const explicitTotalCandidates = [
+    app?.total_no_of_coc_applied_minutes,
+    app?.totalNoOfCocAppliedMinutes,
+    app?.total_minutes,
+    app?.totalMinutes,
+    app?.applied_minutes,
+    app?.appliedMinutes,
+  ]
+
+  for (const candidate of explicitTotalCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
+
+    const parsedDuration = parseDurationTextToMinutes(candidate)
+    if (parsedDuration !== null) return parsedDuration
+  }
+
+  const hourBasedCandidates = [app?.days, app?.total_days, app?.duration_value, app?.durationValue]
+  for (const candidate of hourBasedCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, Math.round(numericValue * 60))
+  }
+
+  if (Number.isFinite(fallbackMinutes)) return Math.max(0, Math.round(fallbackMinutes))
+  return null
+}
+
+function mapCocRows(app) {
+  const sourceEntries = extractCocEntries(app)
+  const mappedRows = sourceEntries
+    .map((sourceEntry) => {
+      const entry = normalizeCocEntry(sourceEntry)
+      const rawDate = resolveEntryDate(entry)
+      const fromTimeValue = resolveEntryFromTime(entry)
+      const toTimeValue = resolveEntryToTime(entry)
+      const minutes = resolveEntryMinutes(entry, fromTimeValue, toTimeValue)
+
+      return {
+        rawDate,
+        dateText: formatDateForRow(rawDate),
+        natureText: resolveEntryNature(entry),
+        fromText: formatTimeForDisplay(fromTimeValue),
+        toText: formatTimeForDisplay(toTimeValue),
+        minutes,
+      }
+    })
+    .filter(
+      (row) =>
+        row.dateText ||
+        row.natureText ||
+        row.fromText ||
+        row.toText ||
+        Number.isFinite(row.minutes),
+    )
+
+  const fallbackDate = firstPresentValue(
+    app?.startDate,
+    app?.start_date,
+    app?.dateFiled,
+    app?.date_filed,
+    app?.created_at,
+    app?.createdAt,
+  )
+  const fallbackTotalMinutes = resolveTotalMinutesFromApplication(app, null)
+
+  if (!mappedRows.length && (fallbackDate || Number.isFinite(fallbackTotalMinutes))) {
+    mappedRows.push({
+      rawDate: fallbackDate,
+      dateText: formatDateForRow(fallbackDate),
+      natureText: '',
+      fromText: '',
+      toText: '',
+      minutes: Number.isFinite(fallbackTotalMinutes) ? fallbackTotalMinutes : null,
+    })
+  }
+
+  let runningMinutes = 0
+  const rowsWithRunningTotals = mappedRows.map((row) => {
+    let runningTotalText = ''
+    if (Number.isFinite(row.minutes)) {
+      runningMinutes += row.minutes
+      runningTotalText = formatMinutesAsHoursAndMinutes(runningMinutes)
+    }
+
+    return {
+      ...row,
+      durationText: Number.isFinite(row.minutes) ? formatMinutesAsHoursAndMinutes(row.minutes) : '',
+      runningTotalText,
+    }
+  })
+
+  return {
+    rows: rowsWithRunningTotals,
+    computedTotalMinutes: runningMinutes > 0 ? runningMinutes : null,
+  }
+}
+
+function resolveForMonthLabel(app, rows) {
+  const explicitMonth = normalizeText(
+    firstPresentValue(
+      app?.for_the_month,
+      app?.forTheMonth,
+      app?.month,
+      app?.month_label,
+      app?.monthLabel,
+      app?.coc_month,
+      app?.cocMonth,
+      app?.overtime_month,
+      app?.overtimeMonth,
+    ),
+  )
+  if (explicitMonth) return explicitMonth
+
+  const dateCandidates = [
+    ...rows.map((row) => row.rawDate),
+    app?.startDate,
+    app?.start_date,
+    app?.dateFiled,
+    app?.date_filed,
+    app?.created_at,
+    app?.createdAt,
+  ]
+
+  for (const candidate of dateCandidates) {
+    const parsedDate = tryParseDate(candidate)
+    if (!parsedDate) continue
+
+    return parsedDate.toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+
+  return ''
+}
+
+function toBase64(url) {
+  return fetch(url)
+    .then((response) => response.blob())
+    .then(
+      (blob) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        }),
+    )
+}
+
+const signatureLineLayout = {
+  hLineWidth: (index, node) => (index === node.table.body.length ? 0.7 : 0),
+  vLineWidth: () => 0,
+  hLineColor: () => '#000',
+  paddingLeft: () => 0,
+  paddingRight: () => 0,
+  paddingTop: () => 0,
+  paddingBottom: () => 0,
+}
+
+function createSignatureBlock(name, caption, options = {}) {
+  const blockWidth = options.blockWidth || '100%'
+  const captionAlignment = options.captionAlignment || 'center'
+
+  return {
+    columns: [
+      {
+        width: blockWidth,
+        stack: [
+          {
+            table: {
+              widths: ['*'],
+              body: [
+                [
+                  {
+                    text: normalizeText(name) || ' ',
+                    alignment: 'center',
+                    bold: Boolean(options.nameBold),
+                    fontSize: options.nameFontSize || 9.5,
+                    margin: [0, 0, 0, 2],
+                  },
+                ],
+              ],
+            },
+            layout: signatureLineLayout,
+          },
+          {
+            text: caption,
+            alignment: captionAlignment,
+            italics: options.captionItalics !== false,
+            fontSize: options.captionFontSize || 9,
+            margin: [0, 3, 0, 0],
+          },
+        ],
+      },
+      {
+        width: '*',
+        text: '',
+      },
+    ],
+  }
+}
+
+function createLeftAlignedSignatureBlock(name, caption, options = {}) {
+  return createSignatureBlock(name, caption, {
+    ...options,
+    blockWidth: options.blockWidth || SIGNATURE_LINE_WIDTH,
+    captionAlignment: options.captionAlignment || 'left',
+  })
+}
+
+function createRightAlignedSignatureBlock(name, caption, options = {}) {
+  const blockWidth = options.blockWidth || SIGNATURE_LINE_WIDTH
+  const captionAlignment = options.captionAlignment || 'right'
+
+  return {
+    columns: [
+      {
+        width: '*',
+        text: '',
+      },
+      {
+        width: blockWidth,
+        stack: [
+          {
+            table: {
+              widths: ['*'],
+              body: [
+                [
+                  {
+                    text: normalizeText(name) || ' ',
+                    alignment: 'center',
+                    bold: Boolean(options.nameBold),
+                    fontSize: options.nameFontSize || 9.5,
+                    margin: [0, 0, 0, 2],
+                  },
+                ],
+              ],
+            },
+            layout: signatureLineLayout,
+          },
+          {
+            text: caption,
+            alignment: captionAlignment,
+            italics: options.captionItalics !== false,
+            fontSize: options.captionFontSize || 9,
+            margin: [0, 3, 0, 0],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+export async function generateCocApplicationPdf(app) {
+  if (!app) return
+
+  const printableApp = await enrichAppWithDepartmentHead(app)
+  const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
+  const employeeName = resolveEmployeeName(printableApp)
+  const employeePosition = resolveEmployeePosition(printableApp)
+  const employeeDepartment = resolveEmployeeDepartment(printableApp)
+
+  const { rows: overtimeRows, computedTotalMinutes } = mapCocRows(printableApp)
+  const totalAppliedMinutes = resolveTotalMinutesFromApplication(printableApp, computedTotalMinutes)
+  const totalAppliedText = Number.isFinite(totalAppliedMinutes)
+    ? formatMinutesAsHoursAndMinutes(totalAppliedMinutes)
+    : ''
+  const monthLabel = resolveForMonthLabel(printableApp, overtimeRows)
+
+  const visibleRows = overtimeRows.slice(0, COC_VISIBLE_ROW_COUNT)
+  const hiddenRowsCount = Math.max(0, overtimeRows.length - COC_VISIBLE_ROW_COUNT)
+  const paddedRows = [...visibleRows]
+  while (paddedRows.length < COC_VISIBLE_ROW_COUNT) {
+    paddedRows.push({
+      dateText: '',
+      natureText: '',
+      fromText: '',
+      toText: '',
+      durationText: '',
+      runningTotalText: '',
+    })
+  }
+
+  let logoBase64 = null
+  try {
+    logoBase64 = await toBase64('/images/CityOfTagumLogo.png')
+  } catch {
+    logoBase64 = null
+  }
+
+  const detailTableBody = [
+    [
+      { text: 'DATE', style: 'tableHeader', rowSpan: 2, alignment: 'center', margin: [0, 8, 0, 0] },
+      {
+        text: 'NATURE OF OVERTIME',
+        style: 'tableHeader',
+        rowSpan: 2,
+        alignment: 'center',
+        margin: [0, 8, 0, 0],
+      },
+      { text: 'TIME', style: 'tableHeader', colSpan: 2, alignment: 'center' },
+      {},
+      {
+        text: 'NO. OF HOURS,\n& MINUTES',
+        style: 'tableHeaderSmall',
+        rowSpan: 2,
+        alignment: 'center',
+        margin: [0, 5, 0, 0],
+      },
+      {
+        text: 'TOTAL NO. OF\nHOURS &\nMINUTES',
+        style: 'tableHeaderSmall',
+        rowSpan: 2,
+        alignment: 'center',
+        margin: [0, 1, 0, 0],
+      },
+    ],
+    [
+      {},
+      {},
+      { text: 'From', style: 'tableSubHeader', alignment: 'center' },
+      { text: 'To', style: 'tableSubHeader', alignment: 'center' },
+      {},
+      {},
+    ],
+    ...paddedRows.map((row) => [
+      { text: row.dateText || ' ', style: 'tableValueCenter' },
+      { text: row.natureText || ' ', style: 'tableValueLeft' },
+      { text: row.fromText || ' ', style: 'tableValueCenter' },
+      { text: row.toText || ' ', style: 'tableValueCenter' },
+      { text: row.durationText || ' ', style: 'tableValueCenter' },
+      { text: row.runningTotalText || ' ', style: 'tableValueCenter' },
+    ]),
+    [
+      {
+        text: 'TOTAL NO. OF COC APPLIED',
+        colSpan: 5,
+        style: 'tableTotalLabel',
+        margin: [8, 4, 0, 4],
+      },
+      {},
+      {},
+      {},
+      {},
+      { text: totalAppliedText || ' ', style: 'tableTotalValue' },
+    ],
+  ]
+
+  const docDefinition = {
+    pageSize: 'A4',
+    pageMargins: [26, 20, 26, 22],
+    defaultStyle: {
+      font: 'Roboto',
+      fontSize: 10,
+    },
+    content: [
+      {
+        columns: [
+          {
+            width: 40,
+            margin: [0, HEADER_SMALL_BAR_TOP_OFFSET, 10, 0],
+            canvas: [{ type: 'rect', x: 0, y: 0, w: 30, h: HEADER_BAR_HEIGHT, r: 0, color: '#0f6b3a' }],
+          },
+          {
+            width: 122,
+            ...(logoBase64
+              ? { image: logoBase64, fit: [116, 116], alignment: 'left' }
+              : { text: '' }),
+            margin: [0, -4, 12, 0],
+          },
+          {
+            width: '*',
+            stack: [
+              {
+                text: 'REPUBLIC OF THE PHILIPPINES',
+                style: 'governmentLine',
+                margin: [HEADER_TEXT_LEFT_INSET, 0, 0, 0],
+              },
+              {
+                text: 'PROVINCE OF DAVAO DEL NORTE',
+                style: 'governmentLine',
+                margin: [HEADER_TEXT_LEFT_INSET, 0, 0, 0],
+              },
+              {
+                text: 'CITY OF TAGUM',
+                style: 'cityLine',
+                margin: [HEADER_TEXT_LEFT_INSET, 1, 0, 0],
+              },
+              {
+                table: {
+                  widths: ['*'],
+                  heights: [HEADER_BAR_HEIGHT],
+                  body: [
+                    [
+                      {
+                        text: 'CITY HUMAN RESOURCE MANAGEMENT OFFICE',
+                        style: 'officeBandText',
+                        margin: [0, Math.floor((HEADER_BAR_HEIGHT - HEADER_BAR_TEXT_SIZE) / 2), 0, 0],
+                      },
+                    ],
+                  ],
+                },
+                layout: {
+                  hLineWidth: () => 0,
+                  vLineWidth: () => 0,
+                  paddingLeft: () => HEADER_TEXT_LEFT_INSET,
+                  paddingRight: () => 8,
+                  paddingTop: () => 0,
+                  paddingBottom: () => 0,
+                },
+                margin: [0, 2, 0, 0],
+              },
+            ],
+            margin: [0, 3, 0, 0],
+          },
+        ],
+        columnGap: 0,
+        margin: [0, 0, 0, 10],
+      },
+      { text: 'COC form 1', style: 'formLabel' },
+      {
+        text: 'APPLICATION FOR COMPENSATORY OVERTIME CREDITS\n(COC)',
+        style: 'formTitle',
+        margin: [0, 2, 0, 8],
+      },
+      {
+        table: {
+          widths: [148, '*'],
+          body: [
+            [{ text: 'NAME OF EMPLOYEE:', style: 'fieldLabel' }, { text: employeeName || ' ', style: 'fieldValue' }],
+            [{ text: 'POSITION:', style: 'fieldLabel' }, { text: employeePosition || ' ', style: 'fieldValue' }],
+            [{ text: 'DEPARTMENT:', style: 'fieldLabel' }, { text: employeeDepartment || ' ', style: 'fieldValue' }],
+            [{ text: 'FOR THE MONTH:', style: 'fieldLabel' }, { text: monthLabel || ' ', style: 'fieldValue' }],
+          ],
+        },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 6],
+      },
+      {
+        table: {
+          headerRows: 2,
+          widths: [70, '*', 60, 60, 88, 95],
+          body: detailTableBody,
+        },
+        layout: {
+          hLineWidth: () => 0.75,
+          vLineWidth: () => 0.75,
+          hLineColor: () => '#000',
+          vLineColor: () => '#000',
+          paddingLeft: () => 4,
+          paddingRight: () => 4,
+          paddingTop: () => 4,
+          paddingBottom: () => 4,
+        },
+      },
+      ...(hiddenRowsCount > 0
+        ? [
+            {
+              text: `Note: ${hiddenRowsCount} additional overtime entr${
+                hiddenRowsCount === 1 ? 'y is' : 'ies are'
+              } not shown in this one-page format.`,
+              style: 'smallNote',
+              margin: [0, 4, 0, 0],
+            },
+          ]
+        : []),
+      {
+        columns: [
+          {
+            width: '58%',
+            ...createLeftAlignedSignatureBlock(
+              employeeName || '',
+              'Name and Signature of Employee',
+              { captionItalics: true, nameBold: false, nameFontSize: 13 },
+            ),
+          },
+          { width: '*', text: '' },
+        ],
+        margin: [0, 20, 0, 0],
+      },
+      {
+        columns: [
+          {
+            width: '58%',
+            stack: [
+              { text: 'Noted by:', style: 'signatureLabel', margin: [0, 0, 0, 16] },
+              createLeftAlignedSignatureBlock(
+                departmentHeadSignature?.fullName || '',
+                'Name and Signature of Department Head',
+                {
+                  captionItalics: true,
+                  nameBold: true,
+                  nameFontSize: 13,
+                },
+              ),
+            ],
+          },
+          {
+            width: '42%',
+            stack: [
+              { text: 'Approved by:', style: 'signatureLabelRight', margin: [0, 0, 0, 18] },
+              createRightAlignedSignatureBlock(MAYOR_NAME, MAYOR_TITLE, {
+                nameBold: true,
+                nameFontSize: 13,
+                captionItalics: true,
+                captionFontSize: 9,
+              }),
+            ],
+          },
+        ],
+        columnGap: 0,
+        margin: [0, 16, 0, 0],
+      },
+    ],
+    styles: {
+      governmentLine: {
+        fontSize: 8.4,
+        bold: false,
+        color: '#111827',
+        lineHeight: 1.05,
+        alignment: 'left',
+      },
+      cityLine: {
+        fontSize: 19.5,
+        bold: true,
+        margin: [0, 1, 0, 0],
+        alignment: 'left',
+      },
+      officeBandText: {
+        fontSize: HEADER_BAR_TEXT_SIZE,
+        bold: true,
+        color: '#ffffff',
+        alignment: 'left',
+        fillColor: '#0f6b3a',
+      },
+      formLabel: {
+        fontSize: 11,
+        italics: true,
+      },
+      formTitle: {
+        fontSize: 17,
+        bold: true,
+        alignment: 'center',
+        lineHeight: 1.2,
+      },
+      fieldLabel: {
+        fontSize: 12.5,
+        bold: true,
+      },
+      fieldValue: {
+        fontSize: 12,
+      },
+      tableHeader: {
+        fontSize: 11,
+        bold: true,
+      },
+      tableHeaderSmall: {
+        fontSize: 9.3,
+        bold: true,
+      },
+      tableSubHeader: {
+        fontSize: 10,
+        bold: true,
+      },
+      tableValueLeft: {
+        fontSize: 9.8,
+        alignment: 'left',
+      },
+      tableValueCenter: {
+        fontSize: 9.8,
+        alignment: 'center',
+      },
+      tableTotalLabel: {
+        fontSize: 12,
+        bold: true,
+      },
+      tableTotalValue: {
+        fontSize: 11,
+        bold: true,
+        alignment: 'center',
+      },
+      smallNote: {
+        fontSize: 8.2,
+        italics: true,
+        color: '#4b5563',
+      },
+      signatureLabel: {
+        fontSize: 12,
+      },
+      signatureLabelRight: {
+        fontSize: 12,
+        alignment: 'right',
+      },
+    },
+  }
+
+  pdfMake.createPdf(docDefinition).open()
+}
