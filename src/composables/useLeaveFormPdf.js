@@ -35,6 +35,36 @@ function formatCredit(val) {
   return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2)
 }
 
+function toCreditNumber(val) {
+  if (val == null || val === '') return null
+  const n = Number(val)
+  if (!Number.isFinite(n)) return null
+  return n
+}
+
+function computeCertificationBalance(totalEarned, lessThisApplication, fallbackBalance) {
+  const totalEarnedNumber = toCreditNumber(totalEarned)
+  const normalizedLessThisApplication =
+    lessThisApplication == null || lessThisApplication === ''
+      ? totalEarnedNumber !== null ? 0 : null
+      : toCreditNumber(lessThisApplication)
+
+  if (totalEarnedNumber !== null) {
+    const computedBalance = totalEarnedNumber - (normalizedLessThisApplication ?? 0)
+    return {
+      totalEarned: formatCredit(totalEarnedNumber),
+      lessThisApplication: formatCredit(normalizedLessThisApplication),
+      balance: formatCredit(Math.abs(computedBalance) < 1e-9 ? 0 : computedBalance),
+    }
+  }
+
+  return {
+    totalEarned: formatCredit(totalEarned),
+    lessThisApplication: formatCredit(normalizedLessThisApplication ?? lessThisApplication),
+    balance: formatCredit(fallbackBalance),
+  }
+}
+
 function prettifyLeaveBalanceLabel(value) {
   const label = String(value || '').trim()
   if (!label) return ''
@@ -79,20 +109,28 @@ function createCertificationEntry(label, value) {
   if (!normalizedLabel) return null
 
   if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const totalEarned =
+      value.total_earned ?? value.totalEarned ?? value.earned
+    const lessThisApplication =
+      value.less_this_application ?? value.lessThisApplication ?? value.applied ?? value.used
+    const fallbackBalance =
+      value.balance ??
+      value.remaining_balance ??
+      value.available_balance ??
+      value.remainingBalance ??
+      value.availableBalance ??
+      value.value
+    const computedEntry = computeCertificationBalance(
+      totalEarned,
+      lessThisApplication,
+      fallbackBalance,
+    )
+
     return {
       label: normalizedLabel,
-      totalEarned: formatCredit(value.total_earned ?? value.totalEarned ?? value.earned),
-      lessThisApplication: formatCredit(
-        value.less_this_application ?? value.lessThisApplication ?? value.applied ?? value.used,
-      ),
-      balance: formatCredit(
-        value.balance ??
-          value.remaining_balance ??
-          value.available_balance ??
-          value.remainingBalance ??
-          value.availableBalance ??
-          value.value,
-      ),
+      totalEarned: computedEntry.totalEarned,
+      lessThisApplication: computedEntry.lessThisApplication,
+      balance: computedEntry.balance,
     }
   }
 
