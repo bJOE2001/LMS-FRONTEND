@@ -377,9 +377,15 @@
           </q-td>
         </template>
         <template #no-data>
-          <div class="full-width text-center q-pa-md text-grey-7">
-            <q-icon name="warning" size="24px" class="q-mr-sm" />
-            <span>No Applications Submitted</span>
+          <div class="full-width row flex-center q-pa-md text-grey-7">
+            <template v-if="loading">
+              <q-spinner color="primary" size="24px" class="q-mr-sm" />
+              <span>Loading applications...</span>
+            </template>
+            <template v-else>
+              <q-icon name="inbox" size="24px" class="q-mr-sm" />
+              <span>No Applications Submitted</span>
+            </template>
           </div>
         </template>
       </q-table>

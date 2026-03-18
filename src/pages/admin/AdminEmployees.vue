@@ -156,8 +156,14 @@
 
         <template #no-data>
           <div class="full-width text-center q-pa-lg">
-            <q-icon name="search_off" size="48px" color="grey-5" />
-            <div class="text-grey-6 q-mt-sm">{{ noDataMessage }}</div>
+            <template v-if="loading">
+              <q-spinner color="primary" size="40px" />
+              <div class="text-grey-6 q-mt-sm">Loading employees...</div>
+            </template>
+            <template v-else>
+              <q-icon name="search_off" size="48px" color="grey-5" />
+              <div class="text-grey-6 q-mt-sm">{{ noDataMessage }}</div>
+            </template>
           </div>
         </template>
       </q-table>

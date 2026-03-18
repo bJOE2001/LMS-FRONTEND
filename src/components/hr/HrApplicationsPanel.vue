@@ -44,8 +44,14 @@
     >
       <template #no-data>
         <div class="full-width row flex-center q-pa-lg text-grey-7">
-          <q-icon name="inbox" size="md" class="q-mr-sm" />
-          <span>No data available</span>
+          <template v-if="loading">
+            <q-spinner color="primary" size="24px" class="q-mr-sm" />
+            <span>Loading applications...</span>
+          </template>
+          <template v-else>
+            <q-icon name="inbox" size="md" class="q-mr-sm" />
+            <span>No applications available</span>
+          </template>
         </div>
       </template>
       <template #body-cell-employee="props">
