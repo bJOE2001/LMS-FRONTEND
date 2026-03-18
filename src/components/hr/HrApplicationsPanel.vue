@@ -127,6 +127,17 @@
     <q-card v-if="selectedApp" class="hr-application-details-card">
       <q-card-section class="bg-primary text-white row items-center no-wrap hr-application-details-header">
         <div class="text-h6">Application Details</div>
+        <q-btn
+          v-if="selectedApp && canPrintCocCertificate(selectedApp)"
+          dense
+          flat
+          no-caps
+          icon="print"
+          color="white"
+          label="Print Certificate"
+          class="q-ml-md"
+          @click="printCocCertificate(selectedApp)"
+        />
         <q-space />
         <q-btn
           dense
@@ -420,6 +431,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import StatusBadge from 'components/StatusBadge.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { generateCocCertificatePdf } from 'src/utils/coc-certificate-pdf'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -548,6 +560,30 @@ function extractApplicationsFromPayload(payload) {
   }
 
   return []
+}
+
+function extractSingleApplicationFromPayload(payload) {
+  if (!payload) return null
+  if (Array.isArray(payload)) return payload.length ? payload[0] : null
+
+  const candidates = [
+    payload?.application,
+    payload?.coc_application,
+    payload?.leave_application,
+    payload?.cocApplication,
+    payload?.leaveApplication,
+    payload?.item,
+    payload?.row,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (Array.isArray(candidate)) return candidate.length ? candidate[0] : null
+    if (candidate && typeof candidate === 'object') return candidate
+  }
+
+  return payload && typeof payload === 'object' ? payload : null
 }
 
 function mergeApplications(...sources) {
@@ -1163,6 +1199,41 @@ function openDetails(app) {
 
 function hasMobileApplicationActions(app) {
   return String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR'
+}
+
+function canPrintCocCertificate(app) {
+  if (!app || !isCocApplication(app)) return false
+
+  const rawStatus = String(app?.rawStatus || '').toUpperCase()
+  if (rawStatus.includes('APPROVED')) return true
+
+  const mergedStatus = String(getApplicationStatusLabel(app) || '').toLowerCase()
+  return mergedStatus.includes('approved')
+}
+
+async function printCocCertificate(app = selectedApp.value) {
+  const targetApp = resolveApplication(app) || app
+  if (!canPrintCocCertificate(targetApp)) return
+
+  let printableApp = targetApp
+  const id = getApplicationId(targetApp)
+
+  if (id !== undefined && id !== null && String(id).trim() !== '') {
+    try {
+      const response = await api.get(`/hr/coc-applications/${id}`)
+      const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+      if (detailedApplication && typeof detailedApplication === 'object') {
+        printableApp = {
+          ...printableApp,
+          ...detailedApplication,
+        }
+      }
+    } catch {
+      // Keep the selected application payload when detail endpoint is unavailable.
+    }
+  }
+
+  await generateCocCertificatePdf(printableApp)
 }
 
 function handleApplicationRowClick(_evt, row) {
