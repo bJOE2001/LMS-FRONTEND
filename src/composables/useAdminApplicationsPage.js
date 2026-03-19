@@ -1,4 +1,4 @@
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { api } from 'src/boot/axios'
@@ -7,6 +7,11 @@ import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
 import { generateCocApplicationPdf } from 'src/utils/coc-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import {
+  getApplicationSelectedDates,
+  normalizeIsoDate,
+  parseInclusiveDateText,
+} from 'src/utils/leave-date-locking'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
@@ -83,8 +88,8 @@ export function useAdminApplicationsPage() {
       name: 'actions',
       label: 'Actions',
       align: 'center',
-      style: 'width: 190px',
-      headerStyle: 'width: 190px',
+      style: 'width: 228px',
+      headerStyle: 'width: 228px',
     },
   ]
 
@@ -98,10 +103,22 @@ export function useAdminApplicationsPage() {
   })
   const showApplyLeaveDialog = ref(false)
   const showDetailsDialog = ref(false)
+  const showCalendarPreviewDialog = ref(false)
   const showDisapproveDialog = ref(false)
   const showConfirmActionDialog = ref(false)
   const showActionResultDialog = ref(false)
   const selectedApp = ref(null)
+  const calendarPreviewApp = ref(null)
+  const calendarPreviewModel = ref([])
+  const calendarPreviewKey = ref(0)
+  const calendarPreviewRef = ref(null)
+  const calendarPreviewDateWarning = ref('')
+  const calendarPreviewWarningDate = ref('')
+  const calendarPreviewWarningStyle = ref({})
+  const calendarPreviewView = ref({
+    year: String(new Date().getFullYear()),
+    month: String(new Date().getMonth() + 1).padStart(2, '0'),
+  })
   const confirmActionType = ref('approve')
   const confirmActionTarget = ref(null)
   const disapproveId = ref('')
@@ -175,6 +192,57 @@ export function useAdminApplicationsPage() {
   })
 
   const selectedAppTimeline = computed(() => buildApplicationTimeline(selectedApp.value))
+  const calendarPreviewYearMonth = computed(
+    () => `${calendarPreviewView.value.year}/${calendarPreviewView.value.month}`,
+  )
+  const calendarPreviewEmployeeName = computed(
+    () => getApplicationEmployeeDisplayName(calendarPreviewApp.value) || 'Employee',
+  )
+  const calendarPreviewEmployeeApplications = computed(() => {
+    const application = calendarPreviewApp.value
+    if (!application) return []
+
+    const applicationState = getApplicationCalendarState(application)
+    const applicationDates = getApplicationCalendarDates(application)
+    if (!applicationState || applicationDates.length === 0) return []
+
+    return [application]
+  })
+  const calendarPreviewDateStates = computed(() => {
+    const dateStates = new Map()
+
+    for (const application of calendarPreviewEmployeeApplications.value) {
+      const applicationState = getApplicationCalendarState(application)
+      if (!applicationState) continue
+
+      for (const date of getApplicationCalendarDates(application)) {
+        if (!date) continue
+
+        const existingState = dateStates.get(date)
+        if (!existingState || applicationState === 'pending') {
+          dateStates.set(date, applicationState)
+        }
+      }
+    }
+
+    return dateStates
+  })
+  const calendarPreviewStateCounts = computed(() => {
+    const counts = {
+      pending: 0,
+      approved: 0,
+    }
+
+    for (const state of calendarPreviewDateStates.value.values()) {
+      if (state === 'pending') counts.pending += 1
+      if (state === 'approved') counts.approved += 1
+    }
+
+    return counts
+  })
+  const calendarPreviewWarningState = computed(
+    () => calendarPreviewDateStates.value.get(calendarPreviewWarningDate.value) || 'pending',
+  )
   const rejectionDialogTitle = computed(() =>
     rejectionMode.value === 'cancel' ? 'Cancel Application' : 'Disapprove Application',
   )
@@ -184,6 +252,19 @@ export function useAdminApplicationsPage() {
 
   watch(statusSearch, () => {
     applicationsPagination.value.page = 1
+  })
+
+  watch(showCalendarPreviewDialog, (isOpen) => {
+    if (!isOpen) {
+      clearCalendarPreviewWarning()
+      return
+    }
+    syncCalendarPreviewDecorations()
+  })
+
+  watch(calendarPreviewDateStates, () => {
+    if (!showCalendarPreviewDialog.value) return
+    syncCalendarPreviewDecorations()
   })
 
   watch(
@@ -948,6 +1029,221 @@ export function useAdminApplicationsPage() {
     return getApplicationInclusiveDateLines(app).join(' ')
   }
 
+  function getApplicationCalendarState(application) {
+    if (!application) return ''
+    if (isCancelledByUser(application)) return ''
+    if (application?.rawStatus === 'APPROVED') return 'approved'
+    if (application?.rawStatus === 'PENDING_ADMIN' || application?.rawStatus === 'PENDING_HR') {
+      return 'pending'
+    }
+    return ''
+  }
+
+  function getApplicationCalendarDates(application) {
+    const inclusiveDateMatches = parseInclusiveDateText(getApplicationInclusiveDateLines(application))
+    if (inclusiveDateMatches.length > 0) {
+      return [...new Set(inclusiveDateMatches.map((date) => normalizeIsoDate(date)).filter(Boolean))]
+    }
+
+    return [
+      ...new Set(
+        getApplicationSelectedDates(application)
+          .map((date) => normalizeIsoDate(date))
+          .filter(Boolean),
+      ),
+    ]
+  }
+
+  const CALENDAR_PREVIEW_WARNING_WIDTH = 220
+  const CALENDAR_PREVIEW_WARNING_TIMEOUT_MS = 7000
+  let calendarPreviewWarningTimeoutId = null
+  let calendarPreviewWarningPressedDate = ''
+  let calendarPreviewWarningPressedAt = 0
+  let calendarPreviewWarningPressedMessage = ''
+
+  function clearCalendarPreviewWarningTimeout() {
+    if (calendarPreviewWarningTimeoutId) {
+      window.clearTimeout(calendarPreviewWarningTimeoutId)
+      calendarPreviewWarningTimeoutId = null
+    }
+  }
+
+  function releaseCalendarPreviewWarningDismiss() {
+    window.removeEventListener('pointerdown', handleCalendarPreviewDismissPointerDown, true)
+  }
+
+  function releaseCalendarPreviewPointer() {
+    window.removeEventListener('pointerup', handleCalendarPreviewGlobalPointerUp, true)
+    window.removeEventListener('pointercancel', handleCalendarPreviewGlobalPointerUp, true)
+  }
+
+  function clearCalendarPreviewWarning() {
+    clearCalendarPreviewWarningTimeout()
+    releaseCalendarPreviewWarningDismiss()
+    releaseCalendarPreviewPointer()
+
+    if (
+      !calendarPreviewDateWarning.value &&
+      !calendarPreviewWarningDate.value &&
+      Object.keys(calendarPreviewWarningStyle.value).length === 0
+    ) {
+      return
+    }
+
+    calendarPreviewDateWarning.value = ''
+    calendarPreviewWarningDate.value = ''
+    calendarPreviewWarningStyle.value = {}
+    syncCalendarPreviewDecorations()
+  }
+
+  function formatCalendarPreviewWarningDate(dateValue) {
+    const normalizedDate = normalizeIsoDate(dateValue)
+    if (!normalizedDate) return ''
+
+    return new Date(`${normalizedDate}T12:00:00`).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  function buildCalendarPreviewWarningMessage(dateValue) {
+    const normalizedDate = normalizeIsoDate(dateValue)
+    if (!normalizedDate) return ''
+
+    const state = calendarPreviewDateStates.value.get(normalizedDate)
+    if (!state) return ''
+
+    const formattedDate = formatCalendarPreviewWarningDate(normalizedDate)
+    if (!formattedDate) return ''
+
+    if (state === 'approved') {
+      return `${formattedDate} leave application is already approved.`
+    }
+
+    return `${formattedDate} leave application is still pending.`
+  }
+
+  function showCalendarPreviewWarning(dateValue, options = {}) {
+    const { sticky = false, message = '' } = options
+    const normalizedDate = normalizeIsoDate(dateValue)
+    if (!normalizedDate) {
+      clearCalendarPreviewWarning()
+      return
+    }
+
+    const resolvedMessage = message || buildCalendarPreviewWarningMessage(normalizedDate)
+    if (!resolvedMessage) {
+      clearCalendarPreviewWarning()
+      return
+    }
+
+    clearCalendarPreviewWarningTimeout()
+    releaseCalendarPreviewWarningDismiss()
+
+    calendarPreviewDateWarning.value = resolvedMessage
+    calendarPreviewWarningDate.value = normalizedDate
+    syncCalendarPreviewDecorations()
+    window.addEventListener('pointerdown', handleCalendarPreviewDismissPointerDown, true)
+
+    if (!sticky) {
+      calendarPreviewWarningTimeoutId = window.setTimeout(() => {
+        clearCalendarPreviewWarning()
+      }, CALENDAR_PREVIEW_WARNING_TIMEOUT_MS)
+    }
+  }
+
+  function resolveCalendarPreviewDateFromEvent(event) {
+    const dayCell = event.target?.closest?.('.q-date__calendar-item')
+    if (!dayCell || dayCell.classList.contains('q-date__calendar-item--fill')) return ''
+
+    const day = Number.parseInt(String(dayCell.textContent || '').trim(), 10)
+    if (!Number.isInteger(day) || day < 1 || day > 31) return ''
+
+    return `${calendarPreviewView.value.year}-${calendarPreviewView.value.month}-${String(day).padStart(2, '0')}`
+  }
+
+  function handleCalendarPreviewModelUpdate() {
+    if (
+      (Array.isArray(calendarPreviewModel.value) && calendarPreviewModel.value.length > 0) ||
+      (!Array.isArray(calendarPreviewModel.value) && calendarPreviewModel.value)
+    ) {
+      calendarPreviewModel.value = []
+    }
+  }
+
+  function handleCalendarPreviewGlobalPointerUp() {
+    if (!calendarPreviewWarningPressedDate) return
+
+    const pressedDate = calendarPreviewWarningPressedDate
+    const pressedDuration = Date.now() - calendarPreviewWarningPressedAt
+    const pressedMessage = calendarPreviewWarningPressedMessage
+
+    calendarPreviewWarningPressedDate = ''
+    calendarPreviewWarningPressedAt = 0
+    calendarPreviewWarningPressedMessage = ''
+    releaseCalendarPreviewPointer()
+
+    if (pressedDuration >= 250) {
+      clearCalendarPreviewWarning()
+      return
+    }
+
+    showCalendarPreviewWarning(pressedDate, { message: pressedMessage })
+  }
+
+  function handleCalendarPreviewDismissPointerDown() {
+    clearCalendarPreviewWarning()
+  }
+
+  function handleCalendarPreviewSurfacePointerDown(event) {
+    const clickedDate = resolveCalendarPreviewDateFromEvent(event)
+    const warningMessage = clickedDate ? buildCalendarPreviewWarningMessage(clickedDate) : ''
+
+    if (!clickedDate) {
+      calendarPreviewWarningPressedDate = ''
+      calendarPreviewWarningPressedAt = 0
+      calendarPreviewWarningPressedMessage = ''
+      releaseCalendarPreviewPointer()
+      clearCalendarPreviewWarning()
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation?.()
+
+    if (!warningMessage) {
+      calendarPreviewWarningPressedDate = ''
+      calendarPreviewWarningPressedAt = 0
+      calendarPreviewWarningPressedMessage = ''
+      releaseCalendarPreviewPointer()
+      clearCalendarPreviewWarning()
+      return
+    }
+
+    calendarPreviewWarningPressedDate = clickedDate
+    calendarPreviewWarningPressedAt = Date.now()
+    calendarPreviewWarningPressedMessage = warningMessage
+    showCalendarPreviewWarning(clickedDate, { sticky: true, message: warningMessage })
+    releaseCalendarPreviewPointer()
+    window.addEventListener('pointerup', handleCalendarPreviewGlobalPointerUp, true)
+    window.addEventListener('pointercancel', handleCalendarPreviewGlobalPointerUp, true)
+  }
+
+  function handleCalendarPreviewSurfaceClick(event) {
+    const clickedDate = resolveCalendarPreviewDateFromEvent(event)
+    if (clickedDate) {
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation?.()
+    }
+
+    const warningMessage = clickedDate ? buildCalendarPreviewWarningMessage(clickedDate) : ''
+    if (!warningMessage) return
+  }
+
   function isCancelledByUser(app) {
     const remarksText = String(app?.remarks || '').trim()
     return /^cancelled\b/i.test(remarksText)
@@ -1399,6 +1695,104 @@ export function useAdminApplicationsPage() {
     return 'disapproved'
   }
 
+  function setCalendarPreviewMonth(dateValue) {
+    const normalizedDate = normalizeIsoDate(dateValue || new Date())
+    const [year, month] = (normalizedDate || normalizeIsoDate(new Date())).split('-')
+
+    calendarPreviewView.value = {
+      year,
+      month,
+    }
+  }
+
+  function syncCalendarPreviewDecorations() {
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        const calendarRoot = calendarPreviewRef.value
+        if (!calendarRoot) return
+
+        const calendarRect = calendarRoot.getBoundingClientRect()
+        const calendarWidth = calendarRoot.clientWidth || calendarRect.width || 0
+        let nextWarningStyle = {}
+
+        const dayCells = calendarRoot.querySelectorAll('.q-date__calendar-item')
+        dayCells.forEach((cell) => {
+          cell.classList.remove('leave-date-calendar__day--locked')
+          cell.classList.remove('leave-date-calendar__day--locked-pending')
+          cell.classList.remove('leave-date-calendar__day--locked-approved')
+          cell.classList.remove('leave-date-calendar__day--warning')
+
+          if (cell.classList.contains('q-date__calendar-item--fill')) return
+
+          const dayMatch = String(cell.textContent || '').match(/\b([1-9]|[12]\d|3[01])\b/)
+          const day = dayMatch ? Number.parseInt(dayMatch[1], 10) : NaN
+          if (!Number.isInteger(day) || day < 1 || day > 31) return
+
+          const date = `${calendarPreviewView.value.year}-${calendarPreviewView.value.month}-${String(day).padStart(2, '0')}`
+          const lockedState = calendarPreviewDateStates.value.get(date)
+          if (!lockedState) return
+
+          cell.classList.add('leave-date-calendar__day--locked')
+          cell.classList.add(`leave-date-calendar__day--locked-${lockedState}`)
+
+          if (calendarPreviewWarningDate.value === date && calendarPreviewDateWarning.value) {
+            cell.classList.add('leave-date-calendar__day--warning')
+
+            const cellRect = cell.getBoundingClientRect()
+            const popupWidth = Math.max(
+              160,
+              Math.min(CALENDAR_PREVIEW_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)),
+            )
+            const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+            const popupLeft = Math.max(
+              8,
+              Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8),
+            )
+            const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
+            const arrowLeft = Math.max(
+              16,
+              Math.min(cellCenter - popupLeft - 6, popupWidth - 18),
+            )
+
+            nextWarningStyle = {
+              width: `${popupWidth}px`,
+              left: `${popupLeft}px`,
+              top: `${popupTop}px`,
+              '--leave-date-warning-arrow-left': `${arrowLeft}px`,
+            }
+          }
+        })
+
+        calendarPreviewWarningStyle.value = nextWarningStyle
+      })
+    })
+  }
+
+  function onCalendarPreviewNavigation({ year, month }) {
+    calendarPreviewView.value = {
+      year: String(year),
+      month: String(month).padStart(2, '0'),
+    }
+    clearCalendarPreviewWarning()
+    syncCalendarPreviewDecorations()
+  }
+
+  function openCalendarPreview(application) {
+    if (!application) return
+
+    calendarPreviewApp.value = application
+
+    const previewDates = getApplicationCalendarDates(application)
+    const anchorDate = previewDates[0] || normalizeIsoDate(application?.dateFiled) || normalizeIsoDate(new Date())
+
+    calendarPreviewModel.value = []
+    clearCalendarPreviewWarning()
+    setCalendarPreviewMonth(anchorDate)
+
+    calendarPreviewKey.value += 1
+    showCalendarPreviewDialog.value = true
+  }
+
   function openDetails(app) {
     selectedApp.value = app
     showDetailsDialog.value = true
@@ -1729,11 +2123,22 @@ export function useAdminApplicationsPage() {
     applicationsForTable,
     showApplyLeaveDialog,
     showDetailsDialog,
+    showCalendarPreviewDialog,
     showDisapproveDialog,
     showConfirmActionDialog,
     showActionResultDialog,
     selectedApp,
     selectedAppTimeline,
+    calendarPreviewApp,
+    calendarPreviewModel,
+    calendarPreviewKey,
+    calendarPreviewRef,
+    calendarPreviewYearMonth,
+    calendarPreviewEmployeeName,
+    calendarPreviewStateCounts,
+    calendarPreviewDateWarning,
+    calendarPreviewWarningStyle,
+    calendarPreviewWarningState,
     rejectionDialogTitle,
     rejectionDialogLabel,
     confirmActionType,
@@ -1751,6 +2156,12 @@ export function useAdminApplicationsPage() {
     getApplicationStatusColor,
     getApplicationStatusLabel,
     openDetails,
+    openCalendarPreview,
+    onCalendarPreviewNavigation,
+    handleCalendarPreviewModelUpdate,
+    handleCalendarPreviewSurfacePointerDown,
+    handleCalendarPreviewSurfaceClick,
+    syncCalendarPreviewDecorations,
     canPrintApplication,
     printApplication,
     hasMobileApplicationActions,
