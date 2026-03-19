@@ -400,16 +400,32 @@
                           @click="removeSelectedDate(idx)"
                         />
                       </div>
-                      <button
-                        type="button"
-                        :class="[
-                          'selected-date-duration-toggle',
-                          { 'selected-date-duration-toggle--half': selectedDateDurations[d] === 'half_day' },
-                        ]"
-                        @click="toggleSelectedDateDuration(d)"
-                      >
-                        {{ selectedDateDurationLabel(d) }}
-                      </button>
+                      <div class="selected-date-duration-actions">
+                        <button
+                          type="button"
+                          :class="[
+                            'selected-date-duration-toggle',
+                            { 'selected-date-duration-toggle--half': selectedDateDurations[d] === 'half_day' },
+                          ]"
+                          @click="toggleSelectedDateDuration(d)"
+                        >
+                          {{ selectedDateDurationLabel(d) }}
+                        </button>
+                        <button
+                          type="button"
+                          :class="[
+                            'selected-date-duration-toggle',
+                            'selected-date-duration-toggle--pay-status',
+                            {
+                              'selected-date-duration-toggle--without-pay':
+                                selectedDatePayStatuses[d] === 'without_pay',
+                            },
+                          ]"
+                          @click="toggleSelectedDatePayStatus(d)"
+                        >
+                          {{ selectedDatePayStatusLabel(d) }}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <q-list v-else dense bordered separator class="rounded-borders q-mt-sm" style="max-height: 300px; overflow-y: auto">
@@ -418,12 +434,41 @@
                         <q-item-label>{{ formatDateDisplay(d) }}</q-item-label>
                       </q-item-section>
                       <q-item-section side>
-                        <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" :disable="isMaternityLeave || isPaternityLeave" />
+                        <div class="selected-date-duration-actions selected-date-duration-actions--list">
+                          <button
+                            type="button"
+                            :class="[
+                              'selected-date-duration-toggle',
+                              { 'selected-date-duration-toggle--half': selectedDateDurations[d] === 'half_day' },
+                            ]"
+                            @click="toggleSelectedDateDuration(d)"
+                          >
+                            {{ selectedDateDurationLabel(d) }}
+                          </button>
+                          <button
+                            type="button"
+                            :class="[
+                              'selected-date-duration-toggle',
+                              'selected-date-duration-toggle--pay-status',
+                              {
+                                'selected-date-duration-toggle--without-pay':
+                                  selectedDatePayStatuses[d] === 'without_pay',
+                              },
+                            ]"
+                            @click="toggleSelectedDatePayStatus(d)"
+                          >
+                            {{ selectedDatePayStatusLabel(d) }}
+                          </button>
+                          <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" :disable="isMaternityLeave || isPaternityLeave" />
+                        </div>
                       </q-item-section>
                     </q-item>
                   </q-list>
                   <div class="text-caption q-mt-sm text-grey-6">
                     {{ formatSelectedDayCount(selectedDateTotalDays) }} day(s) selected
+                    <template v-if="selectedDateCreditTotalDays !== selectedDateTotalDays">
+                      • {{ formatSelectedDayCount(selectedDateCreditTotalDays) }} day(s) deductible
+                    </template>
                   </div>
                 </div>
               </div>
@@ -541,6 +586,7 @@ const loading = ref(false)
 const showSuccess = ref(false)
 const dialogSummaryLoading = ref(Boolean(props.inDialog))
 const selectedDateDurations = ref({})
+const selectedDatePayStatuses = ref({})
 const calendarDateWarning = ref('')
 const calendarDateWarningDate = ref('')
 const calendarDateWarningStyle = ref({})
@@ -1225,7 +1271,7 @@ function getLeaveBalanceWarningForTotal(totalDays) {
 }
 
 const leaveBalanceWarning = computed(() => {
-  return getLeaveBalanceWarningForTotal(selectedDateTotalDays.value)
+  return getLeaveBalanceWarningForTotal(selectedDateCreditTotalDays.value)
 })
 
 const selectedLeaveTypeMaxDays = computed(() => {
@@ -1240,8 +1286,8 @@ function getMaxDaysWarningForTotal(totalDays) {
   return ''
 }
 
-function getSelectionLimitWarningForTotal(totalDays) {
-  return getMaxDaysWarningForTotal(totalDays) || getLeaveBalanceWarningForTotal(totalDays)
+function getSelectionLimitWarningForTotal(totalDays, creditDays = totalDays) {
+  return getMaxDaysWarningForTotal(totalDays) || getLeaveBalanceWarningForTotal(creditDays)
 }
 
 const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'MCO6 Leave')
@@ -1350,6 +1396,7 @@ function onLeaveTypeChange(newValue) {
   form.value.leaveTypeOther = ''
   selectedDates.value = []
   selectedDateDurations.value = {}
+  selectedDatePayStatuses.value = {}
   clearCalendarDateWarning()
   monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
   form.value.reason = preservedReason
@@ -1366,6 +1413,20 @@ const sortedSelectedDates = computed(() =>
 
 function getSelectedDateTotalForDates(dates, durations = selectedDateDurations.value) {
   return dates.reduce((total, date) => total + ((durations?.[date] === 'half_day') ? 0.5 : 1), 0)
+}
+
+function getSelectedDateCreditTotalForDates(
+  dates,
+  durations = selectedDateDurations.value,
+  payStatuses = selectedDatePayStatuses.value,
+) {
+  return dates.reduce((total, date) => {
+    if ((payStatuses?.[date] || 'with_pay') === 'without_pay') {
+      return total
+    }
+
+    return total + ((durations?.[date] === 'half_day') ? 0.5 : 1)
+  }, 0)
 }
 
 function onSelectedDatesChange(value) {
@@ -1554,7 +1615,9 @@ function isLockedDateSelection(dateStr) {
 
 function getSelectionLimitWarningForDates(dates) {
   const normalizedDates = normalizeSelectedDates(dates)
-  return getSelectionLimitWarningForTotal(getSelectedDateTotalForDates(normalizedDates))
+  const actualDays = getSelectedDateTotalForDates(normalizedDates)
+  const creditDays = getSelectedDateCreditTotalForDates(normalizedDates)
+  return getSelectionLimitWarningForTotal(actualDays, creditDays)
 }
 
 function getSelectionLimitWarningForDate(dateStr) {
@@ -1689,11 +1752,31 @@ function syncSelectedDateDurations(dates) {
   })
 }
 
+function syncSelectedDatePayStatuses(dates) {
+  const activeDates = new Set(dates)
+
+  Object.keys(selectedDatePayStatuses.value).forEach((date) => {
+    if (!activeDates.has(date)) {
+      delete selectedDatePayStatuses.value[date]
+    }
+  })
+
+  dates.forEach((date) => {
+    if (!selectedDatePayStatuses.value[date]) {
+      selectedDatePayStatuses.value[date] = 'with_pay'
+    }
+  })
+}
+
 const selectedDateTotalDays = computed(() =>
   sortedSelectedDates.value.reduce(
     (total, date) => total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1),
     0,
   ),
+)
+
+const selectedDateCreditTotalDays = computed(() =>
+  getSelectedDateCreditTotalForDates(sortedSelectedDates.value)
 )
 
 function formatSelectedDayCount(value) {
@@ -1707,6 +1790,36 @@ function buildSelectedDateDurationsPayload(dates) {
   }, {})
 }
 
+function buildSelectedDatePayStatusesPayload(dates) {
+  return dates.reduce((acc, date) => {
+    acc[date] = selectedDatePayStatuses.value[date] || 'with_pay'
+    return acc
+  }, {})
+}
+
+function buildSelectedDatePayStatusCodesPayload(dates) {
+  return dates.reduce((acc, date) => {
+    acc[date] = selectedDatePayStatuses.value[date] === 'without_pay' ? 'WOP' : 'WP'
+    return acc
+  }, {})
+}
+
+function getSelectedDatePayStatusBreakdown(dates) {
+  const withPayDates = dates.filter(
+    (date) => (selectedDatePayStatuses.value[date] || 'with_pay') !== 'without_pay',
+  )
+  const withoutPayDates = dates.filter(
+    (date) => (selectedDatePayStatuses.value[date] || 'with_pay') === 'without_pay',
+  )
+
+  return {
+    withPayDates,
+    withoutPayDates,
+    withPayTotalDays: getSelectedDateTotalForDates(withPayDates),
+    withoutPayTotalDays: getSelectedDateTotalForDates(withoutPayDates),
+  }
+}
+
 function selectedDateDurationLabel(date) {
   return selectedDateDurations.value[date] === 'half_day' ? 'Half Day' : 'Whole Day'
 }
@@ -1714,6 +1827,15 @@ function selectedDateDurationLabel(date) {
 function toggleSelectedDateDuration(date) {
   selectedDateDurations.value[date] =
     selectedDateDurations.value[date] === 'half_day' ? 'whole_day' : 'half_day'
+}
+
+function selectedDatePayStatusLabel(date) {
+  return selectedDatePayStatuses.value[date] === 'without_pay' ? 'WOP' : 'WP'
+}
+
+function toggleSelectedDatePayStatus(date) {
+  selectedDatePayStatuses.value[date] =
+    selectedDatePayStatuses.value[date] === 'without_pay' ? 'with_pay' : 'without_pay'
 }
 
 const leaveDateOptions = computed(() => {
@@ -1836,6 +1958,7 @@ watch(selectedDates, (dates) => {
   }
 
   syncSelectedDateDurations(normalized)
+  syncSelectedDatePayStatuses(normalized)
 
   if (normalized.length === 0) {
     form.value.days = 1
@@ -1952,15 +2075,29 @@ async function onSubmit() {
       return
     }
 
+    const sortedSelectedDatesPayload = [...selectedDatesList.value].sort()
+    const payStatusBreakdown = getSelectedDatePayStatusBreakdown(sortedSelectedDatesPayload)
+
     const payload = {
       employee_id: selectedEmployeeId.value,
       leave_type_id: form.value.leaveTypeId,
       start_date: form.value.startDate,
       end_date: form.value.endDate,
-      total_days: form.value.days,
+      total_days: selectedDateCreditTotalDays.value,
+      actual_total_days: form.value.days,
+      applied_total_days: form.value.days,
+      requested_total_days: form.value.days,
+      credit_deducting_days: payStatusBreakdown.withPayTotalDays,
+      deductible_days: payStatusBreakdown.withPayTotalDays,
+      with_pay_days: payStatusBreakdown.withPayTotalDays,
+      without_pay_days: payStatusBreakdown.withoutPayTotalDays,
       reason: String(form.value.reason || '').trim() || null,
-      selected_dates: [...selectedDatesList.value].sort(),
-      selected_date_durations: buildSelectedDateDurationsPayload([...selectedDatesList.value].sort()),
+      selected_dates: sortedSelectedDatesPayload,
+      with_pay_dates: payStatusBreakdown.withPayDates,
+      without_pay_dates: payStatusBreakdown.withoutPayDates,
+      selected_date_durations: buildSelectedDateDurationsPayload(sortedSelectedDatesPayload),
+      selected_date_pay_statuses: buildSelectedDatePayStatusesPayload(sortedSelectedDatesPayload),
+      selected_date_pay_status_codes: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
       commutation: form.value.commutation,
       details: {
         vacation_detail: form.value.vacationDetail,
@@ -2352,6 +2489,16 @@ async function onSubmit() {
   font-weight: 600;
   color: #46535d;
 }
+.selected-date-duration-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.selected-date-duration-actions--list {
+  gap: 6px;
+}
 .selected-date-duration-toggle {
   border: 0;
   padding: 2px 8px;
@@ -2368,10 +2515,19 @@ async function onSubmit() {
 .selected-date-duration-toggle--half {
   color: #42a5f5;
 }
+.selected-date-duration-toggle--pay-status {
+  min-width: 52px;
+}
+.selected-date-duration-toggle--without-pay {
+  color: #42a5f5;
+}
 .selected-date-duration-toggle:hover {
   background: rgba(46, 125, 50, 0.12);
 }
 .selected-date-duration-toggle--half:hover {
+  background: rgba(66, 165, 245, 0.16);
+}
+.selected-date-duration-toggle--without-pay:hover {
   background: rgba(66, 165, 245, 0.16);
 }
 .leave-date-calendar {

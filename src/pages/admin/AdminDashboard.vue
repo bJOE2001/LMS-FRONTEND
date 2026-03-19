@@ -680,8 +680,32 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
+import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+
+function getActualRequestedDayCount(app) {
+  const explicitCandidates = [
+    app?.actual_total_days,
+    app?.applied_total_days,
+    app?.requested_total_days,
+    app?.display_total_days,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const numericValue = Number(candidate)
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue
+    }
+  }
+
+  const requestedDayCount = Number(getApplicationRequestedDayCount(app))
+  if (Number.isFinite(requestedDayCount) && requestedDayCount > 0) {
+    return requestedDayCount
+  }
+
+  return null
+}
 
 const props = defineProps({
   applicationsOnly: {
@@ -1133,6 +1157,11 @@ function resolveApplicationDuration(app) {
     if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
 
     return { value: 0, unit: 'hour' }
+  }
+
+  const actualDayValue = getActualRequestedDayCount(app)
+  if (Number.isFinite(actualDayValue) && actualDayValue > 0) {
+    return { value: actualDayValue, unit: 'day' }
   }
 
   const derivedDays = Number(getApplicationDayCount(app))
@@ -1865,6 +1894,11 @@ function getApplicationInclusiveDateLines(app) {
 
 function getApplicationDayCount(app) {
   if (!app) return '0'
+
+  const actualDayValue = getActualRequestedDayCount(app)
+  if (Number.isFinite(actualDayValue) && actualDayValue > 0) {
+    return formatDayValue(actualDayValue)
+  }
 
   const parsedDays = Number(app?.days)
   if (Number.isFinite(parsedDays) && parsedDays > 0) {

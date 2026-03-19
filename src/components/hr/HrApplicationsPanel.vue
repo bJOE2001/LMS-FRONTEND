@@ -675,6 +675,7 @@ import { api } from 'src/boot/axios'
 import StatusBadge from 'components/StatusBadge.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { generateCocCertificatePdf } from 'src/utils/coc-certificate-pdf'
+import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -696,6 +697,29 @@ const EMPLOYMENT_TYPE_FILTER_LABELS = {
   co_terminous: 'Co-term',
   regular: 'Regular',
   casual: 'Casual',
+}
+
+function getActualRequestedDayCount(app) {
+  const explicitCandidates = [
+    app?.actual_total_days,
+    app?.applied_total_days,
+    app?.requested_total_days,
+    app?.display_total_days,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const numericValue = Number(candidate)
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue
+    }
+  }
+
+  const requestedDayCount = Number(getApplicationRequestedDayCount(app))
+  if (Number.isFinite(requestedDayCount) && requestedDayCount > 0) {
+    return requestedDayCount
+  }
+
+  return null
 }
 const employmentTypeFilterLabel = computed(() => EMPLOYMENT_TYPE_FILTER_LABELS[employmentTypeFilter.value] || '')
 
@@ -1087,6 +1111,11 @@ function getApplicationDurationDisplay(app) {
     if (Number.isFinite(minutes)) return formatDurationDisplay(minutes / 60, 'hour')
 
     return '0 h'
+  }
+
+  const actualDayValue = getActualRequestedDayCount(app)
+  if (Number.isFinite(actualDayValue) && actualDayValue > 0) {
+    return formatDurationDisplay(actualDayValue, 'day')
   }
 
   const dayValue = Number(app?.days ?? app?.total_days)
@@ -1535,6 +1564,11 @@ function resolveCurrentDurationSnapshot(app) {
 
     const minutes = Number(app?.total_no_of_coc_applied_minutes)
     if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
+  }
+
+  const actualDayValue = getActualRequestedDayCount(app)
+  if (Number.isFinite(actualDayValue) && actualDayValue > 0) {
+    return { value: actualDayValue, unit: 'day' }
   }
 
   const dayValue = Number(app?.days ?? app?.total_days)
@@ -2092,7 +2126,7 @@ function openEdit(app) {
   const preservedDates = selectedDates.length
     ? selectedDates
     : buildWeekdayDateRange(startDate, endDate)
-  const parsedDays = Number(app?.days)
+  const parsedDays = getActualRequestedDayCount(app) ?? Number(app?.days)
 
   editForm.value = {
     id: app?.id ?? '',
