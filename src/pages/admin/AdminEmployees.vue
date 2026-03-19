@@ -202,6 +202,7 @@
           <div class="row items-center no-wrap q-gutter-sm employee-view-dialog-header-main">
             <div class="text-h6">Employee Details</div>
             <q-btn
+              v-if="$q.screen.lt.sm"
               flat
               dense
               no-caps
@@ -516,6 +517,8 @@ const pagination = ref({
   page: 1,
   rowsPerPage: 10,
   rowsNumber: 0,
+  sortBy: null,
+  descending: false,
 })
 
 const createDefaultEmployeeForm = () => ({
@@ -556,10 +559,12 @@ const noDataMessage = computed(() => {
   return 'No employees found in this department.'
 })
 
+const useClientSideRows = computed(() => !!activeStatusFilter.value || !!pagination.value.sortBy)
+
 const tableRows = computed(() => {
-  if (activeStatusFilter.value) {
+  if (useClientSideRows.value) {
     return paginateClientRows(
-      buildClientFilteredRows(fullEmployeeRows.value),
+      buildClientPreparedRows(fullEmployeeRows.value),
       pagination.value.page,
       pagination.value.rowsPerPage,
     )
@@ -706,6 +711,61 @@ function buildClientFilteredRows(sourceRows = []) {
   return prependSyntheticDepartmentHeadRow(sourceRows)
     .filter((row) => matchesEmployeeSearch(row))
     .filter((row) => matchesStatusFilter(row?.status))
+}
+
+function resolveEmployeeSortValue(row, sortBy) {
+  if (!row) return ''
+
+  if (sortBy === 'control_no') {
+    return normalizeControlNo(row.control_no)
+  }
+
+  if (sortBy === 'name') {
+    return [
+      String(row.surname || '').trim(),
+      String(row.firstname || '').trim(),
+      String(row.middlename || '').trim(),
+    ]
+      .filter(Boolean)
+      .join(' ')
+  }
+
+  if (sortBy === 'status') {
+    return normalizeStatus(row.status)
+  }
+
+  return ''
+}
+
+function compareEmployeeRows(leftRow, rightRow, sortBy) {
+  const leftValue = resolveEmployeeSortValue(leftRow, sortBy)
+  const rightValue = resolveEmployeeSortValue(rightRow, sortBy)
+
+  const primaryComparison = String(leftValue).localeCompare(String(rightValue), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  })
+
+  if (primaryComparison !== 0) return primaryComparison
+
+  return normalizeControlNo(leftRow?.control_no).localeCompare(normalizeControlNo(rightRow?.control_no), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  })
+}
+
+function sortEmployeeRows(sourceRows = []) {
+  const rows = Array.isArray(sourceRows) ? [...sourceRows] : []
+  const sortBy = pagination.value.sortBy
+
+  if (!sortBy) return rows
+
+  const sortedRows = rows.sort((leftRow, rightRow) => compareEmployeeRows(leftRow, rightRow, sortBy))
+  return pagination.value.descending ? sortedRows.reverse() : sortedRows
+}
+
+function buildClientPreparedRows(sourceRows = []) {
+  return sortEmployeeRows(buildClientFilteredRows(sourceRows))
 }
 
 function paginateClientRows(sourceRows = [], page = 1, rowsPerPage = 10) {
@@ -1135,7 +1195,7 @@ async function fetchEmployees(page = 1) {
       search: search.value || undefined,
     }
 
-    if (activeStatusFilter.value) {
+    if (useClientSideRows.value) {
       const collectionCacheKey = buildEmployeeCollectionCacheKey()
       const needsCollectionRefresh = fullEmployeeRowsCacheKey.value !== collectionCacheKey
 
@@ -1158,7 +1218,7 @@ async function fetchEmployees(page = 1) {
         fullEmployeeRowsCacheKey.value = collectionCacheKey
       }
 
-      const filteredRows = buildClientFilteredRows(fullEmployeeRows.value)
+      const filteredRows = buildClientPreparedRows(fullEmployeeRows.value)
       const summaryData = summaryResponse?.data ?? {}
       const perPage = Number(pagination.value.rowsPerPage)
       const maxPage = Number.isFinite(perPage) && perPage > 0
@@ -1224,8 +1284,18 @@ async function fetchEmployees(page = 1) {
 }
 
 function onRequest(props) {
+  const nextSortBy = props.pagination.sortBy || null
+  const nextDescending = !!props.pagination.descending
+  const sortChanged =
+    pagination.value.sortBy !== nextSortBy || pagination.value.descending !== nextDescending
+
   pagination.value.rowsPerPage = props.pagination.rowsPerPage
-  const page = Math.max(1, parseInt(props.pagination.page, 10) || 1)
+  pagination.value.sortBy = nextSortBy
+  pagination.value.descending = nextDescending
+
+  const page = sortChanged
+    ? 1
+    : Math.max(1, parseInt(props.pagination.page, 10) || 1)
   fetchEmployees(page)
 }
 

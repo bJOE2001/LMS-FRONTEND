@@ -7,8 +7,7 @@
       :width="260"
       side="left"
       behavior="default"
-      class="side-panel-fixed text-white"
-      :class="isDark ? 'bg-dark' : 'bg-primary'"
+      class="side-panel-fixed text-white bg-primary"
     >
       <div class="side-panel-content">
         <div class="sidebar-header text-center">

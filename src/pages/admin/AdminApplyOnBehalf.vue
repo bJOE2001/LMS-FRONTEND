@@ -2427,7 +2427,8 @@ async function onSubmit() {
 .leave-date-calendar :deep(.leave-date-calendar__day--locked) {
   opacity: 1 !important;
 }
-.leave-date-calendar :deep(.leave-date-calendar__day--locked > div) {
+.leave-date-calendar :deep(.leave-date-calendar__day--locked > div),
+.leave-date-calendar :deep(.leave-date-calendar__day--locked .q-btn) {
   position: relative;
   display: flex;
   align-items: center;
@@ -2435,12 +2436,18 @@ async function onSubmit() {
   font-weight: 700;
   color: #2b2f33 !important;
   opacity: 1 !important;
-  border-radius: 999px;
+  border-radius: 999px !important;
 }
-.leave-date-calendar :deep(.leave-date-calendar__day--locked-pending > div) {
+.leave-date-calendar :deep(.leave-date-calendar__day--locked .q-btn__content) {
+  color: #2b2f33 !important;
+  font-weight: 700;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--locked-pending > div),
+.leave-date-calendar :deep(.leave-date-calendar__day--locked-pending .q-btn) {
   background: #fff1c9;
 }
-.leave-date-calendar :deep(.leave-date-calendar__day--locked-approved > div) {
+.leave-date-calendar :deep(.leave-date-calendar__day--locked-approved > div),
+.leave-date-calendar :deep(.leave-date-calendar__day--locked-approved .q-btn) {
   background: #dff1e0;
 }
 .dialog-form-card :deep(.q-date) {
