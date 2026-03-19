@@ -22,52 +22,10 @@ function normalizeText(value) {
     .trim()
 }
 
-function firstPresentValue(...values) {
-  for (const value of values) {
-    if (value === undefined || value === null) continue
-    if (typeof value === 'string' && normalizeText(value) === '') continue
-    return value
-  }
-  return ''
-}
-
 function toFiniteNumber(value) {
   if (value === undefined || value === null || value === '') return null
   const numericValue = Number(value)
   return Number.isFinite(numericValue) ? numericValue : null
-}
-
-function parseDurationTextToMinutes(value) {
-  if (value === undefined || value === null || value === '') return null
-
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(0, Math.round(value))
-  }
-
-  const rawValue = normalizeText(value)
-  if (!rawValue) return null
-
-  const numericValue = toFiniteNumber(rawValue)
-  if (numericValue !== null) return Math.max(0, Math.round(numericValue))
-
-  const hhMmMatch = rawValue.match(/^(\d{1,2})\s*:\s*(\d{1,2})$/)
-  if (hhMmMatch) {
-    const hours = Number(hhMmMatch[1])
-    const minutes = Number(hhMmMatch[2])
-    if (minutes >= 60) return null
-    return Math.max(0, hours * 60 + minutes)
-  }
-
-  const hoursMatch = rawValue.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/i)
-  const minutesMatch = rawValue.match(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/i)
-
-  if (!hoursMatch && !minutesMatch) return null
-
-  const parsedHours = hoursMatch ? Number(hoursMatch[1]) : 0
-  const parsedMinutes = minutesMatch ? Number(minutesMatch[1]) : 0
-  if (!Number.isFinite(parsedHours) || !Number.isFinite(parsedMinutes)) return null
-
-  return Math.max(0, Math.round(parsedHours * 60 + parsedMinutes))
 }
 
 function tryParseDate(value) {
@@ -102,165 +60,35 @@ function toBase64(url) {
     )
 }
 
-function buildNameFromParts(source) {
-  if (!source || typeof source !== 'object') return ''
-
-  const parts = [
-    normalizeText(source.firstname),
-    normalizeText(source.middlename),
-    normalizeText(source.surname),
-  ].filter(Boolean)
-
-  return parts.join(' ').trim()
-}
-
 function resolveEmployeeName(app) {
-  const direct = firstPresentValue(
-    app?.employeeName,
-    app?.employee_name,
-    app?.full_name,
-    app?.name,
-    app?.employee?.full_name,
-    app?.employee?.employee_name,
-    app?.employee?.name,
-  )
-  if (direct) return normalizeText(direct)
-
-  const nameFromRoot = buildNameFromParts(app)
-  if (nameFromRoot) return nameFromRoot
-
-  const nameFromEmployee = buildNameFromParts(app?.employee)
-  if (nameFromEmployee) return nameFromEmployee
-
-  return ''
+  return normalizeText(app?.employee_name || app?.employeeName)
 }
 
 function resolveTotalHours(app) {
-  const explicitMinuteCandidates = [
-    app?.total_no_of_coc_applied_minutes,
-    app?.totalNoOfCocAppliedMinutes,
-    app?.total_minutes,
-    app?.totalMinutes,
-    app?.applied_minutes,
-    app?.appliedMinutes,
-  ]
-
-  for (const candidate of explicitMinuteCandidates) {
-    const numericMinutes = toFiniteNumber(candidate)
-    if (numericMinutes !== null) return Math.max(0, numericMinutes) / 60
-
-    const parsedMinutes = parseDurationTextToMinutes(candidate)
-    if (parsedMinutes !== null) return parsedMinutes / 60
-  }
-
-  const explicitHourCandidates = [
-    app?.days,
-    app?.total_days,
-    app?.duration_value,
-    app?.total_hours,
-    app?.totalHours,
-    app?.total_no_of_coc_applied_hours,
-    app?.totalNoOfCocAppliedHours,
-  ]
-
-  for (const candidate of explicitHourCandidates) {
-    const numericHours = toFiniteNumber(candidate)
-    if (numericHours !== null) return Math.max(0, numericHours)
-  }
-
-  const mixedDurationCandidates = [
-    app?.total_no_of_coc_applied,
-    app?.totalNoOfCocApplied,
-    app?.duration_label,
-    app?.durationLabel,
-  ]
-
-  for (const candidate of mixedDurationCandidates) {
-    const parsedMinutes = parseDurationTextToMinutes(candidate)
-    if (parsedMinutes !== null) return parsedMinutes / 60
-  }
-
+  const totalMinutes = toFiniteNumber(app?.total_no_of_coc_applied_minutes)
+  if (totalMinutes !== null) return totalMinutes / 60
   return 0
 }
 
 function resolveMonthLabel(app) {
-  const explicit = normalizeText(
-    firstPresentValue(
-      app?.for_the_month,
-      app?.forTheMonth,
-      app?.month,
-      app?.month_label,
-      app?.monthLabel,
-      app?.coc_month,
-      app?.cocMonth,
-      app?.overtime_month,
-      app?.overtimeMonth,
-    ),
-  )
-  if (explicit) return explicit
-
-  const fallbackDate = firstPresentValue(
-    app?.startDate,
-    app?.start_date,
-    app?.dateFiled,
-    app?.date_filed,
-    app?.hrActionAt,
-    app?.hr_action_at,
-    app?.updated_at,
-    app?.updatedAt,
-    new Date(),
-  )
-
-  const parsed = tryParseDate(fallbackDate)
+  const parsed = tryParseDate(app?.hr_action_at || app?.hrActionAt)
   if (!parsed) return ''
   return parsed.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
 function resolveDateIssued(app) {
-  return firstPresentValue(
-    app?.date_issued,
-    app?.dateIssued,
-    app?.issued_at,
-    app?.issuedAt,
-    app?.hrActionAt,
-    app?.hr_action_at,
-    app?.updated_at,
-    app?.updatedAt,
-    new Date(),
-  )
+  return app?.hr_action_at || app?.hrActionAt || ''
 }
 
-function resolveValidUntil(app, dateIssued) {
-  const explicit = firstPresentValue(
-    app?.valid_until,
-    app?.validUntil,
-    app?.validity_end,
-    app?.validityEnd,
-    app?.expiration_date,
-    app?.expirationDate,
-  )
-  if (explicit) return explicit
-
+function resolveValidUntil(dateIssued) {
   const issued = tryParseDate(dateIssued)
   if (!issued) return ''
 
-  const validUntil = new Date(issued.getFullYear() + 1, 11, 31)
-  return validUntil
+  return new Date(issued.getFullYear(), 11, 31)
 }
 
 function resolveHrmoValidatorName(app) {
-  return normalizeText(
-    firstPresentValue(
-      app?.hrmo_validator_name,
-      app?.hrmoValidatorName,
-      app?.hrActionBy,
-      app?.hr_action_by,
-      app?.validated_by,
-      app?.validatedBy,
-      app?.hrmo_validation_name,
-      app?.hrmoValidationName,
-    ),
-  )
+  return normalizeText(app?.hr_action_by || app?.hrActionBy)
 }
 
 function numberToWords(value) {
@@ -581,6 +409,64 @@ function buildCertificateSection(data, options = {}) {
 
 export async function generateCocCertificatePdf(app) {
   if (!app) return
+// console.log('RAW employeeName:', app?.employeeName)
+// console.log('RAW employee_name:', app?.employee_name)
+// console.log('RAW full_name:', app?.full_name)
+// console.log('RAW name:', app?.name)
+// console.log('RAW firstname:', app?.firstname)
+// console.log('RAW middlename:', app?.middlename)
+// console.log('RAW surname:', app?.surname)
+// console.log('RAW employee object:', app?.employee)
+
+// console.log('RAW total_no_of_coc_applied_minutes:', app?.total_no_of_coc_applied_minutes)
+// console.log('RAW totalNoOfCocAppliedMinutes:', app?.totalNoOfCocAppliedMinutes)
+// console.log('RAW total_minutes:', app?.total_minutes)
+// console.log('RAW totalMinutes:', app?.totalMinutes)
+// console.log('RAW applied_minutes:', app?.applied_minutes)
+// console.log('RAW appliedMinutes:', app?.appliedMinutes)
+// console.log('RAW days:', app?.days)
+// console.log('RAW total_days:', app?.total_days)
+// console.log('RAW duration_value:', app?.duration_value)
+// console.log('RAW total_hours:', app?.total_hours)
+// console.log('RAW totalHours:', app?.totalHours)
+
+// console.log('RAW for_the_month:', app?.for_the_month)
+// console.log('RAW forTheMonth:', app?.forTheMonth)
+// console.log('RAW month:', app?.month)
+// console.log('RAW month_label:', app?.month_label)
+// console.log('RAW monthLabel:', app?.monthLabel)
+// console.log('RAW coc_month:', app?.coc_month)
+// console.log('RAW overtime_month:', app?.overtime_month)
+
+// console.log('RAW date_issued:', app?.date_issued)
+// console.log('RAW dateIssued:', app?.dateIssued)
+// console.log('RAW issued_at:', app?.issued_at)
+// console.log('RAW issuedAt:', app?.issuedAt)
+// console.log('RAW hrActionAt:', app?.hrActionAt)
+// console.log('RAW hr_action_at:', app?.hr_action_at)
+// console.log('RAW updated_at:', app?.updated_at)
+// console.log('RAW updatedAt:', app?.updatedAt)
+
+// console.log('RAW valid_until:', app?.valid_until)
+// console.log('RAW validUntil:', app?.validUntil)
+// console.log('RAW validity_end:', app?.validity_end)
+// console.log('RAW validityEnd:', app?.validityEnd)
+// console.log('RAW expiration_date:', app?.expiration_date)
+// console.log('RAW expirationDate:', app?.expirationDate)
+
+// console.log('RAW hrmo_validator_name:', app?.hrmo_validator_name)
+// console.log('RAW hrmoValidatorName:', app?.hrmoValidatorName)
+// console.log('RAW hrActionBy:', app?.hrActionBy)
+// console.log('RAW hr_action_by:', app?.hr_action_by)
+// console.log('RAW validated_by:', app?.validated_by)
+// console.log('RAW validatedBy:', app?.validatedBy)
+
+// console.log('Resolved employee name:', resolveEmployeeName(app))
+// console.log('Resolved total hours:', resolveTotalHours(app))
+// console.log('Resolved month label:', resolveMonthLabel(app))
+// console.log('Resolved date issued:', resolveDateIssued(app))
+// console.log('Resolved valid until:', resolveValidUntil(app, resolveDateIssued(app)))
+// console.log('Resolved HRMO validator:', resolveHrmoValidatorName(app))
 
   let logoBase64 = null
   try {
