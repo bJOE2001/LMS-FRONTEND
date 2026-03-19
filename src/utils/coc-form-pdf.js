@@ -133,49 +133,32 @@ function formatMinutesAsHoursAndMinutes(totalMinutes) {
   return `${hours}h ${String(minutes).padStart(2, '0')}m`
 }
 
-function unwrapArray(value) {
-  if (Array.isArray(value)) return value
-  if (!value || typeof value !== 'object') return []
+// function unwrapArray(value) {
+//   if (Array.isArray(value)) return value
+//   if (!value || typeof value !== 'object') return []
 
-  const nestedCandidates = [value.rows, value.items, value.data, value.entries, value.details]
-  for (const candidate of nestedCandidates) {
-    if (Array.isArray(candidate)) return candidate
-  }
+//   const nestedCandidates = [value.rows, value.items, value.data, value.entries, value.details]
+//   for (const candidate of nestedCandidates) {
+//     if (Array.isArray(candidate)) return candidate
+//   }
 
-  return []
-}
+//   return []
+// }
 
-function buildNameFromParts(source) {
-  if (!source || typeof source !== 'object') return ''
+// function buildNameFromParts(source) {
+//   if (!source || typeof source !== 'object') return ''
 
-  const parts = [
-    normalizeText(source.firstname),
-    normalizeText(source.middlename),
-    normalizeText(source.surname),
-  ].filter(Boolean)
+//   const parts = [
+//     normalizeText(source.firstname),
+//     normalizeText(source.middlename),
+//     normalizeText(source.surname),
+//   ].filter(Boolean)
 
-  return parts.join(' ').trim()
-}
+//   return parts.join(' ').trim()
+// }
 
 function resolveEmployeeName(app) {
-  const directValue = firstPresentValue(
-    app?.employeeName,
-    app?.employee_name,
-    app?.full_name,
-    app?.name,
-    app?.employee?.full_name,
-    app?.employee?.employee_name,
-    app?.employee?.name,
-  )
-  if (directValue) return normalizeText(directValue)
-
-  const fullNameFromRoot = buildNameFromParts(app)
-  if (fullNameFromRoot) return fullNameFromRoot
-
-  const fullNameFromEmployee = buildNameFromParts(app?.employee)
-  if (fullNameFromEmployee) return fullNameFromEmployee
-
-  return ''
+  return normalizeText(app?.employee_name) || normalizeText(app?.employeeName)
 }
 
 function resolveEmployeePosition(app) {
@@ -195,15 +178,7 @@ function resolveEmployeePosition(app) {
 }
 
 function resolveEmployeeDepartment(app) {
-  return normalizeText(
-    firstPresentValue(
-      app?.office,
-      app?.department_name,
-      app?.departmentName,
-      app?.department?.name,
-      app?.department,
-    ),
-  )
+  return normalizeText(app?.office || app?.department)
 }
 
 function normalizeCocEntry(entry) {
@@ -212,168 +187,46 @@ function normalizeCocEntry(entry) {
 }
 
 function extractCocEntries(app) {
-  const candidateCollections = [
-    app?.rows,
-    app?.coc_rows,
-    app?.cocRows,
-    app?.overtime_rows,
-    app?.overtimeRows,
-    app?.overtime_details,
-    app?.overtimeDetails,
-    app?.overtime_entries,
-    app?.overtimeEntries,
-    app?.coc_details,
-    app?.cocDetails,
-    app?.details,
-    app?.entries,
-    app?.line_items,
-    app?.lineItems,
-    app?.application_details,
-    app?.applicationDetails,
-    app?.overtime,
-  ]
+  if (Array.isArray(app?.rows)) return app.rows
 
-  for (const collection of candidateCollections) {
-    const normalizedRows = unwrapArray(collection)
-      .map((row) => normalizeCocEntry(row))
-      .filter(Boolean)
-
-    if (normalizedRows.length) return normalizedRows
+  if (Array.isArray(app?.selected_dates)) {
+    return app.selected_dates.map((dateValue) => ({ date: dateValue }))
   }
 
-  const selectedDates = Array.isArray(app?.selected_dates)
-    ? app.selected_dates
-    : Array.isArray(app?.selectedDates)
-      ? app.selectedDates
-      : []
-
-  if (selectedDates.length) {
-    return selectedDates.map((dateValue) => ({ date: dateValue }))
-  }
-
-  const fallbackDate = firstPresentValue(
-    app?.startDate,
-    app?.start_date,
-    app?.dateFiled,
-    app?.date_filed,
-    app?.created_at,
-    app?.createdAt,
-  )
-
+  const fallbackDate = app?.start_date || app?.startDate || app?.date_filed || app?.dateFiled || app?.created_at || app?.createdAt
   return fallbackDate ? [{ date: fallbackDate }] : []
 }
 
+
 function resolveEntryDate(entry) {
-  return firstPresentValue(
-    entry?.date,
-    entry?.overtime_date,
-    entry?.overtimeDate,
-    entry?.work_date,
-    entry?.workDate,
-    entry?.rendered_date,
-    entry?.renderedDate,
-    entry?.duty_date,
-    entry?.dutyDate,
-    entry?.entry_date,
-    entry?.entryDate,
-  )
+  return entry?.date || ''
 }
 
 function resolveEntryNature(entry) {
-  return normalizeText(
-    firstPresentValue(
-      entry?.nature_of_overtime,
-      entry?.natureOfOvertime,
-      entry?.overtime_nature,
-      entry?.overtimeNature,
-      entry?.nature,
-      entry?.purpose,
-      entry?.description,
-      entry?.reason,
-      entry?.activity,
-    ),
-  )
+  return normalizeText(entry?.nature_of_overtime)
 }
+
 
 function resolveEntryFromTime(entry) {
-  return firstPresentValue(
-    entry?.from_time,
-    entry?.fromTime,
-    entry?.time_from,
-    entry?.timeFrom,
-    entry?.start_time,
-    entry?.startTime,
-    entry?.time_start,
-    entry?.timeStart,
-  )
-}
+  return entry?.time_from || ''
+} 
 
 function resolveEntryToTime(entry) {
-  return firstPresentValue(
-    entry?.to_time,
-    entry?.toTime,
-    entry?.time_to,
-    entry?.timeTo,
-    entry?.end_time,
-    entry?.endTime,
-    entry?.time_end,
-    entry?.timeEnd,
-  )
+  return entry?.time_to || ''
 }
 
 function resolveEntryMinutes(entry, fromTimeValue, toTimeValue) {
-  const explicitHours = toFiniteNumber(
-    firstPresentValue(entry?.no_of_hours, entry?.noOfHours, entry?.hours, entry?.hour),
-  )
-  const explicitMinutePart = toFiniteNumber(
-    firstPresentValue(entry?.no_of_minutes, entry?.noOfMinutes, entry?.minutes, entry?.minute),
-  )
+  const explicitMinutes = toFiniteNumber(entry?.total_no_of_coc_applied_minutes)
+  if (explicitMinutes !== null) return Math.max(0, Math.round(explicitMinutes))
 
-  if (explicitHours !== null) {
-    return Math.max(0, Math.round(explicitHours * 60 + (explicitMinutePart || 0)))
-  }
+  const fromMinutes = parseTimeToMinutesOfDay(entry?.time_from || fromTimeValue)
+  const toMinutes = parseTimeToMinutesOfDay(entry?.time_to || toTimeValue)
 
-  const explicitMinuteCandidates = [
-    entry?.total_no_of_coc_applied_minutes,
-    entry?.totalNoOfCocAppliedMinutes,
-    entry?.total_minutes,
-    entry?.totalMinutes,
-    entry?.duration_minutes,
-    entry?.durationMinutes,
-    entry?.applied_minutes,
-    entry?.appliedMinutes,
-    explicitMinutePart,
-  ]
-
-  for (const candidate of explicitMinuteCandidates) {
-    const numericValue = toFiniteNumber(candidate)
-    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
-
-    const parsedDuration = parseDurationTextToMinutes(candidate)
-    if (parsedDuration !== null) return parsedDuration
-  }
-
-  const mixedDurationCandidates = [
-    entry?.no_of_hours_and_minutes,
-    entry?.noOfHoursAndMinutes,
-    entry?.hours_and_minutes,
-    entry?.hoursAndMinutes,
-    entry?.duration,
-    entry?.duration_label,
-    entry?.durationLabel,
-  ]
-
-  for (const candidate of mixedDurationCandidates) {
-    const parsedDuration = parseDurationTextToMinutes(candidate)
-    if (parsedDuration !== null) return parsedDuration
-  }
-
-  const fromMinutes = parseTimeToMinutesOfDay(fromTimeValue)
-  const toMinutes = parseTimeToMinutesOfDay(toTimeValue)
   if (fromMinutes === null || toMinutes === null) return null
 
   let difference = toMinutes - fromMinutes
   if (difference < 0) difference += 24 * 60
+
   return Math.max(0, difference)
 }
 
@@ -428,6 +281,7 @@ function resolveTotalMinutesFromApplication(app, fallbackMinutes = null) {
 
 function mapCocRows(app) {
   const sourceEntries = extractCocEntries(app)
+
   const mappedRows = sourceEntries
     .map((sourceEntry) => {
       const entry = normalizeCocEntry(sourceEntry)
@@ -455,14 +309,14 @@ function mapCocRows(app) {
         Number.isFinite(row.minutes),
     )
 
-  const fallbackDate = firstPresentValue(
-    app?.startDate,
-    app?.start_date,
-    app?.dateFiled,
-    app?.date_filed,
-    app?.created_at,
-    app?.createdAt,
-  )
+  const fallbackDate =
+    app?.start_date ||
+    app?.startDate ||
+    app?.date_filed ||
+    app?.dateFiled ||
+    app?.created_at ||
+    app?.createdAt
+
   const fallbackTotalMinutes = resolveTotalMinutesFromApplication(app, null)
 
   if (!mappedRows.length && (fallbackDate || Number.isFinite(fallbackTotalMinutes))) {
@@ -473,12 +327,14 @@ function mapCocRows(app) {
       fromText: '',
       toText: '',
       minutes: Number.isFinite(fallbackTotalMinutes) ? fallbackTotalMinutes : null,
+      runningTotalMinutes: null,
     })
   }
 
   let runningMinutes = 0
   const rowsWithRunningTotals = mappedRows.map((row) => {
     let runningTotalText = ''
+
     if (Number.isFinite(row.runningTotalMinutes)) {
       runningMinutes = row.runningTotalMinutes
       runningTotalText = formatMinutesAsHoursAndMinutes(runningMinutes)
@@ -489,7 +345,9 @@ function mapCocRows(app) {
 
     return {
       ...row,
-      durationText: Number.isFinite(row.minutes) ? formatMinutesAsHoursAndMinutes(row.minutes) : '',
+      durationText: Number.isFinite(row.minutes)
+        ? formatMinutesAsHoursAndMinutes(row.minutes)
+        : '',
       runningTotalText,
     }
   })
@@ -501,27 +359,12 @@ function mapCocRows(app) {
 }
 
 function resolveForMonthLabel(app, rows) {
-  const explicitMonth = normalizeText(
-    firstPresentValue(
-      app?.for_the_month,
-      app?.forTheMonth,
-      app?.month,
-      app?.month_label,
-      app?.monthLabel,
-      app?.coc_month,
-      app?.cocMonth,
-      app?.overtime_month,
-      app?.overtimeMonth,
-    ),
-  )
-  if (explicitMonth) return explicitMonth
-
   const dateCandidates = [
-    ...rows.map((row) => row.rawDate),
-    app?.startDate,
+    rows.map((row) => row.rawDate),
     app?.start_date,
-    app?.dateFiled,
+    app?.startDate,
     app?.date_filed,
+    app?.dateFiled,
     app?.created_at,
     app?.createdAt,
   ]
@@ -660,14 +503,130 @@ function createRightAlignedSignatureBlock(name, caption, options = {}) {
 export async function generateCocApplicationPdf(app) {
   if (!app) return
 
+//  // ===== RAW APP DATA =====
+//   // Employee
+//   console.log('RAW employeeName:', app?.employeeName)
+//   console.log('RAW employee_name:', app?.employee_name)
+//   console.log('RAW full_name:', app?.full_name)
+//   console.log('RAW name:', app?.name)
+//   console.log('RAW firstname:', app?.firstname)
+//   console.log('RAW middlename:', app?.middlename)
+//   console.log('RAW surname:', app?.surname)
+//   console.log('RAW employee object:', app?.employee)
+
+//   // Position / department
+//   console.log('RAW position:', app?.position)
+//   console.log('RAW designation:', app?.designation)
+//   console.log('RAW job_title:', app?.job_title)
+//   console.log('RAW jobTitle:', app?.jobTitle)
+//   console.log('RAW employee.position:', app?.employee?.position)
+//   console.log('RAW employee.designation:', app?.employee?.designation)
+//   console.log('RAW employee.job_title:', app?.employee?.job_title)
+//   console.log('RAW employee.jobTitle:', app?.employee?.jobTitle)
+//   console.log('RAW employee.rank:', app?.employee?.rank)
+
+//   console.log('RAW office:', app?.office)
+//   console.log('RAW department_name:', app?.department_name)
+//   console.log('RAW departmentName:', app?.departmentName)
+//   console.log('RAW department object:', app?.department)
+//   console.log('RAW department.name:', app?.department?.name)
+
+//   // Application totals / month
+//   console.log('RAW total_no_of_coc_applied_minutes:', app?.total_no_of_coc_applied_minutes)
+//   console.log('RAW totalNoOfCocAppliedMinutes:', app?.totalNoOfCocAppliedMinutes)
+//   console.log('RAW total_minutes:', app?.total_minutes)
+//   console.log('RAW totalMinutes:', app?.totalMinutes)
+//   console.log('RAW applied_minutes:', app?.applied_minutes)
+//   console.log('RAW appliedMinutes:', app?.appliedMinutes)
+//   console.log('RAW days:', app?.days)
+//   console.log('RAW total_days:', app?.total_days)
+//   console.log('RAW duration_value:', app?.duration_value)
+//   console.log('RAW durationValue:', app?.durationValue)
+
+//   console.log('RAW for_the_month:', app?.for_the_month)
+//   console.log('RAW forTheMonth:', app?.forTheMonth)
+//   console.log('RAW month:', app?.month)
+//   console.log('RAW month_label:', app?.month_label)
+//   console.log('RAW monthLabel:', app?.monthLabel)
+//   console.log('RAW coc_month:', app?.coc_month)
+//   console.log('RAW cocMonth:', app?.cocMonth)
+//   console.log('RAW overtime_month:', app?.overtime_month)
+//   console.log('RAW overtimeMonth:', app?.overtimeMonth)
+
+  // Dates
+  // console.log('RAW startDate:', app?.startDate)
+  // console.log('RAW start_date:', app?.start_date)
+  // console.log('RAW dateFiled:', app?.dateFiled)
+  // console.log('RAW date_filed:', app?.date_filed)
+  // console.log('RAW created_at:', app?.created_at)
+  // console.log('RAW createdAt:', app?.createdAt)
+
+  // Candidate row collections
+  // console.log('RAW rows:', app?.rows)
+  // console.log('RAW coc_rows:', app?.coc_rows)
+  // console.log('RAW cocRows:', app?.cocRows)
+  // console.log('RAW overtime_rows:', app?.overtime_rows)
+  // console.log('RAW overtimeRows:', app?.overtimeRows)
+  // console.log('RAW overtime_details:', app?.overtime_details)
+  // console.log('RAW overtimeDetails:', app?.overtimeDetails)
+  // console.log('RAW overtime_entries:', app?.overtime_entries)
+  // console.log('RAW overtimeEntries:', app?.overtimeEntries)
+  // console.log('RAW coc_details:', app?.coc_details)
+  // console.log('RAW cocDetails:', app?.cocDetails)
+  // console.log('RAW details:', app?.details)
+  // console.log('RAW entries:', app?.entries)
+  // console.log('RAW line_items:', app?.line_items)
+  // console.log('RAW lineItems:', app?.lineItems)
+  // console.log('RAW application_details:', app?.application_details)
+  // console.log('RAW applicationDetails:', app?.applicationDetails)
+  // console.log('RAW overtime:', app?.overtime)
+
+  // console.log('RAW selected_dates:', app?.selected_dates)
+  // console.log('RAW selectedDates:', app?.selectedDates)
+
   const printableApp = await enrichAppWithDepartmentHead(app)
-   console.log('Printable app:', printableApp)
+   // ===== ENRICHED / PRINTABLE APP DATA =====
+  // console.log('Printable app:', printableApp)
+  // console.log('Printable employeeName:', printableApp?.employeeName)
+  // console.log('Printable employee_name:', printableApp?.employee_name)
+  // console.log('Printable office:', printableApp?.office)
+  // console.log('Printable department:', printableApp?.department)
+  // console.log('Printable department_name:', printableApp?.department_name)
+  // console.log('Printable departmentName:', printableApp?.departmentName)
+
+  // console.log('Printable department head:', printableApp?.departmentHead)
+  // console.log('Printable department_head:', printableApp?.department_head)
+
+  // ===== RESOLVED VALUES =====
+  // console.log('Resolved employee name:', resolveEmployeeName(printableApp))
+  // console.log('Resolved employee position:', resolveEmployeePosition(printableApp))
+  // console.log('Resolved employee department:', resolveEmployeeDepartment(printableApp))
+  // console.log('Resolved total minutes:', resolveTotalMinutesFromApplication(printableApp))
+  // console.log('Resolved extracted entries:', extractCocEntries(printableApp))
+
+  // ===== FIRST ENTRY DEBUG =====
+  // const debugEntries = extractCocEntries(printableApp)
+  // console.log('First extracted entry:', debugEntries?.[0])
+  // console.log('First entry date:', resolveEntryDate(debugEntries?.[0]))
+  // console.log('First entry nature:', resolveEntryNature(debugEntries?.[0]))
+  // console.log('First entry from time:', resolveEntryFromTime(debugEntries?.[0]))
+  // console.log('First entry to time:', resolveEntryToTime(debugEntries?.[0]))
+  // console.log(
+  //   'First entry minutes:',
+  //   resolveEntryMinutes(
+  //     debugEntries?.[0],
+  //     resolveEntryFromTime(debugEntries?.[0]),
+  //     resolveEntryToTime(debugEntries?.[0]),
+  //   ),
+  // )
+  // console.log('First entry running total minutes:', resolveEntryRunningTotalMinutes(debugEntries?.[0]))
   const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
   const employeeName = resolveEmployeeName(printableApp)
   const employeePosition = resolveEmployeePosition(printableApp)
   const employeeDepartment = resolveEmployeeDepartment(printableApp)
 
   const { rows: overtimeRows, computedTotalMinutes } = mapCocRows(printableApp)
+
   const totalAppliedMinutes = resolveTotalMinutesFromApplication(printableApp, computedTotalMinutes)
   const totalAppliedText = Number.isFinite(totalAppliedMinutes)
     ? formatMinutesAsHoursAndMinutes(totalAppliedMinutes)
