@@ -80,11 +80,24 @@ function resolveDateIssued(app) {
   return app?.hr_action_at || app?.hrActionAt || ''
 }
 
-function resolveValidUntil(dateIssued) {
+function resolveValidUntil(app, dateIssued) {
+  const explicitValidity =
+    app?.cto_expires_on ||
+    app?.ctoExpiresOn ||
+    app?.valid_until ||
+    app?.validUntil ||
+    app?.validity_end ||
+    app?.validityEnd ||
+    app?.expiration_date ||
+    app?.expirationDate
+
+  const parsedExplicitValidity = tryParseDate(explicitValidity)
+  if (parsedExplicitValidity) return parsedExplicitValidity
+
   const issued = tryParseDate(dateIssued)
   if (!issued) return ''
 
-  return new Date(issued.getFullYear(), 11, 31)
+  return new Date(issued.getFullYear() + 1, issued.getMonth(), issued.getDate())
 }
 
 function resolveHrmoValidatorName(app) {

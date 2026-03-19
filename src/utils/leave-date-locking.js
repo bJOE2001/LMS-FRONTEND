@@ -230,13 +230,41 @@ function normalizeSelectedDateDurations(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
 
+function resolveSelectedDateDurations(application) {
+  const legacyDurations = normalizeSelectedDateDurations(
+    application?.selected_date_durations ?? application?.selectedDateDurations,
+  )
+  if (Object.keys(legacyDurations).length > 0) {
+    return legacyDurations
+  }
+
+  const selectedDateCoverage = normalizeSelectedDateDurations(
+    application?.selected_date_coverage ?? application?.selectedDateCoverage,
+  )
+  if (Object.keys(selectedDateCoverage).length === 0) {
+    return {}
+  }
+
+  return Object.entries(selectedDateCoverage).reduce((acc, [date, rawCoverage]) => {
+    const normalizedCoverage = String(rawCoverage || '').trim().toLowerCase()
+    if (normalizedCoverage === 'half' || normalizedCoverage === 'half_day') {
+      acc[date] = 'half_day'
+      return acc
+    }
+
+    if (normalizedCoverage === 'whole' || normalizedCoverage === 'whole_day') {
+      acc[date] = 'whole_day'
+    }
+
+    return acc
+  }, {})
+}
+
 export function getApplicationRequestedDayCount(application) {
   if (!application) return 0
 
   const selectedDates = getApplicationSelectedDates(application)
-  const selectedDateDurations = normalizeSelectedDateDurations(
-    application?.selected_date_durations ?? application?.selectedDateDurations,
-  )
+  const selectedDateDurations = resolveSelectedDateDurations(application)
 
   if (selectedDates.length > 0) {
     const durationTotal = selectedDates.reduce((total, date) => (

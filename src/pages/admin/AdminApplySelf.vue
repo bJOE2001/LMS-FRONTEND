@@ -265,6 +265,20 @@
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Sick Leave:</div>
                 <q-option-group v-model="form.sickDetail" :options="[{ label: 'In Hospital (Specify Illness)', value: 'In Hospital' }, { label: 'Out Patient (Specify Illness)', value: 'Out Patient' }]" type="radio" color="primary" />
                 <q-input v-if="form.sickDetail" v-model="form.sickSpecify" outlined dense label="Specify illness" placeholder="Enter Illness" class="form-input q-mt-sm" />
+                <q-file
+                  v-model="form.medicalCertificateFile"
+                  outlined
+                  dense
+                  clearable
+                  accept="image/*"
+                  :max-file-size="medicalCertificateMaxSizeBytes"
+                  :label="requiresSickMedicalCertificate ? 'Medical certificate image *' : 'Medical certificate image (Optional)'"
+                  class="form-input q-mt-sm"
+                  @rejected="onMedicalCertificateRejected"
+                />
+                <div v-if="requiresSickMedicalCertificate" class="text-caption text-negative q-mt-xs">
+                  Required for Sick Leave applications of 5 days or more.
+                </div>
                 </div>
 
                 <div v-if="selectedLeaveTypeName === 'Special Leave Benefits for Women'" class="dialog-detail-options">
@@ -586,6 +600,7 @@ const form = ref({
   vacationSpecify: '',
   sickDetail: '',
   sickSpecify: '',
+  medicalCertificateFile: null,
   womenSpecify: '',
   studyDetail: '',
   otherPurpose: '',
@@ -601,8 +616,73 @@ function parseSalary(value) {
   return String(value).replace(/[^\d]/g, '')
 }
 
+const medicalCertificateMaxSizeBytes = 10 * 1024 * 1024
+const allowedMedicalCertificateExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+
+function resolveSingleFile(value) {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0] || null
+  return value
+}
+
+function isAllowedMedicalCertificateImage(file) {
+  if (!file) return false
+
+  const mimeType = String(file.type || '').trim().toLowerCase()
+  if (mimeType.startsWith('image/')) return true
+
+  const filename = String(file.name || '').trim().toLowerCase()
+  return allowedMedicalCertificateExtensions.some((ext) => filename.endsWith(ext))
+}
+
+const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]'
+
+function appendMultipartValue(formData, key, value) {
+  if (value === undefined || value === null) return
+
+  if (
+    (typeof File !== 'undefined' && value instanceof File) ||
+    (typeof Blob !== 'undefined' && value instanceof Blob)
+  ) {
+    formData.append(key, value)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      appendMultipartValue(formData, `${key}[${index}]`, item)
+    })
+    return
+  }
+
+  if (isPlainObject(value)) {
+    Object.entries(value).forEach(([childKey, childValue]) => {
+      appendMultipartValue(formData, `${key}[${childKey}]`, childValue)
+    })
+    return
+  }
+
+  if (typeof value === 'boolean') {
+    formData.append(key, value ? '1' : '0')
+    return
+  }
+
+  formData.append(key, String(value))
+}
+
+function buildMultipartPayload(payload) {
+  const formData = new FormData()
+  Object.entries(payload).forEach(([key, value]) => {
+    appendMultipartValue(formData, key, value)
+  })
+  return formData
+}
+
+function onMedicalCertificateRejected() {
+  $q.notify({ type: 'negative', message: 'Please upload an image file up to 10 MB.' })
+}
+
 const today = new Date()
-const todayStr = computed(() => today.toISOString().split('T')[0])
 const calendarView = ref({
   year: today.getFullYear(),
   month: today.getMonth() + 1,
@@ -1217,11 +1297,14 @@ function getLeaveBalanceWarningForTotal(totalDays) {
     return ''
   }
 
+  const withoutPayDays = Math.max(totalDays - availableSelectedLeaveBalance.value, 0)
+  const withPayDays = Math.max(totalDays - withoutPayDays, 0)
+
   if (pendingSelectedLeaveDays.value > 0) {
-    return `You already have ${formatDayCountValue(pendingSelectedLeaveDays.value)} day(s) of ${selectedLeaveTypeName.value} pending. Only ${formatDayCountValue(availableSelectedLeaveBalance.value)} day(s) are available for a new application.`
+    return `You already have ${formatDayCountValue(pendingSelectedLeaveDays.value)} day(s) of ${selectedLeaveTypeName.value} pending. Automatic split for this request: ${formatDayCountValue(withPayDays)} day(s) WP and ${formatDayCountValue(withoutPayDays)} day(s) WOP.`
   }
 
-  return `Your ${selectedLeaveTypeName.value} balance is insufficient. Only ${formatDayCountValue(trackedBalance)} day(s) remain.`
+  return `Your ${selectedLeaveTypeName.value} balance is insufficient. Automatic split for this request: ${formatDayCountValue(withPayDays)} day(s) WP and ${formatDayCountValue(withoutPayDays)} day(s) WOP.`
 }
 
 const leaveBalanceWarning = computed(() => {
@@ -1240,8 +1323,8 @@ function getMaxDaysWarningForTotal(totalDays) {
   return ''
 }
 
-function getSelectionLimitWarningForTotal(totalDays, creditDays = totalDays) {
-  return getMaxDaysWarningForTotal(totalDays) || getLeaveBalanceWarningForTotal(creditDays)
+function getSelectionLimitWarningForTotal(totalDays) {
+  return getMaxDaysWarningForTotal(totalDays)
 }
 
 const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'MCO6 Leave')
@@ -1328,6 +1411,7 @@ function onLeaveTypeChange() {
   form.value.vacationSpecify = ''
   form.value.sickDetail = ''
   form.value.sickSpecify = ''
+  form.value.medicalCertificateFile = null
   form.value.womenSpecify = ''
   form.value.studyDetail = ''
   form.value.otherPurpose = ''
@@ -1551,8 +1635,7 @@ function isLockedDateSelection(dateStr) {
 function getSelectionLimitWarningForDates(dates) {
   const normalizedDates = normalizeSelectedDates(dates)
   const actualDays = getSelectedDateTotalForDates(normalizedDates)
-  const creditDays = getSelectedDateCreditTotalForDates(normalizedDates)
-  return getSelectionLimitWarningForTotal(actualDays, creditDays)
+  return getSelectionLimitWarningForTotal(actualDays)
 }
 
 function getSelectionLimitWarningForDate(dateStr) {
@@ -1703,6 +1786,70 @@ function syncSelectedDatePayStatuses(dates) {
   })
 }
 
+function parseIsoDateValue(value) {
+  const raw = String(value || '').trim()
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+}
+
+function countWorkingDaysFromNextDay(lastAbsentDate, filedDate) {
+  if (!(lastAbsentDate instanceof Date) || Number.isNaN(lastAbsentDate.getTime())) return 0
+  if (!(filedDate instanceof Date) || Number.isNaN(filedDate.getTime())) return 0
+  if (filedDate <= lastAbsentDate) return 0
+
+  let count = 0
+  const cursor = new Date(lastAbsentDate.getFullYear(), lastAbsentDate.getMonth(), lastAbsentDate.getDate())
+  cursor.setDate(cursor.getDate() + 1)
+
+  while (cursor <= filedDate) {
+    const dayOfWeek = cursor.getDay()
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count += 1
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return count
+}
+
+function resolveSickLeaveDisplayPayMode() {
+  const sortedDates = [...sortedSelectedDates.value]
+  if (!sortedDates.length) return 'with_pay'
+
+  const firstAbsentDate = parseIsoDateValue(sortedDates[0])
+  const lastAbsentDate = parseIsoDateValue(sortedDates[sortedDates.length - 1])
+  if (!(firstAbsentDate instanceof Date) || !(lastAbsentDate instanceof Date)) {
+    return 'with_pay'
+  }
+
+  const nowDate = new Date()
+  const filedDate = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate())
+  if (filedDate < firstAbsentDate) {
+    return 'with_pay'
+  }
+
+  const workingDaysElapsed = countWorkingDaysFromNextDay(lastAbsentDate, filedDate)
+  return workingDaysElapsed <= 5 ? 'with_pay' : 'without_pay'
+}
+
+function applySickLeaveDisplayPayStatusPolicy() {
+  if (isMonetization.value || !isSickType.value) return
+
+  const resolvedPayMode = resolveSickLeaveDisplayPayMode()
+  if (resolvedPayMode !== 'without_pay') {
+    return
+  }
+
+  const sortedDates = [...sortedSelectedDates.value]
+  sortedDates.forEach((date) => {
+    selectedDatePayStatuses.value[date] = 'without_pay'
+  })
+}
+
 const selectedDateTotalDays = computed(() =>
   sortedSelectedDates.value.reduce(
     (total, date) => total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1),
@@ -1713,6 +1860,9 @@ const selectedDateTotalDays = computed(() =>
 const selectedDateCreditTotalDays = computed(() =>
   getSelectedDateCreditTotalForDates(sortedSelectedDates.value)
 )
+const requiresSickMedicalCertificate = computed(() =>
+  isSickType.value && selectedDateTotalDays.value >= 5
+)
 
 function formatSelectedDayCount(value) {
   return Number.isInteger(value) ? value : value.toFixed(1)
@@ -1721,6 +1871,13 @@ function formatSelectedDayCount(value) {
 function buildSelectedDateDurationsPayload(dates) {
   return dates.reduce((acc, date) => {
     acc[date] = selectedDateDurations.value[date] || 'whole_day'
+    return acc
+  }, {})
+}
+
+function buildSelectedDateCoveragePayload(dates) {
+  return dates.reduce((acc, date) => {
+    acc[date] = selectedDateDurations.value[date] === 'half_day' ? 'half' : 'whole'
     return acc
   }, {})
 }
@@ -1737,6 +1894,18 @@ function buildSelectedDatePayStatusCodesPayload(dates) {
     acc[date] = selectedDatePayStatuses.value[date] === 'without_pay' ? 'WOP' : 'WP'
     return acc
   }, {})
+}
+
+function resolveSelectedDatePayMode(dates) {
+  if (!Array.isArray(dates) || dates.length === 0) {
+    return 'WP'
+  }
+
+  const hasWithPayDates = dates.some(
+    (date) => (selectedDatePayStatuses.value[date] || 'with_pay') !== 'without_pay',
+  )
+
+  return hasWithPayDates ? 'WP' : 'WOP'
 }
 
 function getSelectedDatePayStatusBreakdown(dates) {
@@ -1762,6 +1931,7 @@ function selectedDateDurationLabel(date) {
 function toggleSelectedDateDuration(date) {
   selectedDateDurations.value[date] =
     selectedDateDurations.value[date] === 'half_day' ? 'whole_day' : 'half_day'
+  applySickLeaveDisplayPayStatusPolicy()
 }
 
 function selectedDatePayStatusLabel(date) {
@@ -1769,6 +1939,15 @@ function selectedDatePayStatusLabel(date) {
 }
 
 function toggleSelectedDatePayStatus(date) {
+  if (
+    isSickType.value &&
+    !isMonetization.value &&
+    resolveSickLeaveDisplayPayMode() === 'without_pay'
+  ) {
+    applySickLeaveDisplayPayStatusPolicy()
+    return
+  }
+
   selectedDatePayStatuses.value[date] =
     selectedDatePayStatuses.value[date] === 'without_pay' ? 'with_pay' : 'without_pay'
 }
@@ -1776,7 +1955,6 @@ function toggleSelectedDatePayStatus(date) {
 const leaveDateOptions = computed(() => {
   // Access dependencies to trigger re-computation
   const selected = selectedDates.value
-  const today = toSlash(todayStr.value)
   const blockedDates = lockedLeaveDates.value
 
   return (date) => {
@@ -1784,11 +1962,10 @@ const leaveDateOptions = computed(() => {
 
     // Maternity/Paternity Leave allows weekends/holidays (continuous)
     if (isMaternityLeave.value || isPaternityLeave.value) {
-      return date >= today && isLockedDateSelection(dashDate) === false
+      return isLockedDateSelection(dashDate) === false
     }
 
     if (!isWeekday(date)) return false
-    if (date < today) return false
     if (blockedDates.has(dashDate) && selected.includes(dashDate) === false) return false
 
     return true
@@ -1894,6 +2071,7 @@ watch(selectedDates, (dates) => {
 
   syncSelectedDateDurations(dates)
   syncSelectedDatePayStatuses(dates)
+  applySickLeaveDisplayPayStatusPolicy()
 
   if (dates.length === 0) {
     form.value.days = 1
@@ -1910,6 +2088,14 @@ watch(selectedDates, (dates) => {
   }
   syncLockedDateDecorations()
 }, { deep: true })
+
+watch(
+  [sortedSelectedDates, selectedDateTotalDays, isSickType, isMonetization],
+  () => {
+    applySickLeaveDisplayPayStatusPolicy()
+  },
+  { immediate: true },
+)
 
 watch(selectedDateTotalDays, (total) => {
   if (selectedDates.value.length === 0) return
@@ -2000,7 +2186,6 @@ async function onSubmit() {
 
   if (leaveBalanceWarning.value) {
     $q.notify({ type: 'warning', message: leaveBalanceWarning.value, position: 'top' })
-    return
   }
 
   loading.value = true
@@ -2013,6 +2198,30 @@ async function onSubmit() {
 
     const sortedSelectedDatesPayload = [...selectedDates.value].sort()
     const payStatusBreakdown = getSelectedDatePayStatusBreakdown(sortedSelectedDatesPayload)
+    const selectedMedicalCertificateFile = resolveSingleFile(form.value.medicalCertificateFile)
+
+    if (requiresSickMedicalCertificate.value && !selectedMedicalCertificateFile) {
+      $q.notify({
+        type: 'negative',
+        message: 'Please upload a medical certificate image for Sick Leave of 5 days or more.',
+      })
+      loading.value = false
+      return
+    }
+
+    if (selectedMedicalCertificateFile) {
+      if (!isAllowedMedicalCertificateImage(selectedMedicalCertificateFile)) {
+        $q.notify({ type: 'negative', message: 'Medical certificate must be an image file.' })
+        loading.value = false
+        return
+      }
+
+      if (Number(selectedMedicalCertificateFile.size || 0) > medicalCertificateMaxSizeBytes) {
+        $q.notify({ type: 'negative', message: 'Medical certificate image must not exceed 10 MB.' })
+        loading.value = false
+        return
+      }
+    }
 
     const payload = {
       leave_type_id: form.value.leaveTypeId,
@@ -2031,8 +2240,14 @@ async function onSubmit() {
       with_pay_dates: payStatusBreakdown.withPayDates,
       without_pay_dates: payStatusBreakdown.withoutPayDates,
       selected_date_durations: buildSelectedDateDurationsPayload(sortedSelectedDatesPayload),
+      selected_date_coverage: buildSelectedDateCoveragePayload(sortedSelectedDatesPayload),
       selected_date_pay_statuses: buildSelectedDatePayStatusesPayload(sortedSelectedDatesPayload),
       selected_date_pay_status_codes: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
+      selected_date_pay_status: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
+      pay_mode: resolveSelectedDatePayMode(sortedSelectedDatesPayload),
+      medical_certificate_submitted: isSickType.value
+        ? (requiresSickMedicalCertificate.value || Boolean(selectedMedicalCertificateFile))
+        : false,
       details: {
         vacation_detail: form.value.vacationDetail,
         vacation_specify: form.value.vacationSpecify,
@@ -2044,7 +2259,17 @@ async function onSubmit() {
         leave_type_other: form.value.leaveTypeOther,
       }
     }
-    await api.post('/admin/leave-applications/self', payload)
+    if (isSickType.value && selectedMedicalCertificateFile) {
+      payload.medical_certificate = selectedMedicalCertificateFile
+    }
+
+    const isMultipartPayload = Boolean(payload.medical_certificate)
+    const requestPayload = isMultipartPayload ? buildMultipartPayload(payload) : payload
+    const requestConfig = isMultipartPayload
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : undefined
+
+    await api.post('/admin/leave-applications/self', requestPayload, requestConfig)
     handleSubmitSuccess(false)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to submit your leave application right now.')
