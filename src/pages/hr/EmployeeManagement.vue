@@ -589,9 +589,12 @@
                   dense
                   type="number"
                   min="0"
+                  :max="resolveLeaveTypeMaxDays(leaveType) ?? undefined"
                   step="0.01"
                   :label="leaveType.name"
                   :hint="formatLeaveTypeInputHint(leaveType)"
+                  :rules="leaveCreditBalanceRules(leaveType)"
+                  lazy-rules
                 />
               </div>
             </template>
@@ -1312,7 +1315,9 @@ async function fetchCreditLeaveTypes() {
   try {
     const { data } = await api.get('/hr/leave-types')
     const leaveTypes = Array.isArray(data.leave_types) ? data.leave_types : []
-    creditLeaveTypes.value = leaveTypes.filter((type) => type.is_credit_based)
+    creditLeaveTypes.value = sortCreditLeaveTypesForDisplay(
+      leaveTypes.filter((type) => type.is_credit_based),
+    )
     leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load leave types right now.')
@@ -1320,6 +1325,39 @@ async function fetchCreditLeaveTypes() {
   } finally {
     loadingCreditLeaveTypes.value = false
   }
+}
+
+function normalizeLeaveTypeName(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function getCreditLeaveTypeDisplayPriority(leaveType) {
+  const normalizedName = normalizeLeaveTypeName(leaveType?.name)
+  const preferredOrder = {
+    'vacation leave': 0,
+    'sick leave': 1,
+    'cto leave': 2,
+    'mandatory / forced leave': 3,
+    'mco6 leave': 4,
+    'wellness leave': 5,
+    'solo parent leave': 6,
+    'special emergency (calamity) leave': 7,
+    'special privilege leave': 8,
+  }
+
+  return Object.prototype.hasOwnProperty.call(preferredOrder, normalizedName)
+    ? preferredOrder[normalizedName]
+    : 99
+}
+
+function sortCreditLeaveTypesForDisplay(leaveTypes) {
+  return [...leaveTypes].sort((left, right) => {
+    const priorityDifference =
+      getCreditLeaveTypeDisplayPriority(left) - getCreditLeaveTypeDisplayPriority(right)
+    if (priorityDifference !== 0) return priorityDifference
+
+    return String(left?.name ?? '').localeCompare(String(right?.name ?? ''))
+  })
 }
 
 function normalizeCreditEmployeeOptions(options) {
@@ -2527,9 +2565,54 @@ function getEnteredLeaveCreditEntries() {
   }, [])
 }
 
+function resolveLeaveTypeMaxDays(leaveType) {
+  const rawMaxDays = leaveType?.max_days ?? leaveType?.maxDays
+  const maxDays = Number(rawMaxDays)
+  return Number.isFinite(maxDays) && maxDays >= 0 ? maxDays : null
+}
+
+function formatDayLimitLabel(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+
+  const displayValue = Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
+  return `${displayValue} day${numericValue === 1 ? '' : 's'}`
+}
+
+function leaveCreditBalanceRules(leaveType) {
+  return [
+    (value) => {
+      const rawValue = normalizeBalanceInputValue(value)
+      if (rawValue === '') return true
+
+      const numericValue = Number(rawValue)
+      if (!Number.isFinite(numericValue)) return `${leaveType.name} must be a number.`
+      if (numericValue < 0) return `${leaveType.name} cannot be negative.`
+
+      const maxDays = resolveLeaveTypeMaxDays(leaveType)
+      if (maxDays !== null && numericValue > maxDays) {
+        return `${leaveType.name} cannot exceed ${formatDayLimitLabel(maxDays)}.`
+      }
+
+      return true
+    },
+  ]
+}
+
 function formatLeaveTypeInputHint(leaveType) {
   const category = String(leaveType?.category ?? '').trim()
-  return category ? `${category} leave type` : 'Leave credits (days)'
+  const maxDays = resolveLeaveTypeMaxDays(leaveType)
+  const hintParts = []
+
+  if (category) {
+    hintParts.push(`${category} leave type`)
+  }
+
+  if (maxDays !== null) {
+    hintParts.push(`Max ${formatDayLimitLabel(maxDays)}`)
+  }
+
+  return hintParts.join(' | ') || 'Leave credits (days)'
 }
 
 function leaveCreditValidationError() {
@@ -2546,6 +2629,11 @@ function leaveCreditValidationError() {
   for (const entry of entries) {
     if (!Number.isFinite(entry.balance)) return `${entry.leaveType.name} must be a number.`
     if (entry.balance < 0) return `${entry.leaveType.name} cannot be negative.`
+
+    const maxDays = resolveLeaveTypeMaxDays(entry.leaveType)
+    if (maxDays !== null && entry.balance > maxDays) {
+      return `${entry.leaveType.name} cannot exceed ${formatDayLimitLabel(maxDays)}.`
+    }
   }
 
   return ''

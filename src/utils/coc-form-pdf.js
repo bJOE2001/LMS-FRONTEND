@@ -213,6 +213,11 @@ function normalizeCocEntry(entry) {
 
 function extractCocEntries(app) {
   const candidateCollections = [
+    app?.rows,
+    app?.coc_rows,
+    app?.cocRows,
+    app?.overtime_rows,
+    app?.overtimeRows,
     app?.overtime_details,
     app?.overtimeDetails,
     app?.overtime_entries,
@@ -372,6 +377,27 @@ function resolveEntryMinutes(entry, fromTimeValue, toTimeValue) {
   return Math.max(0, difference)
 }
 
+function resolveEntryRunningTotalMinutes(entry) {
+  const explicitRunningCandidates = [
+    entry?.total_no_of_hours_and_minutes,
+    entry?.totalNoOfHoursAndMinutes,
+    entry?.running_total_minutes,
+    entry?.runningTotalMinutes,
+    entry?.cumulative_minutes,
+    entry?.cumulativeMinutes,
+  ]
+
+  for (const candidate of explicitRunningCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
+
+    const parsedDuration = parseDurationTextToMinutes(candidate)
+    if (parsedDuration !== null) return parsedDuration
+  }
+
+  return null
+}
+
 function resolveTotalMinutesFromApplication(app, fallbackMinutes = null) {
   const explicitTotalCandidates = [
     app?.total_no_of_coc_applied_minutes,
@@ -417,6 +443,7 @@ function mapCocRows(app) {
         fromText: formatTimeForDisplay(fromTimeValue),
         toText: formatTimeForDisplay(toTimeValue),
         minutes,
+        runningTotalMinutes: resolveEntryRunningTotalMinutes(entry),
       }
     })
     .filter(
@@ -452,7 +479,10 @@ function mapCocRows(app) {
   let runningMinutes = 0
   const rowsWithRunningTotals = mappedRows.map((row) => {
     let runningTotalText = ''
-    if (Number.isFinite(row.minutes)) {
+    if (Number.isFinite(row.runningTotalMinutes)) {
+      runningMinutes = row.runningTotalMinutes
+      runningTotalText = formatMinutesAsHoursAndMinutes(runningMinutes)
+    } else if (Number.isFinite(row.minutes)) {
       runningMinutes += row.minutes
       runningTotalText = formatMinutesAsHoursAndMinutes(runningMinutes)
     }
