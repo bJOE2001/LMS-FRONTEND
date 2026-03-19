@@ -661,6 +661,7 @@ export async function generateCocApplicationPdf(app) {
   if (!app) return
 
   const printableApp = await enrichAppWithDepartmentHead(app)
+   console.log('Printable app:', printableApp)
   const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
   const employeeName = resolveEmployeeName(printableApp)
   const employeePosition = resolveEmployeePosition(printableApp)
