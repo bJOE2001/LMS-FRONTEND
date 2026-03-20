@@ -208,6 +208,18 @@
             <div class="text-caption text-grey-7">Employee</div>
             <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
           </div>
+          <div v-if="hasApplicationAttachment(selectedApp)" class="hr-application-details-item hr-application-details-item--full">
+            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="attach_file"
+              color="primary"
+              label="View Attachment"
+              @click="viewApplicationAttachment(selectedApp)"
+            />
+          </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Leave Type</div>
             <div class="text-weight-medium">
@@ -2026,6 +2038,90 @@ function openDetails(app) {
   showDetailsDialog.value = true
 }
 
+function resolveApplicationAttachmentReference(app) {
+  const directReference = String(
+    app?.attachment_reference ??
+    app?.attachmentReference ??
+    '',
+  ).trim()
+
+  if (directReference) return directReference
+
+  const rawReference = String(
+    app?.raw?.attachment_reference ??
+    app?.raw?.attachmentReference ??
+    '',
+  ).trim()
+
+  return rawReference || ''
+}
+
+function hasApplicationAttachment(app) {
+  if (!app || typeof app !== 'object') return false
+  if (resolveApplicationAttachmentReference(app)) return true
+
+  const submittedFlag =
+    app?.attachment_submitted ??
+    app?.attachmentSubmitted
+  return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
+}
+
+async function viewApplicationAttachment(app = selectedApp.value) {
+  const target = resolveApplication(app)
+  const id = getApplicationId(target)
+
+  if (!id) {
+    $q.notify({ type: 'negative', message: 'Unable to identify this leave application attachment.', position: 'top' })
+    return
+  }
+
+  try {
+    const response = await api.get(`/hr/leave-applications/${id}/attachment`, {
+      responseType: 'blob',
+    })
+
+    const contentType = String(response?.headers?.['content-type'] || '').toLowerCase()
+    if (contentType.includes('application/json')) {
+      const fallbackMessage = 'Unable to open the attachment right now.'
+      const textPayload = await response.data.text()
+      let parsedMessage = ''
+      try {
+        parsedMessage = JSON.parse(textPayload || '{}')?.message || ''
+      } catch {
+        parsedMessage = ''
+      }
+
+      $q.notify({
+        type: 'negative',
+        message: parsedMessage || fallbackMessage,
+        position: 'top',
+      })
+      return
+    }
+
+    const blob = response.data instanceof Blob
+      ? response.data
+      : new Blob([response.data], {
+          type: response?.headers?.['content-type'] || 'application/octet-stream',
+        })
+    const objectUrl = URL.createObjectURL(blob)
+
+    const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer')
+    if (!opened) {
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.target = '_blank'
+      anchor.rel = 'noopener noreferrer'
+      anchor.click()
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to open the attachment right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+  }
+}
+
 function hasMobileApplicationActions(app) {
   return String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR'
 }
@@ -2716,3 +2812,4 @@ async function confirmReject() {
   }
 }
 </style>
+

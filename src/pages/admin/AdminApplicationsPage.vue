@@ -263,6 +263,18 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="application-timeline-content">
+          <div v-if="hasApplicationAttachment(selectedApp)" class="application-timeline-attachment q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="attach_file"
+              color="primary"
+              label="View Attachment"
+              @click="viewApplicationAttachment(selectedApp)"
+            />
+          </div>
           <div class="application-timeline-panel">
             <div
               v-for="(entry, index) in selectedAppTimeline"
@@ -597,6 +609,8 @@ const {
   syncCalendarPreviewDecorations,
   canPrintApplication,
   printApplication,
+  hasApplicationAttachment,
+  viewApplicationAttachment,
   openActionConfirm,
   getTimelineEntryTone,
   getTimelineEntryIcon,

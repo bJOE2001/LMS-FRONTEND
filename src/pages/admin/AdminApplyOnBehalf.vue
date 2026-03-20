@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <component
     :is="inDialog ? 'div' : 'q-page'"
     :class="['apply-form-shell', inDialog ? 'q-pa-sm apply-form-shell--dialog' : 'q-pa-md']"
@@ -266,20 +266,54 @@
                 <div v-if="isSickType" class="dialog-detail-options">
                 <div class="text-body2 text-weight-medium q-mb-sm">In case of Sick Leave:</div>
                 <q-option-group v-model="form.sickDetail" :options="[{ label: 'In Hospital (Specify Illness)', value: 'In Hospital' }, { label: 'Out Patient (Specify Illness)', value: 'Out Patient' }]" type="radio" color="primary" />
-                <q-input v-if="form.sickDetail" v-model="form.sickSpecify" outlined dense label="Specify illness" placeholder="Enter Illness" class="form-input q-mt-sm" />
+                <q-select
+                  v-if="form.sickDetail"
+                  v-model="form.sickSpecify"
+                  :options="sickIllnessOptions"
+                  outlined
+                  dense
+                  emit-value
+                  map-options
+                  clearable
+                  label="Specify illness *"
+                  placeholder="Select illness"
+                  class="form-input q-mt-sm"
+                />
+                <q-input
+                  v-if="form.sickDetail && form.sickSpecify === 'Other'"
+                  v-model="form.sickSpecifyOther"
+                  outlined
+                  dense
+                  label="Other illness *"
+                  placeholder="Enter illness"
+                  class="form-input q-mt-sm"
+                />
+                </div>
+
+                <div v-if="showDocumentUploadField" class="dialog-detail-options">
                 <q-file
-                  v-model="form.medicalCertificateFile"
+                  v-model="form.attachmentFile"
                   outlined
                   dense
                   clearable
-                  accept="image/*"
-                  :max-file-size="medicalCertificateMaxSizeBytes"
-                  :label="requiresSickMedicalCertificate ? 'Medical certificate image *' : 'Medical certificate image (Optional)'"
+                  use-chips
+                  counter
+                  :max-files="1"
+                  accept="image/*,.pdf,.doc,.docx"
+                  :max-file-size="attachmentMaxSizeBytes"
+                  :label="documentUploadLabel"
+                  hint="Allowed: image, PDF, DOC, DOCX (max 10 MB)"
+                  persistent-hint
+                  bottom-slots
                   class="form-input q-mt-sm"
-                  @rejected="onMedicalCertificateRejected"
-                />
-                <div v-if="requiresSickMedicalCertificate" class="text-caption text-negative q-mt-xs">
-                  Required for Sick Leave applications of 5 days or more.
+                  @rejected="onAttachmentRejected"
+                >
+                  <template #prepend>
+                    <q-icon name="attach_file" />
+                  </template>
+                </q-file>
+                <div v-if="documentUploadHint" class="text-caption text-negative q-mt-xs">
+                  {{ documentUploadHint }}
                 </div>
                 </div>
               
@@ -625,7 +659,8 @@ const form = ref({
   vacationSpecify: '',
   sickDetail: '',
   sickSpecify: '',
-  medicalCertificateFile: null,
+  sickSpecifyOther: '',
+  attachmentFile: null,
   womenSpecify: '',
   studyDetail: '',
   otherPurpose: '',
@@ -641,8 +676,20 @@ function parseSalary(value) {
   return String(value).replace(/[^\d]/g, '')
 }
 
-const medicalCertificateMaxSizeBytes = 10 * 1024 * 1024
-const allowedMedicalCertificateExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+const attachmentMaxSizeBytes = 10 * 1024 * 1024
+const allowedAttachmentExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.pdf', '.doc', '.docx']
+const sickIllnessOptions = [
+  { label: 'Flu', value: 'Flu' },
+  { label: 'Fever', value: 'Fever' },
+  { label: 'Cough and Cold', value: 'Cough and Cold' },
+  { label: 'Hypertension', value: 'Hypertension' },
+  { label: 'Migraine', value: 'Migraine' },
+  { label: 'Asthma', value: 'Asthma' },
+  { label: 'Dengue', value: 'Dengue' },
+  { label: 'Diarrhea', value: 'Diarrhea' },
+  { label: 'Urinary Tract Infection (UTI)', value: 'Urinary Tract Infection (UTI)' },
+  { label: 'Other', value: 'Other' },
+]
 
 function resolveSingleFile(value) {
   if (!value) return null
@@ -650,14 +697,19 @@ function resolveSingleFile(value) {
   return value
 }
 
-function isAllowedMedicalCertificateImage(file) {
+function isAllowedAttachmentImage(file) {
   if (!file) return false
 
   const mimeType = String(file.type || '').trim().toLowerCase()
-  if (mimeType.startsWith('image/')) return true
+  const allowedMimeTypes = new Set([
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ])
+  if (mimeType.startsWith('image/') || allowedMimeTypes.has(mimeType)) return true
 
   const filename = String(file.name || '').trim().toLowerCase()
-  return allowedMedicalCertificateExtensions.some((ext) => filename.endsWith(ext))
+  return allowedAttachmentExtensions.some((ext) => filename.endsWith(ext))
 }
 
 const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]'
@@ -703,9 +755,18 @@ function buildMultipartPayload(payload) {
   return formData
 }
 
-function onMedicalCertificateRejected() {
-  $q.notify({ type: 'negative', message: 'Please upload an image file up to 10 MB.' })
+function onAttachmentRejected() {
+  $q.notify({ type: 'negative', message: 'Please upload an image or document file up to 10 MB.' })
 }
+
+const resolvedSickIllness = computed(() => {
+  const selectedIllness = String(form.value.sickSpecify || '').trim()
+  if (selectedIllness !== 'Other') {
+    return selectedIllness
+  }
+
+  return String(form.value.sickSpecifyOther || '').trim()
+})
 
 const today = new Date()
 const calendarView = ref({
@@ -1332,6 +1393,12 @@ const selectedLeaveTypeName = computed(() => {
   const lt = allLeaveTypes.value.find(t => t.id === form.value.leaveTypeId)
   return lt ? lt.name : ''
 })
+const selectedLeaveTypeConfig = computed(() =>
+  allLeaveTypes.value.find((leaveType) => leaveType.id === form.value.leaveTypeId) || null,
+)
+const selectedLeaveTypeRequiresDocuments = computed(() =>
+  Boolean(selectedLeaveTypeConfig.value?.requires_documents ?? selectedLeaveTypeConfig.value?.requiresDocuments ?? false),
+)
 
 function formatDayCountValue(value) {
   const numericValue = Number(value)
@@ -1414,14 +1481,14 @@ const isMonetization = computed(() => selectedLeaveTypeName.value === 'Monetizat
 
 const showDetailsOfLeave = computed(() => {
   const types = ['Vacation Leave', 'Sick Leave']
-  return types.includes(selectedLeaveTypeName.value)
+  return types.includes(selectedLeaveTypeName.value) || selectedLeaveTypeRequiresDocuments.value
 })
 
 const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation Leave')
 const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
 const moveDialogActionsUp = computed(() => props.inDialog && !isMonetization.value && showDetailsOfLeave.value)
 
-// â”€â”€â”€ Monetization State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Monetization state
 const monetization = ref({
   leaveTypeId: null,
   availableBalance: null,
@@ -1507,7 +1574,8 @@ function onLeaveTypeChange(newValue) {
   form.value.vacationSpecify = ''
   form.value.sickDetail = ''
   form.value.sickSpecify = ''
-  form.value.medicalCertificateFile = null
+  form.value.sickSpecifyOther = ''
+  form.value.attachmentFile = null
   form.value.womenSpecify = ''
   form.value.studyDetail = ''
   form.value.otherPurpose = ''
@@ -1520,7 +1588,7 @@ function onLeaveTypeChange(newValue) {
   form.value.reason = preservedReason
 }
 
-// â”€â”€â”€ Unified Multi-date Selection (all leave types) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Unified multi-date selection (all leave types)
 const selectedDates = ref([])
 const selectedDatesList = computed(() => (Array.isArray(selectedDates.value) ? selectedDates.value : []))
 const lastValidSelectedDates = ref([])
@@ -1959,9 +2027,32 @@ const selectedDateTotalDays = computed(() =>
 const selectedDateCreditTotalDays = computed(() =>
   getSelectedDateCreditTotalForDates(sortedSelectedDates.value)
 )
-const requiresSickMedicalCertificate = computed(() =>
+const requiresSickAttachment = computed(() =>
   isSickType.value && selectedDateTotalDays.value >= 5
 )
+const requiresLeaveDocumentUpload = computed(() =>
+  !isMonetization.value
+  && (isSickType.value ? requiresSickAttachment.value : selectedLeaveTypeRequiresDocuments.value),
+)
+const showDocumentUploadField = computed(() =>
+  !isMonetization.value && (isSickType.value || selectedLeaveTypeRequiresDocuments.value),
+)
+const documentUploadLabel = computed(() =>
+  requiresLeaveDocumentUpload.value
+    ? 'Required attachment *'
+    : 'Attachment (Optional)',
+)
+const documentUploadHint = computed(() => {
+  if (isSickType.value) {
+    return requiresSickAttachment.value
+      ? 'Required for Sick Leave applications of 5 days or more.'
+      : ''
+  }
+  if (selectedLeaveTypeRequiresDocuments.value) {
+    return 'Required for the selected leave type.'
+  }
+  return ''
+})
 
 function formatSelectedDayCount(value) {
   return Number.isInteger(value) ? value : value.toFixed(1)
@@ -2296,26 +2387,49 @@ async function onSubmit() {
 
     const sortedSelectedDatesPayload = [...selectedDatesList.value].sort()
     const payStatusBreakdown = getSelectedDatePayStatusBreakdown(sortedSelectedDatesPayload)
-    const selectedMedicalCertificateFile = resolveSingleFile(form.value.medicalCertificateFile)
+    const selectedAttachmentFile = resolveSingleFile(form.value.attachmentFile)
+    const selectedIllness = String(form.value.sickSpecify || '').trim()
 
-    if (requiresSickMedicalCertificate.value && !selectedMedicalCertificateFile) {
+    if (isSickType.value) {
+      if (!String(form.value.sickDetail || '').trim()) {
+        $q.notify({ type: 'negative', message: 'Please select In Hospital or Out Patient for Sick Leave.' })
+        loading.value = false
+        return
+      }
+
+      if (!selectedIllness) {
+        $q.notify({ type: 'negative', message: 'Please select the illness for Sick Leave.' })
+        loading.value = false
+        return
+      }
+
+      if (selectedIllness === 'Other' && !String(form.value.sickSpecifyOther || '').trim()) {
+        $q.notify({ type: 'negative', message: 'Please specify the illness when selecting Other.' })
+        loading.value = false
+        return
+      }
+    }
+
+    if (requiresLeaveDocumentUpload.value && !selectedAttachmentFile) {
       $q.notify({
         type: 'negative',
-        message: 'Please upload a medical certificate image for Sick Leave of 5 days or more.',
+        message: isSickType.value
+          ? 'Please upload a supporting document for Sick Leave of 5 days or more.'
+          : 'Please upload the required attachment for the selected leave type.',
       })
       loading.value = false
       return
     }
 
-    if (selectedMedicalCertificateFile) {
-      if (!isAllowedMedicalCertificateImage(selectedMedicalCertificateFile)) {
-        $q.notify({ type: 'negative', message: 'Medical certificate must be an image file.' })
+    if (selectedAttachmentFile) {
+      if (!isAllowedAttachmentImage(selectedAttachmentFile)) {
+        $q.notify({ type: 'negative', message: 'Attachment must be an image, PDF, DOC, or DOCX file.' })
         loading.value = false
         return
       }
 
-      if (Number(selectedMedicalCertificateFile.size || 0) > medicalCertificateMaxSizeBytes) {
-        $q.notify({ type: 'negative', message: 'Medical certificate image must not exceed 10 MB.' })
+      if (Number(selectedAttachmentFile.size || 0) > attachmentMaxSizeBytes) {
+        $q.notify({ type: 'negative', message: 'Attachment must not exceed 10 MB.' })
         loading.value = false
         return
       }
@@ -2344,26 +2458,24 @@ async function onSubmit() {
       selected_date_pay_status_codes: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
       selected_date_pay_status: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
       pay_mode: resolveSelectedDatePayMode(sortedSelectedDatesPayload),
-      medical_certificate_submitted: isSickType.value
-        ? (requiresSickMedicalCertificate.value || Boolean(selectedMedicalCertificateFile))
-        : false,
+      attachment_submitted: Boolean(selectedAttachmentFile),
       commutation: form.value.commutation,
       details: {
         vacation_detail: form.value.vacationDetail,
         vacation_specify: form.value.vacationSpecify,
         sick_detail: form.value.sickDetail,
-        sick_specify: form.value.sickSpecify,
+        sick_specify: resolvedSickIllness.value,
         women_specify: form.value.womenSpecify,
         study_detail: form.value.studyDetail,
         other_purpose: form.value.otherPurpose,
         leave_type_other: form.value.leaveTypeOther,
       }
     }
-    if (isSickType.value && selectedMedicalCertificateFile) {
-      payload.medical_certificate = selectedMedicalCertificateFile
+    if (selectedAttachmentFile) {
+      payload.attachment = selectedAttachmentFile
     }
 
-    const isMultipartPayload = Boolean(payload.medical_certificate)
+    const isMultipartPayload = Boolean(payload.attachment)
     const requestPayload = isMultipartPayload ? buildMultipartPayload(payload) : payload
     const requestConfig = isMultipartPayload
       ? { headers: { 'Content-Type': 'multipart/form-data' } }
@@ -2378,6 +2490,15 @@ async function onSubmit() {
     loading.value = false
   }
 }
+
+watch(
+  () => form.value.sickSpecify,
+  (value) => {
+    if (value !== 'Other') {
+      form.value.sickSpecifyOther = ''
+    }
+  },
+)
 </script>
 
 <style lang="scss" scoped>
@@ -3062,4 +3183,7 @@ async function onSubmit() {
   }
 }
 </style>
+
+
+
 

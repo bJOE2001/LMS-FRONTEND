@@ -410,6 +410,18 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="application-timeline-content">
+          <div v-if="hasApplicationAttachment(selectedApp)" class="application-timeline-attachment q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="attach_file"
+              color="primary"
+              label="View Attachment"
+              @click="viewApplicationAttachment(selectedApp)"
+            />
+          </div>
           <div
             v-if="hasPendingUpdatePreview(selectedApp)"
             class="application-date-change-preview"
@@ -2397,6 +2409,89 @@ function getActionResultVerb(type) {
   return 'disapproved'
 }
 
+function resolveApplicationAttachmentReference(app) {
+  const directReference = String(
+    app?.attachment_reference ??
+    app?.attachmentReference ??
+    '',
+  ).trim()
+  if (directReference) return directReference
+
+  const rawReference = String(
+    app?.raw?.attachment_reference ??
+    app?.raw?.attachmentReference ??
+    '',
+  ).trim()
+
+  return rawReference || ''
+}
+
+function hasApplicationAttachment(app) {
+  if (!app || typeof app !== 'object') return false
+  if (resolveApplicationAttachmentReference(app)) return true
+
+  const submittedFlag =
+    app?.attachment_submitted ??
+    app?.attachmentSubmitted
+  return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
+}
+
+async function viewApplicationAttachment(app = selectedApp.value) {
+  const target = resolveApp(app)
+  const id = target?.id
+
+  if (!id) {
+    $q.notify({ type: 'negative', message: 'Unable to identify this leave application attachment.', position: 'top' })
+    return
+  }
+
+  try {
+    const response = await api.get(`/admin/leave-applications/${id}/attachment`, {
+      responseType: 'blob',
+    })
+
+    const contentType = String(response?.headers?.['content-type'] || '').toLowerCase()
+    if (contentType.includes('application/json')) {
+      const fallbackMessage = 'Unable to open the attachment right now.'
+      const textPayload = await response.data.text()
+      let parsedMessage = ''
+      try {
+        parsedMessage = JSON.parse(textPayload || '{}')?.message || ''
+      } catch {
+        parsedMessage = ''
+      }
+
+      $q.notify({
+        type: 'negative',
+        message: parsedMessage || fallbackMessage,
+        position: 'top',
+      })
+      return
+    }
+
+    const blob = response.data instanceof Blob
+      ? response.data
+      : new Blob([response.data], {
+          type: response?.headers?.['content-type'] || 'application/octet-stream',
+        })
+    const objectUrl = URL.createObjectURL(blob)
+
+    const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer')
+    if (!opened) {
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.target = '_blank'
+      anchor.rel = 'noopener noreferrer'
+      anchor.click()
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to open the attachment right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+  }
+}
+
 function openDetails(app) {
   selectedApp.value = app
   showDetailsDialog.value = true
@@ -2432,9 +2527,19 @@ function confirmPendingAction() {
 
 async function printApplication(app) {
   if (!canPrintApplication(app)) return
+  const targetApplicationId = String(
+    app?.id ??
+    app?.application_id ??
+    app?.leave_application_id ??
+    '',
+  ).trim()
 
   try {
-    const { data } = await api.get('/admin/dashboard')
+    const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+      api.get('/admin/dashboard'),
+      api.get('/admin/leave-applications').catch(() => null),
+    ])
+    const data = dashboardResponse?.data
     dashboardData.value = {
       pending_count: Number(data?.pending_count || 0),
       approved_today: Number(data?.approved_today || 0),
@@ -2451,8 +2556,32 @@ async function printApplication(app) {
         total: emptyEmploymentBreakdown(),
       },
     }
-    const updated = data.applications?.find((a) => a.id === app.id)
-    await generateLeaveFormPdf(updated || app)
+
+    const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
+    const updated = updatedApplications.find((item) => String(item?.id ?? '') === String(app?.id ?? ''))
+    let printableApplication = updated || app
+
+    if (targetApplicationId !== '' && leaveApplicationsResponse?.data) {
+      const detailedApplications = extractApplicationsFromPayload(leaveApplicationsResponse.data)
+      const detailedApplication = detailedApplications.find((item) => {
+        const itemId = String(
+          item?.id ??
+          item?.application_id ??
+          item?.leave_application_id ??
+          '',
+        ).trim()
+        return itemId !== '' && itemId === targetApplicationId
+      })
+
+      if (detailedApplication && typeof detailedApplication === 'object') {
+        printableApplication = {
+          ...printableApplication,
+          ...detailedApplication,
+        }
+      }
+    }
+
+    await generateLeaveFormPdf(printableApplication)
   } catch {
     await generateLeaveFormPdf(app)
   }
@@ -3198,3 +3327,4 @@ async function confirmDisapprove() {
   }
 }
 </style>
+

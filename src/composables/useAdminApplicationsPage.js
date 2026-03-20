@@ -1836,6 +1836,90 @@ export function useAdminApplicationsPage() {
     return app?.rawStatus === 'PENDING_ADMIN' || app?.rawStatus === 'PENDING_HR'
   }
 
+  function resolveApplicationAttachmentReference(app) {
+    const directReference = String(
+      app?.attachment_reference ??
+      app?.attachmentReference ??
+      '',
+    ).trim()
+
+    if (directReference) return directReference
+
+    const rawReference = String(
+      app?.raw?.attachment_reference ??
+      app?.raw?.attachmentReference ??
+      '',
+    ).trim()
+
+    return rawReference || ''
+  }
+
+  function hasApplicationAttachment(app) {
+    if (!app || typeof app !== 'object') return false
+    if (resolveApplicationAttachmentReference(app)) return true
+
+    const submittedFlag =
+      app?.attachment_submitted ??
+      app?.attachmentSubmitted
+    return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
+  }
+
+  async function viewApplicationAttachment(app = selectedApp.value) {
+    const target = resolveApp(app)
+    const id = target?.id
+
+    if (!id) {
+      $q.notify({ type: 'negative', message: 'Unable to identify this leave application attachment.', position: 'top' })
+      return
+    }
+
+    try {
+      const response = await api.get(`/admin/leave-applications/${id}/attachment`, {
+        responseType: 'blob',
+      })
+
+      const contentType = String(response?.headers?.['content-type'] || '').toLowerCase()
+      if (contentType.includes('application/json')) {
+        const fallbackMessage = 'Unable to open the attachment right now.'
+        const textPayload = await response.data.text()
+        let parsedMessage = ''
+        try {
+          parsedMessage = JSON.parse(textPayload || '{}')?.message || ''
+        } catch {
+          parsedMessage = ''
+        }
+
+        $q.notify({
+          type: 'negative',
+          message: parsedMessage || fallbackMessage,
+          position: 'top',
+        })
+        return
+      }
+
+      const blob = response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], {
+            type: response?.headers?.['content-type'] || 'application/octet-stream',
+          })
+      const objectUrl = URL.createObjectURL(blob)
+
+      const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.target = '_blank'
+        anchor.rel = 'noopener noreferrer'
+        anchor.click()
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    } catch (err) {
+      const message = resolveApiErrorMessage(err, 'Unable to open the attachment right now.')
+      $q.notify({ type: 'negative', message, position: 'top' })
+    }
+  }
+
   function handleApplicationRowClick(_event, row) {
     if (!row) return
     openDetails(row)
@@ -1863,6 +1947,12 @@ export function useAdminApplicationsPage() {
   async function printApplication(app) {
     if (!canPrintApplication(app)) return
     const cocApplication = isCocApplication(app)
+    const targetApplicationId = String(
+      app?.id ??
+      app?.application_id ??
+      app?.leave_application_id ??
+      '',
+    ).trim()
 
     const openApplicationPdf = async (application) => {
       if (cocApplication) {
@@ -1874,12 +1964,37 @@ export function useAdminApplicationsPage() {
     }
 
     try {
-      const { data } = await api.get('/admin/dashboard')
-      const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
+      const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+        api.get('/admin/dashboard'),
+        cocApplication ? Promise.resolve(null) : api.get('/admin/leave-applications').catch(() => null),
+      ])
+
+      const dashboardPayload = dashboardResponse?.data
+      const updatedApplications = mergeApplications(extractApplicationsFromPayload(dashboardPayload))
       const updated = updatedApplications.find(
         (item) => getApplicationRowKey(item) === getApplicationRowKey(app),
       )
       let printableApplication = updated || app
+
+      if (!cocApplication && targetApplicationId !== '' && leaveApplicationsResponse?.data) {
+        const detailedLeaveApplications = extractApplicationsFromPayload(leaveApplicationsResponse.data)
+        const detailedLeaveApplication = detailedLeaveApplications.find((item) => {
+          const itemId = String(
+            item?.id ??
+            item?.application_id ??
+            item?.leave_application_id ??
+            '',
+          ).trim()
+          return itemId !== '' && itemId === targetApplicationId
+        })
+
+        if (detailedLeaveApplication && typeof detailedLeaveApplication === 'object') {
+          printableApplication = {
+            ...printableApplication,
+            ...detailedLeaveApplication,
+          }
+        }
+      }
 
       if (cocApplication) {
         const cocId =
@@ -2199,6 +2314,8 @@ export function useAdminApplicationsPage() {
     canPrintApplication,
     printApplication,
     hasMobileApplicationActions,
+    hasApplicationAttachment,
+    viewApplicationAttachment,
     openActionConfirm,
     getTimelineEntryTone,
     getTimelineEntryIcon,
@@ -2211,3 +2328,4 @@ export function useAdminApplicationsPage() {
     printActionResult,
   }
 }
+

@@ -35,6 +35,288 @@ function formatCredit(val) {
   return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2)
 }
 
+function toFiniteNumber(value) {
+  if (value == null || value === '') return null
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+  return numericValue
+}
+
+function pickFirstFiniteNumber(...values) {
+  for (const value of values) {
+    const parsed = toFiniteNumber(value)
+    if (parsed !== null) return parsed
+  }
+  return null
+}
+
+function normalizePayStatus(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizePayStatus(
+      value.pay_status ??
+      value.payStatus ??
+      value.status ??
+      value.code ??
+      value.value ??
+      '',
+    )
+  }
+
+  const normalizedValue = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, '')
+
+  if (normalizedValue === 'WP' || normalizedValue === 'WITHPAY') return 'WP'
+  if (normalizedValue === 'WOP' || normalizedValue === 'WITHOUTPAY') return 'WOP'
+  return ''
+}
+
+function toStatusMap(value) {
+  if (!value) return null
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim()
+    if (!trimmedValue) return null
+    try {
+      const parsedValue = JSON.parse(trimmedValue)
+      return toStatusMap(parsedValue)
+    } catch {
+      return null
+    }
+  }
+  if (Array.isArray(value)) {
+    const map = {}
+    value.forEach((entry, index) => {
+      const normalized = normalizePayStatus(entry)
+      if (normalized) {
+        map[String(index)] = normalized
+      }
+    })
+    return Object.keys(map).length ? map : null
+  }
+  if (typeof value === 'object') {
+    const map = {}
+    for (const [key, entry] of Object.entries(value)) {
+      const normalized = normalizePayStatus(entry)
+      if (normalized) {
+        map[key] = normalized
+      }
+    }
+    return Object.keys(map).length ? map : null
+  }
+  return null
+}
+
+function normalizeCoverage(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizeCoverage(
+      value.coverage ??
+      value.selected_date_coverage ??
+      value.selectedDateCoverage ??
+      value.value ??
+      '',
+    )
+  }
+
+  const normalizedValue = String(value || '').trim().toLowerCase()
+  if (normalizedValue === 'half' || normalizedValue === 'halfday' || normalizedValue === 'half-day') {
+    return 'half'
+  }
+  if (!normalizedValue) return ''
+  return 'whole'
+}
+
+function toCoverageMap(value) {
+  if (!value) return null
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim()
+    if (!trimmedValue) return null
+    try {
+      const parsedValue = JSON.parse(trimmedValue)
+      return toCoverageMap(parsedValue)
+    } catch {
+      return null
+    }
+  }
+  if (Array.isArray(value)) {
+    const map = {}
+    value.forEach((entry, index) => {
+      const normalized = normalizeCoverage(entry)
+      if (normalized) {
+        map[String(index)] = normalized
+      }
+    })
+    return Object.keys(map).length ? map : null
+  }
+  if (typeof value === 'object') {
+    const map = {}
+    for (const [key, entry] of Object.entries(value)) {
+      const normalized = normalizeCoverage(entry)
+      if (normalized) {
+        map[key] = normalized
+      }
+    }
+    return Object.keys(map).length ? map : null
+  }
+  return null
+}
+
+function resolveApprovedForSectionValues(app) {
+  const raw = app?.raw && typeof app.raw === 'object' ? app.raw : null
+
+  const resolvePayMode = (value) => {
+    const normalizedValue = String(value || '').trim().toUpperCase()
+    if (normalizedValue === 'WOP' || normalizedValue === 'WITHOUT PAY') return 'WOP'
+    if (normalizedValue === 'WP' || normalizedValue === 'WITH PAY') return 'WP'
+    return ''
+  }
+
+  const totalDays = pickFirstFiniteNumber(
+    app?.days,
+    app?.total_days,
+    app?.totalDays,
+    raw?.days,
+    raw?.total_days,
+    raw?.totalDays,
+  )
+
+  let withPayDays = pickFirstFiniteNumber(
+    app?.with_pay_days,
+    app?.withPayDays,
+    raw?.with_pay_days,
+    raw?.withPayDays,
+  )
+
+  let withoutPayDays = pickFirstFiniteNumber(
+    app?.without_pay_days,
+    app?.withoutPayDays,
+    raw?.without_pay_days,
+    raw?.withoutPayDays,
+  )
+  let derivedFromPayStatus = false
+
+  const payStatusMap = toStatusMap(
+    app?.selected_date_pay_status ??
+    app?.selectedDatePayStatus ??
+    raw?.selected_date_pay_status ??
+    raw?.selectedDatePayStatus,
+  )
+
+  const coverageMap = toCoverageMap(
+    app?.selected_date_coverage ??
+    app?.selectedDateCoverage ??
+    raw?.selected_date_coverage ??
+    raw?.selectedDateCoverage,
+  )
+
+  if (payStatusMap) {
+    let computedWithPayDays = 0
+    let computedWithoutPayDays = 0
+    let hasComputedPayStatus = false
+
+    for (const [dateKey, statusValue] of Object.entries(payStatusMap)) {
+      const normalizedStatus = normalizePayStatus(statusValue)
+      if (!normalizedStatus) continue
+
+      hasComputedPayStatus = true
+      const normalizedCoverage = normalizeCoverage(coverageMap?.[dateKey] ?? '')
+      const weight = normalizedCoverage === 'half' ? 0.5 : 1
+      if (normalizedStatus === 'WOP') {
+        computedWithoutPayDays += weight
+      } else {
+        computedWithPayDays += weight
+      }
+    }
+
+    if (hasComputedPayStatus) {
+      withPayDays = computedWithPayDays
+      withoutPayDays = computedWithoutPayDays
+      derivedFromPayStatus = true
+    }
+  }
+
+  const deductibleDays = pickFirstFiniteNumber(
+    app?.deductible_days,
+    app?.deductibleDays,
+    raw?.deductible_days,
+    raw?.deductibleDays,
+  )
+  if (!derivedFromPayStatus && deductibleDays !== null) {
+    withPayDays = deductibleDays
+    if (totalDays !== null) {
+      withoutPayDays = Math.max(totalDays - deductibleDays, 0)
+    }
+  }
+
+  const normalizedPayMode = resolvePayMode(
+    app?.pay_mode ??
+    app?.payMode ??
+    raw?.pay_mode ??
+    raw?.payMode,
+  )
+  const withPayFlag = app?.with_pay ?? app?.withPay ?? raw?.with_pay ?? raw?.withPay
+  const withoutPayFlag = app?.without_pay ?? app?.withoutPay ?? raw?.without_pay ?? raw?.withoutPay
+
+  if (totalDays !== null && withPayDays !== null && withoutPayDays !== null) {
+    const accountedDays = withPayDays + withoutPayDays
+    const missingDays = Math.round((totalDays - accountedDays) * 100) / 100
+    if (missingDays > 0) {
+      if (normalizedPayMode === 'WOP') {
+        withoutPayDays += missingDays
+      } else {
+        withPayDays += missingDays
+      }
+    }
+  }
+
+  if (totalDays !== null && withPayDays === null && withoutPayDays === null) {
+    if (normalizedPayMode === 'WP' || withPayFlag === true) {
+      withPayDays = totalDays
+      withoutPayDays = 0
+    } else if (normalizedPayMode === 'WOP' || withoutPayFlag === true) {
+      withPayDays = 0
+      withoutPayDays = totalDays
+    }
+  }
+
+  if (withoutPayDays === null && totalDays !== null && withPayDays !== null) {
+    withoutPayDays = totalDays - withPayDays
+  }
+  if (withPayDays === null && totalDays !== null && withoutPayDays !== null) {
+    withPayDays = totalDays - withoutPayDays
+  }
+
+  if (withPayDays !== null) withPayDays = Math.max(0, Math.round(withPayDays * 100) / 100)
+  if (withoutPayDays !== null) withoutPayDays = Math.max(0, Math.round(withoutPayDays * 100) / 100)
+
+  const others =
+    String(
+      app?.approved_for_others ??
+      app?.approved_for_other ??
+      app?.others_specify ??
+      raw?.approved_for_others ??
+      raw?.approved_for_other ??
+      raw?.others_specify ??
+      '',
+    ).trim() ||
+    ((app?.is_monetization || raw?.is_monetization) ? 'Monetization' : '')
+
+  return {
+    withPayDays,
+    withoutPayDays,
+    others,
+  }
+}
+
+function formatApprovedForDays(value) {
+  const formatted = formatCredit(value)
+  return formatted === '' ? '_______' : formatted
+}
+
+function formatApprovedForOthers(value) {
+  return String(value || '').trim() || '_______'
+}
+
 function toCreditNumber(val) {
   if (val == null || val === '') return null
   const n = Number(val)
@@ -230,6 +512,36 @@ function buildCertificationColumns(app) {
   return [entryMap.get(selectedKey) || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
 }
 
+function applyCertificationLessThisApplicationOverride(columns, selectedLeaveType, lessThisApplicationDays) {
+  if (!Array.isArray(columns) || columns.length === 0) return columns
+
+  const normalizedLessThisApplicationDays = toFiniteNumber(lessThisApplicationDays)
+  if (normalizedLessThisApplicationDays === null) return columns
+
+  const selectedLeaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveType)
+  if (!selectedLeaveTypeKey) return columns
+
+  return columns.map((column) => {
+    const columnTypeKey = getLeaveBalanceTypeKey(column?.label)
+    if (!columnTypeKey || columnTypeKey !== selectedLeaveTypeKey) {
+      return column
+    }
+
+    const totalEarnedNumber = toCreditNumber(column?.totalEarned)
+    const nextColumn = {
+      ...column,
+      lessThisApplication: formatCredit(normalizedLessThisApplicationDays),
+    }
+
+    if (totalEarnedNumber !== null) {
+      const computedBalance = totalEarnedNumber - normalizedLessThisApplicationDays
+      nextColumn.balance = formatCredit(Math.abs(computedBalance) < 1e-9 ? 0 : computedBalance)
+    }
+
+    return nextColumn
+  })
+}
+
 function buildCertificationTable(columns) {
   const isDualColumns = columns.length > 1
   const widths = isDualColumns ? ['38%', '31%', '31%'] : ['52%', '48%']
@@ -318,9 +630,14 @@ export async function generateLeaveFormPdf(app) {
   const commutation = printableApp.commutation || 'Not Requested'
   const status = printableApp.status || ''
   const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
+  const approvedForSection = resolveApprovedForSectionValues(printableApp)
   const cert = printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
   const asOfDate = cert.as_of_date || ''
-  const certificationColumns = buildCertificationColumns(printableApp)
+  const certificationColumns = applyCertificationLessThisApplicationOverride(
+    buildCertificationColumns(printableApp),
+    printableApp?.leaveType,
+    approvedForSection.withPayDays,
+  )
 
   // ── Checkbox helper: canvas rectangle + optional checkmark ──
   function cbLine(checked, label, opts = {}) {
@@ -505,9 +822,9 @@ export async function generateLeaveFormPdf(app) {
             width: '50%',
             stack: [
               { text: '7.C  APPROVED FOR:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-              { text: '         _________ days with pay', fontSize: 7, margin: [0, 2, 0, 2] },
-              { text: '         _________ days without pay', fontSize: 7, margin: [0, 2, 0, 2] },
-              { text: '         _________ others (Specify)', fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: `         ${formatApprovedForDays(approvedForSection.withPayDays)} days with pay`, fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: `         ${formatApprovedForDays(approvedForSection.withoutPayDays)} days without pay`, fontSize: 7, margin: [0, 2, 0, 2] },
+              { text: `         ${formatApprovedForOthers(approvedForSection.others)} others (Specify)`, fontSize: 7, margin: [0, 2, 0, 2] },
             ],
             margin: [0, 0, 10, 0],
           },

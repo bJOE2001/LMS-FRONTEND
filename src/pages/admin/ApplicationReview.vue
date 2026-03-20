@@ -81,6 +81,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useLeaveStore } from 'stores/leave-store'
 import StatusBadge from 'components/StatusBadge.vue'
 import { generateLeaveFormPdf } from 'src/composables/useLeaveFormPdf'
+import { api } from 'src/boot/axios'
 
 const route = useRoute()
 const router = useRouter()
@@ -103,7 +104,42 @@ function handleDisapprove() {
   router.push('/admin/dashboard')
 }
 async function printApplication() {
-  await generateLeaveFormPdf(application.value)
+  if (!application.value) return
+
+  let printableApplication = application.value
+  const targetApplicationId = String(application.value?.id ?? '').trim()
+
+  if (targetApplicationId !== '') {
+    try {
+      const { data } = await api.get('/admin/leave-applications')
+      const applications = Array.isArray(data?.applications)
+        ? data.applications
+        : Array.isArray(data?.data)
+          ? data.data
+          : []
+
+      const detailedApplication = applications.find((item) => {
+        const itemId = String(
+          item?.id ??
+          item?.application_id ??
+          item?.leave_application_id ??
+          '',
+        ).trim()
+        return itemId !== '' && itemId === targetApplicationId
+      })
+
+      if (detailedApplication && typeof detailedApplication === 'object') {
+        printableApplication = {
+          ...printableApplication,
+          ...detailedApplication,
+        }
+      }
+    } catch {
+      // Fall back to local store data if detailed fetch fails.
+    }
+  }
+
+  await generateLeaveFormPdf(printableApplication)
 }
 </script>
 
