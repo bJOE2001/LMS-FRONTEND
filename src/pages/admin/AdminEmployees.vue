@@ -267,9 +267,9 @@
             flat
             dense
             no-caps
-            label="Reassign"
+            :label="departmentHeadActionLabel"
             color="secondary"
-            icon="badge"
+            :icon="departmentHeadActionIcon"
             class="employee-view-actions__btn"
             :disable="!selectedEmployee || loadingDepartmentHead || savingDepartmentHead || isDepartmentHeadRecord(selectedEmployee)"
             @click="reassignDepartmentHeadFromView"
@@ -553,6 +553,15 @@ const statusOptions = [
 
 const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
 const adminDepartmentName = computed(() => authStore.user?.department?.name ?? '-')
+const hasAssignedDepartmentHead = computed(() =>
+  !!departmentHeadId.value && normalizeControlNo(departmentHeadForm.value.control_no) !== '',
+)
+const departmentHeadActionLabel = computed(() =>
+  hasAssignedDepartmentHead.value ? 'Reassign' : 'Assign',
+)
+const departmentHeadActionIcon = computed(() =>
+  hasAssignedDepartmentHead.value ? 'badge' : 'person_add',
+)
 
 const noDataMessage = computed(() => {
   if (!adminDepartmentId.value) return 'Select or set your department to view employees.'
@@ -803,7 +812,8 @@ function isDepartmentHeadRecord(row) {
 }
 
 function statusBadgeColor(status) {
-  if (!status) return 'grey'
+  const normalizedStatus = normalizeStatus(status)
+  if (!normalizedStatus) return 'grey'
   const colorMap = {
     REGULAR: 'green',
     'CO-TERMINOUS': 'brown-7',
@@ -811,7 +821,7 @@ function statusBadgeColor(status) {
     CASUAL: 'orange',
     CONTRACTUAL: 'blue-9',
   }
-  return colorMap[status] ?? 'blue-9'
+  return colorMap[normalizedStatus] ?? 'blue-9'
 }
 
 function formatResponsiveStatusLabel(status) {

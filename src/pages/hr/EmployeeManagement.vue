@@ -16,15 +16,6 @@
             class="credit-btn"
             @click="openLeaveCreditsDialog()"
           />
-          <!-- <q-btn
-            unelevated
-            no-caps
-            color="primary"
-            icon="upload_file"
-            label="Import Leave Balances"
-            class="import-btn"
-            @click="showImportDialog = true"
-          /> -->
         </div>
       </div>
     </div>
@@ -337,7 +328,6 @@
                   {{ ledgerEmployeeHeadingOffice }}
                 </div>
                 <div class="ledger-sheet__identity-service">
-                  <span class="ledger-sheet__identity-service-label">1st Day of Service</span>
                   <span class="ledger-sheet__identity-service-value" :style="ledgerIdentityServiceValueStyle">
                     {{ ledgerEmployeeFirstDayOfService }}
                   </span>
@@ -522,7 +512,7 @@
             <template #avatar>
               <q-icon name="info" color="blue-8" />
             </template>
-            This sets the employee's balance for the selected leave type.
+            This sets the employee's balances for all credit-based leave types.
           </q-banner>
 
           <div class="row q-col-gutter-md">
@@ -566,7 +556,7 @@
             <div class="col-12">
               <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
               <div class="text-caption text-grey-6">
-                Fill only the leave types you want to update.
+                Fill all leave type balances.
               </div>
             </div>
             <template v-if="loadingCreditLeaveTypes">
@@ -591,7 +581,7 @@
                   min="0"
                   :max="resolveLeaveTypeMaxDays(leaveType) ?? undefined"
                   step="0.01"
-                  :label="leaveType.name"
+                  :label="`${leaveType.name} *`"
                   :hint="formatLeaveTypeInputHint(leaveType)"
                   :rules="leaveCreditBalanceRules(leaveType)"
                   lazy-rules
@@ -628,147 +618,6 @@
       </q-card>
     </q-dialog>
 
-    <!-- Import Leave Balances Dialog -->
-    <q-dialog v-model="showImportDialog" persistent>
-      <q-card style="min-width: 540px; max-width: 640px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <q-icon name="upload_file" size="sm" color="primary" class="q-mr-sm" />
-          <div class="text-h6">Import Leave Balances</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup :disable="importing" />
-        </q-card-section>
-
-        <!-- Instructions -->
-        <q-card-section v-if="!importResult" class="q-pt-sm">
-          <q-banner dense rounded class="bg-blue-1 text-blue-9 q-mb-md">
-            <template #avatar>
-              <q-icon name="info" color="blue-8" />
-            </template>
-            <div class="text-body2">
-              Upload a CSV file with columns: <strong>employee_id</strong>,
-              <strong>leave_type</strong>, <strong>balance</strong>.<br />
-              <span class="text-caption"
-                >employee_id = Control No, leave_type = exact name (e.g. Vacation Leave), balance >=
-                0</span
-              >
-            </div>
-          </q-banner>
-
-          <!-- File input -->
-          <q-file
-            v-model="importFile"
-            outlined
-            dense
-            label="Select CSV file"
-            accept=".csv,.txt"
-            max-file-size="2097152"
-            class="q-mb-md"
-            :error="!!importFileError"
-            :error-message="importFileError"
-            @rejected="onFileRejected"
-            @update:model-value="importFileError = ''"
-          >
-            <template #prepend>
-              <q-icon name="attach_file" color="grey-6" />
-            </template>
-          </q-file>
-
-          <!-- CSV preview -->
-          <q-card v-if="!importFile" flat bordered class="bg-grey-1 rounded-borders q-pa-md">
-            <div class="text-caption text-grey-7 text-weight-medium q-mb-xs">
-              Example CSV format:
-            </div>
-            <pre class="text-caption text-grey-8 q-mb-none" style="line-height: 1.5">
-employee_id,leave_type,balance
-000001,Vacation Leave,12.50
-000001,Sick Leave,8.00
-000002,MCO6 Leave,5</pre
-            >
-          </q-card>
-        </q-card-section>
-
-        <!-- Import result -->
-        <q-card-section v-if="importResult" class="q-pt-sm">
-          <div class="text-center q-mb-md">
-            <q-icon
-              :name="importResult.failed_records === 0 ? 'check_circle' : 'warning'"
-              :color="importResult.failed_records === 0 ? 'positive' : 'orange-8'"
-              size="56px"
-            />
-            <div class="text-h6 q-mt-sm">Import Completed</div>
-          </div>
-
-          <div class="row q-col-gutter-sm q-mb-md">
-            <div class="col-4 text-center">
-              <div class="text-h5 text-primary">{{ importResult.total_records }}</div>
-              <div class="text-caption text-grey-6">Total Rows</div>
-            </div>
-            <div class="col-4 text-center">
-              <div class="text-h5 text-positive">{{ importResult.successful_records }}</div>
-              <div class="text-caption text-grey-6">Successful</div>
-            </div>
-            <div class="col-4 text-center">
-              <div
-                class="text-h5"
-                :class="importResult.failed_records > 0 ? 'text-negative' : 'text-grey-5'"
-              >
-                {{ importResult.failed_records }}
-              </div>
-              <div class="text-caption text-grey-6">Failed</div>
-            </div>
-          </div>
-
-          <!-- Error details -->
-          <q-expansion-item
-            v-if="importResult.errors && importResult.errors.length > 0"
-            icon="error_outline"
-            label="Row Errors"
-            :caption="importResult.errors.length + ' issue(s)'"
-            header-class="text-negative"
-            dense
-          >
-            <q-list dense separator class="q-mt-xs">
-              <q-item v-for="(err, idx) in importResult.errors" :key="idx">
-                <q-item-section avatar>
-                  <q-badge color="red-3" text-color="red-9" :label="'Row ' + err.row" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label class="text-body2">{{ err.message }}</q-item-label>
-                  <q-item-label caption>Value: {{ err.value }}</q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-expansion-item>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md">
-          <template v-if="!importResult">
-            <q-btn flat no-caps label="Cancel" color="grey-7" v-close-popup :disable="importing" />
-            <q-btn
-              unelevated
-              no-caps
-              label="Upload & Import"
-              color="primary"
-              icon="cloud_upload"
-              :loading="importing"
-              :disable="!importFile"
-              @click="doImport"
-            />
-          </template>
-          <template v-else>
-            <q-btn flat no-caps label="Import Another" color="primary" @click="resetImport" />
-            <q-btn
-              unelevated
-              no-caps
-              label="Done"
-              color="primary"
-              v-close-popup
-              @click="resetImport"
-            />
-          </template>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -803,13 +652,6 @@ const leaveCreditsLedgerLoading = ref(false)
 const leaveCreditsLedgerError = ref('')
 const printingLeaveCreditsLedger = ref(false)
 const ledgerPaperSize = ref('A4')
-
-// CSV import state
-const showImportDialog = ref(false)
-const importFile = ref(null)
-const importFileError = ref('')
-const importing = ref(false)
-const importResult = ref(null)
 
 // Manual leave credit state
 const showLeaveCreditsDialog = ref(false)
@@ -906,13 +748,6 @@ const historyColumns = [
 const LEDGER_ENDPOINT_FACTORIES = [
   (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balance-ledger`,
   (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-credits-ledger`,
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balance-history`,
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-credits-history`,
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/ledger`,
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balances/ledger`,
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balances/history`,
-  (controlNo) => `/hr/leave-balances/${encodeURIComponent(controlNo)}/ledger`,
-  (controlNo) => `/hr/leave-balances/ledger/${encodeURIComponent(controlNo)}`,
 ]
 let preferredLedgerEndpointFactoryIndex = null
 
@@ -1000,32 +835,16 @@ const ledgerIdentityNameStyle = computed(() =>
 const ledgerIdentityOfficeStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingOffice.value),
 )
-const ledgerEmployeeFirstDayOfService = computed(() =>
-  formatLedgerServiceDate(
-    pickFirstDefined(leaveCreditsLedgerEmployee.value, [
-      'first_day_of_service',
-      'firstDayOfService',
-      'date_hired',
-      'dateHired',
-      'hire_date',
-      'hireDate',
-      'appointment_date',
-      'appointmentDate',
-      'employment_start_date',
-      'employmentStartDate',
-      'service_start_date',
-      'serviceStartDate',
-    ]),
-  ),
-)
+const ledgerEmployeeFirstDayOfService = computed(() => 'N/A')
 const ledgerIdentityServiceValueStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeFirstDayOfService.value),
 )
 
 function statusBadgeColor(status) {
-  if (!status) return 'grey'
+  const normalizedStatus = String(status || '').trim().toUpperCase()
+  if (!normalizedStatus) return 'grey'
   const c = { REGULAR: 'green', 'CO-TERMINOUS': 'brown-7', ELECTIVE: 'purple-8', CASUAL: 'orange', CONTRACTUAL: 'blue-9' }
-  return c[status] ?? 'blue-9'
+  return c[normalizedStatus] ?? 'blue-9'
 }
 
 function formatResponsiveStatusLabel(status) {
@@ -1204,17 +1023,6 @@ function getLedgerEmployeeOffice(employee) {
   return String(office || 'N/A').trim() || 'N/A'
 }
 
-function getLedgerEmployeeDesignation(employee) {
-  const designation = pickFirstDefined(employee, [
-    'designation',
-    'position',
-    'job_title',
-    'jobTitle',
-  ])
-
-  return String(designation || '').trim()
-}
-
 function formatLedgerHeadingName(value) {
   return String(value || 'N/A')
     .replace(/\s+/g, ' ')
@@ -1225,10 +1033,7 @@ function formatLedgerHeadingName(value) {
 function formatLedgerHeadingOffice(employee) {
   const office = getLedgerEmployeeOffice(employee)
   const officeCode = toDepartmentCode(office)
-  const designation = getLedgerEmployeeDesignation(employee)
-  const primaryOffice = officeCode && officeCode !== '-' ? officeCode : office
-
-  return [primaryOffice, designation].filter(Boolean).join(' - ') || 'N/A'
+  return (officeCode && officeCode !== '-' ? officeCode : office) || 'N/A'
 }
 
 function resolveLedgerPreviewIdentityFontSize(value) {
@@ -1576,24 +1381,11 @@ function formatDate(value) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function formatLedgerServiceDate(value) {
-  if (!value) return 'N/A'
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return String(value)
-
-  return parsed.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-  })
-}
-
 function formatLedgerActionDate(value) {
   if (!value) return ''
 
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return String(value).trim()
+  if (Number.isNaN(parsed.getTime())) return ''
 
   return parsed.toLocaleDateString('en-US', {
     year: '2-digit',
@@ -1641,6 +1433,41 @@ function normalizeLedgerQuantityValue(value) {
   }
 
   return String(value).trim()
+}
+
+function normalizeLedgerAccrualQuantityValue(value) {
+  const normalized = normalizeLedgerQuantityValue(value)
+  if (!normalized) return normalized
+
+  const text = String(normalized).trim()
+  if (/^[+-]\s*\d/.test(text)) {
+    return text
+  }
+
+  const numericValue = Number(text)
+  if (!Number.isFinite(numericValue)) {
+    return text
+  }
+
+  if (numericValue > 0) {
+    return `+${formatLedgerNumber(numericValue)}`
+  }
+
+  return formatLedgerNumber(numericValue)
+}
+
+function normalizeLedgerWithPayDeductionValue(value) {
+  const normalized = normalizeLedgerQuantityValue(value)
+  if (!normalized) return normalized
+
+  const numericValue = Number(normalized)
+  if (!Number.isFinite(numericValue)) return normalized
+
+  if (Math.abs(numericValue) < 1e-9) {
+    return formatLedgerNumber(0)
+  }
+
+  return `-${formatLedgerNumber(Math.abs(numericValue))}`
 }
 
 function buildLedgerRowsForPaper(rows, preset) {
@@ -1727,27 +1554,11 @@ function buildLedgerPdfIdentityCell(text, options = {}) {
 }
 
 function buildLedgerPdfIdentityServiceCell(value, options = {}) {
-  const fontSize = options.fontSize ?? 7.1
-  const labelFontSize = options.labelFontSize ?? fontSize
-
   return {
-    text: [
-      {
-        text: '1ST DAY OF SERVICE',
-        fontSize: labelFontSize,
-        bold: true,
-        color: '#000000',
-      },
-      {
-        text: '  ',
-      },
-      {
-        text: String(value || 'N/A').trim() || 'N/A',
-        fontSize,
-        bold: true,
-        color: '#000000',
-      },
-    ],
+    text: String(value || 'N/A').trim() || 'N/A',
+    fontSize: options.fontSize ?? 7.1,
+    bold: true,
+    color: '#000000',
     alignment: options.alignment || 'center',
     noWrap: options.noWrap ?? true,
     margin: options.margin || [2, 1, 2, 1],
@@ -1796,22 +1607,7 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
   const displayName = getEmployeeFullName(employee)
   const headingName = formatLedgerHeadingName(displayName)
   const headingOffice = formatLedgerHeadingOffice(employee)
-  const firstDayOfService = formatLedgerServiceDate(
-    pickFirstDefined(employee, [
-      'first_day_of_service',
-      'firstDayOfService',
-      'date_hired',
-      'dateHired',
-      'hire_date',
-      'hireDate',
-      'appointment_date',
-      'appointmentDate',
-      'employment_start_date',
-      'employmentStartDate',
-      'service_start_date',
-      'serviceStartDate',
-    ]),
-  )
+  const firstDayOfService = 'N/A'
   const identityNameFontSize = resolveLedgerPdfIdentityFontSize(headingName)
   const identityOfficeFontSize = resolveLedgerPdfIdentityFontSize(headingOffice)
   const identityServiceFontSize = resolveLedgerPdfIdentityFontSize(firstDayOfService)
@@ -2073,18 +1869,6 @@ function printLeaveCreditsLedger() {
 }
 
 function buildLedgerActionText(entry) {
-  const directValue = normalizeLedgerTextValue(
-    pickFirstDefined(entry, [
-      'date_and_action',
-      'dateAndAction',
-      'date_action',
-      'dateAction',
-      'application_action',
-      'applicationAction',
-    ]),
-  )
-  if (directValue) return directValue
-
   const actionDate = formatLedgerActionDate(
     pickFirstDefined(entry, [
       'action_date',
@@ -2100,45 +1884,208 @@ function buildLedgerActionText(entry) {
       'transactionDate',
     ]),
   )
-  const actionLabel = normalizeLedgerTextValue(
+  if (actionDate) return actionDate
+
+  const directValue = normalizeLedgerTextValue(
     pickFirstDefined(entry, [
-      'action_taken',
-      'actionTaken',
-      'action',
-      'reference',
-      'reference_no',
-      'referenceNo',
-      'notes',
-      'remarks',
+      'date_and_action',
+      'dateAndAction',
+      'date_action',
+      'dateAction',
+      'application_action',
+      'applicationAction',
+    ]),
+  )
+  if (!directValue) return ''
+
+  const directDate = formatLedgerActionDate(directValue)
+  if (directDate) return directDate
+
+  const leadingSegment = directValue.split(' - ')[0]?.trim() || ''
+  return formatLedgerActionDate(leadingSegment)
+}
+
+function parseLedgerDateParts(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+
+  const isoDateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoDateMatch) {
+    const year = Number(isoDateMatch[1])
+    const month = Number(isoDateMatch[2])
+    const day = Number(isoDateMatch[3])
+    const localDate = new Date(year, month - 1, day)
+    if (
+      !Number.isNaN(localDate.getTime()) &&
+      localDate.getFullYear() === year &&
+      localDate.getMonth() === month - 1 &&
+      localDate.getDate() === day
+    ) {
+      return { date: localDate, year, month, day }
+    }
+  }
+
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+
+  return {
+    date: parsed,
+    year: parsed.getFullYear(),
+    month: parsed.getMonth() + 1,
+    day: parsed.getDate(),
+  }
+}
+
+function buildLedgerInclusiveDateLabel(parts) {
+  if (!parts) return ''
+  const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
+  return `${monthLabel} ${parts.day} ${parts.year}`
+}
+
+function sortAndNormalizeLedgerDatePartsList(partsList) {
+  if (!Array.isArray(partsList) || partsList.length === 0) return []
+
+  const byIsoDate = new Map()
+  for (const parts of partsList) {
+    if (!parts) continue
+    const iso = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+    if (!byIsoDate.has(iso)) {
+      byIsoDate.set(iso, parts)
+    }
+  }
+
+  return [...byIsoDate.entries()]
+    .sort(([leftIso], [rightIso]) => (leftIso < rightIso ? -1 : leftIso > rightIso ? 1 : 0))
+    .map(([, parts]) => parts)
+}
+
+function buildLedgerInclusiveDatesListLabel(partsList) {
+  const normalizedList = sortAndNormalizeLedgerDatePartsList(partsList)
+  if (normalizedList.length === 0) return ''
+
+  const sameYear = normalizedList.every((parts) => parts.year === normalizedList[0].year)
+  const sameMonth = sameYear && normalizedList.every((parts) => parts.month === normalizedList[0].month)
+
+  if (sameMonth) {
+    const monthLabel = normalizedList[0].date.toLocaleDateString('en-US', { month: 'short' })
+    const days = normalizedList.map((parts) => parts.day).join(',')
+    return `${monthLabel} ${days} ${normalizedList[0].year}`
+  }
+
+  if (sameYear) {
+    const values = normalizedList.map((parts) => {
+      const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
+      return `${monthLabel} ${parts.day}`
+    })
+    return `${values.join(', ')} ${normalizedList[0].year}`
+  }
+
+  return normalizedList
+    .map((parts) => {
+      const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
+      return `${monthLabel} ${parts.day} ${parts.year}`
+    })
+    .join(', ')
+}
+
+function buildLedgerDatePartsRange(startParts, endParts) {
+  if (!startParts || !endParts) return []
+
+  const startDate = new Date(startParts.year, startParts.month - 1, startParts.day)
+  const endDate = new Date(endParts.year, endParts.month - 1, endParts.day)
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) {
+    return []
+  }
+
+  const result = []
+  const cursor = new Date(startDate.getTime())
+  let safetyLimit = 370
+  while (cursor <= endDate && safetyLimit > 0) {
+    result.push({
+      date: new Date(cursor.getTime()),
+      year: cursor.getFullYear(),
+      month: cursor.getMonth() + 1,
+      day: cursor.getDate(),
+    })
+    cursor.setDate(cursor.getDate() + 1)
+    safetyLimit -= 1
+  }
+
+  return result
+}
+
+function buildLedgerInclusiveRangeText(entry) {
+  const explicitDatesValue = pickFirstDefined(entry, [
+    'inclusive_dates',
+    'inclusiveDates',
+    'selected_dates',
+    'selectedDates',
+  ])
+  if (Array.isArray(explicitDatesValue) && explicitDatesValue.length > 0) {
+    const explicitParts = explicitDatesValue
+      .map((value) => parseLedgerDateParts(value))
+      .filter(Boolean)
+    const explicitLabel = buildLedgerInclusiveDatesListLabel(explicitParts)
+    if (explicitLabel) return explicitLabel
+  }
+
+  const inclusiveStart = parseLedgerDateParts(
+    pickFirstDefined(entry, [
+      'inclusive_start_date',
+      'inclusiveStartDate',
+      'leave_start_date',
+      'leaveStartDate',
+      'start_date',
+      'startDate',
+    ]),
+  )
+  const inclusiveEnd = parseLedgerDateParts(
+    pickFirstDefined(entry, [
+      'inclusive_end_date',
+      'inclusiveEndDate',
+      'leave_end_date',
+      'leaveEndDate',
+      'end_date',
+      'endDate',
     ]),
   )
 
-  return [actionDate, actionLabel].filter(Boolean).join(actionDate && actionLabel ? ' - ' : '')
+  if (inclusiveStart && inclusiveEnd) {
+    const fullRangeParts = buildLedgerDatePartsRange(inclusiveStart, inclusiveEnd)
+    const fullRangeLabel = buildLedgerInclusiveDatesListLabel(fullRangeParts)
+    if (fullRangeLabel) return fullRangeLabel
+  }
+
+  return buildLedgerInclusiveDateLabel(inclusiveStart || inclusiveEnd)
 }
 
 function normalizeLedgerRow(entry, index) {
+  const inclusivePeriod = buildLedgerInclusiveRangeText(entry)
+
   return {
     id: pickFirstDefined(
       entry,
       ['id', 'ledger_id', 'ledgerId', 'entry_id', 'entryId'],
       `ledger-${index}`,
     ),
-    period: normalizeLedgerTextValue(
-      pickFirstDefined(entry, [
-        'period',
-        'period_label',
-        'periodLabel',
-        'covered_period',
-        'coveredPeriod',
-        'month_period',
-        'monthPeriod',
-        'month',
-        'month_label',
-        'monthLabel',
-        'year_month',
-        'yearMonth',
-      ]),
-    ),
+    period:
+      inclusivePeriod ||
+      normalizeLedgerTextValue(
+        pickFirstDefined(entry, [
+          'period',
+          'period_label',
+          'periodLabel',
+          'covered_period',
+          'coveredPeriod',
+          'month_period',
+          'monthPeriod',
+          'month',
+          'month_label',
+          'monthLabel',
+          'year_month',
+          'yearMonth',
+        ]),
+      ),
     particulars: normalizeLedgerTextValue(
       pickFirstDefined(entry, [
         'particulars',
@@ -2157,7 +2104,7 @@ function normalizeLedgerRow(entry, index) {
         'notes',
       ]),
     ),
-    vacationEarned: normalizeLedgerQuantityValue(
+    vacationEarned: normalizeLedgerAccrualQuantityValue(
       pickFirstDefined(entry, [
         'vacation_earned',
         'vacationEarned',
@@ -2168,7 +2115,7 @@ function normalizeLedgerRow(entry, index) {
         'vacation_leave.earned',
       ]),
     ),
-    vacationAbsUndWp: normalizeLedgerQuantityValue(
+    vacationAbsUndWp: normalizeLedgerWithPayDeductionValue(
       pickFirstDefined(entry, [
         'vacation_abs_und_wp',
         'vacationAbsUndWp',
@@ -2205,7 +2152,7 @@ function normalizeLedgerRow(entry, index) {
         'vacation.used_without_pay',
       ]),
     ),
-    sickEarned: normalizeLedgerQuantityValue(
+    sickEarned: normalizeLedgerAccrualQuantityValue(
       pickFirstDefined(entry, [
         'sick_earned',
         'sickEarned',
@@ -2216,7 +2163,7 @@ function normalizeLedgerRow(entry, index) {
         'sick_leave.earned',
       ]),
     ),
-    sickAbsUnd: normalizeLedgerQuantityValue(
+    sickAbsUnd: normalizeLedgerWithPayDeductionValue(
       pickFirstDefined(entry, [
         'sick_abs_und',
         'sickAbsUnd',
@@ -2260,6 +2207,11 @@ function normalizeLedgerRow(entry, index) {
     ),
     actionTaken: buildLedgerActionText(entry),
   }
+}
+
+function orderLedgerRowsOldestFirst(rows) {
+  if (!Array.isArray(rows) || rows.length <= 1) return Array.isArray(rows) ? rows : []
+  return [...rows].reverse()
 }
 
 function extractLedgerRows(payload) {
@@ -2488,9 +2440,10 @@ async function openLeaveCreditsLedgerDialog(employee) {
       }
     }
 
-    leaveCreditsLedgerRows.value = extractLedgerRows(payload).map((entry, index) =>
+    const normalizedRows = extractLedgerRows(payload).map((entry, index) =>
       normalizeLedgerRow(entry, index),
     )
+    leaveCreditsLedgerRows.value = orderLedgerRowsOldestFirst(normalizedRows)
   } catch (err) {
     const message = err?.isMissingLedgerEndpoint
       ? 'Leave credits ledger is not available right now.'
@@ -2583,7 +2536,7 @@ function leaveCreditBalanceRules(leaveType) {
   return [
     (value) => {
       const rawValue = normalizeBalanceInputValue(value)
-      if (rawValue === '') return true
+      if (rawValue === '') return `${leaveType.name} is required.`
 
       const numericValue = Number(rawValue)
       if (!Number.isFinite(numericValue)) return `${leaveType.name} must be a number.`
@@ -2600,19 +2553,9 @@ function leaveCreditBalanceRules(leaveType) {
 }
 
 function formatLeaveTypeInputHint(leaveType) {
-  const category = String(leaveType?.category ?? '').trim()
   const maxDays = resolveLeaveTypeMaxDays(leaveType)
-  const hintParts = []
-
-  if (category) {
-    hintParts.push(`${category} leave type`)
-  }
-
-  if (maxDays !== null) {
-    hintParts.push(`Max ${formatDayLimitLabel(maxDays)}`)
-  }
-
-  return hintParts.join(' | ') || 'Leave credits (days)'
+  if (maxDays === null) return ''
+  return `Max ${formatDayLimitLabel(maxDays)}`
 }
 
 function leaveCreditValidationError() {
@@ -2623,17 +2566,29 @@ function leaveCreditValidationError() {
   if (loadingCreditLeaveTypes.value) return 'Leave types are still loading.'
   if (!creditLeaveTypes.value.length) return 'No credit-based leave types are available.'
 
-  const entries = getEnteredLeaveCreditEntries()
-  if (!entries.length) return 'Enter leave credits for at least one leave type.'
+  let hasPositiveBalance = false
 
-  for (const entry of entries) {
-    if (!Number.isFinite(entry.balance)) return `${entry.leaveType.name} must be a number.`
-    if (entry.balance < 0) return `${entry.leaveType.name} cannot be negative.`
+  for (const leaveType of creditLeaveTypes.value) {
+    const balanceKey = String(leaveType.id)
+    const rawBalance = normalizeBalanceInputValue(leaveCreditForm.value.balances?.[balanceKey])
+    if (rawBalance === '') return `${leaveType.name} is required.`
 
-    const maxDays = resolveLeaveTypeMaxDays(entry.leaveType)
-    if (maxDays !== null && entry.balance > maxDays) {
-      return `${entry.leaveType.name} cannot exceed ${formatDayLimitLabel(maxDays)}.`
+    const numericValue = Number(rawBalance)
+    if (!Number.isFinite(numericValue)) return `${leaveType.name} must be a number.`
+    if (numericValue < 0) return `${leaveType.name} cannot be negative.`
+
+    if (numericValue > 0) {
+      hasPositiveBalance = true
     }
+
+    const maxDays = resolveLeaveTypeMaxDays(leaveType)
+    if (maxDays !== null && numericValue > maxDays) {
+      return `${leaveType.name} cannot exceed ${formatDayLimitLabel(maxDays)}.`
+    }
+  }
+
+  if (!hasPositiveBalance) {
+    return 'At least one leave type must be greater than 0.'
   }
 
   return ''
@@ -2650,105 +2605,31 @@ async function saveLeaveCredits() {
   try {
     const employeeId = String(leaveCreditForm.value.employee_id).trim()
     const entries = getEnteredLeaveCreditEntries()
-    const results = await Promise.allSettled(
-      entries.map((entry) =>
-        api.post('/hr/leave-balances', {
-          employee_id: employeeId,
-          leave_type_id: Number(entry.leaveType.id),
-          balance: entry.balance,
-        }),
-      ),
-    )
-
-    const successfulEntries = []
-    const failedEntries = []
-
-    results.forEach((result, index) => {
-      const entry = entries[index]
-      if (result.status === 'fulfilled') {
-        successfulEntries.push(entry)
-        return
-      }
-
-      failedEntries.push({
-        ...entry,
-        message: resolveApiErrorMessage(
-          result.reason,
-          `Unable to save ${entry.leaveType.name} leave credits right now.`,
-        ),
-      })
-    })
-
-    if (!failedEntries.length) {
-      $q.notify({
-        type: 'positive',
-        message: `${successfulEntries.length} leave balance(s) saved successfully.`,
-        position: 'top',
-      })
-      showLeaveCreditsDialog.value = false
-      resetLeaveCreditForm()
-      return
+    const payload = {
+      employee_id: employeeId,
+      balances: entries.map((entry) => ({
+        leave_type_id: Number(entry.leaveType.id),
+        balance: Number(entry.balance),
+      })),
     }
 
-    for (const entry of successfulEntries) {
-      leaveCreditForm.value.balances[entry.balanceKey] = ''
-    }
-
-    const firstFailure = failedEntries[0]
-    const savedCount = successfulEntries.length
-    const failedCount = failedEntries.length
+    const { data } = await api.post('/hr/leave-balances', payload)
+    const savedCount = Number(data?.saved_count)
+    const normalizedSavedCount = Number.isFinite(savedCount) && savedCount > 0 ? savedCount : entries.length
 
     $q.notify({
-      type: savedCount > 0 ? 'warning' : 'negative',
-      message:
-        savedCount > 0
-          ? `${savedCount} leave balance(s) saved. ${failedCount} failed. First error: ${firstFailure.message}`
-          : firstFailure.message,
+      type: 'positive',
+      message: `${normalizedSavedCount} leave balance(s) saved successfully.`,
       position: 'top',
     })
+
+    showLeaveCreditsDialog.value = false
+    resetLeaveCreditForm()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to save leave credits right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     savingLeaveCredits.value = false
-  }
-}
-
-function onFileRejected() {
-  importFileError.value = 'File must be CSV/TXT and under 2 MB.'
-}
-
-function resetImport() {
-  importFile.value = null
-  importFileError.value = ''
-  importResult.value = null
-}
-
-async function doImport() {
-  if (!importFile.value) return
-  importing.value = true
-  importFileError.value = ''
-  try {
-    const formData = new FormData()
-    formData.append('file', importFile.value)
-    const { data } = await api.post('/hr/leave-balances/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    importResult.value = data
-    $q.notify({
-      type: data.failed_records === 0 ? 'positive' : 'warning',
-      message: `Import done: ${data.successful_records} of ${data.total_records} rows imported.`,
-      position: 'top',
-    })
-  } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to import employee records right now.')
-    if (err.response?.status === 422 && err.response?.data?.errors?.file) {
-      importFileError.value = err.response.data.errors.file[0]
-    } else {
-      $q.notify({ type: 'negative', message: msg, position: 'top' })
-    }
-  } finally {
-    importing.value = false
   }
 }
 </script>
@@ -2761,12 +2642,6 @@ async function doImport() {
 .search-input {
   width: 100%;
 }
-.import-btn {
-  border-radius: 8px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
 .summary-strip__card-section {
   padding: 14px 16px;
 }
@@ -2878,10 +2753,6 @@ async function doImport() {
   align-items: center;
   justify-content: center;
   gap: 4px;
-}
-
-.ledger-sheet__identity-service-label {
-  font-size: inherit;
 }
 
 .ledger-sheet__identity-service-value {

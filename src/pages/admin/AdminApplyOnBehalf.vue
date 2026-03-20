@@ -801,6 +801,40 @@ function addLeaveBalanceEntry(entries, seen, label, value) {
   entries.push({ label: formattedLabel, value: formattedValue })
 }
 
+function resolveLeaveBalanceItemLabel(item, fallbackLabel = '') {
+  const directLabel =
+    item?.leave_type_name ||
+    item?.leave_type ||
+    item?.type_name ||
+    item?.type ||
+    item?.name ||
+    item?.label ||
+    fallbackLabel
+
+  if (String(directLabel || '').trim() !== '') {
+    return directLabel
+  }
+
+  const rawTypeId = Number(
+    item?.leave_type_id ??
+      item?.leaveTypeId ??
+      item?.type_id ??
+      item?.typeId ??
+      item?.id,
+  )
+
+  if (!Number.isFinite(rawTypeId) || rawTypeId <= 0) {
+    return fallbackLabel
+  }
+
+  const matchedType = allLeaveTypes.value.find((leaveType) => {
+    const leaveTypeId = Number(leaveType?.id ?? leaveType?.leave_type_id ?? leaveType?.type_id)
+    return Number.isFinite(leaveTypeId) && leaveTypeId === rawTypeId
+  })
+
+  return matchedType?.name || matchedType?.leave_type_name || fallbackLabel
+}
+
 function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
   if (!source) return
 
@@ -811,7 +845,7 @@ function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabe
       addLeaveBalanceEntry(
         entries,
         seen,
-        item.leave_type_name || item.leave_type || item.type_name || item.type || item.name || item.label || fallbackLabel,
+        resolveLeaveBalanceItemLabel(item, fallbackLabel),
         item.balance ?? item.remaining_balance ?? item.available_balance ?? item.credits ?? item.value,
       )
     }
@@ -2292,7 +2326,7 @@ async function onSubmit() {
       leave_type_id: form.value.leaveTypeId,
       start_date: form.value.startDate,
       end_date: form.value.endDate,
-      total_days: selectedDateCreditTotalDays.value,
+      total_days: selectedDateTotalDays.value,
       actual_total_days: form.value.days,
       applied_total_days: form.value.days,
       requested_total_days: form.value.days,
