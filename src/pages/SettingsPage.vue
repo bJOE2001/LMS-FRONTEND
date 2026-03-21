@@ -291,17 +291,33 @@
           <div class="text-h6">Edit Profile</div>
         </q-card-section>
 
-        <q-card-section class="q-gutter-y-md q-pt-lg">
-          <q-input
-            v-if="userInfo.role === 'hr' || userInfo.role === 'admin'"
+          <q-card-section class="q-gutter-y-md q-pt-lg">
+            <q-input
+            v-if="userInfo.fullNameEditable"
             v-model="editForm.fullName"
             label="Full Name"
             outlined
             dense
           />
+          <q-banner
+            v-else-if="userInfo.role === 'admin'"
+            class="bg-blue-1 text-blue-9 rounded-borders"
+          >
+            <template #avatar>
+              <q-icon name="info" color="blue-8" />
+            </template>
+            Full name is based on your assigned employee record. Ask HR if this needs to be updated.
+          </q-banner>
           <q-input
             v-model="editForm.username"
             label="Username"
+            outlined
+            dense
+          />
+          <q-input
+            v-if="userInfo.role === 'hr'"
+            v-model="editForm.position"
+            label="Position"
             outlined
             dense
           />
@@ -342,7 +358,8 @@ const userInfo = ref({
   employeeId: '',
   department: '',
   position: '',
-  role: ''
+  role: '',
+  fullNameEditable: false,
 })
 
 const showEditDialog = ref(false)
@@ -350,6 +367,7 @@ const editLoading = ref(false)
 const editForm = reactive({
   fullName: '',
   username: '',
+  position: '',
 })
 
 async function fetchProfile() {
@@ -361,7 +379,8 @@ async function fetchProfile() {
       controlNo: data.control_no || data.employee_id || 'N/A',
       department: data.department?.name || 'N/A',
       position: data.position || 'N/A',
-      role: data.role
+      role: data.role,
+      fullNameEditable: Boolean(data.full_name_editable),
     }
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load profile details right now.')
@@ -380,19 +399,36 @@ watch(mustChangePassword, (required) => {
 function openEditProfile() {
   editForm.fullName = userInfo.value.fullName
   editForm.username = userInfo.value.username
+  editForm.position = userInfo.value.position
   showEditDialog.value = true
 }
 
 async function handleUpdateProfile() {
   editLoading.value = true
   try {
-    await api.put('/settings/profile', {
-      full_name: editForm.fullName,
-      username: editForm.username
-    })
+    const payload = {
+      username: editForm.username,
+    }
+
+    if (userInfo.value.fullNameEditable) {
+      payload.full_name = editForm.fullName
+    }
+
+    if (userInfo.value.role === 'hr') {
+      payload.position = editForm.position
+    }
+
+    await api.put('/settings/profile', payload)
     $q.notify({ type: 'positive', message: 'Profile updated successfully!' })
     showEditDialog.value = false
     await fetchProfile()
+    const { data } = await api.get('/me')
+    if (data?.user) {
+      authStore.setAuth({
+        token: authStore.getToken(),
+        user: data.user,
+      })
+    }
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to update your profile right now.')
     $q.notify({ type: 'negative', message: msg })

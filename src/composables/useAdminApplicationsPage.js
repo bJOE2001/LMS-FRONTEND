@@ -1313,6 +1313,7 @@ export function useAdminApplicationsPage() {
     if (app?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
     if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
     if (app?.rawStatus === 'APPROVED') return 'Approved'
+    if (app?.rawStatus === 'RECALLED') return 'Recalled'
     if (app?.rawStatus === 'REJECTED') return 'Rejected'
     return 'Unknown'
   }
@@ -1322,6 +1323,7 @@ export function useAdminApplicationsPage() {
     if (app?.rawStatus === 'PENDING_ADMIN') return 'warning'
     if (app?.rawStatus === 'PENDING_HR') return 'blue-6'
     if (app?.rawStatus === 'APPROVED') return 'green'
+    if (app?.rawStatus === 'RECALLED') return 'blue-grey-6'
     if (app?.rawStatus === 'REJECTED') return 'negative'
     return 'grey-6'
   }
@@ -1530,6 +1532,42 @@ export function useAdminApplicationsPage() {
       return entries
     }
 
+    if (app.rawStatus === 'RECALLED') {
+      const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
+      const approvedBy = resolveHrActor(app)
+      const recalledAt = formatDateTime(resolveRecallDateValue(app)) || 'Completed'
+      const recalledBy = resolveRecallActor(app)
+
+      if (approvedAt || approvedBy !== 'Unknown') {
+        entries.push({
+          title: 'Approved by HR',
+          subtitle: approvedAt || 'Completed',
+          description: 'Application was fully approved before recall.',
+          icon: 'task_alt',
+          color: 'positive',
+          actor: approvedBy,
+        })
+      }
+
+      entries.push({
+        title: 'Recalled by HR',
+        subtitle: recalledAt,
+        description: formatRecallRemarks(app) || 'Application was recalled by HR.',
+        icon: 'undo',
+        color: 'warning',
+        actor: recalledBy,
+      })
+      entries.push({
+        title: 'Application Closed',
+        subtitle: recalledAt,
+        description: 'Application workflow is complete.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: recalledBy,
+      })
+      return entries
+    }
+
     entries.push({
       title: 'Current Status',
       subtitle: getApplicationStatusLabel(app),
@@ -1593,6 +1631,56 @@ export function useAdminApplicationsPage() {
     return app?.hrActionAt || app?.hr_action_at || app?.reviewedAt || app?.reviewed_at || null
   }
 
+  function getStatusHistoryEntries(app) {
+    const entries = app?.statusHistory || app?.status_history
+    return Array.isArray(entries) ? entries : []
+  }
+
+  function findStatusHistoryEntry(app, matcher) {
+    return getStatusHistoryEntries(app).find((entry) => matcher(entry || {})) || null
+  }
+
+  function resolveRecallActor(app) {
+    const historyEntry = findStatusHistoryEntry(app, (entry) => {
+      const action = String(entry?.action || '').toUpperCase()
+      const stage = String(entry?.stage || '').toLowerCase()
+      return action === 'HR_RECALLED' || stage === 'hr recalled'
+    })
+
+    return (
+      app?.recallActionBy ||
+      app?.recall_action_by ||
+      historyEntry?.actor_name ||
+      historyEntry?.action_by_name ||
+      historyEntry?.action_by ||
+      app?.hrActionBy ||
+      'Unknown'
+    )
+  }
+
+  function resolveRecallDateValue(app) {
+    const historyEntry = findStatusHistoryEntry(app, (entry) => {
+      const action = String(entry?.action || '').toUpperCase()
+      const stage = String(entry?.stage || '').toLowerCase()
+      return action === 'HR_RECALLED' || stage === 'hr recalled'
+    })
+
+    return (
+      app?.recallActionAt ||
+      app?.recall_action_at ||
+      historyEntry?.created_at ||
+      app?.reviewedAt ||
+      app?.reviewed_at ||
+      null
+    )
+  }
+
+  function formatRecallRemarks(app) {
+    const remarksText = String(app?.remarks || '').trim()
+    if (!remarksText) return ''
+    return remarksText.replace(/^recalled by hr\b:?\s*/i, '').trim()
+  }
+
   function resolveCancelledActor(app) {
     return app?.cancelledBy || app?.employeeName || 'Unknown'
   }
@@ -1629,6 +1717,7 @@ export function useAdminApplicationsPage() {
     if (isCancelledByUser(app)) return resolveCancelledActor(app)
     if (app?.rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
     if (app?.rawStatus === 'APPROVED') return resolveHrActor(app)
+    if (app?.rawStatus === 'RECALLED') return resolveRecallActor(app)
     if (app?.rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
     return 'N/A'
   }
@@ -1638,6 +1727,9 @@ export function useAdminApplicationsPage() {
     if (isCancelledByUser(app)) return app?.cancelledAt || app?.disapprovedAt || null
     if (app?.rawStatus === 'PENDING_HR') return app?.adminActionAt || null
     if (app?.rawStatus === 'APPROVED') return app?.hrActionAt || app?.adminActionAt || null
+    if (app?.rawStatus === 'RECALLED') {
+      return resolveRecallDateValue(app) || app?.hrActionAt || app?.adminActionAt || null
+    }
     if (app?.rawStatus === 'REJECTED') {
       return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
     }

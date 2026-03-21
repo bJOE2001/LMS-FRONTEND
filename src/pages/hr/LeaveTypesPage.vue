@@ -91,6 +91,33 @@
           </q-td>
         </template>
 
+        <template #body-cell-allowed_status="props">
+          <q-td :props="props">
+            <div v-if="props.row.allowed_status_labels?.length" class="row q-gutter-xs">
+              <q-badge
+                v-for="label in props.row.allowed_status_labels"
+                :key="label"
+                color="blue-7"
+                text-color="white"
+                :label="label"
+                rounded
+              />
+            </div>
+            <span v-else class="text-grey-6">All status</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-requires_documents="props">
+          <q-td :props="props" class="text-center">
+            <q-badge
+              :color="props.row.requires_documents ? 'deep-orange-7' : 'grey-6'"
+              text-color="white"
+              :label="props.row.requires_documents ? 'Required' : 'Not Required'"
+              rounded
+            />
+          </q-td>
+        </template>
+
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
             <q-btn flat dense round icon="edit" color="primary" @click="openEditDialog(props.row)">
@@ -167,6 +194,34 @@
               <q-toggle v-model="form.resets_yearly" label="Resets Yearly" color="blue-7" />
             </div>
             <div class="col-12">
+              <div class="text-subtitle2 q-mb-sm">Required Documents</div>
+              <q-option-group
+                v-model="form.requires_documents"
+                :options="requiredDocumentOptions"
+                type="radio"
+                color="deep-orange-7"
+                inline
+              />
+              <div class="text-caption text-grey-7 q-mt-xs">
+                Choose whether this leave type requires attachment upload on application.
+              </div>
+            </div>
+            <div class="col-12">
+              <q-select
+                v-model="form.allowed_status"
+                :options="employmentStatusOptions"
+                outlined
+                dense
+                multiple
+                emit-value
+                map-options
+                use-chips
+                clearable
+                label="Allowed Employee Status (optional)"
+                hint="Leave empty to allow all employee status."
+              />
+            </div>
+            <div class="col-12">
               <q-input v-model="form.description" type="textarea" rows="3" outlined dense label="Description (optional)" maxlength="2000" />
             </div>
           </div>
@@ -202,6 +257,13 @@ const deletingId = ref(null)
 const leaveTypes = ref([])
 const search = ref('')
 const filterCategory = ref(null)
+const employmentStatusOptions = ref([
+  { label: 'Regular', value: 'regular' },
+  { label: 'Elective', value: 'elective' },
+  { label: 'Co-Terminous', value: 'co_terminous' },
+  { label: 'Casual', value: 'casual' },
+  { label: 'Contractual', value: 'contractual' },
+])
 
 const showFormDialog = ref(false)
 const isEditMode = ref(false)
@@ -211,6 +273,11 @@ const categoryOptions = [
   { label: 'ACCRUED', value: 'ACCRUED' },
   { label: 'RESETTABLE', value: 'RESETTABLE' },
   { label: 'EVENT', value: 'EVENT' },
+]
+
+const requiredDocumentOptions = [
+  { label: 'Not Required', value: false },
+  { label: 'Required', value: true },
 ]
 
 const categoryFilterOptions = [
@@ -225,6 +292,8 @@ const columns = [
   { name: 'name', label: 'Name', align: 'left', field: 'name', sortable: true },
   { name: 'category', label: 'Category', align: 'left', field: 'category', sortable: true },
   { name: 'credit', label: 'Credit-Based', align: 'center', field: 'is_credit_based', sortable: true },
+  { name: 'requires_documents', label: 'Required Documents', align: 'center', field: 'requires_documents', sortable: true },
+  { name: 'allowed_status', label: 'Allowed Status', align: 'left', field: 'allowed_status', sortable: false },
   { name: 'max_days', label: 'Max Days', align: 'center', field: 'max_days', sortable: true },
   { name: 'accrual', label: 'Accrual', align: 'left', field: 'accrual_rate' },
   { name: 'actions', label: 'Actions', align: 'center' },
@@ -275,6 +344,7 @@ function defaultForm() {
     is_credit_based: true,
     resets_yearly: false,
     requires_documents: false,
+    allowed_status: [],
     description: '',
   }
 }
@@ -290,6 +360,7 @@ async function fetchLeaveTypes() {
   try {
     const { data } = await api.get('/hr/leave-types')
     leaveTypes.value = data.leave_types || []
+    employmentStatusOptions.value = data.employment_status_options || employmentStatusOptions.value
   } catch (err) {
     const msg = err.response?.data?.message || 'Failed to load leave types.'
     $q.notify({ type: 'negative', message: msg, position: 'top' })
@@ -317,6 +388,7 @@ function openEditDialog(row) {
     is_credit_based: !!row.is_credit_based,
     resets_yearly: !!row.resets_yearly,
     requires_documents: !!row.requires_documents,
+    allowed_status: Array.isArray(row.allowed_status) ? [...row.allowed_status] : [],
     description: row.description || '',
   }
   showFormDialog.value = true
@@ -360,6 +432,7 @@ function buildPayload() {
     is_credit_based: !!form.value.is_credit_based,
     resets_yearly: !!form.value.resets_yearly,
     requires_documents: !!form.value.requires_documents,
+    allowed_status: Array.isArray(form.value.allowed_status) ? form.value.allowed_status : [],
     description: form.value.description ? form.value.description.trim() : null,
   }
 }
@@ -427,3 +500,4 @@ function confirmDelete(row) {
   })
 }
 </script>
+

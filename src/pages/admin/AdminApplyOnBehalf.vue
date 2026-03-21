@@ -404,7 +404,7 @@
                       ]"
                       :style="calendarDateWarningStyle"
                     >
-                      <q-icon name="warning_amber" size="16px" />
+                      <q-icon :name="calendarWarningIcon" size="16px" />
                       <span>{{ calendarDateWarning }}</span>
                     </div>
                   </div>
@@ -605,6 +605,7 @@ import {
   getBlockingLeaveApplicationState,
   getApplicationRequestedDayCount,
   getApplicationSelectedDates,
+  getInformationalLeaveApplicationState,
   isBlockingLeaveApplication,
   normalizeIsoDate,
   offsetIsoDate,
@@ -789,10 +790,11 @@ const dialogOfficeDisplay = computed(() => {
 })
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Vacation Leave',
+  'Sick Leave',
+  'CTO Leave',
   'Mandatory / Forced Leave',
   'MCO6 Leave',
-  'Sick Leave',
-  'Vacation Leave',
   'Wellness Leave',
 ]
 
@@ -816,6 +818,7 @@ function prettifyLeaveBalanceLabel(value) {
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
   if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
@@ -832,6 +835,7 @@ function toLeaveBalanceAcronym(value) {
   const lower = label.toLowerCase()
   if (lower === 'mandatory / forced leave') return 'FL'
   if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'cto leave') return 'CTO'
   if (lower === 'sick leave') return 'SL'
   if (lower === 'vacation leave') return 'VL'
   if (lower === 'wellness leave') return 'WL'
@@ -953,15 +957,23 @@ function collectLeaveBalanceEntries(entries, seen, source) {
 }
 
 function buildOrderedLeaveBalanceEntries(...sources) {
+  let orderedLabels = REQUIRED_LEAVE_BALANCE_TYPES
+  let sourceEntries = sources
+
+  if (Array.isArray(sources[0])) {
+    orderedLabels = sources[0].length ? sources[0] : []
+    sourceEntries = sources.slice(1)
+  }
+
   const entries = []
   const seen = new Set()
 
-  for (const source of sources) {
+  for (const source of sourceEntries) {
     collectLeaveBalanceEntries(entries, seen, source)
   }
 
   const entryByType = new Map(entries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]))
-  return REQUIRED_LEAVE_BALANCE_TYPES.map((label) =>
+  return orderedLabels.map((label) =>
     entryByType.get(getLeaveBalanceTypeKey(label)) || { label, value: '0' },
   )
 }
@@ -1236,6 +1248,10 @@ const employeeApplicationsForBalance = computed(() => {
   return departmentApplications.value.filter((application) => applicationMatchesSelectedEmployee(application))
 })
 
+const employeeInformationalApplications = computed(() =>
+  employeeApplicationsForBalance.value.filter((application) => getInformationalLeaveApplicationState(application)),
+)
+
 const selectedEmployeeRecord = computed(() =>
   employees.value.find((employee) => employee.control_no === selectedEmployeeId.value) || null,
 )
@@ -1252,8 +1268,21 @@ const resolvedLeaveBalanceEntries = computed(() =>
   ),
 )
 
+const dialogAllowedLeaveBalanceTypes = computed(() => {
+  const allowedTypeKeys = new Set(
+    getAllowedLeaveTypesForEmployee()
+      .filter((leaveType) => leaveType?.is_credit_based)
+      .map((leaveType) => getLeaveBalanceTypeKey(leaveType?.name)),
+  )
+
+  return REQUIRED_LEAVE_BALANCE_TYPES.filter((label) =>
+    allowedTypeKeys.has(getLeaveBalanceTypeKey(label)),
+  )
+})
+
 const dialogLeaveBalanceItems = computed(() =>
   buildOrderedLeaveBalanceEntries(
+    dialogAllowedLeaveBalanceTypes.value,
     ...employeeApplicationsForBalanceByRecency.value,
     selectedEmployeeRecord.value,
   ).map((entry) => ({
@@ -1285,14 +1314,67 @@ const lockedLeaveDateStates = computed(() => {
   return dates
 })
 
+const informationalLeaveDateStates = computed(() => {
+  const dates = new Map()
+
+  employeeInformationalApplications.value.forEach((application) => {
+    const state = getInformationalLeaveApplicationState(application)
+    if (!state) return
+
+    getApplicationSelectedDates(application).forEach((date) => {
+      if (!dates.has(date)) {
+        dates.set(date, state)
+      }
+    })
+  })
+
+  return dates
+})
+
 const lockedLeaveDates = computed(() => new Set(lockedLeaveDateStates.value.keys()))
-const calendarWarningState = computed(() => getLockedDateState(calendarDateWarningDate.value) || 'pending')
+const unavailableLeaveDates = computed(() => new Set([
+  ...lockedLeaveDateStates.value.keys(),
+  ...informationalLeaveDateStates.value.keys(),
+]))
+const calendarWarningState = computed(() =>
+  getLockedDateState(calendarDateWarningDate.value) ||
+  getInformationalDateState(calendarDateWarningDate.value) ||
+  'pending',
+)
+const calendarWarningIcon = computed(() =>
+  calendarWarningState.value === 'recalled' ? 'info_outline' : 'warning_amber',
+)
 
 const leaveTypeOptions = ref([])
 
-function getVacationLeaveTypeId() {
-  const vacationType = allLeaveTypes.value.find((lt) => lt.name === 'Vacation Leave')
-  return vacationType ? vacationType.id : null
+function normalizeEmploymentStatusKey(status) {
+  const raw = String(status ?? '').trim().toLowerCase()
+  if (!raw) return null
+  return raw.replace(/[\s-]+/g, '_')
+}
+
+function getAllowedLeaveTypesForEmployee(controlNo = selectedEmployeeId.value || form.value.employeeId) {
+  const employee = employees.value.find((item) => item.control_no === controlNo) || null
+  if (!employee) {
+    return [...allLeaveTypes.value]
+  }
+
+  const statusKey = normalizeEmploymentStatusKey(
+    employee?.employment_status_key ?? employee?.raw_status ?? employee?.status,
+  )
+
+  return allLeaveTypes.value.filter((leaveType) => {
+    const allowedStatuses = Array.isArray(leaveType?.allowed_status) ? leaveType.allowed_status : []
+    if (!allowedStatuses.length) return true
+    if (!statusKey) return false
+    return allowedStatuses.includes(statusKey)
+  })
+}
+
+function getDefaultLeaveTypeId(leaveTypes = getAllowedLeaveTypesForEmployee()) {
+  const vacationType = leaveTypes.find((leaveType) => leaveType.name === 'Vacation Leave')
+  if (vacationType?.id) return vacationType.id
+  return leaveTypes[0]?.id ?? null
 }
 
 function sortLeaveTypeOptions(leaveTypes) {
@@ -1304,12 +1386,21 @@ function sortLeaveTypeOptions(leaveTypes) {
     }))
 }
 
-function ensureDefaultLeaveType() {
-  if (form.value.leaveTypeId) return
-  const vacationLeaveTypeId = getVacationLeaveTypeId()
-  if (!vacationLeaveTypeId) return
-  form.value.leaveTypeId = vacationLeaveTypeId
-  onLeaveTypeChange(vacationLeaveTypeId)
+function refreshLeaveTypeOptions() {
+  const allowedLeaveTypes = getAllowedLeaveTypesForEmployee()
+  leaveTypeOptions.value = sortLeaveTypeOptions(allowedLeaveTypes)
+
+  const selectedLeaveTypeStillAllowed = allowedLeaveTypes.some(
+    (leaveType) => String(leaveType.id) === String(form.value.leaveTypeId ?? ''),
+  )
+
+  if (selectedLeaveTypeStillAllowed) {
+    return
+  }
+
+  const defaultLeaveTypeId = getDefaultLeaveTypeId(allowedLeaveTypes)
+  form.value.leaveTypeId = defaultLeaveTypeId
+  onLeaveTypeChange(defaultLeaveTypeId)
 }
 
 onMounted(async () => {
@@ -1321,8 +1412,7 @@ onMounted(async () => {
     allLeaveTypes.value = data.leave_types
     await refreshDepartmentApplications()
 
-    leaveTypeOptions.value = sortLeaveTypeOptions(data.leave_types)
-    ensureDefaultLeaveType()
+    refreshLeaveTypeOptions()
 
     if (props.initialEmployee?.control_no) {
       applyPrefilledEmployee(props.initialEmployee)
@@ -1370,6 +1460,7 @@ function onEmployeeChange(controlNo) {
     form.value.office = emp.office || authStore.user?.department?.name || authStore.user?.department_name || ''
     form.value.salary = emp.salary || emp.rate_mon || ''
   }
+  refreshLeaveTypeOptions()
   clearCalendarDateWarning()
 }
 
@@ -1381,6 +1472,7 @@ function applyPrefilledEmployee(employee) {
   form.value.position = employee.designation || ''
   form.value.office = employee.office || authStore.user?.department?.name || authStore.user?.department_name || ''
   form.value.salary = employee.salary || employee.rate_mon || ''
+  refreshLeaveTypeOptions()
   clearCalendarDateWarning()
 }
 
@@ -1670,6 +1762,17 @@ function buildLockedDateWarningMessage(dateStr) {
   return `${formattedDate} leave application is still pending.`
 }
 
+function buildInformationalDateMessage(dateStr) {
+  const conflict = getInformationalDateConflict(dateStr)
+  if (!conflict) return ''
+
+  if (conflict.state === 'recalled') {
+    return 'This date was recalled by HR.'
+  }
+
+  return ''
+}
+
 let calendarWarningTimeoutId = null
 let calendarWarningPressedDate = ''
 let calendarWarningPressedAt = 0
@@ -1727,7 +1830,7 @@ function showCalendarDateWarning(dateStr, options = {}) {
 }
 
 function resolveCalendarDateFromEvent(event) {
-  const dayCell = event.target?.closest?.('.q-date__calendar-item--out')
+  const dayCell = event.target?.closest?.('.q-date__calendar-item')
   if (!dayCell || dayCell.classList.contains('q-date__calendar-item--fill')) return ''
 
   const day = Number.parseInt(String(dayCell.textContent || '').trim(), 10)
@@ -1769,6 +1872,10 @@ function getLockedDateState(dateStr) {
   return lockedLeaveDateStates.value.get(normalizeIsoDate(dateStr)) || ''
 }
 
+function getInformationalDateState(dateStr) {
+  return informationalLeaveDateStates.value.get(normalizeIsoDate(dateStr)) || ''
+}
+
 function getLockedDateConflict(dateStr) {
   const normalizedDate = normalizeIsoDate(dateStr)
   if (!normalizedDate) return null
@@ -1795,8 +1902,19 @@ function getLockedDateConflict(dateStr) {
   }
 }
 
+function getInformationalDateConflict(dateStr) {
+  const normalizedDate = normalizeIsoDate(dateStr)
+  if (!normalizedDate) return null
+  if (!informationalLeaveDateStates.value.has(normalizedDate)) return null
+
+  return {
+    date: normalizedDate,
+    state: getInformationalDateState(normalizedDate) || 'recalled',
+  }
+}
+
 function isLockedDateSelection(dateStr) {
-  return Boolean(getLockedDateConflict(dateStr))
+  return Boolean(getLockedDateConflict(dateStr) || getInformationalDateConflict(dateStr))
 }
 
 function getSelectionLimitWarningForDates(dates) {
@@ -1826,7 +1944,15 @@ function getSelectionLimitWarningForDate(dateStr) {
 }
 
 function getCalendarSelectionWarning(dateStr) {
-  return buildLockedDateWarningMessage(dateStr) || getSelectionLimitWarningForDate(dateStr)
+  return (
+    buildLockedDateWarningMessage(dateStr) ||
+    buildInformationalDateMessage(dateStr) ||
+    getSelectionLimitWarningForDate(dateStr)
+  )
+}
+
+function getCalendarInformationalMessage(dateStr) {
+  return buildInformationalDateMessage(dateStr)
 }
 
 function onCalendarNavigation({ year, month }) {
@@ -1863,11 +1989,17 @@ function handleCalendarSurfacePointerDown(event) {
 function handleCalendarSurfaceClick(event) {
   const clickedDate = resolveCalendarDateFromEvent(event)
   const warningMessage = clickedDate ? getCalendarSelectionWarning(clickedDate) : ''
-  if (!warningMessage) return
+  if (warningMessage) {
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation?.()
+    return
+  }
 
-  event.preventDefault()
-  event.stopPropagation()
-  event.stopImmediatePropagation?.()
+  const informationalMessage = clickedDate ? getCalendarInformationalMessage(clickedDate) : ''
+  if (!informationalMessage) return
+
+  showCalendarDateWarning(clickedDate, { message: informationalMessage })
 }
 
 function syncLockedDateDecorations() {
@@ -1884,6 +2016,8 @@ function syncLockedDateDecorations() {
       cell.classList.remove('leave-date-calendar__day--locked')
       cell.classList.remove('leave-date-calendar__day--locked-pending')
       cell.classList.remove('leave-date-calendar__day--locked-approved')
+      cell.classList.remove('leave-date-calendar__day--info')
+      cell.classList.remove('leave-date-calendar__day--info-recalled')
       cell.classList.remove('leave-date-calendar__day--warning')
 
       if (cell.classList.contains('q-date__calendar-item--fill')) return
@@ -1896,6 +2030,12 @@ function syncLockedDateDecorations() {
       if (lockedState) {
         cell.classList.add('leave-date-calendar__day--locked')
         cell.classList.add(`leave-date-calendar__day--locked-${lockedState}`)
+      }
+
+      const informationalState = getInformationalDateState(date)
+      if (informationalState) {
+        cell.classList.add('leave-date-calendar__day--info')
+        cell.classList.add(`leave-date-calendar__day--info-${informationalState}`)
       }
 
       if (calendarDateWarningDate.value === date && calendarDateWarning.value) {
@@ -2145,7 +2285,7 @@ function toggleSelectedDatePayStatus(date) {
 const leaveDateOptions = computed(() => {
   // Access dependencies to trigger re-computation
   const selected = selectedDatesList.value
-  const blockedDates = lockedLeaveDates.value
+  const blockedDates = unavailableLeaveDates.value
 
   return (date) => {
     const dashDate = normalizeIsoDate(date)
@@ -2205,7 +2345,7 @@ watch([isMaternityLeave, isPaternityLeave], ([mat, pat]) => {
   if (!mat && !pat) maternityStartDate.value = null
 })
 
-watch(lockedLeaveDates, (dates) => {
+watch(unavailableLeaveDates, (dates) => {
   const invalidSelectedDate = selectedDatesList.value.find((date) => dates.has(date))
   if (invalidSelectedDate) {
     selectedDates.value = selectedDatesList.value.filter((date) => dates.has(date) === false)
@@ -2956,6 +3096,11 @@ watch(
   --leave-date-warning-border: rgba(129, 199, 132, 0.9);
   --leave-date-warning-text: #2e7d32;
 }
+.leave-date-warning-popover--recalled {
+  --leave-date-warning-bg: #dbeafe;
+  --leave-date-warning-border: rgba(37, 99, 235, 0.92);
+  --leave-date-warning-text: #1d4ed8;
+}
 .leave-date-calendar :deep(.leave-date-calendar__day--warning) {
   position: relative;
   z-index: 3;
@@ -2985,6 +3130,17 @@ watch(
 .leave-date-calendar :deep(.leave-date-calendar__day--locked-approved > div),
 .leave-date-calendar :deep(.leave-date-calendar__day--locked-approved .q-btn) {
   background: #dff1e0;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--info-recalled > div),
+.leave-date-calendar :deep(.leave-date-calendar__day--info-recalled .q-btn) {
+  background: rgba(191, 219, 254, 0.8);
+  border: 1px dashed rgba(37, 99, 235, 0.95);
+  color: #1d4ed8 !important;
+  border-radius: 999px !important;
+}
+.leave-date-calendar :deep(.leave-date-calendar__day--info-recalled .q-btn__content) {
+  color: #1d4ed8 !important;
+  font-weight: 800;
 }
 .dialog-form-card :deep(.q-date) {
   box-shadow: none;
@@ -3183,6 +3339,7 @@ watch(
   }
 }
 </style>
+
 
 
 

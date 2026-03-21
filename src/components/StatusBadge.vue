@@ -23,6 +23,7 @@ const color = computed(() => {
     'Pending Admin': 'orange-7',
     'Pending HR': 'amber-8',
     'Approved': 'positive',
+    'Recalled': 'blue-grey-7',
     'Rejected': 'negative',
     'Disapproved': 'negative',
   }

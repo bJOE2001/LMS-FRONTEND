@@ -219,7 +219,7 @@
                 </q-select>
               </div>
 
-              <div :class="isEditMode ? 'col-12 col-md-6' : 'col-12'">
+              <div class="col-12">
                 <q-input
                   v-model="form.username"
                   outlined
@@ -230,30 +230,20 @@
                 />
               </div>
 
-              <div v-if="isEditMode" class="col-12 col-md-6">
-                <q-input
-                  v-model="form.password"
-                  outlined
-                  dense
-                  :type="showPassword ? 'text' : 'password'"
-                  label="New Password (optional)"
-                  :disable="saving"
-                  :rules="[passwordRule]"
-                >
-                  <template #append>
-                    <q-icon
-                      :name="showPassword ? 'visibility_off' : 'visibility'"
-                      class="cursor-pointer"
-                      @click="showPassword = !showPassword"
-                    />
-                  </template>
-                </q-input>
-              </div>
-
-              <div v-else class="col-12">
+              <div class="col-12">
                 <q-banner class="bg-amber-1 text-amber-10 rounded-borders">
-                  Default password will be the selected employee birthdate in <strong>MMDDYY</strong>.
-                  The user will be required to change password on first login.
+                  <template v-if="isEditMode && isReassigningToDifferentEmployee">
+                    Reassigning this admin will reset the password to the selected employee birthdate in <strong>MMDDYY</strong>.
+                    The user will be required to change password on first login.
+                  </template>
+                  <template v-else-if="isEditMode">
+                    Saving this admin assignment will reset the password to the selected employee birthdate in <strong>MMDDYY</strong>.
+                    The user will be required to change password on first login.
+                  </template>
+                  <template v-else>
+                    Default password will be the selected employee birthdate in <strong>MMDDYY</strong>.
+                    The user will be required to change password on first login.
+                  </template>
                 </q-banner>
               </div>
 
@@ -291,7 +281,6 @@ const saving = ref(false)
 const deletingId = ref(null)
 const showAssignmentDialog = ref(false)
 const isEditMode = ref(false)
-const showPassword = ref(false)
 const formRef = ref(null)
 
 const search = ref('')
@@ -401,6 +390,15 @@ const selectedEmployeeDisplay = computed(() => {
   return String(selectedDepartmentAdmin.value?.full_name || '').trim()
 })
 
+const isReassigningToDifferentEmployee = computed(() => {
+  if (!isEditMode.value) return false
+
+  const currentControlNo = String(selectedDepartmentAdmin.value?.employee_control_no || '').trim()
+  const selectedControlNo = String(form.value.employee_control_no || '').trim()
+
+  return currentControlNo !== '' && selectedControlNo !== '' && currentControlNo !== selectedControlNo
+})
+
 onMounted(fetchDepartments)
 
 function defaultForm() {
@@ -408,7 +406,6 @@ function defaultForm() {
     department_id: null,
     employee_control_no: '',
     username: '',
-    password: '',
   }
 }
 
@@ -420,13 +417,6 @@ function filterEligibleEmployees(value, update) {
 
 function requiredRule(label) {
   return (value) => !!String(value ?? '').trim() || `${label} is required.`
-}
-
-function passwordRule(value) {
-  const text = String(value ?? '').trim()
-  if (!text) return true
-
-  return text.length >= 3 || 'Password must be at least 3 characters.'
 }
 
 function statusColor(status) {
@@ -487,13 +477,11 @@ async function openAssignDialog(department) {
   selectedDepartmentAdmin.value = department.department_admin || null
   const currentEmployee = selectedDepartmentAdmin.value?.employee
   isEditMode.value = selectedDepartmentAdmin.value !== null
-  showPassword.value = false
 
   form.value = {
     department_id: department.id,
     employee_control_no: selectedDepartmentAdmin.value?.employee_control_no || '',
     username: selectedDepartmentAdmin.value?.username || '',
-    password: '',
   }
 
   eligibleEmployeeSearch.value = ''
@@ -519,11 +507,6 @@ function buildAssignmentPayload() {
     username: String(form.value.username || '').trim(),
   }
 
-  const password = String(form.value.password || '').trim()
-  if (password !== '') {
-    payload.password = password
-  }
-
   return payload
 }
 
@@ -536,20 +519,20 @@ async function saveAssignment() {
     const payload = buildAssignmentPayload()
 
     if (isEditMode.value && selectedDepartmentAdmin.value?.id) {
-      await api.put(
+      const { data } = await api.put(
         `/hr/user-management/department-admins/${selectedDepartmentAdmin.value.id}`,
         payload,
       )
       $q.notify({
         type: 'positive',
-        message: 'Department admin assignment updated successfully.',
+        message: data?.message || 'Department admin assignment updated successfully.',
         position: 'top',
       })
     } else {
-      await api.post('/hr/user-management/department-admins', payload)
+      const { data } = await api.post('/hr/user-management/department-admins', payload)
       $q.notify({
         type: 'positive',
-        message: 'Department admin assigned successfully.',
+        message: data?.message || 'Department admin assigned successfully.',
         position: 'top',
       })
     }
@@ -597,10 +580,10 @@ function confirmRemove(department) {
   }).onOk(async () => {
     deletingId.value = admin.id
     try {
-      await api.delete(`/hr/user-management/department-admins/${admin.id}`)
+      const { data } = await api.delete(`/hr/user-management/department-admins/${admin.id}`)
       $q.notify({
         type: 'positive',
-        message: 'Department admin removed successfully.',
+        message: data?.message || 'Department admin removed successfully.',
         position: 'top',
       })
       await fetchDepartments()

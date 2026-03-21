@@ -170,6 +170,18 @@
             >
               <q-tooltip>Approve</q-tooltip>
             </q-btn>
+            <q-btn
+              v-if="canRecallApplication(props.row)"
+              flat
+              dense
+              round
+              size="sm"
+              icon="undo"
+              color="warning"
+              @click.stop="openRecall(props.row)"
+            >
+              <q-tooltip>Recall</q-tooltip>
+            </q-btn>
           </div>
         </q-td>
       </template>
@@ -281,20 +293,100 @@
               class="text-weight-medium hr-application-date-change-preview"
             >
               <div class="text-caption text-grey-7">Current</div>
-              <div
-                v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
-                :key="`current-inclusive-${index}`"
-                class="text-caption hr-application-duration-date"
-              >
-                {{ line }}
-              </div>
+              <template v-if="getSelectedDatePayStatusRows(selectedApp).length">
+                <div class="text-weight-medium hr-application-duration-columns">
+                  <div
+                    v-for="(column, columnIndex) in getSelectedDatePayStatusColumns(selectedApp)"
+                    :key="`current-pay-status-column-${columnIndex}`"
+                    class="hr-application-duration-column"
+                  >
+                    <div
+                      v-for="entry in column"
+                      :key="`current-pay-status-${columnIndex}-${entry.dateKey}`"
+                      class="hr-application-duration-date-row"
+                    >
+                      <span class="text-caption hr-application-duration-date">{{ entry.dateText }}</span>
+                      <q-badge
+                        dense
+                        rounded
+                        :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
+                        text-color="white"
+                        :label="entry.payStatus"
+                        class="hr-application-pay-status-badge"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div
+                  v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
+                  :key="`current-inclusive-${index}`"
+                  class="text-caption hr-application-duration-date"
+                >
+                  {{ line }}
+                </div>
+              </template>
               <div class="text-caption text-deep-purple-8 hr-application-date-change-label">Requested</div>
+              <template v-if="getPendingUpdateDatePayStatusRows(selectedApp).length">
+                <div class="text-weight-medium hr-application-duration-columns">
+                  <div
+                    v-for="(column, columnIndex) in getPendingUpdateDatePayStatusColumns(selectedApp)"
+                    :key="`requested-pay-status-column-${columnIndex}`"
+                    class="hr-application-duration-column"
+                  >
+                    <div
+                      v-for="entry in column"
+                      :key="`requested-pay-status-${columnIndex}-${entry.dateKey}`"
+                      class="hr-application-duration-date-row"
+                    >
+                      <span class="text-caption hr-application-duration-date text-deep-purple-8">{{ entry.dateText }}</span>
+                      <q-badge
+                        dense
+                        rounded
+                        :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
+                        text-color="white"
+                        :label="entry.payStatus"
+                        class="hr-application-pay-status-badge"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div
+                  v-for="(line, index) in getPendingUpdateInclusiveDateLines(selectedApp)"
+                  :key="`requested-inclusive-${index}`"
+                  class="text-caption hr-application-duration-date text-deep-purple-8"
+                >
+                  {{ line }}
+                </div>
+              </template>
+            </div>
+            <div
+              v-else-if="getSelectedDatePayStatusRows(selectedApp).length"
+              class="text-weight-medium hr-application-duration-columns"
+            >
               <div
-                v-for="(line, index) in getPendingUpdateInclusiveDateLines(selectedApp)"
-                :key="`requested-inclusive-${index}`"
-                class="text-caption hr-application-duration-date text-deep-purple-8"
+                v-for="(column, columnIndex) in getSelectedDatePayStatusColumns(selectedApp)"
+                :key="`duration-pay-status-column-${columnIndex}`"
+                class="hr-application-duration-column"
               >
-                {{ line }}
+                <div
+                  v-for="entry in column"
+                  :key="`duration-pay-status-${columnIndex}-${entry.dateKey}`"
+                  class="hr-application-duration-date-row"
+                >
+                  <span class="text-caption hr-application-duration-date">{{ entry.dateText }}</span>
+                  <q-badge
+                    dense
+                    rounded
+                    :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
+                    text-color="white"
+                    :label="entry.payStatus"
+                    class="hr-application-pay-status-badge"
+                  />
+                </div>
               </div>
             </div>
             <div
@@ -433,6 +525,14 @@
           color="green-7"
           label="Approve"
           @click="openActionConfirm('approve', selectedApp)"
+        />
+        <q-btn
+          v-if="canRecallApplication(selectedApp)"
+          unelevated
+          no-caps
+          color="warning"
+          label="Recall"
+          @click="openRecall(selectedApp)"
         />
       </q-card-actions>
     </q-card>
@@ -677,6 +777,56 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <q-dialog v-model="showRecallDialog" persistent>
+    <q-card class="hr-action-dialog-card hr-action-dialog-card--reject" style="min-width: 360px">
+      <q-card-section>
+        <div class="text-h6">Recall Application</div>
+      </q-card-section>
+      <q-card-section class="q-pt-none">
+        <q-input
+          v-model="recallReason"
+          type="textarea"
+          label="Reason for recall *"
+          rows="4"
+          outlined
+        />
+        <div v-if="recallPreview" class="hr-action-impact-preview">
+          <div class="hr-action-impact-preview__title">Recall Preview</div>
+          <div class="hr-action-impact-preview__item">
+            <div class="hr-action-impact-preview__label">Credits To Restore</div>
+            <div>{{ formatCreditDisplay(recallPreview.creditsToRestore) }}</div>
+          </div>
+          <div class="hr-action-impact-preview__item">
+            <div class="hr-action-impact-preview__label">Restored To</div>
+            <div>{{ recallPreview.restoredToLabel }}</div>
+          </div>
+          <div v-if="recallPreview.restorableDates.length" class="hr-action-impact-preview__item">
+            <div class="hr-action-impact-preview__label">Dates To Restore</div>
+            <div>{{ recallPreview.restorableDates.join(', ') }}</div>
+          </div>
+          <div v-if="recallPreview.pastUsedDates.length" class="hr-action-impact-preview__item">
+            <div class="hr-action-impact-preview__label">Already Used, Not Restored</div>
+            <div>{{ recallPreview.pastUsedDates.join(', ') }}</div>
+          </div>
+          <div v-if="recallPreview.withoutPayDates.length" class="hr-action-impact-preview__item">
+            <div class="hr-action-impact-preview__label">Without Pay, Not Restored</div>
+            <div>{{ recallPreview.withoutPayDates.join(', ') }}</div>
+          </div>
+        </div>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn flat label="Cancel" v-close-popup />
+        <q-btn
+          unelevated
+          color="warning"
+          label="Recall"
+          :loading="actionLoading"
+          @click="confirmRecall"
+        />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup>
@@ -702,7 +852,7 @@ const tablePagination = ref({
 })
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
-const searchableStatusValues = new Set(['pending', 'approved', 'rejected'])
+const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'recalled'])
 const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
 const EMPLOYMENT_TYPE_FILTER_LABELS = {
   elective: 'Elective',
@@ -904,6 +1054,10 @@ function mergeStatus(app) {
     return 'Rejected'
   }
 
+  if (raw.includes('RECALLED') || normalizedStatus.includes('RECALLED')) {
+    return 'Recalled'
+  }
+
   return app.status || ''
 }
 
@@ -1085,6 +1239,12 @@ function formatDayValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return '0'
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
+}
+
+function formatCreditDisplay(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return '0.00 credits'
+  return `${numericValue.toFixed(2)} credit${numericValue === 1 ? '' : 's'}`
 }
 
 function normalizeDurationUnit(value) {
@@ -1710,8 +1870,9 @@ function getApplicationStatusPriority(app) {
   const status = String(getApplicationStatusLabel(app) || '').toLowerCase()
   if (status.includes('pending')) return 0
   if (status.includes('approved')) return 1
-  if (status.includes('rejected') || status.includes('disapproved')) return 2
-  return 3
+  if (status.includes('recalled')) return 2
+  if (status.includes('rejected') || status.includes('disapproved')) return 3
+  return 4
 }
 
 function compareApplicationsForTable(a, b) {
@@ -1853,11 +2014,15 @@ const applicationTableColumns = computed(() => {
 const showDetailsDialog = ref(false)
 const showEditDialog = ref(false)
 const showRejectDialog = ref(false)
+const showRecallDialog = ref(false)
 const showConfirmActionDialog = ref(false)
 const selectedApp = ref(null)
 const rejectId = ref('')
 const rejectTargetApp = ref(null)
 const remarks = ref('')
+const recallId = ref('')
+const recallTargetApp = ref(null)
+const recallReason = ref('')
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
 const confirmActionResolvedApp = computed(() => resolveApplication(confirmActionTarget.value))
@@ -1892,6 +2057,35 @@ function canEditApplication(app) {
   return (
     String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR' &&
     !isCocApplication(app)
+  )
+}
+
+function getApplicationLeaveTypeName(app) {
+  return String(
+    app?.leaveType ??
+    app?.leave_type_name ??
+    app?.leave_type ??
+    app?.leaveTypeName ??
+    app?.raw?.leave_type_name ??
+    app?.raw?.leaveType ??
+    app?.raw?.leave_type ??
+    '',
+  ).trim().toLowerCase()
+}
+
+function isRecallableLeaveApplication(app) {
+  if (!app) return false
+
+  const leaveTypeName = getApplicationLeaveTypeName(app)
+
+  return leaveTypeName === 'mandatory / forced leave' || leaveTypeName === 'vacation leave'
+}
+
+function canRecallApplication(app) {
+  if (!app || isCocApplication(app)) return false
+  return (
+    String(app?.rawStatus || '').toUpperCase() === 'APPROVED' &&
+    isRecallableLeaveApplication(app)
   )
 }
 
@@ -2000,6 +2194,13 @@ watch([statusSearch, employmentTypeFilter], () => {
   tablePagination.value.page = 1
 })
 
+watch(showRecallDialog, (isOpen) => {
+  if (isOpen) return
+  recallId.value = ''
+  recallTargetApp.value = null
+  recallReason.value = ''
+})
+
 function clearEmploymentTypeFilter() {
   const nextQuery = { ...route.query }
   delete nextQuery.employment_type
@@ -2028,6 +2229,403 @@ function getSelectedDateColumns(dates, columnCount = 3) {
     const start = index * itemsPerColumn
     const end = start + itemsPerColumn
     columns.push(formattedDates.slice(start, end))
+  }
+
+  return columns
+}
+
+function normalizePayStatusCode(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizePayStatusCode(
+      value.pay_status ??
+      value.payStatus ??
+      value.status ??
+      value.code ??
+      value.value ??
+      '',
+    )
+  }
+
+  const normalizedValue = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, '')
+
+  if (normalizedValue === 'WP' || normalizedValue === 'WITHPAY') return 'WP'
+  if (normalizedValue === 'WOP' || normalizedValue === 'WITHOUTPAY') return 'WOP'
+  return ''
+}
+
+function normalizeCoverageCode(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizeCoverageCode(
+      value.coverage ??
+      value.coverage_type ??
+      value.coverageType ??
+      value.type ??
+      value.value ??
+      '',
+    )
+  }
+
+  const normalizedValue = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '')
+
+  if (normalizedValue === 'half' || normalizedValue === 'halfday') return 'half'
+  if (normalizedValue === 'whole' || normalizedValue === 'wholeday') return 'whole'
+  return ''
+}
+
+function toSelectedDatePayStatusMap(value) {
+  if (!value) return {}
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return {}
+    try {
+      const parsed = JSON.parse(trimmed)
+      return toSelectedDatePayStatusMap(parsed)
+    } catch {
+      return {}
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.reduce((acc, entry, index) => {
+      const normalized = normalizePayStatusCode(entry)
+      if (normalized) acc[String(index)] = normalized
+      return acc
+    }, {})
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value).reduce((acc, [key, entry]) => {
+      const normalized = normalizePayStatusCode(entry)
+      if (normalized) acc[String(key)] = normalized
+      return acc
+    }, {})
+  }
+
+  return {}
+}
+
+function toSelectedDateCoverageMap(value) {
+  if (!value) return {}
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return {}
+    try {
+      const parsed = JSON.parse(trimmed)
+      return toSelectedDateCoverageMap(parsed)
+    } catch {
+      return {}
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.reduce((acc, entry, index) => {
+      const normalized = normalizeCoverageCode(entry)
+      if (normalized) acc[String(index)] = normalized
+      return acc
+    }, {})
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value).reduce((acc, [key, entry]) => {
+      const normalized = normalizeCoverageCode(entry)
+      if (normalized) acc[String(key)] = normalized
+      return acc
+    }, {})
+  }
+
+  return {}
+}
+
+function resolveApplicationPayModeCode(app) {
+  const rawPayMode = String(
+    app?.pay_mode ??
+    app?.payMode ??
+    app?.raw?.pay_mode ??
+    app?.raw?.payMode ??
+    '',
+  ).trim()
+
+  return normalizePayStatusCode(rawPayMode) === 'WOP' ? 'WOP' : 'WP'
+}
+
+function getSelectedDatePayStatusRows(app) {
+  if (!app || typeof app !== 'object') return []
+
+  const dateSet = resolveDateSetFromSource(app)
+  if (!dateSet.length) return []
+
+  const rawStatusMap = toSelectedDatePayStatusMap(
+    app?.selected_date_pay_status ??
+    app?.selectedDatePayStatus ??
+    app?.raw?.selected_date_pay_status ??
+    app?.raw?.selectedDatePayStatus,
+  )
+
+  const normalizedStatusMap = {}
+  Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
+    const key = String(rawKey || '').trim()
+    if (!key || !status) return
+
+    normalizedStatusMap[key] = status
+
+    const isoKey = toIsoDateString(key)
+    if (isoKey) {
+      normalizedStatusMap[isoKey] = status
+    }
+  })
+
+  const fallbackStatus = resolveApplicationPayModeCode(app)
+
+  return dateSet.map((dateValue, index) => {
+    const isoDate = toIsoDateString(dateValue)
+    const key = isoDate || String(dateValue)
+    const payStatus = (
+      normalizedStatusMap[key] ??
+      normalizedStatusMap[String(index)] ??
+      normalizedStatusMap[String(index + 1)] ??
+      fallbackStatus
+    )
+
+    return {
+      dateKey: key,
+      dateText: formatDate(key),
+      payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
+    }
+  })
+}
+
+function resolveApplicationTotalDays(app) {
+  const candidates = [
+    app?.total_days,
+    app?.totalDays,
+    app?.duration_value,
+    app?.days,
+    app?.raw?.total_days,
+    app?.raw?.totalDays,
+  ]
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate)
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue
+    }
+  }
+
+  return 0
+}
+
+function getSelectedDateCoverageWeights(app) {
+  if (!app || typeof app !== 'object') return {}
+
+  const dateSet = resolveDateSetFromSource(app)
+  if (!dateSet.length) return {}
+
+  const rawCoverageMap = toSelectedDateCoverageMap(
+    app?.selected_date_coverage ??
+    app?.selectedDateCoverage ??
+    app?.raw?.selected_date_coverage ??
+    app?.raw?.selectedDateCoverage,
+  )
+
+  const normalizedCoverageMap = {}
+  Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
+    const key = String(rawKey || '').trim()
+    if (!key || !coverage) return
+
+    normalizedCoverageMap[key] = coverage
+
+    const isoKey = toIsoDateString(key)
+    if (isoKey) {
+      normalizedCoverageMap[isoKey] = coverage
+    }
+  })
+
+  const totalDays = resolveApplicationTotalDays(app)
+  const hasCoverageOverrides = Object.keys(normalizedCoverageMap).length > 0
+
+  let defaultCoverageWeight = 1
+  const dateCount = dateSet.length
+  if (dateCount > 0 && totalDays > 0) {
+    const halfMatch = Math.abs((dateCount * 0.5) - totalDays) < 0.00001
+    const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
+    if (halfMatch) {
+      defaultCoverageWeight = 0.5
+    } else if (!wholeMatch) {
+      defaultCoverageWeight = Math.max(Math.min(totalDays / dateCount, 1), 0.5)
+    }
+  }
+
+  return dateSet.reduce((acc, dateValue, index) => {
+    const isoDate = toIsoDateString(dateValue)
+    const key = isoDate || String(dateValue)
+    const coverage = (
+      normalizedCoverageMap[key] ??
+      normalizedCoverageMap[String(index)] ??
+      normalizedCoverageMap[String(index + 1)] ??
+      ''
+    )
+
+    if (coverage === 'half') {
+      acc[key] = 0.5
+    } else if (coverage === 'whole') {
+      acc[key] = 1
+    } else if (hasCoverageOverrides) {
+      acc[key] = 1
+    } else {
+      acc[key] = defaultCoverageWeight
+    }
+
+    return acc
+  }, {})
+}
+
+function buildRecallPreview(app) {
+  if (!app || !canRecallApplication(app)) return null
+
+  const deductibleDays = Number(
+    app?.deductible_days ??
+    app?.deductibleDays ??
+    app?.raw?.deductible_days ??
+    app?.raw?.deductibleDays ??
+    0,
+  )
+
+  const leaveTypeName = getApplicationLeaveTypeName(app)
+  const restoredToLabel = leaveTypeName === 'mandatory / forced leave'
+    ? 'Vacation Leave'
+    : 'Vacation Leave'
+
+  if (app?.is_monetization === true || app?.raw?.is_monetization === true) {
+    return {
+      creditsToRestore: Number.isFinite(deductibleDays) ? Math.max(deductibleDays, 0) : 0,
+      restoredToLabel,
+      restorableDates: [],
+      pastUsedDates: [],
+      withoutPayDates: [],
+    }
+  }
+
+  const payStatusRows = getSelectedDatePayStatusRows(app)
+  const coverageWeights = getSelectedDateCoverageWeights(app)
+  const todayIso = toIsoDateString(new Date())
+  if (!todayIso) return null
+
+  const restorableDates = []
+  const pastUsedDates = []
+  const withoutPayDates = []
+  let creditsToRestore = 0
+
+  payStatusRows.forEach((row) => {
+    const weight = Number(coverageWeights[row.dateKey] ?? 1)
+    const label = weight === 0.5 ? `${row.dateText} (Half Day)` : row.dateText
+
+    if (row.payStatus !== 'WP') {
+      withoutPayDates.push(label)
+      return
+    }
+
+    if (String(row.dateKey) < todayIso) {
+      pastUsedDates.push(label)
+      return
+    }
+
+    restorableDates.push(label)
+    creditsToRestore += Number.isFinite(weight) ? weight : 1
+  })
+
+  if (Number.isFinite(deductibleDays) && deductibleDays > 0) {
+    creditsToRestore = Math.min(creditsToRestore, deductibleDays)
+  }
+
+  return {
+    creditsToRestore: Math.max(Math.round((creditsToRestore + Number.EPSILON) * 100) / 100, 0),
+    restoredToLabel,
+    restorableDates,
+    pastUsedDates,
+    withoutPayDates,
+  }
+}
+
+const recallPreview = computed(() => buildRecallPreview(recallTargetApp.value || selectedApp.value))
+
+function getSelectedDatePayStatusColumns(app, columnCount = 3) {
+  const rows = getSelectedDatePayStatusRows(app)
+  if (!rows.length) return []
+
+  const itemsPerColumn = Math.ceil(rows.length / columnCount)
+  const columns = []
+  for (let index = 0; index < columnCount; index += 1) {
+    const start = index * itemsPerColumn
+    const end = start + itemsPerColumn
+    columns.push(rows.slice(start, end))
+  }
+
+  return columns
+}
+
+function getPendingUpdateDatePayStatusRows(app) {
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || typeof payload !== 'object') return []
+
+  const dateSet = resolveDateSetFromSource(payload)
+  if (!dateSet.length) return []
+
+  const rawStatusMap = toSelectedDatePayStatusMap(
+    payload?.selected_date_pay_status ??
+    payload?.selectedDatePayStatus,
+  )
+
+  const normalizedStatusMap = {}
+  Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
+    const key = String(rawKey || '').trim()
+    if (!key || !status) return
+
+    normalizedStatusMap[key] = status
+
+    const isoKey = toIsoDateString(key)
+    if (isoKey) {
+      normalizedStatusMap[isoKey] = status
+    }
+  })
+
+  const fallbackStatus = normalizePayStatusCode(payload?.pay_mode ?? payload?.payMode) === 'WOP' ? 'WOP' : 'WP'
+
+  return dateSet.map((dateValue, index) => {
+    const isoDate = toIsoDateString(dateValue)
+    const key = isoDate || String(dateValue)
+    const payStatus = (
+      normalizedStatusMap[key] ??
+      normalizedStatusMap[String(index)] ??
+      normalizedStatusMap[String(index + 1)] ??
+      fallbackStatus
+    )
+
+    return {
+      dateKey: key,
+      dateText: formatDate(key),
+      payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
+    }
+  })
+}
+
+function getPendingUpdateDatePayStatusColumns(app, columnCount = 3) {
+  const rows = getPendingUpdateDatePayStatusRows(app)
+  if (!rows.length) return []
+
+  const itemsPerColumn = Math.ceil(rows.length / columnCount)
+  const columns = []
+  for (let index = 0; index < columnCount; index += 1) {
+    const start = index * itemsPerColumn
+    const end = start + itemsPerColumn
+    columns.push(rows.slice(start, end))
   }
 
   return columns
@@ -2123,7 +2721,8 @@ async function viewApplicationAttachment(app = selectedApp.value) {
 }
 
 function hasMobileApplicationActions(app) {
-  return String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR'
+  const rawStatus = String(app?.rawStatus || '').toUpperCase()
+  return rawStatus === 'PENDING_HR' || canRecallApplication(app)
 }
 
 function canPrintCocCertificate(app) {
@@ -2409,6 +3008,14 @@ function openReject(target) {
   showRejectDialog.value = true
 }
 
+function openRecall(target) {
+  const application = resolveApplication(target)
+  recallId.value = getApplicationId(application || target)
+  recallTargetApp.value = application || target || null
+  recallReason.value = ''
+  showRecallDialog.value = true
+}
+
 async function confirmReject() {
   if (!remarks.value.trim()) {
     $q.notify({
@@ -2446,6 +3053,40 @@ async function confirmReject() {
     rejectTargetApp.value = null
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to reject this application right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function confirmRecall() {
+  const trimmedRecallReason = String(recallReason.value || '').trim()
+  if (!trimmedRecallReason) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please provide a reason for recall.',
+      position: 'top',
+    })
+    return
+  }
+
+  actionLoading.value = true
+  try {
+    await api.post(`/hr/leave-applications/${recallId.value}/recall`, {
+      recall_reason: trimmedRecallReason,
+    })
+
+    $q.notify({
+      type: 'positive',
+      message: 'Leave application recalled successfully.',
+      position: 'top',
+    })
+
+    showRecallDialog.value = false
+    showDetailsDialog.value = false
+    await fetchApplications()
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to recall this application right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     actionLoading.value = false
@@ -2689,6 +3330,18 @@ async function confirmReject() {
 .hr-application-duration-date {
   line-height: 1.45;
   white-space: nowrap;
+}
+
+.hr-application-duration-date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hr-application-pay-status-badge {
+  min-width: 42px;
+  justify-content: center;
 }
 
 .hr-edit-dialog .q-dialog__inner--minimized {

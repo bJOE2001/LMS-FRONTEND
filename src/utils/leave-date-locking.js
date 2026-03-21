@@ -309,7 +309,12 @@ export function getBlockingLeaveApplicationState(application) {
     .trim()
     .toUpperCase()
 
-  if (rawStatus.includes('REJECTED') || rawStatus.includes('DISAPPROVED') || rawStatus.includes('CANCELLED')) {
+  if (
+    rawStatus.includes('REJECTED') ||
+    rawStatus.includes('DISAPPROVED') ||
+    rawStatus.includes('CANCELLED') ||
+    rawStatus.includes('RECALLED')
+  ) {
     return false
   }
 
@@ -318,6 +323,17 @@ export function getBlockingLeaveApplicationState(application) {
 
   if (rawStatus.includes('APPROVED')) return 'approved'
   return 'pending'
+}
+
+export function getInformationalLeaveApplicationState(application) {
+  if (!application || application.is_monetization === true) return false
+
+  const rawStatus = String(application?.rawStatus || application?.status || application?.displayStatus || '')
+    .trim()
+    .toUpperCase()
+
+  if (rawStatus.includes('RECALLED')) return 'recalled'
+  return false
 }
 
 export function isBlockingLeaveApplication(application) {
