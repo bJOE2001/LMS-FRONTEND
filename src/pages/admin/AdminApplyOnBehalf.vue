@@ -643,12 +643,12 @@ const leaveDateCalendarRef = ref(null)
 
 const employees = ref([])
 const allLeaveTypes = ref([])
-const selectedEmployeeId = ref(null)
+const selectedEmployeeControlNo = ref(null)
 const departmentApplications = ref([])
 let applicationsRefreshIntervalId = null
 
 const form = ref({
-  employeeId: '',
+  employeeControlNo: '',
   office: '',
   lastName: '',
   firstName: '',
@@ -1031,14 +1031,14 @@ function getApplicationLeaveTypeName(application) {
 
 function getApplicationEmployeeLookupValue(application) {
   return normalizeLookupValue(
-    application?.employee_id ??
-      application?.employeeId ??
+    application?.employee_control_no ??
+      application?.employeeControlNo ??
       application?.control_no ??
       application?.controlNo ??
       application?.employee?.control_no ??
       application?.employee?.controlNo ??
-      application?.employee?.employee_id ??
-      application?.employee?.employeeId,
+      application?.employee?.employee_control_no ??
+      application?.employee?.employeeControlNo,
   )
 }
 
@@ -1066,7 +1066,7 @@ function extractApplicationsFromPayload(payload) {
 }
 
 function applicationMatchesSelectedEmployee(application) {
-  const selectedControlNo = normalizeLookupValue(selectedEmployeeId.value || form.value.employeeId)
+  const selectedControlNo = normalizeLookupValue(selectedEmployeeControlNo.value || form.value.employeeControlNo)
   const applicationControlNo = getApplicationEmployeeLookupValue(application)
 
   if (selectedControlNo && applicationControlNo && applicationControlNo === selectedControlNo) {
@@ -1236,7 +1236,7 @@ function handleDepartmentApplicationsVisibilityRefresh() {
 }
 
 const employeeExistingApplications = computed(() => {
-  if (!selectedEmployeeId.value && !form.value.employeeId) return []
+  if (!selectedEmployeeControlNo.value && !form.value.employeeControlNo) return []
 
   return departmentApplications.value.filter((application) =>
     isBlockingLeaveApplication(application) && applicationMatchesSelectedEmployee(application),
@@ -1244,7 +1244,7 @@ const employeeExistingApplications = computed(() => {
 })
 
 const employeeApplicationsForBalance = computed(() => {
-  if (!selectedEmployeeId.value && !form.value.employeeId) return []
+  if (!selectedEmployeeControlNo.value && !form.value.employeeControlNo) return []
   return departmentApplications.value.filter((application) => applicationMatchesSelectedEmployee(application))
 })
 
@@ -1253,7 +1253,7 @@ const employeeInformationalApplications = computed(() =>
 )
 
 const selectedEmployeeRecord = computed(() =>
-  employees.value.find((employee) => employee.control_no === selectedEmployeeId.value) || null,
+  employees.value.find((employee) => employee.control_no === selectedEmployeeControlNo.value) || null,
 )
 
 const employeeApplicationsForBalanceByRecency = computed(() =>
@@ -1353,7 +1353,7 @@ function normalizeEmploymentStatusKey(status) {
   return raw.replace(/[\s-]+/g, '_')
 }
 
-function getAllowedLeaveTypesForEmployee(controlNo = selectedEmployeeId.value || form.value.employeeId) {
+function getAllowedLeaveTypesForEmployee(controlNo = selectedEmployeeControlNo.value || form.value.employeeControlNo) {
   const employee = employees.value.find((item) => item.control_no === controlNo) || null
   if (!employee) {
     return [...allLeaveTypes.value]
@@ -1417,7 +1417,7 @@ onMounted(async () => {
     if (props.initialEmployee?.control_no) {
       applyPrefilledEmployee(props.initialEmployee)
     } else if (route.query.empId) {
-      selectedEmployeeId.value = route.query.empId
+      selectedEmployeeControlNo.value = route.query.empId
       onEmployeeChange(route.query.empId)
     }
 
@@ -1453,7 +1453,7 @@ watch(
 function onEmployeeChange(controlNo) {
   const emp = employees.value.find(e => e.control_no === controlNo)
   if (emp) {
-    form.value.employeeId = emp.control_no
+    form.value.employeeControlNo = emp.control_no
     form.value.firstName = emp.firstname
     form.value.lastName = emp.surname
     form.value.position = emp.designation
@@ -1465,8 +1465,8 @@ function onEmployeeChange(controlNo) {
 }
 
 function applyPrefilledEmployee(employee) {
-  selectedEmployeeId.value = employee.control_no || null
-  form.value.employeeId = employee.control_no || ''
+  selectedEmployeeControlNo.value = employee.control_no || null
+  form.value.employeeControlNo = employee.control_no || ''
   form.value.firstName = employee.firstname || ''
   form.value.lastName = employee.surname || ''
   form.value.position = employee.designation || ''
@@ -1477,7 +1477,7 @@ function applyPrefilledEmployee(employee) {
 }
 
 const selectedEmployeeName = computed(() => {
-  const emp = employees.value.find(e => e.control_no === selectedEmployeeId.value)
+  const emp = employees.value.find(e => e.control_no === selectedEmployeeControlNo.value)
   return emp ? `${emp.firstname} ${emp.surname}` : ''
 })
 
@@ -1598,11 +1598,11 @@ const monetizationLeaveTypeOptions = computed(() => {
 })
 
 watch(isMonetization, async (val) => {
-  if (val && selectedEmployeeId.value) {
+  if (val && selectedEmployeeControlNo.value) {
     const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
     if (vlOpt) {
       monetization.value.leaveTypeId = vlOpt.value
-      await fetchEmployeeMonetizationBalance(selectedEmployeeId.value, vlOpt.value)
+      await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, vlOpt.value)
     }
   } else {
     monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
@@ -1610,8 +1610,8 @@ watch(isMonetization, async (val) => {
 })
 
 async function onMonetizationTypeChange(typeId) {
-  if (typeId && selectedEmployeeId.value) {
-    await fetchEmployeeMonetizationBalance(selectedEmployeeId.value, typeId)
+  if (typeId && selectedEmployeeControlNo.value) {
+    await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, typeId)
   }
 }
 
@@ -1643,7 +1643,7 @@ const monetizationSubmitDisabled = computed(() => {
   if (bal === null || bal < 10) return true
   if (!days || days < 1 || days > bal) return true
   if (!monetization.value.leaveTypeId) return true
-  if (!selectedEmployeeId.value) return true
+  if (!selectedEmployeeControlNo.value) return true
   return false
 })
 
@@ -2490,7 +2490,7 @@ async function onSubmit() {
     try {
       await api.post('/admin/leave-applications', {
         is_monetization: true,
-        employee_id: selectedEmployeeId.value,
+        employee_control_no: selectedEmployeeControlNo.value,
         leave_type_id: monetization.value.leaveTypeId,
         total_days: monetization.value.daysToMonetize,
         reason: String(form.value.reason || '').trim() || null,
@@ -2576,7 +2576,7 @@ async function onSubmit() {
     }
 
     const payload = {
-      employee_id: selectedEmployeeId.value,
+      employee_control_no: selectedEmployeeControlNo.value,
       leave_type_id: form.value.leaveTypeId,
       start_date: form.value.startDate,
       end_date: form.value.endDate,
@@ -3339,6 +3339,8 @@ watch(
   }
 }
 </style>
+
+
 
 
 

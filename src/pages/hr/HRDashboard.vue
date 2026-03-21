@@ -474,7 +474,7 @@ function getApplicationLeaveDates(application) {
 }
 
 function getEmployeeKey(application) {
-  const key = application?.employee_id ?? application?.employeeId ?? application?.user_id ?? application?.employeeName
+  const key = application?.employee_control_no ?? application?.employeeControlNo ?? application?.user_id ?? application?.employeeName
   return String(key || '').trim()
 }
 
@@ -1194,3 +1194,4 @@ onMounted(fetchDashboard)
   }
 }
 </style>
+

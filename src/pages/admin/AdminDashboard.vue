@@ -202,7 +202,7 @@
         <template #body-cell-employee="props">
           <q-td>
             <div class="text-weight-medium">{{ props.row.employeeName }}</div>
-            <div class="text-caption text-grey-7">{{ props.row.employee_id }}</div>
+            <div class="text-caption text-grey-7">{{ props.row.employee_control_no }}</div>
           </q-td>
         </template>
         <template #body-cell-leaveType="props">
@@ -1280,14 +1280,14 @@ function getApplicationEmployeeDisplayName(application) {
 
 function getApplicationEmployeeLookupCandidates(application) {
   return [
-    application?.employee_id,
-    application?.employeeId,
+    application?.employee_control_no,
+    application?.employeeControlNo,
     application?.control_no,
     application?.controlNo,
     application?.employee?.control_no,
     application?.employee?.controlNo,
-    application?.employee?.employee_id,
-    application?.employee?.employeeId,
+    application?.employee?.employee_control_no,
+    application?.employee?.employeeControlNo,
     application?.user?.control_no,
     application?.user?.controlNo,
   ]
@@ -1324,7 +1324,7 @@ function getApplicationMergeKey(application, index) {
 function getApplicationCompletenessScore(application) {
   const candidates = [
     getApplicationEmployeeDisplayName(application),
-    application?.employee_id,
+    application?.employee_control_no,
     application?.leaveType,
     application?.dateFiled,
     application?.status,
@@ -1400,10 +1400,11 @@ function mergeApplications(...sources) {
 }
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Vacation Leave',
+  'Sick Leave',
+  'CTO Leave',
   'Mandatory / Forced Leave',
   'MCO6 Leave',
-  'Sick Leave',
-  'Vacation Leave',
   'Wellness Leave',
 ]
 
@@ -1435,6 +1436,7 @@ function prettifyLeaveBalanceLabel(value) {
     return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
   if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
@@ -1449,6 +1451,7 @@ function toLeaveBalanceAcronym(value) {
   if (!label) return ''
 
   const lower = label.toLowerCase()
+  if (lower === 'cto leave') return 'CTO'
   if (lower === 'mandatory / forced leave') return 'FL'
   if (lower === 'mco6 leave') return 'MCO6'
   if (lower === 'sick leave') return 'SL'
@@ -1478,7 +1481,7 @@ function addLeaveBalanceEntry(entries, seen, label, value) {
 }
 
 function getEmployeeBalanceLookupKey(app) {
-  const explicitKey = app?.employee_id ?? app?.employeeId ?? app?.control_no ?? app?.controlNo
+  const explicitKey = app?.employee_control_no ?? app?.employeeControlNo ?? app?.control_no ?? app?.controlNo
   if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
     return String(explicitKey).trim().toLowerCase()
   }
@@ -2052,7 +2055,7 @@ function getApplicationSearchText(app) {
     app?.firstname,
     app?.middlename,
     app?.surname,
-    app?.employee_id,
+    app?.employee_control_no,
     getApplicationDurationLabel(app),
     ...inclusiveDateTerms,
     getLeaveBalanceDisplay(app),
@@ -2712,7 +2715,7 @@ function printApplicationsPdf() {
       { text: 'Reviewed Date', style: 'tableHeader' },
     ],
     ...rowsToPrint.map((app) => [
-      `${app.employeeName || ''}${app.employee_id ? `\n${app.employee_id}` : ''}`,
+      `${app.employeeName || ''}${app.employee_control_no ? `\n${app.employee_control_no}` : ''}`,
       app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
       formatDate(app.dateFiled) || 'N/A',
       getApplicationInclusiveDateLines(app).join('\n'),
@@ -3419,4 +3422,5 @@ async function confirmDisapprove() {
   }
 }
 </style>
+
 

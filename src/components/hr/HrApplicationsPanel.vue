@@ -57,7 +57,7 @@
       <template #body-cell-employee="props">
         <q-td>
           <div class="text-weight-medium">{{ props.row.employeeName }}</div>
-          <div class="text-caption text-grey-7">{{ props.row.employee_id }}</div>
+          <div class="text-caption text-grey-7">{{ props.row.employee_control_no }}</div>
         </q-td>
       </template>
       <template #body-cell-leaveType="props">
@@ -940,8 +940,8 @@ function getApplicationMergeKey(application, index) {
   if (!rowKey.includes(':index:')) return `id:${rowKey}`
 
   const employeeKey = String(
-    application?.employee_id ??
-    application?.employeeId ??
+    application?.employee_control_no ??
+    application?.employeeControlNo ??
     application?.control_no ??
     application?.controlNo ??
     '',
@@ -1930,7 +1930,7 @@ function getApplicationSearchTokenSet(app) {
     app?.firstname,
     app?.middlename,
     app?.surname,
-    app?.employee_id,
+    app?.employee_control_no,
     app?.office,
     app?.officeShort,
     app?.days,
@@ -3465,4 +3465,5 @@ async function confirmRecall() {
   }
 }
 </style>
+
 

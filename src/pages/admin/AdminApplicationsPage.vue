@@ -89,7 +89,7 @@
         <template #body-cell-employee="tableProps">
           <q-td>
             <div class="text-weight-medium">{{ tableProps.row.employeeName }}</div>
-            <div class="text-caption text-grey-7">{{ tableProps.row.employee_id }}</div>
+            <div class="text-caption text-grey-7">{{ tableProps.row.employee_control_no }}</div>
           </q-td>
         </template>
         <template #body-cell-leaveBalance="tableProps">
@@ -1311,3 +1311,4 @@ const {
   }
 }
 </style>
+

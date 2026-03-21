@@ -21,7 +21,7 @@
         <div class="text-h6 q-mb-md">Employee Information</div>
         <div class="row q-col-gutter-md q-mb-lg">
           <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Name</div><div class="text-weight-medium">{{ application.employeeName }}</div></div>
-          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Control No</div><div class="text-weight-medium">{{ application.employee_id }}</div></div>
+          <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Control No</div><div class="text-weight-medium">{{ application.employee_control_no }}</div></div>
           <div class="col-12"><div class="text-caption text-grey-7">Department</div><div class="text-weight-medium">{{ application.office }}</div></div>
         </div>
 
@@ -153,3 +153,4 @@ async function printApplication() {
   border-color: #e6b8b8;
 }
 </style>
+

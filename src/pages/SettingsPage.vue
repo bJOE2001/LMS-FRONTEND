@@ -355,7 +355,7 @@ const tabs = [
 const userInfo = ref({
   fullName: '',
   username: '',
-  employeeId: '',
+  employeeControlNo: '',
   department: '',
   position: '',
   role: '',
@@ -376,7 +376,7 @@ async function fetchProfile() {
     userInfo.value = {
       fullName: data.full_name || 'N/A',
       username: data.username || 'N/A',
-      controlNo: data.control_no || data.employee_id || 'N/A',
+      controlNo: data.control_no || data.employee_control_no || 'N/A',
       department: data.department?.name || 'N/A',
       position: data.position || 'N/A',
       role: data.role,
@@ -578,4 +578,5 @@ function handleSaveNotifications() {
   }
 }
 </style>
+
 

@@ -23,10 +23,11 @@ const mobileApplicationColumnWidths = {
 }
 
 const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Vacation Leave',
+  'Sick Leave',
+  'CTO Leave',
   'Mandatory / Forced Leave',
   'MCO6 Leave',
-  'Sick Leave',
-  'Vacation Leave',
   'Wellness Leave',
 ]
 
@@ -572,14 +573,14 @@ export function useAdminApplicationsPage() {
 
   function getApplicationEmployeeLookupCandidates(application) {
     return [
-      application?.employee_id,
-      application?.employeeId,
+      application?.employee_control_no,
+      application?.employeeControlNo,
       application?.control_no,
       application?.controlNo,
       application?.employee?.control_no,
       application?.employee?.controlNo,
-      application?.employee?.employee_id,
-      application?.employee?.employeeId,
+      application?.employee?.employee_control_no,
+      application?.employee?.employeeControlNo,
       application?.user?.control_no,
       application?.user?.controlNo,
     ]
@@ -623,8 +624,8 @@ export function useAdminApplicationsPage() {
   function getApplicationCompletenessScore(application) {
     const candidates = [
       getApplicationEmployeeDisplayName(application),
-      application?.employee_id,
-      application?.employeeId,
+      application?.employee_control_no,
+      application?.employeeControlNo,
       application?.leaveType,
       application?.leave_type,
       application?.leaveTypeName,
@@ -725,12 +726,13 @@ export function useAdminApplicationsPage() {
       return 'Mandatory / Forced Leave'
     }
     if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-    if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
-    if (lower === 'vacation') return 'Vacation Leave'
-    if (lower === 'sick') return 'Sick Leave'
-    if (lower === 'vacation leave') return 'Vacation Leave'
-    if (lower === 'sick leave') return 'Sick Leave'
-    if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
 
     return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
   }
@@ -739,11 +741,12 @@ export function useAdminApplicationsPage() {
     const label = prettifyLeaveBalanceLabel(value)
     if (!label) return ''
 
-    const lower = label.toLowerCase()
-    if (lower === 'mandatory / forced leave') return 'FL'
-    if (lower === 'mco6 leave') return 'MCO6'
-    if (lower === 'sick leave') return 'SL'
-    if (lower === 'vacation leave') return 'VL'
+  const lower = label.toLowerCase()
+  if (lower === 'cto leave') return 'CTO'
+  if (lower === 'mandatory / forced leave') return 'FL'
+  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'sick leave') return 'SL'
+  if (lower === 'vacation leave') return 'VL'
     if (lower === 'wellness leave') return 'WL'
 
     const normalized = label
@@ -769,7 +772,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getEmployeeBalanceLookupKey(app) {
-    const explicitKey = app?.employee_id ?? app?.employeeId ?? app?.control_no ?? app?.controlNo
+    const explicitKey = app?.employee_control_no ?? app?.employeeControlNo ?? app?.control_no ?? app?.controlNo
     if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
       return String(explicitKey).trim().toLowerCase()
     }
@@ -1371,7 +1374,7 @@ export function useAdminApplicationsPage() {
       app?.firstname,
       app?.middlename,
       app?.surname,
-      app?.employee_id,
+      app?.employee_control_no,
       getApplicationDurationLabel(app),
       ...inclusiveDateTerms,
       getLeaveBalanceDisplay(app),
@@ -2154,7 +2157,7 @@ export function useAdminApplicationsPage() {
         { text: 'Reviewed Date', style: 'tableHeader' },
       ],
       ...rowsToPrint.map((app) => [
-        `${app.employeeName || ''}${app.employee_id ? `\n${app.employee_id}` : ''}`,
+        `${app.employeeName || ''}${app.employee_control_no ? `\n${app.employee_control_no}` : ''}`,
         app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
         formatDate(app.dateFiled) || 'N/A',
         getApplicationInclusiveDateLines(app).join('\n'),
@@ -2420,4 +2423,5 @@ export function useAdminApplicationsPage() {
     printActionResult,
   }
 }
+
 

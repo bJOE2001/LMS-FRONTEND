@@ -1053,14 +1053,14 @@ function getApplicationLogicalKey(application, index) {
   }
 
   const applicationControlNo = normalizeLookupValue(
-    application?.employee_id ??
-      application?.employeeId ??
+    application?.employee_control_no ??
+      application?.employeeControlNo ??
       application?.control_no ??
       application?.controlNo ??
       application?.employee?.control_no ??
       application?.employee?.controlNo ??
-      application?.employee?.employee_id ??
-      application?.employee?.employeeId,
+      application?.employee?.employee_control_no ??
+      application?.employee?.employeeControlNo,
   )
   const applicationName = normalizePersonName(getApplicationEmployeeName(application))
   const filedDate = normalizeIsoDate(
@@ -1187,8 +1187,8 @@ const currentAdminName = computed(() => {
 const currentAdminControlNo = computed(() =>
   normalizeLookupValue(
     authStore.user?.control_no ??
-      authStore.user?.employee_id ??
-      authStore.user?.employeeId ??
+      authStore.user?.employee_control_no ??
+      authStore.user?.employeeControlNo ??
       authStore.user?.controlNo,
   ),
 )
@@ -1209,8 +1209,8 @@ const selfApplicationsForBalance = computed(() => {
 
   return applicationSource.value.filter((application) => {
     const applicationControlNo = normalizeLookupValue(
-      application?.employee_id ??
-        application?.employeeId ??
+      application?.employee_control_no ??
+        application?.employeeControlNo ??
         application?.control_no ??
         application?.controlNo,
     )
@@ -1276,8 +1276,8 @@ const selfExistingApplications = computed(() => {
     .filter((application) => isBlockingLeaveApplication(application))
     .filter((application) => {
       const applicationControlNo = normalizeLookupValue(
-        application?.employee_id ??
-          application?.employeeId ??
+        application?.employee_control_no ??
+          application?.employeeControlNo ??
           application?.control_no ??
           application?.controlNo,
       )
@@ -3251,6 +3251,7 @@ watch(
   }
 }
 </style>
+
 
 
 

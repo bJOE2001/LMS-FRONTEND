@@ -519,7 +519,7 @@
             <div class="col-12">
               <q-select
                 ref="creditEmployeeSelect"
-                v-model="leaveCreditForm.employee_id"
+                v-model="leaveCreditForm.employee_control_no"
                 v-model:input-value="creditEmployeeFilter"
                 :options="filteredCreditEmployeeOptions"
                 outlined
@@ -1121,7 +1121,7 @@ async function fetchCreditLeaveTypes() {
     const { data } = await api.get('/hr/leave-types')
     const leaveTypes = Array.isArray(data.leave_types) ? data.leave_types : []
     creditLeaveTypes.value = sortCreditLeaveTypesForDisplay(
-      leaveTypes.filter((type) => type.is_credit_based),
+      leaveTypes.filter((type) => isManualAddLeaveCreditType(type)),
     )
     leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
   } catch (err) {
@@ -1136,18 +1136,23 @@ function normalizeLeaveTypeName(value) {
   return String(value ?? '').trim().toLowerCase()
 }
 
+function isManualAddLeaveCreditType(leaveType) {
+  if (!leaveType?.is_credit_based) return false
+
+  return normalizeLeaveTypeName(leaveType?.name) !== 'cto leave'
+}
+
 function getCreditLeaveTypeDisplayPriority(leaveType) {
   const normalizedName = normalizeLeaveTypeName(leaveType?.name)
   const preferredOrder = {
     'vacation leave': 0,
     'sick leave': 1,
-    'cto leave': 2,
-    'mandatory / forced leave': 3,
-    'mco6 leave': 4,
-    'wellness leave': 5,
-    'solo parent leave': 6,
-    'special emergency (calamity) leave': 7,
-    'special privilege leave': 8,
+    'mandatory / forced leave': 2,
+    'mco6 leave': 3,
+    'wellness leave': 4,
+    'solo parent leave': 5,
+    'special emergency (calamity) leave': 6,
+    'special privilege leave': 7,
   }
 
   return Object.prototype.hasOwnProperty.call(preferredOrder, normalizedName)
@@ -2459,7 +2464,7 @@ async function openLeaveCreditsLedgerDialog(employee) {
 
 function defaultLeaveCreditForm() {
   return {
-    employee_id: '',
+    employee_control_no: '',
     balances: buildLeaveCreditBalanceState(),
   }
 }
@@ -2473,7 +2478,7 @@ function resetLeaveCreditForm() {
 function openLeaveCreditsDialog(employee = null) {
   resetLeaveCreditForm()
   if (employee?.control_no) {
-    leaveCreditForm.value.employee_id = String(employee.control_no)
+    leaveCreditForm.value.employee_control_no = String(employee.control_no)
     upsertCreditEmployeeOption(employee)
   }
   showLeaveCreditsDialog.value = true
@@ -2559,9 +2564,9 @@ function formatLeaveTypeInputHint(leaveType) {
 }
 
 function leaveCreditValidationError() {
-  const employeeId = String(leaveCreditForm.value.employee_id ?? '').trim()
-  if (!employeeId) return 'Employee is required.'
-  if (!/^\d+$/.test(employeeId)) return 'Select a valid employee.'
+  const employeeControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  if (!employeeControlNo) return 'Employee is required.'
+  if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
 
   if (loadingCreditLeaveTypes.value) return 'Leave types are still loading.'
   if (!creditLeaveTypes.value.length) return 'No credit-based leave types are available.'
@@ -2603,10 +2608,10 @@ async function saveLeaveCredits() {
 
   savingLeaveCredits.value = true
   try {
-    const employeeId = String(leaveCreditForm.value.employee_id).trim()
+    const employeeControlNo = String(leaveCreditForm.value.employee_control_no).trim()
     const entries = getEnteredLeaveCreditEntries()
     const payload = {
-      employee_id: employeeId,
+      employee_control_no: employeeControlNo,
       balances: entries.map((entry) => ({
         leave_type_id: Number(entry.leaveType.id),
         balance: Number(entry.balance),
@@ -3001,3 +3006,4 @@ async function saveLeaveCredits() {
   }
 }
 </style>
+

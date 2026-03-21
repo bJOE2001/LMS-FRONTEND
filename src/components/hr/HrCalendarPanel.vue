@@ -154,7 +154,7 @@
                 </q-avatar>
                 <div class="col calendar-date-employee-identity">
                   <div class="text-weight-medium">{{ emp.employeeName }}</div>
-                  <div class="text-caption text-grey-6">{{ emp.employee_id }}</div>
+                  <div class="text-caption text-grey-6">{{ emp.employee_control_no }}</div>
                 </div>
                 <q-badge color="positive" label="Approved" class="calendar-date-employee-status" />
               </div>
@@ -789,3 +789,4 @@ function nextMonth() {
   }
 }
 </style>
+
