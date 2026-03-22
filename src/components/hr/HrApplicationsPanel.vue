@@ -2075,6 +2075,7 @@ function getApplicationLeaveTypeName(app) {
 
 function isRecallableLeaveApplication(app) {
   if (!app) return false
+  if (app?.is_monetization === true || app?.raw?.is_monetization === true) return false
 
   const leaveTypeName = getApplicationLeaveTypeName(app)
 
@@ -3010,6 +3011,7 @@ function openReject(target) {
 
 function openRecall(target) {
   const application = resolveApplication(target)
+  if (!canRecallApplication(application || target)) return
   recallId.value = getApplicationId(application || target)
   recallTargetApp.value = application || target || null
   recallReason.value = ''
