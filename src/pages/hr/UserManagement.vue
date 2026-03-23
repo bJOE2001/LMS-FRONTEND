@@ -5,6 +5,14 @@
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">User Management</h1>
         </div>
+        <q-btn
+          unelevated
+          no-caps
+          color="primary"
+          icon="person_add"
+          label="Create Admin Account"
+          @click="openCreateDialog"
+        />
       </div>
     </div>
 
@@ -13,10 +21,10 @@
         <q-card flat bordered class="rounded-borders">
           <q-card-section>
             <div class="row items-center no-wrap">
-              <q-icon name="business" size="md" color="primary" class="q-mr-sm" />
+              <q-icon name="manage_accounts" size="md" color="primary" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">Total Departments</div>
-                <div class="text-h4 text-primary">{{ totalDepartments }}</div>
+                <div class="text-caption text-weight-medium">Total Accounts</div>
+                <div class="text-h4 text-primary">{{ totalAccounts }}</div>
               </div>
             </div>
           </q-card-section>
@@ -26,10 +34,10 @@
         <q-card flat bordered class="rounded-borders">
           <q-card-section>
             <div class="row items-center no-wrap">
-              <q-icon name="verified_user" size="md" color="green-8" class="q-mr-sm" />
+              <q-icon name="badge" size="md" color="green-8" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">Assigned Admins</div>
-                <div class="text-h4 text-green-8">{{ assignedDepartments }}</div>
+                <div class="text-caption text-weight-medium">HR Accounts</div>
+                <div class="text-h4 text-green-8">{{ hrAccounts }}</div>
               </div>
             </div>
           </q-card-section>
@@ -39,10 +47,10 @@
         <q-card flat bordered class="rounded-borders">
           <q-card-section>
             <div class="row items-center no-wrap">
-              <q-icon name="person_off" size="md" color="orange-8" class="q-mr-sm" />
+              <q-icon name="supervisor_account" size="md" color="orange-8" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">Unassigned</div>
-                <div class="text-h4 text-orange-8">{{ unassignedDepartments }}</div>
+                <div class="text-caption text-weight-medium">Department Admin Accounts</div>
+                <div class="text-h4 text-orange-8">{{ departmentAdminAccounts }}</div>
               </div>
             </div>
           </q-card-section>
@@ -52,23 +60,19 @@
 
     <q-card flat bordered class="rounded-borders q-mb-md">
       <q-card-section>
-        <div class="row q-col-gutter-md items-end">
-          <div class="col-12">
-            <q-input
-              v-model="search"
-              outlined
-              dense
-              clearable
-              debounce="250"
-              label="Search departments or admins"
-              placeholder="Department, admin name, username, or employee..."
-            >
-              <template #prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-            </q-input>
-          </div>
-        </div>
+        <q-input
+          v-model="search"
+          outlined
+          dense
+          clearable
+          debounce="250"
+          label="Search accounts"
+          placeholder="Name, username, role, department, position..."
+        >
+          <template #prepend>
+            <q-icon name="search" color="grey-6" />
+          </template>
+        </q-input>
       </q-card-section>
     </q-card>
 
@@ -76,81 +80,51 @@
       <q-table
         :rows="filteredRows"
         :columns="columns"
-        row-key="id"
+        row-key="row_key"
         flat
         :loading="loading"
         :rows-per-page-options="[10, 20, 50]"
       >
-        <template #body-cell-name="props">
-          <q-td :props="props">
-            <div class="text-weight-medium">{{ props.row.name }}</div>
-          </q-td>
-        </template>
-
-        <template #body-cell-current_admin="props">
-          <q-td :props="props">
-            <template v-if="props.row.department_admin">
-              <div class="text-weight-medium">{{ props.row.department_admin.full_name }}</div>
-              <div class="text-caption text-grey-6">@{{ props.row.department_admin.username }}</div>
-            </template>
-            <q-badge v-else color="grey-6" label="Unassigned" rounded />
-          </q-td>
-        </template>
-
-        <template #body-cell-employee="props">
-          <q-td :props="props">
-            <template v-if="props.row.department_admin?.employee">
-              <span>
-                {{ props.row.department_admin.employee.designation || '-' }}
-              </span>
-            </template>
-            <span v-else class="text-grey-6">-</span>
-          </q-td>
-        </template>
-
-        <template #body-cell-employment_status="props">
+        <template #body-cell-role_label="props">
           <q-td :props="props" class="text-center">
-            <template v-if="props.row.department_admin?.employee?.status">
-              <q-badge
-                :color="statusColor(props.row.department_admin.employee.status)"
-                :label="props.row.department_admin.employee.status"
-                rounded
-              />
-            </template>
-            <span v-else class="text-grey-6">-</span>
+            <q-badge :color="roleColor(props.row.role)" :label="props.row.role_label" rounded />
           </q-td>
         </template>
 
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
             <q-btn
-              flat
-              dense
-              round
-              :icon="props.row.department_admin ? 'manage_accounts' : 'person_add'"
-              color="primary"
-              @click="openAssignDialog(props.row)"
-            >
-              <q-tooltip>
-                {{
-                  props.row.department_admin
-                    ? 'Reassign Department Admin'
-                    : 'Assign Department Admin'
-                }}
-              </q-tooltip>
-            </q-btn>
-            <q-btn
-              v-if="props.row.department_admin"
+              v-if="isDepartmentAdmin(props.row) && canDeleteDepartmentAdmin(props.row)"
               flat
               dense
               round
               icon="delete"
               color="negative"
-              :loading="deletingId === props.row.department_admin.id"
-              @click="confirmRemove(props.row)"
+              :loading="deletingId === props.row.account_id"
+              @click="confirmRemoveAccount(props.row)"
             >
-              <q-tooltip>Remove Department Admin</q-tooltip>
+              <q-tooltip>Remove Department Admin Account</q-tooltip>
             </q-btn>
+            <span v-else-if="isDepartmentAdmin(props.row)" class="text-grey-6">Protected</span>
+            <span v-else class="text-grey-6">-</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-department="props">
+          <q-td :props="props">
+            {{ toDepartmentCode(props.row.department) }}
+          </q-td>
+        </template>
+
+        <template #body-cell-position="props">
+          <q-td :props="props">
+            {{ props.row.position || '-' }}
+          </q-td>
+        </template>
+
+        <template #body-cell-employee_control_no="props">
+          <q-td :props="props">
+            {{ props.row.employee_control_no || '-' }}
           </q-td>
         </template>
 
@@ -158,61 +132,76 @@
           <div class="full-width text-center q-pa-lg">
             <template v-if="loading">
               <q-spinner color="primary" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading departments...</div>
+              <div class="text-grey-6 q-mt-sm">Loading accounts...</div>
             </template>
             <template v-else>
               <q-icon name="manage_accounts" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">No departments found.</div>
+              <div class="text-grey-6 q-mt-sm">No accounts found.</div>
             </template>
           </div>
         </template>
       </q-table>
     </q-card>
 
-    <q-dialog v-model="showAssignmentDialog" persistent>
-      <q-card style="width: 95vw; max-width: 700px" class="rounded-borders">
+    <q-dialog v-model="showCreateDialog" persistent>
+      <q-card style="width: 95vw; max-width: 720px" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">
-            {{ isEditMode ? 'Reassign Department Admin' : 'Assign Department Admin' }}
-          </div>
+          <div class="text-h6">Create Admin Account</div>
           <q-space />
-          <q-btn icon="close" flat round dense :disable="saving" v-close-popup />
+          <q-btn icon="close" flat round dense :disable="creatingAccount" v-close-popup />
         </q-card-section>
 
-        <q-form ref="formRef" @submit.prevent="saveAssignment">
+        <q-form ref="createFormRef" @submit.prevent="createAdminAccount">
           <q-card-section class="q-pt-sm">
             <div class="row q-col-gutter-md">
               <div class="col-12">
-                <q-input
-                  :model-value="selectedDepartment?.name || ''"
-                  outlined
-                  dense
-                  label="Department"
-                  readonly
-                />
-              </div>
-
-              <div class="col-12">
                 <q-select
-                  v-model="form.employee_control_no"
-                  :options="eligibleEmployeeOptions"
-                  :display-value="selectedEmployeeDisplay"
+                  v-model="createForm.department_id"
+                  :options="departmentOptions"
                   emit-value
                   map-options
                   use-input
                   input-debounce="200"
                   outlined
                   dense
-                  label="Select Employee *"
+                  label="Department *"
+                  :loading="loadingDepartments"
+                  :disable="creatingAccount || loadingDepartments"
+                  :rules="[requiredRule('Department')]"
+                  @filter="filterDepartments"
+                  @update:model-value="handleDepartmentChange"
+                >
+                  <template #no-option>
+                    <q-item>
+                      <q-item-section class="text-grey-6">
+                        No departments found.
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
+              </div>
+
+              <div class="col-12">
+                <q-select
+                  v-model="createForm.employee_control_no"
+                  :options="eligibleEmployeeOptions"
+                  :display-value="selectedCreateEmployeeDisplay"
+                  emit-value
+                  map-options
+                  use-input
+                  input-debounce="200"
+                  outlined
+                  dense
+                  label="Employee *"
                   :loading="loadingEligibleEmployees"
-                  :disable="saving || loadingEligibleEmployees"
+                  :disable="creatingAccount || loadingEligibleEmployees"
                   :rules="[requiredRule('Employee')]"
                   @filter="filterEligibleEmployees"
                 >
                   <template #no-option>
                     <q-item>
                       <q-item-section class="text-grey-6">
-                        No eligible employees found for this department.
+                        No active employees found.
                       </q-item-section>
                     </q-item>
                   </template>
@@ -221,43 +210,31 @@
 
               <div class="col-12">
                 <q-input
-                  v-model="form.username"
+                  v-model="createForm.username"
                   outlined
                   dense
                   label="Username *"
-                  :disable="saving"
+                  :disable="creatingAccount"
                   :rules="[requiredRule('Username')]"
                 />
               </div>
 
               <div class="col-12">
                 <q-banner class="bg-amber-1 text-amber-10 rounded-borders">
-                  <template v-if="isEditMode && isReassigningToDifferentEmployee">
-                    Reassigning this admin will reset the password to the selected employee birthdate in <strong>MMDDYY</strong>.
-                    The user will be required to change password on first login.
-                  </template>
-                  <template v-else-if="isEditMode">
-                    Saving this admin assignment will reset the password to the selected employee birthdate in <strong>MMDDYY</strong>.
-                    The user will be required to change password on first login.
-                  </template>
-                  <template v-else>
-                    Default password will be the selected employee birthdate in <strong>MMDDYY</strong>.
-                    The user will be required to change password on first login.
-                  </template>
+                  Default password will be the selected employee birthdate in <strong>MMDDYY</strong> format.
                 </q-banner>
               </div>
-
             </div>
           </q-card-section>
 
           <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="saving" v-close-popup />
+            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="creatingAccount" v-close-popup />
             <q-btn
               unelevated
               no-caps
               color="primary"
-              :label="isEditMode ? 'Save Changes' : 'Assign Admin'"
-              :loading="saving"
+              label="Create Account"
+              :loading="creatingAccount"
               type="submit"
             />
           </q-card-actions>
@@ -276,132 +253,97 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 const $q = useQuasar()
 
 const loading = ref(false)
-const loadingEligibleEmployees = ref(false)
-const saving = ref(false)
 const deletingId = ref(null)
-const showAssignmentDialog = ref(false)
-const isEditMode = ref(false)
-const formRef = ref(null)
+const creatingAccount = ref(false)
+const loadingDepartments = ref(false)
+const loadingEligibleEmployees = ref(false)
+const showCreateDialog = ref(false)
+const createFormRef = ref(null)
 
 const search = ref('')
+const accounts = ref([])
 const departments = ref([])
+const departmentOptions = ref([])
 const eligibleEmployees = ref([])
-const eligibleEmployeeSearch = ref('')
-const selectedDepartment = ref(null)
-const selectedDepartmentAdmin = ref(null)
+const eligibleEmployeeOptions = ref([])
 
-const form = ref(defaultForm())
+const summary = ref({
+  total_accounts: 0,
+  hr_accounts: 0,
+  department_admin_accounts: 0,
+})
+
+const createForm = ref(defaultCreateForm())
 
 const columns = [
-  { name: 'name', label: 'Department', align: 'left', field: 'name', sortable: true },
+  { name: 'full_name', label: 'Name', field: 'full_name', align: 'left', sortable: true },
+  { name: 'username', label: 'Username', field: 'username', align: 'left', sortable: true },
+  { name: 'role_label', label: 'Role', field: 'role_label', align: 'center', sortable: true },
   {
-    name: 'current_admin',
-    label: 'Current Admin Account',
+    name: 'department',
+    label: 'Department',
+    field: (row) => toDepartmentCode(row?.department),
     align: 'left',
-    field: (row) => row.department_admin?.full_name || '',
+    sortable: true,
   },
+  { name: 'position', label: 'Position', field: 'position', align: 'left', sortable: true },
   {
-    name: 'employee',
-    label: 'Designation',
+    name: 'employee_control_no',
+    label: 'Employee ID',
+    field: 'employee_control_no',
     align: 'left',
-    field: (row) => row.department_admin?.employee?.designation || '',
+    sortable: true,
   },
-  {
-    name: 'employment_status',
-    label: 'Status',
-    align: 'center',
-    field: (row) => row.department_admin?.employee?.status || '',
-  },
-  { name: 'actions', label: 'Actions', align: 'center' },
+  { name: 'actions', label: 'Action', field: 'actions', align: 'center' },
 ]
 
-const totalDepartments = computed(() => departments.value.length)
-const assignedDepartments = computed(
-  () => departments.value.filter((department) => department.department_admin !== null).length,
+const totalAccounts = computed(() => summary.value.total_accounts ?? accounts.value.length)
+const hrAccounts = computed(
+  () => summary.value.hr_accounts ?? accounts.value.filter((account) => account.role === 'HR').length,
 )
-const unassignedDepartments = computed(() => totalDepartments.value - assignedDepartments.value)
+const departmentAdminAccounts = computed(
+  () =>
+    summary.value.department_admin_accounts ??
+    accounts.value.filter((account) => account.role === 'DEPARTMENT_ADMIN').length,
+)
 
 const filteredRows = computed(() => {
-  const query = String(search.value || '')
-    .trim()
-    .toLowerCase()
+  const term = normalizeSearch(search.value)
+  if (!term) return accounts.value
 
-  return departments.value.filter((department) => {
-    if (!query) return true
+  return accounts.value.filter((account) => {
+    const haystack = normalizeSearch(
+      [
+        account.full_name,
+        account.username,
+        account.role_label,
+        account.department,
+        toDepartmentCode(account.department),
+        account.position,
+        account.employee_control_no,
+      ]
+        .map((value) => String(value || '').trim())
+        .join(' '),
+    )
 
-    const admin = department.department_admin
-    const haystack = [
-      department.name,
-      admin?.full_name,
-      admin?.username,
-      admin?.employee_control_no,
-      admin?.employee?.full_name,
-      admin?.employee?.control_no,
-    ]
-      .map((value) => String(value || '').toLowerCase())
-      .join(' ')
-
-    return haystack.includes(query)
+    return haystack.includes(term)
   })
 })
 
-function formatEmployeeOptionLabel(employee) {
-  return `${employee.full_name}${employee.designation ? ` (${employee.designation})` : ''}`
-}
-
-const eligibleEmployeeOptions = computed(() =>
-  eligibleEmployees.value
-    .filter((employee) => {
-      const needle = String(eligibleEmployeeSearch.value || '')
-        .trim()
-        .toLowerCase()
-      if (!needle) return true
-
-      const fullName = String(employee.full_name || '').toLowerCase()
-      const designation = String(employee.designation || '').toLowerCase()
-
-      return fullName.includes(needle) || designation.includes(needle)
-    })
-    .map((employee) => ({
-      label: formatEmployeeOptionLabel(employee),
-      value: employee.control_no,
-    })),
-)
-
-const selectedEmployeeDisplay = computed(() => {
-  const selectedControlNo = String(form.value.employee_control_no || '').trim()
+const selectedCreateEmployeeDisplay = computed(() => {
+  const selectedControlNo = String(createForm.value.employee_control_no || '').trim()
   if (!selectedControlNo) return ''
 
-  const selectedOption = eligibleEmployeeOptions.value.find(
-    (option) => String(option.value) === selectedControlNo,
+  const selected = eligibleEmployees.value.find(
+    (employee) => String(employee.control_no || '').trim() === selectedControlNo,
   )
-  if (selectedOption) {
-    return selectedOption.label
-  }
 
-  const currentEmployee = selectedDepartmentAdmin.value?.employee
-  if (
-    currentEmployee &&
-    String(currentEmployee.control_no || '').trim() === selectedControlNo
-  ) {
-    return formatEmployeeOptionLabel(currentEmployee)
-  }
-
-  return String(selectedDepartmentAdmin.value?.full_name || '').trim()
+  return selected ? formatEmployeeOptionLabel(selected) : ''
 })
 
-const isReassigningToDifferentEmployee = computed(() => {
-  if (!isEditMode.value) return false
+onMounted(fetchAccounts)
 
-  const currentControlNo = String(selectedDepartmentAdmin.value?.employee_control_no || '').trim()
-  const selectedControlNo = String(form.value.employee_control_no || '').trim()
-
-  return currentControlNo !== '' && selectedControlNo !== '' && currentControlNo !== selectedControlNo
-})
-
-onMounted(fetchDepartments)
-
-function defaultForm() {
+function defaultCreateForm() {
   return {
     department_id: null,
     employee_control_no: '',
@@ -409,56 +351,164 @@ function defaultForm() {
   }
 }
 
-function filterEligibleEmployees(value, update) {
-  update(() => {
-    eligibleEmployeeSearch.value = value
-  })
+function normalizeSearch(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+const DEPARTMENT_STOP_WORDS = new Set([
+  'A',
+  'AN',
+  'AND',
+  'FOR',
+  'IN',
+  'OF',
+  'OFFICE',
+  'ON',
+  'THE',
+  'TO',
+])
+
+function toDepartmentCode(value) {
+  const source = String(value || '').trim()
+  if (!source) return '-'
+
+  if (!/\s/.test(source) && source === source.toUpperCase()) {
+    return source
+  }
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter(
+    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source
+}
+
+function roleColor(role) {
+  const normalized = String(role || '').trim().toUpperCase()
+  if (normalized === 'HR') return 'green-8'
+  if (normalized === 'DEPARTMENT_ADMIN') return 'orange-8'
+  return 'grey-6'
+}
+
+function isDepartmentAdmin(row) {
+  return String(row?.role || '').trim().toUpperCase() === 'DEPARTMENT_ADMIN'
+}
+
+function canDeleteDepartmentAdmin(row) {
+  return Boolean(row?.can_delete ?? true)
 }
 
 function requiredRule(label) {
-  return (value) => !!String(value ?? '').trim() || `${label} is required.`
+  return (value) => String(value ?? '').trim() !== '' || `${label} is required.`
 }
 
-function statusColor(status) {
-  const normalized = String(status || '')
-    .trim()
-    .toUpperCase()
-  const colors = {
-    REGULAR: 'green-8',
-    'CO-TERMINOUS': 'brown-7',
-    ELECTIVE: 'purple-8',
-    CASUAL: 'orange-8',
-    CONTRACTUAL: 'blue-9',
-  }
-
-  return colors[normalized] || 'grey-6'
+function formatEmployeeOptionLabel(employee) {
+  const fullName = String(employee?.full_name || '').trim()
+  const designation = String(employee?.designation || '').trim()
+  return designation ? `${fullName} (${designation})` : fullName
 }
 
-async function fetchDepartments() {
-  loading.value = true
+function buildDepartmentOptions(items) {
+  return items.map((department) => ({
+    label: String(department?.name || '').trim(),
+    value: Number(department?.id),
+  }))
+}
+
+function buildEligibleEmployeeOptions(items) {
+  return items.map((employee) => ({
+    label: formatEmployeeOptionLabel(employee),
+    value: String(employee?.control_no || '').trim(),
+  }))
+}
+
+function filterDepartments(value, update) {
+  update(() => {
+    const term = normalizeSearch(value)
+    const filtered = !term
+      ? departments.value
+      : departments.value.filter((department) => {
+          const name = normalizeSearch(department?.name)
+          const idText = normalizeSearch(String(department?.id || ''))
+          return name.includes(term) || idText.includes(term)
+        })
+
+    departmentOptions.value = buildDepartmentOptions(filtered)
+  })
+}
+
+function filterEligibleEmployees(value, update) {
+  update(() => {
+    const term = normalizeSearch(value)
+    const filtered = !term
+      ? eligibleEmployees.value
+      : eligibleEmployees.value.filter((employee) => {
+          const haystack = normalizeSearch(
+            [
+              employee?.full_name,
+              employee?.designation,
+              employee?.control_no,
+              employee?.surname,
+              employee?.firstname,
+            ]
+              .map((item) => String(item || '').trim())
+              .join(' '),
+          )
+
+          return haystack.includes(term)
+        })
+
+    eligibleEmployeeOptions.value = buildEligibleEmployeeOptions(filtered)
+  })
+}
+
+async function openCreateDialog() {
+  showCreateDialog.value = true
+  createForm.value = defaultCreateForm()
+  eligibleEmployees.value = []
+  eligibleEmployeeOptions.value = []
+  await Promise.all([
+    fetchDepartmentOptions(),
+    fetchEligibleEmployees(),
+  ])
+}
+
+async function fetchDepartmentOptions() {
+  loadingDepartments.value = true
   try {
-    const { data } = await api.get('/hr/user-management/department-admins')
+    const { data } = await api.get('/departments')
     departments.value = Array.isArray(data?.departments) ? data.departments : []
+    departmentOptions.value = buildDepartmentOptions(departments.value)
   } catch (err) {
-    const message = resolveApiErrorMessage(err, 'Unable to load user management data right now.')
+    const message = resolveApiErrorMessage(err, 'Unable to load departments right now.')
     $q.notify({
       type: 'negative',
       message,
       position: 'top',
     })
     departments.value = []
+    departmentOptions.value = []
   } finally {
-    loading.value = false
+    loadingDepartments.value = false
   }
 }
 
-async function fetchEligibleEmployees(departmentId) {
+async function fetchEligibleEmployees() {
   loadingEligibleEmployees.value = true
   try {
-    const { data } = await api.get(
-      `/hr/user-management/departments/${departmentId}/eligible-employees`,
-    )
+    const { data } = await api.get('/hr/user-management/eligible-employees')
     eligibleEmployees.value = Array.isArray(data?.employees) ? data.employees : []
+    eligibleEmployeeOptions.value = buildEligibleEmployeeOptions(eligibleEmployees.value)
   } catch (err) {
     const message = resolveApiErrorMessage(err, 'Unable to load eligible employees right now.')
     $q.notify({
@@ -467,85 +517,47 @@ async function fetchEligibleEmployees(departmentId) {
       position: 'top',
     })
     eligibleEmployees.value = []
+    eligibleEmployeeOptions.value = []
   } finally {
     loadingEligibleEmployees.value = false
   }
 }
 
-async function openAssignDialog(department) {
-  selectedDepartment.value = department
-  selectedDepartmentAdmin.value = department.department_admin || null
-  const currentEmployee = selectedDepartmentAdmin.value?.employee
-  isEditMode.value = selectedDepartmentAdmin.value !== null
-
-  form.value = {
-    department_id: department.id,
-    employee_control_no: selectedDepartmentAdmin.value?.employee_control_no || '',
-    username: selectedDepartmentAdmin.value?.username || '',
-  }
-
-  eligibleEmployeeSearch.value = ''
-  eligibleEmployees.value = currentEmployee ? [currentEmployee] : []
-  showAssignmentDialog.value = true
-  await fetchEligibleEmployees(department.id)
-
-  const currentControlNo = String(selectedDepartmentAdmin.value?.employee_control_no || '').trim()
-
-  if (
-    currentEmployee &&
-    currentControlNo !== '' &&
-    !eligibleEmployees.value.some((employee) => String(employee.control_no) === currentControlNo)
-  ) {
-    eligibleEmployees.value = [currentEmployee, ...eligibleEmployees.value]
-  }
+async function handleDepartmentChange() {
+  createForm.value.employee_control_no = ''
+  eligibleEmployees.value = []
+  eligibleEmployeeOptions.value = []
+  await fetchEligibleEmployees()
 }
 
-function buildAssignmentPayload() {
-  const payload = {
-    department_id: Number(form.value.department_id),
-    employee_control_no: String(form.value.employee_control_no || '').trim(),
-    username: String(form.value.username || '').trim(),
-  }
-
-  return payload
-}
-
-async function saveAssignment() {
-  const valid = await formRef.value?.validate?.()
+async function createAdminAccount() {
+  const valid = await createFormRef.value?.validate?.()
   if (!valid) return
 
-  saving.value = true
+  creatingAccount.value = true
   try {
-    const payload = buildAssignmentPayload()
-
-    if (isEditMode.value && selectedDepartmentAdmin.value?.id) {
-      const { data } = await api.put(
-        `/hr/user-management/department-admins/${selectedDepartmentAdmin.value.id}`,
-        payload,
-      )
-      $q.notify({
-        type: 'positive',
-        message: data?.message || 'Department admin assignment updated successfully.',
-        position: 'top',
-      })
-    } else {
-      const { data } = await api.post('/hr/user-management/department-admins', payload)
-      $q.notify({
-        type: 'positive',
-        message: data?.message || 'Department admin assigned successfully.',
-        position: 'top',
-      })
+    const payload = {
+      department_id: Number(createForm.value.department_id),
+      employee_control_no: String(createForm.value.employee_control_no || '').trim(),
+      username: String(createForm.value.username || '').trim(),
     }
 
-    showAssignmentDialog.value = false
-    form.value = defaultForm()
-    eligibleEmployeeSearch.value = ''
+    const { data } = await api.post('/hr/user-management/department-admins', payload)
+    $q.notify({
+      type: 'positive',
+      message: data?.message || 'Department admin account created successfully.',
+      position: 'top',
+    })
+
+    showCreateDialog.value = false
+    createForm.value = defaultCreateForm()
     eligibleEmployees.value = []
-    await fetchDepartments()
+    eligibleEmployeeOptions.value = []
+    await fetchAccounts()
   } catch (err) {
     const message = resolveApiErrorMessage(
       err,
-      'Unable to save department admin assignment right now.',
+      'Unable to create department admin account right now.',
     )
     $q.notify({
       type: 'negative',
@@ -553,17 +565,20 @@ async function saveAssignment() {
       position: 'top',
     })
   } finally {
-    saving.value = false
+    creatingAccount.value = false
   }
 }
 
-function confirmRemove(department) {
-  const admin = department.department_admin
-  if (!admin) return
+function confirmRemoveAccount(row) {
+  if (!isDepartmentAdmin(row)) return
+  if (!canDeleteDepartmentAdmin(row)) return
+
+  const accountId = Number(row?.account_id || 0)
+  if (!accountId) return
 
   $q.dialog({
     title: 'Remove Department Admin',
-    message: `Remove ${admin.full_name} as admin of ${department.name}?`,
+    message: `Remove ${row.full_name} as Department Admin account?`,
     cancel: {
       label: 'Cancel',
       color: 'grey-7',
@@ -578,15 +593,15 @@ function confirmRemove(department) {
     },
     persistent: true,
   }).onOk(async () => {
-    deletingId.value = admin.id
+    deletingId.value = accountId
     try {
-      const { data } = await api.delete(`/hr/user-management/department-admins/${admin.id}`)
+      const { data } = await api.delete(`/hr/user-management/department-admins/${accountId}`)
       $q.notify({
         type: 'positive',
         message: data?.message || 'Department admin removed successfully.',
         position: 'top',
       })
-      await fetchDepartments()
+      await fetchAccounts()
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to remove department admin right now.')
       $q.notify({
@@ -598,5 +613,38 @@ function confirmRemove(department) {
       deletingId.value = null
     }
   })
+}
+
+async function fetchAccounts() {
+  loading.value = true
+  try {
+    const { data } = await api.get('/hr/user-management/department-admins')
+    accounts.value = Array.isArray(data?.accounts) ? data.accounts : []
+    summary.value = {
+      total_accounts: Number(data?.summary?.total_accounts ?? accounts.value.length),
+      hr_accounts: Number(
+        data?.summary?.hr_accounts ?? accounts.value.filter((account) => account.role === 'HR').length,
+      ),
+      department_admin_accounts: Number(
+        data?.summary?.department_admin_accounts ??
+          accounts.value.filter((account) => account.role === 'DEPARTMENT_ADMIN').length,
+      ),
+    }
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to load user accounts right now.')
+    $q.notify({
+      type: 'negative',
+      message,
+      position: 'top',
+    })
+    accounts.value = []
+    summary.value = {
+      total_accounts: 0,
+      hr_accounts: 0,
+      department_admin_accounts: 0,
+    }
+  } finally {
+    loading.value = false
+  }
 }
 </script>

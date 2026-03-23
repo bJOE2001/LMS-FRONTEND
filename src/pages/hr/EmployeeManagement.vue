@@ -61,7 +61,19 @@
       <q-card-section>
         <div class="row justify-between items-center">
           <div class="text-h6">Employee Records</div>
-          <div class="row q-gutter-sm search-wrap">
+          <div class="row items-center search-wrap">
+            <q-select
+              v-model="activityFilter"
+              :options="activityOptions"
+              option-label="label"
+              option-value="value"
+              emit-value
+              map-options
+              outlined
+              dense
+              class="activity-filter"
+              label="Employment Status"
+            />
             <q-input
               v-model="search"
               outlined
@@ -634,12 +646,18 @@ pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 const $q = useQuasar()
 
 const search = ref('')
+const activityFilter = ref('ACTIVE')
 const loading = ref(false)
 const loadingDepartments = ref(false)
 
 const employees = ref([])
 const allDepartments = ref([])
 const totalEmployees = ref(0)
+const activityOptions = [
+  { label: 'Active', value: 'ACTIVE' },
+  { label: 'Inactive', value: 'INACTIVE' },
+  { label: 'All', value: 'ALL' },
+]
 
 const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
@@ -1090,6 +1108,7 @@ async function fetchData(page = 1) {
       params: {
         department_id: departmentId || undefined,
         search: searchText || undefined,
+        activity: activityFilter.value || 'ALL',
         per_page: employeePagination.value.rowsPerPage,
         page,
       },
@@ -1350,6 +1369,10 @@ function onEmployeeRequest(props) {
 }
 
 watch(search, () => {
+  fetchData(1)
+})
+
+watch(activityFilter, () => {
   fetchData(1)
 })
 
@@ -2641,11 +2664,20 @@ async function saveLeaveCredits() {
 
 <style scoped>
 .search-wrap {
-  width: min(620px, 100%);
+  width: min(760px, 100%);
+  column-gap: 12px;
+  row-gap: 8px;
+}
+
+.activity-filter {
+  width: 170px;
+  min-width: 170px;
 }
 
 .search-input {
-  width: 100%;
+  flex: 1 1 300px;
+  min-width: 220px;
+  width: auto;
 }
 .summary-strip__card-section {
   padding: 14px 16px;
