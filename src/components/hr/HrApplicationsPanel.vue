@@ -3122,6 +3122,12 @@ async function confirmRecall() {
   cursor: pointer;
 }
 
+.hr-applications-panel .applications-table thead th {
+  white-space: normal;
+  line-height: 1.3;
+  height: auto;
+}
+
 .status-cell-wrap {
   display: inline-flex;
   align-items: center;
@@ -3467,5 +3473,4 @@ async function confirmRecall() {
   }
 }
 </style>
-
 
