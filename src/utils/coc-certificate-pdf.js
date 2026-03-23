@@ -200,7 +200,7 @@ function buildCertificateSection(data, options = {}) {
   const certificateTitle = options.certificateTitle || 'Certificate of COC Earned'
 
   const compactHeaderBarHeight = 17
-  const compactSmallBarTopOffset = 30
+  const compactSmallBarTopOffset = 33
   const compactHeaderTextLeftInset = 6
   const compactHeaderTextSize = 10
   const compactOfficeBandPaddingTop = Math.max(0, Math.floor((compactHeaderBarHeight - compactHeaderTextSize) / 2))
