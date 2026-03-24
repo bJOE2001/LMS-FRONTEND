@@ -19,7 +19,7 @@ export const useReportStore = defineStore('reports', () => {
         loading.value = true
 
         try{
-            const { data } = await api.get('/reports/lwopReports')
+            const { data } = await api.get('/hr/reports/lwop')
             lwopReports.value = data
         }catch(error){
             console.error('Error fetching LWOP reports:', error)
@@ -33,7 +33,7 @@ export const useReportStore = defineStore('reports', () => {
         loading.value = true
 
         try{
-            const { data } = await api.get('/reports/leaveBalancesReports')
+            const { data } = await api.get('/hr/reports/leave-balances')
             leaveBalanceReports.value = data
 
         }catch(error){
@@ -47,7 +47,7 @@ export const useReportStore = defineStore('reports', () => {
         loading.value = true
         
         try{
-            const { data } = await api.get('/reports/monetizationReports')
+            const { data } = await api.get('/hr/reports/monetization')
             monetizationReports.value = data
         }catch(error){
 
@@ -60,7 +60,7 @@ export const useReportStore = defineStore('reports', () => {
         loading.value = true
 
         try{
-            const { data } = await api.get('/reports/ctoAvailmentReports')
+            const { data } = await api.get('/hr/reports/cto-availment')
             ctoAvailmentReports.value = data
         }catch(error){
 
@@ -74,7 +74,7 @@ export const useReportStore = defineStore('reports', () => {
 
         try{
 
-            const { data } = await api.get('/reports/cocBalanceReports')
+            const { data } = await api.get('/hr/reports/coc-balances')
             cocBalanceReports.value = data
         }catch(error){
 
@@ -87,7 +87,7 @@ export const useReportStore = defineStore('reports', () => {
         loading.value = true
 
         try{
-            const { data } = await api.get('/reports/leaveAvailmentReports')
+            const { data } = await api.get('/hr/reports/leave-availment')
             leaveAvailmentReports.value = data
         }catch(error){
 

@@ -762,8 +762,46 @@ const columns = computed(() => {
   })
 })
 
+function resolveRowMonths(row) {
+  if (Array.isArray(row?.months) && row.months.length) {
+    return row.months
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value >= 1 && value <= 12)
+  }
+
+  const month = Number(row?.month)
+  return Number.isInteger(month) && month >= 1 && month <= 12 ? [month] : []
+}
+
+function resolveRowYears(row) {
+  if (Array.isArray(row?.years) && row.years.length) {
+    return row.years
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  }
+
+  const year = Number(row?.year)
+  return Number.isInteger(year) && year > 0 ? [year] : []
+}
+
+function resolveRowPeriodKeys(row) {
+  if (Array.isArray(row?.periodKeys) && row.periodKeys.length) {
+    return row.periodKeys
+      .map((value) => String(value || '').trim())
+      .filter((value) => value !== '')
+  }
+
+  const months = resolveRowMonths(row)
+  const years = resolveRowYears(row)
+  if (months.length === 1 && years.length === 1) {
+    return [`${years[0]}-${String(months[0]).padStart(2, '0')}`]
+  }
+
+  return []
+}
+
 const yearOptions = computed(() => {
-  const years = Array.from(new Set(selectedReportRows.value.map((row) => row.year))).sort(
+  const years = Array.from(new Set(selectedReportRows.value.flatMap((row) => resolveRowYears(row)))).sort(
     (a, b) => b - a,
   )
 
@@ -787,8 +825,18 @@ const filteredRows = computed(() => {
   const search = String(filters.employeeName || '').toLowerCase()
 
   return selectedReportRows.value.filter((row) => {
-    if (filters.month && row.month !== filters.month) return false
-    if (filters.year && row.year !== filters.year) return false
+    const rowMonths = resolveRowMonths(row)
+    const rowYears = resolveRowYears(row)
+    const rowPeriodKeys = resolveRowPeriodKeys(row)
+
+    if (filters.month && filters.year) {
+      const targetPeriodKey = `${filters.year}-${String(filters.month).padStart(2, '0')}`
+      if (!rowPeriodKeys.includes(targetPeriodKey)) return false
+    } else {
+      if (filters.month && !rowMonths.includes(filters.month)) return false
+      if (filters.year && !rowYears.includes(filters.year)) return false
+    }
+
     if (filters.office && row.office !== filters.office) return false
     if (filters.status && row.status !== filters.status) return false
     if (search && !String(row.name || '').toLowerCase().includes(search)) return false
