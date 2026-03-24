@@ -105,7 +105,7 @@
               </q-item>
               <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/departments-library">
                 <q-item-section avatar><q-icon name="apartment" /></q-item-section>
-                <q-item-section>Departments Library</q-item-section>
+                <q-item-section>Office Library</q-item-section>
               </q-item>
               <q-item clickable to="/settings">
                 <q-item-section avatar><q-icon name="settings" /></q-item-section>

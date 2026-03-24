@@ -784,15 +784,33 @@
         <div class="text-h6">Recall Application</div>
       </q-card-section>
       <q-card-section class="q-pt-none">
+        <div class="text-subtitle2 q-mb-sm">Recall Dates *</div>
+        <div class="recall-date-calendar">
+          <q-date
+            v-model="recallSelectedDates"
+            multiple
+            mask="YYYY-MM-DD"
+            color="warning"
+            :options="isRecallDateAllowed"
+          />
+        </div>
+        <div class="text-caption text-grey-7 q-mt-sm">
+          Select the leave dates HR is recalling. Only dates from this application can be selected.
+        </div>
         <q-input
           v-model="recallReason"
           type="textarea"
           label="Reason for recall *"
           rows="4"
           outlined
+          class="q-mt-md"
         />
         <div v-if="recallPreview" class="hr-action-impact-preview">
           <div class="hr-action-impact-preview__title">Recall Preview</div>
+          <div class="hr-action-impact-preview__item">
+            <div class="hr-action-impact-preview__label">Selected Recall Dates</div>
+            <div>{{ recallPreview.selectedRecallDates.join(', ') || 'N/A' }}</div>
+          </div>
           <div class="hr-action-impact-preview__item">
             <div class="hr-action-impact-preview__label">Credits To Restore</div>
             <div>{{ formatCreditDisplay(recallPreview.creditsToRestore) }}</div>
@@ -806,7 +824,7 @@
             <div>{{ recallPreview.restorableDates.join(', ') }}</div>
           </div>
           <div v-if="recallPreview.pastUsedDates.length" class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Already Used, Not Restored</div>
+            <div class="hr-action-impact-preview__label">Selected But Already Used</div>
             <div>{{ recallPreview.pastUsedDates.join(', ') }}</div>
           </div>
           <div v-if="recallPreview.withoutPayDates.length" class="hr-action-impact-preview__item">
@@ -2022,6 +2040,7 @@ const rejectTargetApp = ref(null)
 const remarks = ref('')
 const recallId = ref('')
 const recallTargetApp = ref(null)
+const recallSelectedDates = ref([])
 const recallReason = ref('')
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
@@ -2088,6 +2107,37 @@ function canRecallApplication(app) {
     String(app?.rawStatus || '').toUpperCase() === 'APPROVED' &&
     isRecallableLeaveApplication(app)
   )
+}
+
+function getRecallDateOptions(app) {
+  const dateSet = resolveDateSetFromSource(app)
+    .map((value) => toIsoDateString(value))
+    .filter(Boolean)
+
+  return [...new Set(dateSet)].sort()
+}
+
+function resolveDefaultRecallSelectedDates(app) {
+  const options = getRecallDateOptions(app)
+  if (!options.length) return []
+
+  const todayIso = toIsoDateString(new Date())
+  if (todayIso) {
+    const currentOrFutureOptions = options.filter((value) => value >= todayIso)
+    if (currentOrFutureOptions.length) {
+      return currentOrFutureOptions
+    }
+  }
+
+  return options
+}
+
+function isRecallDateAllowed(dateValue) {
+  const application = recallTargetApp.value || selectedApp.value
+  const allowedDates = new Set(getRecallDateOptions(application))
+  const normalizedDate = toIsoDate(dateValue)
+
+  return normalizedDate ? allowedDates.has(normalizedDate) : false
 }
 
 function toIsoDate(value) {
@@ -2199,6 +2249,7 @@ watch(showRecallDialog, (isOpen) => {
   if (isOpen) return
   recallId.value = ''
   recallTargetApp.value = null
+  recallSelectedDates.value = []
   recallReason.value = ''
 })
 
@@ -2488,7 +2539,7 @@ function getSelectedDateCoverageWeights(app) {
   }, {})
 }
 
-function buildRecallPreview(app) {
+function buildRecallPreview(app, selectedRecallDates = []) {
   if (!app || !canRecallApplication(app)) return null
 
   const deductibleDays = Number(
@@ -2516,24 +2567,32 @@ function buildRecallPreview(app) {
 
   const payStatusRows = getSelectedDatePayStatusRows(app)
   const coverageWeights = getSelectedDateCoverageWeights(app)
-  const todayIso = toIsoDateString(new Date())
-  if (!todayIso) return null
+  const selectedRecallDateSet = new Set(
+    [...new Set((Array.isArray(selectedRecallDates) ? selectedRecallDates : []).map((value) => toIsoDate(value)).filter(Boolean))].sort(),
+  )
+  if (!selectedRecallDateSet.size) return null
 
   const restorableDates = []
   const pastUsedDates = []
   const withoutPayDates = []
+  const selectedRecallDateLabels = []
   let creditsToRestore = 0
 
   payStatusRows.forEach((row) => {
+    if (!selectedRecallDateSet.has(String(row.dateKey))) {
+      return
+    }
+
     const weight = Number(coverageWeights[row.dateKey] ?? 1)
     const label = weight === 0.5 ? `${row.dateText} (Half Day)` : row.dateText
+    selectedRecallDateLabels.push(label)
 
     if (row.payStatus !== 'WP') {
       withoutPayDates.push(label)
       return
     }
 
-    if (String(row.dateKey) < todayIso) {
+    if (String(row.dateKey) < toIsoDateString(new Date())) {
       pastUsedDates.push(label)
       return
     }
@@ -2547,6 +2606,7 @@ function buildRecallPreview(app) {
   }
 
   return {
+    selectedRecallDates: selectedRecallDateLabels,
     creditsToRestore: Math.max(Math.round((creditsToRestore + Number.EPSILON) * 100) / 100, 0),
     restoredToLabel,
     restorableDates,
@@ -2555,7 +2615,13 @@ function buildRecallPreview(app) {
   }
 }
 
-const recallPreview = computed(() => buildRecallPreview(recallTargetApp.value || selectedApp.value))
+const recallPreview = computed(() => {
+  const application = recallTargetApp.value || selectedApp.value
+  const selectedRecallDates = recallSelectedDates.value.length
+    ? recallSelectedDates.value
+    : resolveDefaultRecallSelectedDates(application)
+  return buildRecallPreview(application, selectedRecallDates)
+})
 
 function getSelectedDatePayStatusColumns(app, columnCount = 3) {
   const rows = getSelectedDatePayStatusRows(app)
@@ -3014,6 +3080,7 @@ function openRecall(target) {
   if (!canRecallApplication(application || target)) return
   recallId.value = getApplicationId(application || target)
   recallTargetApp.value = application || target || null
+  recallSelectedDates.value = resolveDefaultRecallSelectedDates(application || target || null)
   recallReason.value = ''
   showRecallDialog.value = true
 }
@@ -3063,6 +3130,9 @@ async function confirmReject() {
 
 async function confirmRecall() {
   const trimmedRecallReason = String(recallReason.value || '').trim()
+  const selectedRecallDates = [...new Set((Array.isArray(recallSelectedDates.value) ? recallSelectedDates.value : [])
+    .map((value) => toIsoDate(value))
+    .filter(Boolean))]
   if (!trimmedRecallReason) {
     $q.notify({
       type: 'warning',
@@ -3072,10 +3142,20 @@ async function confirmRecall() {
     return
   }
 
+  if (!selectedRecallDates.length) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please choose at least one recall date.',
+      position: 'top',
+    })
+    return
+  }
+
   actionLoading.value = true
   try {
     await api.post(`/hr/leave-applications/${recallId.value}/recall`, {
       recall_reason: trimmedRecallReason,
+      recall_selected_dates: selectedRecallDates,
     })
 
     $q.notify({

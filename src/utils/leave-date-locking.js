@@ -212,6 +212,75 @@ export function getApplicationSelectedDates(application) {
   return enumerateInclusiveDates(startDate, endDate)
 }
 
+function getApplicationRawStatus(application) {
+  return String(application?.rawStatus || application?.status || application?.displayStatus || '')
+    .trim()
+    .toUpperCase()
+}
+
+export function getApplicationRecalledDates(application) {
+  const explicitRecallDates =
+    normalizeDateCollection(application?.recall_selected_dates).length > 0
+      ? normalizeDateCollection(application?.recall_selected_dates)
+      : normalizeDateCollection(application?.recallSelectedDates)
+
+  if (explicitRecallDates.length > 0) {
+    const parsedRecallDates = explicitRecallDates.flatMap((dateValue) => parseInclusiveDateText(dateValue))
+    if (parsedRecallDates.length > 0) {
+      return [...new Set(parsedRecallDates.map((date) => normalizeIsoDate(date)).filter(Boolean))].sort()
+    }
+  }
+
+  if (!getApplicationRawStatus(application).includes('RECALLED')) {
+    return []
+  }
+
+  const recallEffectiveDate = normalizeIsoDate(
+    application?.recall_effective_date ?? application?.recallEffectiveDate,
+  )
+  if (!recallEffectiveDate) {
+    return getApplicationSelectedDates(application)
+  }
+
+  return getApplicationSelectedDates(application).filter((date) => date >= recallEffectiveDate)
+}
+
+export function getApplicationBlockingDates(application) {
+  if (!application || application.is_monetization === true) return []
+
+  const rawStatus = getApplicationRawStatus(application)
+  if (
+    rawStatus.includes('REJECTED') ||
+    rawStatus.includes('DISAPPROVED') ||
+    rawStatus.includes('CANCELLED')
+  ) {
+    return []
+  }
+
+  const remarks = String(application?.remarks || '').trim().toLowerCase()
+  if (remarks.includes('cancel')) return []
+
+  const selectedDates = getApplicationSelectedDates(application)
+  if (!rawStatus.includes('RECALLED')) {
+    return selectedDates
+  }
+
+  const recalledDateSet = new Set(getApplicationRecalledDates(application))
+  if (!recalledDateSet.size) {
+    return []
+  }
+
+  return selectedDates.filter((date) => !recalledDateSet.has(date))
+}
+
+export function getApplicationInformationalDates(application) {
+  if (!application || application.is_monetization === true) return []
+  if (!getApplicationRawStatus(application).includes('RECALLED')) return []
+
+  const recalledDates = getApplicationRecalledDates(application)
+  return recalledDates.length > 0 ? recalledDates : getApplicationSelectedDates(application)
+}
+
 function normalizeSelectedDateDurations(value) {
   if (!value) return {}
 
@@ -305,21 +374,23 @@ export function getApplicationRequestedDayCount(application) {
 export function getBlockingLeaveApplicationState(application) {
   if (!application || application.is_monetization === true) return false
 
-  const rawStatus = String(application?.rawStatus || application?.status || application?.displayStatus || '')
-    .trim()
-    .toUpperCase()
+  const rawStatus = getApplicationRawStatus(application)
+  const blockingDates = getApplicationBlockingDates(application)
 
   if (
     rawStatus.includes('REJECTED') ||
     rawStatus.includes('DISAPPROVED') ||
-    rawStatus.includes('CANCELLED') ||
-    rawStatus.includes('RECALLED')
+    rawStatus.includes('CANCELLED')
   ) {
     return false
   }
 
   const remarks = String(application?.remarks || '').trim().toLowerCase()
   if (remarks.includes('cancel')) return false
+
+  if (rawStatus.includes('RECALLED')) {
+    return blockingDates.length > 0 ? 'approved' : false
+  }
 
   if (rawStatus.includes('APPROVED')) return 'approved'
   return 'pending'
@@ -328,11 +399,9 @@ export function getBlockingLeaveApplicationState(application) {
 export function getInformationalLeaveApplicationState(application) {
   if (!application || application.is_monetization === true) return false
 
-  const rawStatus = String(application?.rawStatus || application?.status || application?.displayStatus || '')
-    .trim()
-    .toUpperCase()
+  const rawStatus = getApplicationRawStatus(application)
 
-  if (rawStatus.includes('RECALLED')) return 'recalled'
+  if (rawStatus.includes('RECALLED') && getApplicationInformationalDates(application).length > 0) return 'recalled'
   return false
 }
 

@@ -3,14 +3,14 @@
     <div class="q-mb-lg">
       <div class="row items-center justify-between q-gutter-sm">
         <div>
-          <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Departments Library</h1>
+          <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Office Library</h1>
         </div>
         <q-btn
           unelevated
           no-caps
           color="primary"
           icon="add_business"
-          label="Create Department"
+          label="Create Office"
           @click="openCreateDialog"
         />
       </div>
@@ -23,7 +23,7 @@
             <div class="row items-center no-wrap">
               <q-icon name="business" size="md" color="primary" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">Total Departments</div>
+                <div class="text-caption text-weight-medium">Total Offices</div>
                 <div class="text-h4 text-primary">{{ totalDepartments }}</div>
               </div>
             </div>
@@ -40,8 +40,8 @@
           dense
           clearable
           debounce="250"
-          label="Search departments"
-          placeholder="Type department name..."
+          label="Search offices"
+          placeholder="Type office name..."
         >
           <template #prepend>
             <q-icon name="search" color="grey-6" />
@@ -81,7 +81,7 @@
               color="primary"
               @click="openEditDialog(props.row)"
             >
-              <q-tooltip>Edit Department</q-tooltip>
+              <q-tooltip>Edit Office</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -89,19 +89,11 @@
               round
               icon="delete"
               color="negative"
-              :disable="props.row.has_admin || props.row.has_department_head || deletingId === props.row.id"
+              :disable="deletingId === props.row.id"
               :loading="deletingId === props.row.id"
               @click="confirmDelete(props.row)"
             >
-              <q-tooltip v-if="props.row.has_admin">
-                Remove assigned department admin first.
-              </q-tooltip>
-              <q-tooltip v-else-if="props.row.has_department_head">
-                Remove assigned department head first.
-              </q-tooltip>
-              <q-tooltip v-else>
-                Delete Department
-              </q-tooltip>
+              <q-tooltip>Mark Office Inactive</q-tooltip>
             </q-btn>
           </q-td>
         </template>
@@ -110,11 +102,11 @@
           <div class="full-width text-center q-pa-lg">
             <template v-if="loading">
               <q-spinner color="primary" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading departments...</div>
+              <div class="text-grey-6 q-mt-sm">Loading offices...</div>
             </template>
             <template v-else>
               <q-icon name="business" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">No departments found.</div>
+              <div class="text-grey-6 q-mt-sm">No offices found.</div>
             </template>
           </div>
         </template>
@@ -136,9 +128,9 @@
               outlined
               dense
               autofocus
-              label="Department Name *"
+              label="Office Name *"
               :disable="saving"
-              :rules="[requiredRule('Department name')]"
+              :rules="[requiredRule('Office name')]"
             />
           </q-card-section>
 
@@ -148,7 +140,7 @@
               unelevated
               no-caps
               color="primary"
-              :label="dialogMode === 'edit' ? 'Update Department' : 'Create Department'"
+              :label="dialogMode === 'edit' ? 'Update Office' : 'Create Office'"
               :loading="saving"
               type="submit"
             />
@@ -181,7 +173,7 @@ const form = ref({
 })
 
 const columns = [
-  { name: 'name', label: 'Department', field: 'name', align: 'left', sortable: true },
+  { name: 'name', label: 'Office', field: 'name', align: 'left', sortable: true },
   { name: 'updated_at', label: 'Last Updated', field: 'updated_at', align: 'left', sortable: true },
   { name: 'actions', label: 'Actions', field: 'actions', align: 'center' },
 ]
@@ -195,7 +187,7 @@ const filteredRows = computed(() => {
   return rows.value.filter((row) => normalizeSearch(row.name).includes(term))
 })
 
-const dialogTitle = computed(() => (dialogMode.value === 'edit' ? 'Edit Department' : 'Create Department'))
+const dialogTitle = computed(() => (dialogMode.value === 'edit' ? 'Edit Office' : 'Create Office'))
 
 onMounted(() => {
   fetchDepartments()
@@ -210,7 +202,7 @@ async function fetchDepartments() {
     rows.value = []
     $q.notify({
       type: 'negative',
-      message: resolveApiErrorMessage(err, 'Unable to load departments right now.'),
+      message: resolveApiErrorMessage(err, 'Unable to load offices right now.'),
     })
   } finally {
     loading.value = false
@@ -249,14 +241,14 @@ async function saveDepartment() {
 
     $q.notify({
       type: 'positive',
-      message: response?.data?.message || 'Department saved successfully.',
+      message: response?.data?.message || 'Office saved successfully.',
     })
     showDialog.value = false
     await fetchDepartments()
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: resolveApiErrorMessage(err, 'Unable to save department right now.'),
+      message: resolveApiErrorMessage(err, 'Unable to save office right now.'),
     })
   } finally {
     saving.value = false
@@ -264,17 +256,17 @@ async function saveDepartment() {
 }
 
 function confirmDelete(row) {
-  if (row.has_admin || row.has_department_head || deletingId.value === row.id) {
+  if (deletingId.value === row.id) {
     return
   }
 
   $q.dialog({
-    title: 'Delete Department',
-    message: `Delete "${row.name}"? This action cannot be undone.`,
+    title: 'Mark Office Inactive',
+    message: `Mark "${row.name}" as inactive? It will be hidden from active office lists, even if it still has assigned records.`,
     cancel: true,
     persistent: true,
     ok: {
-      label: 'Delete',
+      label: 'Mark Inactive',
       color: 'negative',
       unelevated: true,
       noCaps: true,
@@ -294,13 +286,13 @@ async function deleteDepartment(row) {
     const { data } = await api.delete(`/hr/departments/${row.id}`)
     $q.notify({
       type: 'positive',
-      message: data?.message || 'Department deleted successfully.',
+      message: data?.message || 'Office marked inactive successfully.',
     })
     await fetchDepartments()
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: resolveApiErrorMessage(err, 'Unable to delete department right now.'),
+      message: resolveApiErrorMessage(err, 'Unable to mark office inactive right now.'),
     })
   } finally {
     deletingId.value = null

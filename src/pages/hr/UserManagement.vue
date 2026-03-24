@@ -182,7 +182,18 @@
               </div>
 
               <div class="col-12">
+                <q-toggle
+                  v-model="createForm.is_guest"
+                  color="primary"
+                  label="Guest Account"
+                  :disable="creatingAccount"
+                  @update:model-value="handleGuestToggle"
+                />
+              </div>
+
+              <div class="col-12">
                 <q-select
+                  v-if="!createForm.is_guest"
                   v-model="createForm.employee_control_no"
                   :options="eligibleEmployeeOptions"
                   :display-value="selectedCreateEmployeeDisplay"
@@ -195,7 +206,7 @@
                   label="Employee *"
                   :loading="loadingEligibleEmployees"
                   :disable="creatingAccount || loadingEligibleEmployees"
-                  :rules="[requiredRule('Employee')]"
+                  :rules="[employeeRequiredRule]"
                   @filter="filterEligibleEmployees"
                 >
                   <template #no-option>
@@ -220,8 +231,34 @@
               </div>
 
               <div class="col-12">
+                <q-input
+                  v-if="createForm.is_guest"
+                  v-model="createForm.password"
+                  outlined
+                  dense
+                  :type="showGuestPassword ? 'text' : 'password'"
+                  label="Password *"
+                  :disable="creatingAccount"
+                  :rules="[guestPasswordRequiredRule, guestPasswordMinLengthRule]"
+                >
+                  <template #append>
+                    <q-icon
+                      class="cursor-pointer"
+                      :name="showGuestPassword ? 'visibility_off' : 'visibility'"
+                      @click="showGuestPassword = !showGuestPassword"
+                    />
+                  </template>
+                </q-input>
+              </div>
+
+              <div class="col-12">
                 <q-banner class="bg-amber-1 text-amber-10 rounded-borders">
-                  Default password will be the selected employee birthdate in <strong>MMDDYY</strong> format.
+                  <template v-if="createForm.is_guest">
+                    Guest account password will use your manually entered value.
+                  </template>
+                  <template v-else>
+                    Default password will be the selected employee birthdate in <strong>MMDDYY</strong> format.
+                  </template>
                 </q-banner>
               </div>
             </div>
@@ -259,6 +296,7 @@ const loadingDepartments = ref(false)
 const loadingEligibleEmployees = ref(false)
 const showCreateDialog = ref(false)
 const createFormRef = ref(null)
+const showGuestPassword = ref(false)
 
 const search = ref('')
 const accounts = ref([])
@@ -346,8 +384,10 @@ onMounted(fetchAccounts)
 function defaultCreateForm() {
   return {
     department_id: null,
+    is_guest: false,
     employee_control_no: '',
     username: '',
+    password: '',
   }
 }
 
@@ -412,6 +452,21 @@ function requiredRule(label) {
   return (value) => String(value ?? '').trim() !== '' || `${label} is required.`
 }
 
+function employeeRequiredRule(value) {
+  if (createForm.value.is_guest) return true
+  return String(value ?? '').trim() !== '' || 'Employee is required.'
+}
+
+function guestPasswordRequiredRule(value) {
+  if (!createForm.value.is_guest) return true
+  return String(value ?? '').trim() !== '' || 'Password is required.'
+}
+
+function guestPasswordMinLengthRule(value) {
+  if (!createForm.value.is_guest) return true
+  return String(value ?? '').length >= 8 || 'Password must be at least 8 characters.'
+}
+
 function formatEmployeeOptionLabel(employee) {
   const fullName = String(employee?.full_name || '').trim()
   const designation = String(employee?.designation || '').trim()
@@ -474,6 +529,7 @@ function filterEligibleEmployees(value, update) {
 
 async function openCreateDialog() {
   showCreateDialog.value = true
+  showGuestPassword.value = false
   createForm.value = defaultCreateForm()
   eligibleEmployees.value = []
   eligibleEmployeeOptions.value = []
@@ -530,16 +586,30 @@ async function handleDepartmentChange() {
   await fetchEligibleEmployees()
 }
 
+function handleGuestToggle(enabled) {
+  if (enabled) {
+    createForm.value.employee_control_no = ''
+    return
+  }
+
+  createForm.value.password = ''
+}
+
 async function createAdminAccount() {
   const valid = await createFormRef.value?.validate?.()
   if (!valid) return
 
   creatingAccount.value = true
   try {
+    const isGuest = Boolean(createForm.value.is_guest)
     const payload = {
       department_id: Number(createForm.value.department_id),
-      employee_control_no: String(createForm.value.employee_control_no || '').trim(),
+      is_guest: isGuest,
+      employee_control_no: isGuest
+        ? null
+        : (String(createForm.value.employee_control_no || '').trim() || null),
       username: String(createForm.value.username || '').trim(),
+      password: isGuest ? String(createForm.value.password || '') : null,
     }
 
     const { data } = await api.post('/hr/user-management/department-admins', payload)

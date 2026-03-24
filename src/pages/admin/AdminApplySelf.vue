@@ -579,6 +579,8 @@ import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import {
   enumerateInclusiveDates,
+  getApplicationBlockingDates,
+  getApplicationInformationalDates,
   getBlockingLeaveApplicationState,
   getApplicationRequestedDayCount,
   getApplicationSelectedDates,
@@ -1312,7 +1314,7 @@ const lockedLeaveDateStates = computed(() => {
     const state = getBlockingLeaveApplicationState(application)
     if (!state) return
 
-    getApplicationSelectedDates(application).forEach((date) => {
+    getApplicationBlockingDates(application).forEach((date) => {
       const existingState = dates.get(date)
       if (!existingState || getLockedDatePriority(state) > getLockedDatePriority(existingState)) {
         dates.set(date, state)
@@ -1330,7 +1332,7 @@ const informationalLeaveDateStates = computed(() => {
     const state = getInformationalLeaveApplicationState(application)
     if (!state) return
 
-    getApplicationSelectedDates(application).forEach((date) => {
+    getApplicationInformationalDates(application).forEach((date) => {
       if (!dates.has(date)) {
         dates.set(date, state)
       }
