@@ -543,14 +543,12 @@
                 use-input
                 fill-input
                 hide-selected
-                input-debounce="0"
+                input-debounce="300"
                 clearable
                 label="Employee Name *"
-                hint="Type office acronym + name, e.g. CICTMO Juan"
+                hint="Type at least 2 characters, e.g. CICTMO Juan"
                 :loading="loadingCreditEmployees"
                 @filter="filterCreditEmployeeOptions"
-                @focus="ensureCreditEmployeeOptionsLoaded"
-                @popup-show="ensureCreditEmployeeOptionsLoaded"
                 @update:input-value="onCreditEmployeeInputValue"
               >
                 <template #option="scope">
@@ -560,6 +558,13 @@
                       <q-item-label v-if="scope.opt.caption" caption>
                         {{ scope.opt.caption }}
                       </q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey-7">
+                      {{ creditEmployeeNoOptionMessage }}
                     </q-item-section>
                   </q-item>
                 </template>
@@ -681,9 +686,8 @@ const allCreditEmployeeOptions = ref([])
 const filteredCreditEmployeeOptions = ref([])
 const leaveCreditForm = ref(defaultLeaveCreditForm())
 const creditEmployeeSelect = ref(null)
-const creditEmployeesLoaded = ref(false)
 const creditEmployeeFilter = ref('')
-let creditEmployeesPromise = null
+let creditEmployeeLookupSequence = 0
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -711,6 +715,17 @@ const visibleEmployeeColumns = computed(() =>
     ? employeeColumns.filter((column) => !['control_no', 'status'].includes(column.name))
     : employeeColumns,
 )
+const creditEmployeeNoOptionMessage = computed(() => {
+  if (loadingCreditEmployees.value) {
+    return 'Searching employees...'
+  }
+
+  if (normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length < 2) {
+    return 'Type at least 2 characters to search employees.'
+  }
+
+  return 'No matching employees found.'
+})
 
 const historyColumns = [
   {
@@ -1205,27 +1220,26 @@ function normalizeCreditEmployeeOptions(options) {
   return Array.from(optionMap.values()).sort((left, right) => left.label.localeCompare(right.label))
 }
 
-function getFilteredCreditEmployeeOptions(filterValue) {
+function getFilteredCreditEmployeeOptions(filterValue, options = allCreditEmployeeOptions.value) {
   const normalizedFilter = normalizeCreditEmployeeSearchValue(filterValue)
   if (!normalizedFilter) {
-    return allCreditEmployeeOptions.value
+    return options
   }
 
   const filterTerms = normalizedFilter.split(' ').filter(Boolean)
 
-  return allCreditEmployeeOptions.value.filter((option) =>
+  return options.filter((option) =>
     filterTerms.every((term) => option.searchTerms.some((candidate) => candidate.includes(term))),
   )
-}
-
-function refreshFilteredCreditEmployeeOptions() {
-  filteredCreditEmployeeOptions.value = getFilteredCreditEmployeeOptions(creditEmployeeFilter.value)
 }
 
 function setCreditEmployeeOptions(options) {
   const normalizedOptions = normalizeCreditEmployeeOptions(options)
   allCreditEmployeeOptions.value = normalizedOptions
-  refreshFilteredCreditEmployeeOptions()
+  filteredCreditEmployeeOptions.value = getFilteredCreditEmployeeOptions(
+    creditEmployeeFilter.value,
+    normalizedOptions,
+  )
 }
 
 function buildCreditEmployeeOption(employee) {
@@ -1294,69 +1308,113 @@ function upsertCreditEmployeeOption(employee) {
   setCreditEmployeeOptions([...allCreditEmployeeOptions.value, option])
 }
 
-async function fetchCreditEmployees() {
-  loadingCreditEmployees.value = true
+function getSelectedCreditEmployeeOption() {
+  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  if (!selectedControlNo) return null
 
-  try {
-    let page = 1
-    let lastPage = 1
-    const collectedOptions = []
+  return allCreditEmployeeOptions.value.find((option) => option.value === selectedControlNo) ?? null
+}
 
-    do {
-      const { data } = await api.get('/employees', {
-        params: {
-          per_page: 100,
-          page,
-        },
-      })
+function buildCreditEmployeeLookupParams(rawSearchValue) {
+  const normalizedRawSearchValue = normalizeCreditEmployeeSearchValue(rawSearchValue)
+  const { searchText, departmentId } = resolveEmployeeSearch(rawSearchValue)
+  const trimmedSearchText = String(searchText ?? '').trim()
+  const lookupSearchText = trimmedSearchText
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length)[0] || trimmedSearchText
+  const fallbackSearchText = String(rawSearchValue ?? '').trim()
+  const resolvedSearchText = departmentId !== null && trimmedSearchText === ''
+    ? ''
+    : (lookupSearchText || fallbackSearchText)
 
-      const pageEmployees = Array.isArray(data?.employees?.data) ? data.employees.data : []
-      collectedOptions.push(...pageEmployees.map(buildCreditEmployeeOption).filter(Boolean))
-
-      lastPage = Number(data?.employees?.last_page ?? 1)
-      page += 1
-    } while (page <= lastPage)
-
-    setCreditEmployeeOptions(collectedOptions)
-    creditEmployeesLoaded.value = true
-  } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to load employee options right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    loadingCreditEmployees.value = false
+  return {
+    departmentId,
+    searchText: resolvedSearchText,
+    shouldLookup: departmentId !== null || normalizedRawSearchValue.length >= 2,
   }
 }
 
-async function ensureCreditEmployeeOptionsLoaded() {
-  if (creditEmployeesLoaded.value) return
-  if (creditEmployeesPromise) return creditEmployeesPromise
+async function fetchCreditEmployees(rawSearchValue = '') {
+  const lookupSequence = ++creditEmployeeLookupSequence
+  const { departmentId, searchText, shouldLookup } = buildCreditEmployeeLookupParams(rawSearchValue)
 
-  creditEmployeesPromise = fetchCreditEmployees().finally(() => {
-    creditEmployeesPromise = null
-  })
+  if (!shouldLookup) {
+    const selectedOption = getSelectedCreditEmployeeOption()
+    setCreditEmployeeOptions(selectedOption ? [selectedOption] : [])
+    return
+  }
 
-  return creditEmployeesPromise
+  loadingCreditEmployees.value = true
+
+  try {
+    const { data } = await api.get('/hr/employee-options', {
+      params: {
+        department_id: departmentId || undefined,
+        search: searchText || undefined,
+        limit: 20,
+      },
+    })
+
+    if (lookupSequence !== creditEmployeeLookupSequence) {
+      return
+    }
+
+    const selectedOption = getSelectedCreditEmployeeOption()
+    const lookupOptions = (Array.isArray(data?.employees) ? data.employees : [])
+      .map(buildCreditEmployeeOption)
+      .filter(Boolean)
+
+    setCreditEmployeeOptions(selectedOption ? [selectedOption, ...lookupOptions] : lookupOptions)
+  } catch (err) {
+    if (lookupSequence !== creditEmployeeLookupSequence) {
+      return
+    }
+
+    const msg = resolveApiErrorMessage(err, 'Unable to load employee options right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    if (lookupSequence === creditEmployeeLookupSequence) {
+      loadingCreditEmployees.value = false
+    }
+  }
 }
 
 function filterCreditEmployeeOptions(value, update) {
   creditEmployeeFilter.value = String(value ?? '')
+  const currentSearchValue = creditEmployeeFilter.value
+  const lookupSequence = creditEmployeeLookupSequence + 1
+  const { shouldLookup } = buildCreditEmployeeLookupParams(currentSearchValue)
 
-  if (!creditEmployeesLoaded.value && !loadingCreditEmployees.value) {
-    void ensureCreditEmployeeOptionsLoaded()
+  if (!shouldLookup) {
+    creditEmployeeLookupSequence = lookupSequence
+    loadingCreditEmployees.value = false
+    update(() => {
+      const selectedOption = getSelectedCreditEmployeeOption()
+      setCreditEmployeeOptions(selectedOption ? [selectedOption] : [])
+    })
+    return
   }
 
-  update(() => {
-    refreshFilteredCreditEmployeeOptions()
-  })
+  loadingCreditEmployees.value = true
+  void fetchCreditEmployees(currentSearchValue)
+    .then(() => {
+      update(() => {
+        filteredCreditEmployeeOptions.value = getFilteredCreditEmployeeOptions(
+          creditEmployeeFilter.value,
+          allCreditEmployeeOptions.value,
+        )
+      })
+    })
+    .catch(() => {
+      update(() => {
+        filteredCreditEmployeeOptions.value = []
+      })
+    })
 }
 
 function onCreditEmployeeInputValue(value) {
   creditEmployeeFilter.value = String(value ?? '')
-  refreshFilteredCreditEmployeeOptions()
-
-  if (!creditEmployeesLoaded.value && !loadingCreditEmployees.value) {
-    void ensureCreditEmployeeOptionsLoaded()
-  }
 
   if (creditEmployeeFilter.value.trim() !== '') {
     creditEmployeeSelect.value?.showPopup?.()
@@ -2493,9 +2551,11 @@ function defaultLeaveCreditForm() {
 }
 
 function resetLeaveCreditForm() {
+  creditEmployeeLookupSequence += 1
+  loadingCreditEmployees.value = false
   leaveCreditForm.value = defaultLeaveCreditForm()
   creditEmployeeFilter.value = ''
-  filteredCreditEmployeeOptions.value = allCreditEmployeeOptions.value
+  setCreditEmployeeOptions([])
 }
 
 function openLeaveCreditsDialog(employee = null) {
@@ -2505,7 +2565,6 @@ function openLeaveCreditsDialog(employee = null) {
     upsertCreditEmployeeOption(employee)
   }
   showLeaveCreditsDialog.value = true
-  void ensureCreditEmployeeOptionsLoaded()
 }
 
 function buildLeaveCreditBalanceState(existingBalances = {}) {
