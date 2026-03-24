@@ -216,20 +216,19 @@ watch(
 )
 
 // When authenticated, refresh user from API so department_admin gets department_id/department
-// (avoids stale localStorage from before we added those fields)
+// only when local auth payload is missing. Avoid refetching on every route mount.
 onMounted(async () => {
-  if (authStore.isAuthenticated && authStore.getToken()) {
+  if (authStore.isAuthenticated && authStore.getToken() && !authStore.user) {
     try {
       const { data } = await api.get('/me')
       if (data.user) {
         authStore.setAuth({ token: authStore.getToken(), user: data.user })
-        leaveStore.setUserRole(data.user.role)
       }
     } catch {
       // 401 will be handled by axios interceptor
     }
   }
-  notifStore.fetchNotifications()
+  notifStore.fetchUnreadCount()
   nextTick(() => {
     setTimeout(() => {
       layoutReady.value = true

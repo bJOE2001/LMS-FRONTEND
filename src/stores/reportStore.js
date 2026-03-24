@@ -2,120 +2,145 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from 'src/boot/axios'
 
+const REPORT_TYPE_ALIASES = {
+  lwop: 'lwop',
+  leaveBalances: 'leaveBalances',
+  monetization: 'monetization',
+  ctoAvailment: 'ctoAvailment',
+  cocBalance: 'cocBalances',
+  cocBalances: 'cocBalances',
+  leaveAvailment: 'leaveAvailmentPerOffice',
+  leaveAvailmentPerOffice: 'leaveAvailmentPerOffice',
+}
+
+const REPORT_TYPES = [
+  'lwop',
+  'leaveBalances',
+  'monetization',
+  'ctoAvailment',
+  'cocBalances',
+  'leaveAvailmentPerOffice',
+]
+
+const REPORT_ENDPOINTS = {
+  lwop: '/hr/reports/lwop',
+  leaveBalances: '/hr/reports/leave-balances',
+  monetization: '/hr/reports/monetization',
+  ctoAvailment: '/hr/reports/cto-availment',
+  cocBalances: '/hr/reports/coc-balances',
+  leaveAvailmentPerOffice: '/hr/reports/leave-availment',
+}
+
+function normalizeReportType(type) {
+  return REPORT_TYPE_ALIASES[type] || ''
+}
+
+function buildLoadedState() {
+  return REPORT_TYPES.reduce((state, type) => {
+    state[type] = false
+    return state
+  }, {})
+}
+
+function buildLoadingState() {
+  return REPORT_TYPES.reduce((state, type) => {
+    state[type] = false
+    return state
+  }, {})
+}
+
 export const useReportStore = defineStore('reports', () => {
-    
-    const lwopReports = ref([])
-    const  leaveBalanceReports = ref([])
-    const  monetizationReports = ref([])
-    const  ctoAvailmentReports = ref([])
-    const  cocBalanceReports = ref([])
-    const  leaveAvailmentReports = ref([])
-    const  loading = ref(false)
+  const lwopReports = ref([])
+  const leaveBalanceReports = ref([])
+  const monetizationReports = ref([])
+  const ctoAvailmentReports = ref([])
+  const cocBalanceReports = ref([])
+  const leaveAvailmentReports = ref([])
 
+  const loadedReports = ref(buildLoadedState())
+  const loadingByType = ref(buildLoadingState())
 
-    const totalNumberofLwopDays = computed(() => lwopReports.value.length)
+  const reportRefs = {
+    lwop: lwopReports,
+    leaveBalances: leaveBalanceReports,
+    monetization: monetizationReports,
+    ctoAvailment: ctoAvailmentReports,
+    cocBalances: cocBalanceReports,
+    leaveAvailmentPerOffice: leaveAvailmentReports,
+  }
 
-    async function fetchLwopReports() {
-        loading.value = true
+  const loading = computed(() => Object.values(loadingByType.value).some(Boolean))
+  const totalNumberofLwopDays = computed(() => lwopReports.value.length)
 
-        try{
-            const { data } = await api.get('/hr/reports/lwop')
-            lwopReports.value = data
-        }catch(error){
-            console.error('Error fetching LWOP reports:', error)
-        } finally {
-            loading.value = false
-        }
+  async function fetchReport(type, { force = false } = {}) {
+    const resolvedType = normalizeReportType(type)
 
+    if (!REPORT_TYPES.includes(resolvedType)) {
+      throw new Error(`Unsupported report type: ${type}`)
     }
 
-    async function fetchLeaveBalances(){
-        loading.value = true
-
-        try{
-            const { data } = await api.get('/hr/reports/leave-balances')
-            leaveBalanceReports.value = data
-
-        }catch(error){
-
-            console.error('Error fetching leave balance reports:', error)
-        } finally {
-            loading.value = false
-        }
-    }
-    async function fetchMonetizationReports(){
-        loading.value = true
-        
-        try{
-            const { data } = await api.get('/hr/reports/monetization')
-            monetizationReports.value = data
-        }catch(error){
-
-            console.error('Error fetching monetization reports:', error)
-        } finally {
-            loading.value = false
-        }
-    }
-    async function fetchCtoAvailmentReports(){
-        loading.value = true
-
-        try{
-            const { data } = await api.get('/hr/reports/cto-availment')
-            ctoAvailmentReports.value = data
-        }catch(error){
-
-            console.error('Error fetching CTO availment reports:', error)
-        } finally {
-            loading.value = false
-        }
-    }
-    async function fetchCocBalanceReports(){
-        loading.value = true
-
-        try{
-
-            const { data } = await api.get('/hr/reports/coc-balances')
-            cocBalanceReports.value = data
-        }catch(error){
-
-            console.error('Error fetching CoC balance reports:', error)
-        } finally {
-            loading.value = false
-        }
-    }
-    async function fetchLeaveAvailmentReports(){
-        loading.value = true
-
-        try{
-            const { data } = await api.get('/hr/reports/leave-availment')
-            leaveAvailmentReports.value = data
-        }catch(error){
-
-            console.error('Error fetching leave availment reports:', error)
-        } finally {
-            loading.value = false
-        }
+    if (loadingByType.value[resolvedType]) {
+      return reportRefs[resolvedType].value
     }
 
-    return{
-
-        lwopReports,
-        leaveBalanceReports,
-        monetizationReports,
-        ctoAvailmentReports,
-        cocBalanceReports,
-        leaveAvailmentReports,
-        loading,
-
-        totalNumberofLwopDays,
-
-        fetchLwopReports,
-        fetchLeaveBalances,
-        fetchMonetizationReports,
-        fetchCtoAvailmentReports,
-        fetchCocBalanceReports,
-        fetchLeaveAvailmentReports
+    if (loadedReports.value[resolvedType] && !force) {
+      return reportRefs[resolvedType].value
     }
+
+    loadingByType.value[resolvedType] = true
+
+    try {
+      const { data } = await api.get(REPORT_ENDPOINTS[resolvedType])
+      reportRefs[resolvedType].value = Array.isArray(data) ? data : []
+      loadedReports.value[resolvedType] = true
+      return reportRefs[resolvedType].value
+    } catch (error) {
+      console.error(`Error fetching ${resolvedType} reports:`, error)
+      reportRefs[resolvedType].value = []
+      throw error
+    } finally {
+      loadingByType.value[resolvedType] = false
+    }
+  }
+
+  async function ensureReportLoaded(type) {
+    return fetchReport(type)
+  }
+
+  async function refreshReport(type) {
+    return fetchReport(type, { force: true })
+  }
+
+  function resetReports() {
+    lwopReports.value = []
+    leaveBalanceReports.value = []
+    monetizationReports.value = []
+    ctoAvailmentReports.value = []
+    cocBalanceReports.value = []
+    leaveAvailmentReports.value = []
+    loadedReports.value = buildLoadedState()
+    loadingByType.value = buildLoadingState()
+  }
+
+  return {
+    lwopReports,
+    leaveBalanceReports,
+    monetizationReports,
+    ctoAvailmentReports,
+    cocBalanceReports,
+    leaveAvailmentReports,
+    loadedReports,
+    loadingByType,
+    loading,
+    totalNumberofLwopDays,
+    fetchLwopReports: () => fetchReport('lwop', { force: true }),
+    fetchLeaveBalances: () => fetchReport('leaveBalances', { force: true }),
+    fetchMonetizationReports: () => fetchReport('monetization', { force: true }),
+    fetchCtoAvailmentReports: () => fetchReport('ctoAvailment', { force: true }),
+    fetchCocBalanceReports: () => fetchReport('cocBalances', { force: true }),
+    fetchLeaveAvailmentReports: () => fetchReport('leaveAvailmentPerOffice', { force: true }),
+    ensureReportLoaded,
+    refreshReport,
+    resetReports,
+  }
 })
-
-

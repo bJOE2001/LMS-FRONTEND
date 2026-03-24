@@ -321,6 +321,48 @@ const monthOptions = [
   })),
 ]
 
+const OFFICE_ACRONYM_STOP_WORDS = new Set([
+  'A',
+  'AN',
+  'AND',
+  'FOR',
+  'IN',
+  'OF',
+  'OFFICE',
+  'ON',
+  'THE',
+  'TO',
+])
+
+function toOfficeCode(value) {
+  const source = String(value || '').trim()
+  if (!source) return '-'
+
+  if (!/\s/.test(source) && source === source.toUpperCase()) {
+    return source
+  }
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter(
+    (word) => !OFFICE_ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source
+}
+
+function getOfficeColumnValue(row) {
+  return toOfficeCode(row?.office)
+}
+
 const leaveBalanceColumnGroupOptions = [
   { label: 'Running Balance of Earned Leave Credits', value: 'runningBalance' },
   { label: 'Annual Balance', value: 'annualBalance' },
@@ -345,16 +387,6 @@ const monetizationRows = computed(() => reportStore.monetizationReports)
 const ctoAvailmentRows = computed(() => reportStore.ctoAvailmentReports)
 const cocBalancesRows = computed(() => reportStore.cocBalanceReports)
 const leaveAvailmentRows = computed(() => reportStore.leaveAvailmentReports)
-
-
-onMounted(() => {
-  reportStore.fetchLwopReports()
-  reportStore.fetchLeaveBalances()
-  reportStore.fetchMonetizationReports()
-  reportStore.fetchCtoAvailmentReports()
-  reportStore.fetchCocBalanceReports()
-  reportStore.fetchLeaveAvailmentReports()
-})
 // Mapping of report types to their configurations
 const reportConfigs = {
   lwop: {
@@ -368,7 +400,7 @@ const reportConfigs = {
     columns: [
       { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
-      { name: 'office', label: 'Office', field: 'office', align: 'left' },
+      { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'status', label: 'Status', field: 'status', align: 'left' },
       {
         name: 'periodIncurred',
@@ -551,7 +583,7 @@ const reportConfigs = {
         align: 'left',
       },
       { name: 'status', label: 'Status', field: 'status', align: 'left' },
-      { name: 'office', label: 'Office', field: 'office', align: 'left' },
+      { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'totalDays', label: 'Total Days', field: 'totalDays', align: 'right' },
       { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' },
     ],
@@ -575,7 +607,7 @@ const reportConfigs = {
         field: 'designation',
         align: 'left',
       },
-      { name: 'office', label: 'Office', field: 'office', align: 'left' },
+      { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       {
         name: 'status',
         label: 'Employment Status',
@@ -640,7 +672,7 @@ const reportConfigs = {
         align: 'left',
       },
       { name: 'status', label: 'Status', field: 'status', align: 'left' },
-      { name: 'office', label: 'Office', field: 'office', align: 'left' },
+      { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       {
         name: 'totalBalanceHours',
         label: 'Total Balance (Hours)',
@@ -680,7 +712,7 @@ const reportConfigs = {
         align: 'left',
       },
       { name: 'status', label: 'Status', field: 'status', align: 'left' },
-      { name: 'office', label: 'Office', field: 'office', align: 'left' },
+      { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'vlFl', label: 'VL/FL', field: 'vlFl', align: 'right' },
       { name: 'sl', label: 'SL', field: 'sl', align: 'right' },
       { name: 'mcCo', label: 'MC/CO', field: 'mcCo', align: 'right' },
@@ -696,6 +728,25 @@ const reportConfigs = {
     ],
   },
 }
+
+async function ensureSelectedReportLoaded() {
+  loading.value = true
+
+  try {
+    await reportStore.ensureReportLoaded(selectedReportType.value)
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to load the selected report right now.',
+    })
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  void ensureSelectedReportLoaded()
+})
 
 const reportTypeOptions = Object.entries(reportConfigs).map(([value, config]) => ({
   label: config.label,
@@ -813,7 +864,10 @@ const yearOptions = computed(() => {
 
 const officeOptions = computed(() => {
   const offices = Array.from(new Set(selectedReportRows.value.map((row) => row.office))).sort()
-  return [{ label: 'All Offices', value: null }, ...offices.map((office) => ({ label: office, value: office }))]
+  return [
+    { label: 'All Offices', value: null },
+    ...offices.map((office) => ({ label: toOfficeCode(office), value: office })),
+  ]
 })
 
 const statusOptions = computed(() => {
@@ -854,6 +908,8 @@ watch(selectedReportType, () => {
   if (selectedReportType.value === 'leaveBalances') {
     leaveBalanceVisibleGroups.value = [...leaveBalanceDefaultVisibleGroups]
   }
+
+  void ensureSelectedReportLoaded()
 })
 
 watch(

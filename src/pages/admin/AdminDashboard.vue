@@ -1013,9 +1013,8 @@ function syncPendingReminderNotification(pendingCount) {
 async function fetchDashboard() {
   loading.value = true
   try {
-    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
+    const [dashboardResponse, cocApplicationsResponse] = await Promise.all([
       api.get('/admin/dashboard'),
-      api.get('/admin/leave-applications').catch(() => null),
       api.get('/admin/coc-applications').catch(() => null),
     ])
 
@@ -1039,7 +1038,6 @@ async function fetchDashboard() {
 
     applicationRows.value = mergeApplications(
       extractApplicationsFromPayload(data),
-      extractApplicationsFromPayload(leaveApplicationsResponse?.data),
       extractApplicationsFromPayload(cocApplicationsResponse?.data),
     )
     maybeShowPendingReminder()

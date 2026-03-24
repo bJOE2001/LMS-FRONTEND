@@ -304,6 +304,9 @@ const departments = ref([])
 const departmentOptions = ref([])
 const eligibleEmployees = ref([])
 const eligibleEmployeeOptions = ref([])
+const eligibleEmployeeDirectory = ref({})
+const eligibleEmployeeSearch = ref('')
+let eligibleEmployeesRequestId = 0
 
 const summary = ref({
   total_accounts: 0,
@@ -372,9 +375,9 @@ const selectedCreateEmployeeDisplay = computed(() => {
   const selectedControlNo = String(createForm.value.employee_control_no || '').trim()
   if (!selectedControlNo) return ''
 
-  const selected = eligibleEmployees.value.find(
-    (employee) => String(employee.control_no || '').trim() === selectedControlNo,
-  )
+  const selected =
+    eligibleEmployeeDirectory.value[selectedControlNo] ||
+    eligibleEmployees.value.find((employee) => String(employee.control_no || '').trim() === selectedControlNo)
 
   return selected ? formatEmployeeOptionLabel(selected) : ''
 })
@@ -487,6 +490,18 @@ function buildEligibleEmployeeOptions(items) {
   }))
 }
 
+function rememberEligibleEmployees(items) {
+  const nextDirectory = { ...eligibleEmployeeDirectory.value }
+
+  for (const employee of items) {
+    const controlNo = String(employee?.control_no || '').trim()
+    if (!controlNo) continue
+    nextDirectory[controlNo] = employee
+  }
+
+  eligibleEmployeeDirectory.value = nextDirectory
+}
+
 function filterDepartments(value, update) {
   update(() => {
     const term = normalizeSearch(value)
@@ -503,39 +518,32 @@ function filterDepartments(value, update) {
 }
 
 function filterEligibleEmployees(value, update) {
-  update(() => {
-    const term = normalizeSearch(value)
-    const filtered = !term
-      ? eligibleEmployees.value
-      : eligibleEmployees.value.filter((employee) => {
-          const haystack = normalizeSearch(
-            [
-              employee?.full_name,
-              employee?.designation,
-              employee?.control_no,
-              employee?.surname,
-              employee?.firstname,
-            ]
-              .map((item) => String(item || '').trim())
-              .join(' '),
-          )
+  eligibleEmployeeSearch.value = String(value || '').trim()
 
-          return haystack.includes(term)
-        })
-
-    eligibleEmployeeOptions.value = buildEligibleEmployeeOptions(filtered)
-  })
+  fetchEligibleEmployees(eligibleEmployeeSearch.value, { silent: true })
+    .then(() => {
+      update(() => {
+        eligibleEmployeeOptions.value = buildEligibleEmployeeOptions(eligibleEmployees.value)
+      })
+    })
+    .catch(() => {
+      update(() => {
+        eligibleEmployeeOptions.value = []
+      })
+    })
 }
 
 async function openCreateDialog() {
   showCreateDialog.value = true
   showGuestPassword.value = false
   createForm.value = defaultCreateForm()
+  eligibleEmployeeDirectory.value = {}
+  eligibleEmployeeSearch.value = ''
   eligibleEmployees.value = []
   eligibleEmployeeOptions.value = []
   await Promise.all([
     fetchDepartmentOptions(),
-    fetchEligibleEmployees(),
+    fetchEligibleEmployees(''),
   ])
 }
 
@@ -559,31 +567,43 @@ async function fetchDepartmentOptions() {
   }
 }
 
-async function fetchEligibleEmployees() {
+async function fetchEligibleEmployees(searchTerm = '', { silent = false } = {}) {
+  const requestId = ++eligibleEmployeesRequestId
   loadingEligibleEmployees.value = true
   try {
-    const { data } = await api.get('/hr/user-management/eligible-employees')
+    const { data } = await api.get('/hr/user-management/eligible-employees', {
+      params: {
+        search: String(searchTerm || '').trim() || undefined,
+        limit: 20,
+      },
+    })
+
+    if (requestId !== eligibleEmployeesRequestId) return
+
     eligibleEmployees.value = Array.isArray(data?.employees) ? data.employees : []
+    rememberEligibleEmployees(eligibleEmployees.value)
     eligibleEmployeeOptions.value = buildEligibleEmployeeOptions(eligibleEmployees.value)
   } catch (err) {
-    const message = resolveApiErrorMessage(err, 'Unable to load eligible employees right now.')
-    $q.notify({
-      type: 'negative',
-      message,
-      position: 'top',
-    })
+    if (!silent) {
+      const message = resolveApiErrorMessage(err, 'Unable to load eligible employees right now.')
+      $q.notify({
+        type: 'negative',
+        message,
+        position: 'top',
+      })
+    }
     eligibleEmployees.value = []
     eligibleEmployeeOptions.value = []
+    throw err
   } finally {
-    loadingEligibleEmployees.value = false
+    if (requestId === eligibleEmployeesRequestId) {
+      loadingEligibleEmployees.value = false
+    }
   }
 }
 
 async function handleDepartmentChange() {
   createForm.value.employee_control_no = ''
-  eligibleEmployees.value = []
-  eligibleEmployeeOptions.value = []
-  await fetchEligibleEmployees()
 }
 
 function handleGuestToggle(enabled) {
@@ -593,6 +613,9 @@ function handleGuestToggle(enabled) {
   }
 
   createForm.value.password = ''
+  if (!eligibleEmployees.value.length) {
+    void fetchEligibleEmployees(eligibleEmployeeSearch.value, { silent: true })
+  }
 }
 
 async function createAdminAccount() {

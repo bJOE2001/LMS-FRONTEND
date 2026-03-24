@@ -832,16 +832,11 @@ const leaveTypeTrendChartOptions = computed(() => ({
 async function fetchDashboard() {
   loading.value = true
   try {
-    const [{ data }, summaryResponse] = await Promise.all([
-      api.get('/hr/dashboard'),
-      api.get('/hr/reports/summary').catch(() => null),
-    ])
+    const { data } = await api.get('/hr/dashboard')
     const applications = Array.isArray(data.applications) ? data.applications : []
     dashboardApplications.value = applications
 
-    const summaryActiveEmployees = Number(summaryResponse?.data?.active_employees || 0)
-    const dashboardActiveEmployees = Number(data?.active_employees || 0)
-    activeEmployeeCount.value = summaryActiveEmployees || dashboardActiveEmployees || 0
+    activeEmployeeCount.value = Number(data?.active_employees || 0)
 
     const pendingFromApps = applications.filter((app) => mergeStatus(app) === 'Pending').length
     const approvedFromApps = applications.filter((app) => mergeStatus(app) === 'Approved').length

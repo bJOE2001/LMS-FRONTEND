@@ -6,6 +6,8 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref([])
   const serverNotifications = ref([])
   const localNotifications = ref([])
+  const serverUnreadCount = ref(0)
+  const serverNotificationsLoaded = ref(false)
   const loading = ref(false)
 
   function toTimestamp(value) {
@@ -42,14 +44,34 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   // Computed
-  const unreadCount = computed(() => notifications.value.filter(n => !n.read_at).length)
+  const unreadCount = computed(() => {
+    const localUnread = localNotifications.value.filter((item) => !item.read_at).length
+
+    if (serverNotificationsLoaded.value) {
+      const serverUnread = serverNotifications.value.filter((item) => !item.read_at).length
+      return serverUnread + localUnread
+    }
+
+    return serverUnreadCount.value + localUnread
+  })
   const hasUnread = computed(() => unreadCount.value > 0)
+
+  async function fetchUnreadCount() {
+    try {
+      const { data } = await api.get('/notifications/unread-count')
+      serverUnreadCount.value = Number(data?.unread_count ?? 0)
+    } catch {
+      // silently fail
+    }
+  }
 
   async function fetchNotifications() {
     loading.value = true
     try {
       const { data } = await api.get('/notifications')
       serverNotifications.value = Array.isArray(data) ? data : []
+      serverUnreadCount.value = serverNotifications.value.filter((item) => !item.read_at).length
+      serverNotificationsLoaded.value = true
       syncMergedNotifications()
     } catch {
       // silently fail
@@ -65,6 +87,8 @@ export const useNotificationStore = defineStore('notification', () => {
   async function markAsRead(id) {
     const readAt = new Date().toISOString()
     const markRead = (item) => ({ ...item, read_at: readAt })
+    const existingServerItem = serverNotifications.value.find((item) => String(item.id) === String(id))
+    const wasServerUnread = !!existingServerItem && !existingServerItem.read_at
     const isLocal = updateNotificationInList(localNotifications, id, markRead)
     updateNotificationInList(serverNotifications, id, markRead)
     updateNotificationInList(notifications, id, markRead)
@@ -78,6 +102,10 @@ export const useNotificationStore = defineStore('notification', () => {
       await api.put(`/notifications/${id}/read`)
     } catch {
       // silently fail
+    }
+
+    if (!isLocal && wasServerUnread) {
+      serverUnreadCount.value = Math.max(0, serverUnreadCount.value - 1)
     }
   }
 
@@ -95,6 +123,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
     markAllRead(serverNotifications)
     markAllRead(localNotifications)
+    serverUnreadCount.value = 0
     syncMergedNotifications()
 
     try {
@@ -117,7 +146,11 @@ export const useNotificationStore = defineStore('notification', () => {
       return
     }
 
+    const removed = serverNotifications.value.find((item) => String(item.id) === String(id))
     removeNotificationFromList(serverNotifications, id)
+    if (removed && !removed.read_at) {
+      serverUnreadCount.value = Math.max(0, serverUnreadCount.value - 1)
+    }
     syncMergedNotifications()
     try {
       await api.delete(`/notifications/${id}`)
@@ -170,6 +203,8 @@ export const useNotificationStore = defineStore('notification', () => {
     notifications.value = []
     serverNotifications.value = []
     localNotifications.value = []
+    serverUnreadCount.value = 0
+    serverNotificationsLoaded.value = false
   }
 
   return {
@@ -177,6 +212,7 @@ export const useNotificationStore = defineStore('notification', () => {
     loading,
     unreadCount,
     hasUnread,
+    fetchUnreadCount,
     fetchNotifications,
     markAsRead,
     markAllAsRead,
