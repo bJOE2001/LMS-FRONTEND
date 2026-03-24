@@ -256,7 +256,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, unref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import LwopReportTable from 'components/report/LwopReportTable.vue'
 import LeaveBalancesReportTable from 'components/report/LeaveBalancesReportTable.vue'
@@ -265,7 +265,13 @@ import CtoAvailmentReportTable from 'components/report/CtoAvailmentReportTable.v
 import CocBalancesReportTable from 'components/report/CocBalancesReportTable.vue'
 import LeaveAvailmentPerOfficeReportTable from 'components/report/LeaveAvailmentPerOfficeReportTable.vue'
 import { generateReportsMonitoringPdf } from 'src/utils/reports-monitoring-pdf'
+import {
+  exportReportsMonitoringCsv,
+  exportReportsMonitoringExcel,
+} from 'src/utils/reports-monitoring-export'
+import { useReportStore } from 'stores/reportStore'   
 
+const reportStore = useReportStore()
 const $q = useQuasar()
 const loading = ref(false)
 const selectedReportType = ref('lwop')
@@ -332,445 +338,24 @@ const leaveBalanceColumnGroups = {
 const leaveBalanceDefaultVisibleGroups = ['runningBalance']
 const leaveBalanceVisibleGroups = ref([...leaveBalanceDefaultVisibleGroups])
 
-// TODO: Replace mock rows with API responses for each report type.
-const lwopRows = [
-  {
-    id: 1,
-    no: 1,
-    name: 'Ana Dela Cruz',
-    office: "Municipal Treasurer's Office",
-    status: 'Regular',
-    periodIncurred: 'January 10-12, 2026',
-    typeOfLeave: 'Vacation Leave',
-    totalDaysLWOP: 3,
-    dateReceivedCHRMO: 'January 15, 2026',
-    remarks: 'With supporting documents',
-    month: 1,
-    year: 2026,
-  },
-  {
-    id: 2,
-    no: 2,
-    name: 'Mark Santos',
-    office: "Mayor's Office",
-    status: 'Casual',
-    periodIncurred: 'February 03-05, 2026',
-    typeOfLeave: 'Sick Leave',
-    totalDaysLWOP: 3,
-    dateReceivedCHRMO: 'February 08, 2026',
-    remarks: 'Pending clarification',
-    month: 2,
-    year: 2026,
-  },
-  {
-    id: 3,
-    no: 3,
-    name: 'Joan Bautista',
-    office: 'Engineering Office',
-    status: 'Regular',
-    periodIncurred: 'March 14-15, 2026',
-    typeOfLeave: 'Forced Leave',
-    totalDaysLWOP: 2,
-    dateReceivedCHRMO: 'March 16, 2026',
-    remarks: 'Complete',
-    month: 3,
-    year: 2026,
-  },
-  {
-    id: 4,
-    no: 4,
-    name: 'Leo Ramos',
-    office: 'Planning Office',
-    status: 'Job Order',
-    periodIncurred: 'March 20-22, 2026',
-    typeOfLeave: 'Vacation Leave',
-    totalDaysLWOP: 3,
-    dateReceivedCHRMO: 'March 24, 2026',
-    remarks: 'For validation',
-    month: 3,
-    year: 2026,
-  },
-]
 
-const leaveBalancesRows = [
-  {
-    id: 11,
-    no: 1,
-    name: 'Ana Dela Cruz',
-    designation: 'Administrative Officer II',
-    status: 'Regular',
-    office: "Municipal Treasurer's Office",
-    runningBalanceVl: 15,
-    runningBalanceSl: 15,
-    annualBalanceMcCo: 2,
-    annualBalanceWlp: 0,
-    annualBalanceOthers: 1,
-    daysVlFl: 2,
-    daysSl: 1,
-    daysMcCo: 0,
-    daysWlp: 0,
-    daysOthers: 0,
-    balanceVl: 13,
-    balanceSl: 14,
-    balanceFl: 0,
-    balanceMcCo: 2,
-    balanceWlp: 0,
-    balanceOthers: 1,
-    totalNoLeave: 3,
-    remarks: 'Within allowable leave credits',
-    month: 1,
-    year: 2026,
-  },
-  {
-    id: 12,
-    no: 2,
-    name: 'Mark Santos',
-    designation: 'Administrative Aide IV',
-    status: 'Casual',
-    office: "Mayor's Office",
-    runningBalanceVl: 15,
-    runningBalanceSl: 15,
-    annualBalanceMcCo: 1,
-    annualBalanceWlp: 2,
-    annualBalanceOthers: 0,
-    daysVlFl: 1,
-    daysSl: 0,
-    daysMcCo: 1,
-    daysWlp: 1,
-    daysOthers: 0,
-    balanceVl: 14,
-    balanceSl: 15,
-    balanceFl: 0,
-    balanceMcCo: 0,
-    balanceWlp: 1,
-    balanceOthers: 0,
-    totalNoLeave: 3,
-    remarks: 'Includes MC/CO and WLP usage',
-    month: 2,
-    year: 2026,
-  },
-  {
-    id: 13,
-    no: 3,
-    name: 'Joy Gamboa',
-    designation: 'HRMO I',
-    status: 'Regular',
-    office: 'CHRMO',
-    runningBalanceVl: 15,
-    runningBalanceSl: 15,
-    annualBalanceMcCo: 0,
-    annualBalanceWlp: 0,
-    annualBalanceOthers: 0,
-    daysVlFl: 0,
-    daysSl: 2,
-    daysMcCo: 0,
-    daysWlp: 0,
-    daysOthers: 0,
-    balanceVl: 15,
-    balanceSl: 13,
-    balanceFl: 0,
-    balanceMcCo: 0,
-    balanceWlp: 0,
-    balanceOthers: 0,
-    totalNoLeave: 2,
-    remarks: 'Sick leave monitoring',
-    month: 3,
-    year: 2026,
-  },
-  {
-    id: 14,
-    no: 4,
-    name: 'Renato Flores',
-    designation: 'Engineer II',
-    status: 'Co-Terminus',
-    office: 'Engineering Office',
-    runningBalanceVl: 15,
-    runningBalanceSl: 15,
-    annualBalanceMcCo: 1,
-    annualBalanceWlp: 1,
-    annualBalanceOthers: 0,
-    daysVlFl: 2,
-    daysSl: 1,
-    daysMcCo: 0,
-    daysWlp: 1,
-    daysOthers: 0,
-    balanceVl: 13,
-    balanceSl: 14,
-    balanceFl: 1,
-    balanceMcCo: 1,
-    balanceWlp: 0,
-    balanceOthers: 0,
-    totalNoLeave: 4,
-    remarks: 'High leave activity this period',
-    month: 3,
-    year: 2026,
-  },
-]
+const lwopRows = computed(() => reportStore.lwopReports)
+const leaveBalancesRows = computed(() => reportStore.leaveBalanceReports)
+const monetizationRows = computed(() => reportStore.monetizationReports)
+const ctoAvailmentRows = computed(() => reportStore.ctoAvailmentReports)
+const cocBalancesRows = computed(() => reportStore.cocBalanceReports)
+const leaveAvailmentRows = computed(() => reportStore.leaveAvailmentReports)
 
-const monetizationRows = [
-  {
-    id: 21,
-    no: 1,
-    dateReceivedHRMO: 'January 06, 2026',
-    dateOfFiling: 'January 05, 2026',
-    name: 'Maria Lim',
-    designation: 'Nurse II',
-    status: 'Regular',
-    office: 'Rural Health Unit',
-    totalDays: 10,
-    remarks: 'Approved',
-    month: 1,
-    year: 2026,
-  },
-  {
-    id: 22,
-    no: 2,
-    dateReceivedHRMO: 'February 11, 2026',
-    dateOfFiling: 'February 10, 2026',
-    name: 'Joel Navarro',
-    designation: 'Administrative Assistant III',
-    status: 'Regular',
-    office: 'Accounting Office',
-    totalDays: 8,
-    remarks: 'For budget review',
-    month: 2,
-    year: 2026,
-  },
-  {
-    id: 23,
-    no: 3,
-    dateReceivedHRMO: 'March 04, 2026',
-    dateOfFiling: 'March 03, 2026',
-    name: 'Liza Padilla',
-    designation: 'Teacher I',
-    status: 'Contractual',
-    office: 'Public Schools District',
-    totalDays: 5,
-    remarks: 'Pending documents',
-    month: 3,
-    year: 2026,
-  },
-  {
-    id: 24,
-    no: 4,
-    dateReceivedHRMO: 'March 19, 2026',
-    dateOfFiling: 'March 18, 2026',
-    name: 'Dennis Yap',
-    designation: 'Clerk II',
-    status: 'Casual',
-    office: "Mayor's Office",
-    totalDays: 6,
-    remarks: 'Approved',
-    month: 3,
-    year: 2026,
-  },
-]
 
-const ctoAvailmentRows = [
-  {
-    id: 31,
-    no: 1,
-    dateFiled: 'January 08, 2026',
-    name: 'Carlo Reyes',
-    designation: 'Administrative Officer III',
-    office: 'CHRMO',
-    status: 'Regular',
-    totalDaysApplied: 1,
-    inclusiveDates: 'January 12, 2026',
-    earnedCocHoursAsOf: 24,
-    runningCocBalance: 24,
-    totalHoursFiled: 8,
-    cocBalanceApproved: 16,
-    remarks: 'Approved',
-    month: 1,
-    year: 2026,
-  },
-  {
-    id: 32,
-    no: 2,
-    dateFiled: 'February 17, 2026',
-    name: 'Mia Alvarez',
-    designation: 'Engineer I',
-    office: 'Engineering Office',
-    status: 'Regular',
-    totalDaysApplied: 0.5,
-    inclusiveDates: 'February 20, 2026 (AM)',
-    earnedCocHoursAsOf: 18,
-    runningCocBalance: 18,
-    totalHoursFiled: 4,
-    cocBalanceApproved: 14,
-    remarks: 'Approved',
-    month: 2,
-    year: 2026,
-  },
-  {
-    id: 33,
-    no: 3,
-    dateFiled: 'March 05, 2026',
-    name: 'Neil Soriano',
-    designation: 'Planning Officer I',
-    office: 'Planning Office',
-    status: 'Co-Terminus',
-    totalDaysApplied: 2,
-    inclusiveDates: 'March 10-11, 2026',
-    earnedCocHoursAsOf: 32,
-    runningCocBalance: 32,
-    totalHoursFiled: 16,
-    cocBalanceApproved: 16,
-    remarks: 'Partially approved',
-    month: 3,
-    year: 2026,
-  },
-  {
-    id: 34,
-    no: 4,
-    dateFiled: 'March 21, 2026',
-    name: 'Shane Gonzales',
-    designation: 'Administrative Aide VI',
-    office: "Mayor's Office",
-    status: 'Casual',
-    totalDaysApplied: 1,
-    inclusiveDates: 'March 25, 2026',
-    earnedCocHoursAsOf: 12,
-    runningCocBalance: 12,
-    totalHoursFiled: 8,
-    cocBalanceApproved: 4,
-    remarks: 'For final approval',
-    month: 3,
-    year: 2026,
-  },
-]
-
-const cocBalancesRows = [
-  {
-    id: 41,
-    no: 1,
-    name: 'Carlo Reyes',
-    designation: 'Administrative Officer III',
-    status: 'Regular',
-    office: 'CHRMO',
-    totalBalanceHours: 16,
-    monthYearEarned: 'December 2025',
-    monthYearExpired: 'December 2026',
-    remarks: 'Active balance',
-    month: 1,
-    year: 2026,
-  },
-  {
-    id: 42,
-    no: 2,
-    name: 'Mia Alvarez',
-    designation: 'Engineer I',
-    status: 'Regular',
-    office: 'Engineering Office',
-    totalBalanceHours: 14,
-    monthYearEarned: 'January 2026',
-    monthYearExpired: 'January 2027',
-    remarks: 'Active balance',
-    month: 2,
-    year: 2026,
-  },
-  {
-    id: 43,
-    no: 3,
-    name: 'Neil Soriano',
-    designation: 'Planning Officer I',
-    status: 'Co-Terminus',
-    office: 'Planning Office',
-    totalBalanceHours: 16,
-    monthYearEarned: 'February 2026',
-    monthYearExpired: 'February 2027',
-    remarks: 'Updated after latest filing',
-    month: 3,
-    year: 2026,
-  },
-  {
-    id: 44,
-    no: 4,
-    name: 'Shane Gonzales',
-    designation: 'Administrative Aide VI',
-    status: 'Casual',
-    office: "Mayor's Office",
-    totalBalanceHours: 4,
-    monthYearEarned: 'March 2026',
-    monthYearExpired: 'March 2027',
-    remarks: 'Low balance',
-    month: 3,
-    year: 2026,
-  },
-]
-
-const leaveAvailmentRows = [
-  {
-    id: 51,
-    no: 1,
-    name: 'Joy Gamboa',
-    designation: 'HRMO I',
-    status: 'Regular',
-    office: 'CHRMO',
-    vlFl: 2,
-    sl: 1,
-    mcCo: 0,
-    wlp: 0,
-    others: 0,
-    totalNoLeave: 3,
-    remarks: 'Within limit',
-    month: 1,
-    year: 2026,
-  },
-  {
-    id: 52,
-    no: 2,
-    name: 'Renato Flores',
-    designation: 'Engineer II',
-    status: 'Co-Terminus',
-    office: 'Engineering Office',
-    vlFl: 1,
-    sl: 2,
-    mcCo: 1,
-    wlp: 1,
-    others: 0,
-    totalNoLeave: 5,
-    remarks: 'Multiple leave types',
-    month: 2,
-    year: 2026,
-  },
-  {
-    id: 53,
-    no: 3,
-    name: 'Dennis Yap',
-    designation: 'Clerk II',
-    status: 'Casual',
-    office: "Mayor's Office",
-    vlFl: 1,
-    sl: 0,
-    mcCo: 0,
-    wlp: 2,
-    others: 0,
-    totalNoLeave: 3,
-    remarks: 'WLP monitoring',
-    month: 3,
-    year: 2026,
-  },
-  {
-    id: 54,
-    no: 4,
-    name: 'Liza Padilla',
-    designation: 'Teacher I',
-    status: 'Contractual',
-    office: 'Public Schools District',
-    vlFl: 1,
-    sl: 1,
-    mcCo: 0,
-    wlp: 0,
-    others: 1,
-    totalNoLeave: 3,
-    remarks: 'Has special leave',
-    month: 3,
-    year: 2026,
-  },
-]
-
+onMounted(() => {
+  reportStore.fetchLwopReports()
+  reportStore.fetchLeaveBalances()
+  reportStore.fetchMonetizationReports()
+  reportStore.fetchCtoAvailmentReports()
+  reportStore.fetchCocBalanceReports()
+  reportStore.fetchLeaveAvailmentReports()
+})
+// Mapping of report types to their configurations
 const reportConfigs = {
   lwop: {
     label: 'Leave Without Pay (LWOP) Report',
@@ -1118,6 +703,11 @@ const reportTypeOptions = Object.entries(reportConfigs).map(([value, config]) =>
 }))
 
 const selectedReport = computed(() => reportConfigs[selectedReportType.value] || reportConfigs.lwop)
+const selectedReportRows = computed(() => {
+  const rowsSource = selectedReport.value.rows
+  const normalizedRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
+  return Array.isArray(normalizedRows) ? normalizedRows : []
+})
 const isLeaveBalancesReport = computed(() => selectedReportType.value === 'leaveBalances')
 
 const leaveBalanceVisibleColumnNames = computed(() => {
@@ -1157,7 +747,7 @@ const tableMinWidth = computed(() => {
 })
 
 const columns = computed(() => {
-  const rowsForWidth = filteredRows.value.length ? filteredRows.value : selectedReport.value.rows
+  const rowsForWidth = filteredRows.value.length ? filteredRows.value : selectedReportRows.value
 
   return activeColumnsSource.value.map((column) => {
     const width = getColumnWidth(column, rowsForWidth)
@@ -1173,7 +763,7 @@ const columns = computed(() => {
 })
 
 const yearOptions = computed(() => {
-  const years = Array.from(new Set(selectedReport.value.rows.map((row) => row.year))).sort(
+  const years = Array.from(new Set(selectedReportRows.value.map((row) => row.year))).sort(
     (a, b) => b - a,
   )
 
@@ -1184,19 +774,19 @@ const yearOptions = computed(() => {
 })
 
 const officeOptions = computed(() => {
-  const offices = Array.from(new Set(selectedReport.value.rows.map((row) => row.office))).sort()
+  const offices = Array.from(new Set(selectedReportRows.value.map((row) => row.office))).sort()
   return [{ label: 'All Offices', value: null }, ...offices.map((office) => ({ label: office, value: office }))]
 })
 
 const statusOptions = computed(() => {
-  const statuses = Array.from(new Set(selectedReport.value.rows.map((row) => row.status))).sort()
+  const statuses = Array.from(new Set(selectedReportRows.value.map((row) => row.status))).sort()
   return [{ label: 'All Statuses', value: null }, ...statuses.map((status) => ({ label: status, value: status }))]
 })
 
 const filteredRows = computed(() => {
   const search = String(filters.employeeName || '').toLowerCase()
 
-  return selectedReport.value.rows.filter((row) => {
+  return selectedReportRows.value.filter((row) => {
     if (filters.month && row.month !== filters.month) return false
     if (filters.year && row.year !== filters.year) return false
     if (filters.office && row.office !== filters.office) return false
@@ -1229,7 +819,7 @@ watch(
     selectedReportType.value === 'leaveBalances' ? leaveBalanceVisibleGroups.value.join('|') : '',
   ],
   () => {
-    // TODO: Connect report API request here and keep `loading` bound to request lifecycle.
+    // Client-side filtering only: trigger short table loading feedback on filter changes.
     triggerTableLoading()
   },
   { immediate: true },
@@ -1294,77 +884,6 @@ function triggerTableLoading(duration = 280) {
   }, duration)
 }
 
-function resolveExportCellValue(row, column, rowIndex) {
-  if (column?.name === 'no') {
-    return row?.no ?? rowIndex + 1
-  }
-
-  const field = column?.field
-  if (typeof field === 'function') return field(row)
-  if (typeof field === 'string') return row?.[field]
-  return row?.[column?.name]
-}
-
-function normalizeExportLabel(label) {
-  return String(label ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function sanitizeFilenameSegment(value) {
-  return String(value ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function buildExportFilename(extension) {
-  const reportSegment = sanitizeFilenameSegment(selectedReport.value.label) || 'report'
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  return `${reportSegment}-${timestamp}.${extension}`
-}
-
-function escapeCsvValue(value) {
-  const normalized = String(value ?? '')
-  const escaped = normalized.replace(/"/g, '""')
-  return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped
-}
-
-function escapeXmlValue(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
-
-function normalizeWorksheetName(label) {
-  const sanitized = String(label ?? '')
-    .replace(/[\\/*?:[\]]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!sanitized) return 'Report'
-  return sanitized.slice(0, 31)
-}
-
-function downloadFile(content, filename, mimeType, includeUtf8Bom = false) {
-  const parts = includeUtf8Bom ? ['\uFEFF', content] : [content]
-  const blob = new Blob(parts, { type: mimeType })
-  const objectUrl = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-
-  link.href = objectUrl
-  link.download = filename
-  link.style.display = 'none'
-
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(objectUrl)
-}
-
 function ensureExportableRows() {
   if (filteredRows.value.length) return true
 
@@ -1373,18 +892,6 @@ function ensureExportableRows() {
     message: 'No records to export for the selected filters.',
   })
   return false
-}
-
-function buildExportDataset() {
-  const exportColumns = activeColumnsSource.value
-  const exportRows = filteredRows.value
-
-  const headers = exportColumns.map((column) => normalizeExportLabel(column.label || column.name || ''))
-  const rows = exportRows.map((row, rowIndex) =>
-    exportColumns.map((column) => resolveExportCellValue(row, column, rowIndex)),
-  )
-
-  return { headers, rows }
 }
 
 async function generatePdf(action = 'open', options = {}) {
@@ -1450,15 +957,11 @@ function handleExportCsv() {
   if (!ensureExportableRows()) return
 
   try {
-    const { headers, rows } = buildExportDataset()
-    const csvRows = [
-      headers.map(escapeCsvValue).join(','),
-      ...rows.map((row) => row.map(escapeCsvValue).join(',')),
-    ]
-    const csvContent = `${csvRows.join('\n')}\n`
-    const fileName = buildExportFilename('csv')
-
-    downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;', true)
+    const fileName = exportReportsMonitoringCsv({
+      columns: activeColumnsSource.value,
+      rows: filteredRows.value,
+      reportLabel: selectedReport.value.label,
+    })
 
     $q.notify({
       type: 'positive',
@@ -1476,48 +979,11 @@ function handleExportExcel() {
   if (!ensureExportableRows()) return
 
   try {
-    const { headers, rows } = buildExportDataset()
-    const worksheetName = escapeXmlValue(normalizeWorksheetName(selectedReport.value.label))
-    const headerCells = headers
-      .map((header) => `<Cell><Data ss:Type="String">${escapeXmlValue(header)}</Data></Cell>`)
-      .join('')
-
-    const dataRowsXml = rows
-      .map((row) => {
-        const cells = row
-          .map((value) => {
-            const normalized = value ?? ''
-            const numeric = Number(normalized)
-            const isNumberCell =
-              typeof normalized === 'number' || (String(normalized).trim() !== '' && Number.isFinite(numeric))
-            const cellType = isNumberCell ? 'Number' : 'String'
-            const cellValue = isNumberCell ? String(numeric) : escapeXmlValue(normalized)
-
-            return `<Cell><Data ss:Type="${cellType}">${cellValue}</Data></Cell>`
-          })
-          .join('')
-
-        return `<Row>${cells}</Row>`
-      })
-      .join('')
-
-    const workbookXml = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <Worksheet ss:Name="${worksheetName}">
-  <Table>
-   <Row>${headerCells}</Row>
-   ${dataRowsXml}
-  </Table>
- </Worksheet>
-</Workbook>`
-
-    const fileName = buildExportFilename('xls')
-    downloadFile(workbookXml, fileName, 'application/vnd.ms-excel;charset=utf-8;', true)
+    const fileName = exportReportsMonitoringExcel({
+      columns: activeColumnsSource.value,
+      rows: filteredRows.value,
+      reportLabel: selectedReport.value.label,
+    })
 
     $q.notify({
       type: 'positive',
