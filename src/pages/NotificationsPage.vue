@@ -94,8 +94,8 @@ function onClickNotif(notif) {
     notifStore.markAsRead(notif.id)
   }
   // Optional: could open detail modal or navigate to related resource (e.g. leave application)
-  const id = notif.related_id || notif.leave_application_id
-  if (id && notif.type && notif.type.includes('leave')) {
+  const id = notif.related_id || notif.leave_application_id || notif.coc_application_id
+  if (id && notif.type && (notif.type.includes('leave') || notif.type.includes('coc'))) {
     // Navigate to leave history or application detail if you have a route
     // router.push({ name: 'employee-history' }) or similar
   }
@@ -109,6 +109,10 @@ function getNotifIcon(type) {
     leave_edit_requested: 'edit_note',
     leave_request: 'description',
     leave_pending: 'hourglass_empty',
+    coc_request: 'pending_actions',
+    coc_pending: 'hourglass_top',
+    coc_approved: 'task_alt',
+    coc_rejected: 'cancel',
     reminder: 'alarm',
     system: 'info',
   }
@@ -123,6 +127,10 @@ function getNotifColor(type) {
     leave_edit_requested: 'indigo',
     leave_request: 'primary',
     leave_pending: 'warning',
+    coc_request: 'primary',
+    coc_pending: 'warning',
+    coc_approved: 'positive',
+    coc_rejected: 'negative',
     reminder: 'orange',
     system: 'info',
   }

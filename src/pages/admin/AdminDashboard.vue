@@ -240,7 +240,10 @@
         <template #body-cell-inclusiveDates="props">
           <q-td>
             <div class="application-details-cell">
-              <template v-if="hasPendingDateUpdate(props.row)">
+              <template v-if="props.row?.is_monetization">
+                <span class="text-weight-medium text-grey-9">N/A</span>
+              </template>
+              <template v-else-if="hasPendingDateUpdate(props.row)">
                 <span class="text-caption text-grey-7">Current</span>
                 <span
                   v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
@@ -755,7 +758,7 @@ const columns = [
   {
     name: 'inclusiveDates',
     label: 'Inclusive Dates',
-    field: 'selected_dates',
+    field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row),
     align: 'left',
   },
   {
@@ -767,7 +770,7 @@ const columns = [
   {
     name: 'days',
     label: 'Duration',
-    field: (row) => getApplicationDurationDisplay(row),
+    field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row),
     align: 'center',
   },
   {

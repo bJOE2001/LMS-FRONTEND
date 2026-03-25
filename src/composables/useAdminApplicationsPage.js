@@ -88,7 +88,7 @@ export function useAdminApplicationsPage() {
     {
       name: 'inclusiveDates',
       label: 'Inclusive Dates',
-      field: 'selected_dates',
+      field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row),
       align: 'left',
     },
     {
@@ -100,7 +100,7 @@ export function useAdminApplicationsPage() {
     {
       name: 'days',
       label: 'Duration',
-      field: (row) => getApplicationDurationDisplay(row),
+      field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row),
       align: 'center',
     },
     {
@@ -128,6 +128,7 @@ export function useAdminApplicationsPage() {
   })
   const showApplyLeaveDialog = ref(false)
   const showDetailsDialog = ref(false)
+  const showTimelineDialog = ref(false)
   const showCalendarPreviewDialog = ref(false)
   const showDisapproveDialog = ref(false)
   const showConfirmActionDialog = ref(false)
@@ -186,7 +187,9 @@ export function useAdminApplicationsPage() {
   })
 
   const leaveApplicationRows = computed(() =>
-    (applicationRows.value ?? []).filter((application) => !isCocApplication(application)),
+    (applicationRows.value ?? []).filter(
+      (application) => !isCocApplication(application) && application?.application_row_variant !== 'recalled',
+    ),
   )
 
   const latestLeaveBalanceEntriesByEmployee = computed(() => {
@@ -324,11 +327,11 @@ export function useAdminApplicationsPage() {
         api.get('/admin/coc-applications').catch(() => null),
       ])
 
-      applicationRows.value = mergeApplications(
+      applicationRows.value = expandApplicationsForDisplay(mergeApplications(
         extractApplicationsFromPayload(dashboardResponse?.data),
         extractApplicationsFromPayload(leaveApplicationsResponse?.data),
         extractApplicationsFromPayload(cocApplicationsResponse?.data),
-      )
+      ))
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to load applications right now.')
       $q.notify({ type: 'negative', message, position: 'top' })
@@ -420,6 +423,18 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationDurationDisplay(app) {
+    if (!isCocApplication(app) && !app?.is_monetization) {
+      const storedRecallDateKeys = getStoredRecallDateKeys(app)
+      const shouldUseVisibleDuration = storedRecallDateKeys.length > 0 || app?.application_row_variant === 'recalled'
+      const visibleDateSet = getVisibleDateSetForDisplay(app)
+      if (shouldUseVisibleDuration && visibleDateSet.length) {
+        const visibleDays = getDateSubsetTotalDays(app, visibleDateSet)
+        if (Number.isFinite(visibleDays) && visibleDays > 0) {
+          return formatDurationDisplay(visibleDays, 'day')
+        }
+      }
+    }
+
     const explicitLabel = String(app?.duration_label || '').trim()
     if (explicitLabel) return explicitLabel
 
@@ -531,6 +546,55 @@ export function useAdminApplicationsPage() {
     }
 
     return `${typeKey}:index:${index}`
+  }
+
+  function createRecalledCompanionRow(app, index = 0) {
+    if (!app || typeof app !== 'object' || isCocApplication(app)) return null
+    if (String(app?.rawStatus || '').toUpperCase() !== 'APPROVED') return null
+
+    const recalledDateKeys = getStoredRecallDateKeys(app)
+    if (!recalledDateKeys.length) return null
+
+    const recalledDays = getDateSubsetTotalDays(app, recalledDateKeys) || recalledDateKeys.length
+    const baseKey = app?.application_uid || getApplicationRowKey(app, index)
+
+    return {
+      ...app,
+      application_uid: `${baseKey}:recalled`,
+      application_row_variant: 'recalled',
+      group_raw_status: app?.rawStatus || 'APPROVED',
+      status: 'Recalled',
+      rawStatus: 'RECALLED',
+      selected_dates: recalledDateKeys,
+      selectedDates: recalledDateKeys,
+      recall_selected_dates: recalledDateKeys,
+      recallSelectedDates: recalledDateKeys,
+      actual_total_days: recalledDays,
+      applied_total_days: recalledDays,
+      requested_total_days: recalledDays,
+      display_total_days: recalledDays,
+      total_days: recalledDays,
+      days: recalledDays,
+      duration_value: recalledDays,
+      duration_label: formatDurationDisplay(recalledDays, 'day'),
+      remarks: 'Recalled by HR.',
+    }
+  }
+
+  function expandApplicationsForDisplay(applications) {
+    const rows = []
+
+    applications.forEach((app, index) => {
+      if (!app || typeof app !== 'object') return
+      rows.push(app)
+
+      const recalledCompanionRow = createRecalledCompanionRow(app, index)
+      if (recalledCompanionRow) {
+        rows.push(recalledCompanionRow)
+      }
+    })
+
+    return rows
   }
 
   function normalizeLookupValue(value) {
@@ -945,6 +1009,46 @@ export function useAdminApplicationsPage() {
     return getLeaveBalanceLines(app).join(', ')
   }
 
+  function resolveCurrentLeaveBalanceEntry(app) {
+    if (!app) return null
+
+    const currentLeaveTypeLabel = String(app?.leaveType || '').trim()
+    const currentLeaveTypeKey = getLeaveBalanceTypeKey(currentLeaveTypeLabel)
+    const entries = getLeaveBalanceEntries(app)
+
+    const keyCandidates = [currentLeaveTypeKey]
+
+    if (currentLeaveTypeKey === getLeaveBalanceTypeKey('Mandatory / Forced Leave')) {
+      keyCandidates.push(getLeaveBalanceTypeKey('Vacation Leave'))
+    }
+
+    if (isCocApplication(app)) {
+      keyCandidates.push(getLeaveBalanceTypeKey('CTO Leave'))
+    }
+
+    for (const candidateKey of keyCandidates.filter(Boolean)) {
+      const matchingEntry = entries.find(
+        (entry) => getLeaveBalanceTypeKey(entry.label) === candidateKey,
+      )
+      if (matchingEntry) return matchingEntry
+    }
+
+    return entries[0] || null
+  }
+
+  function getCurrentLeaveBalanceDisplay(app) {
+    const entry = resolveCurrentLeaveBalanceEntry(app)
+    if (!entry) return 'N/A'
+
+    const numericValue = Number(entry.value)
+    if (!Number.isFinite(numericValue)) {
+      return String(entry.value || 'N/A').trim() || 'N/A'
+    }
+
+    const displayValue = formatLeaveBalanceValue(numericValue)
+    return `${displayValue} day(s)`
+  }
+
   function toIsoDateString(dateValue) {
     const date = new Date(dateValue)
     if (Number.isNaN(date.getTime())) return null
@@ -1009,15 +1113,391 @@ export function useAdminApplicationsPage() {
     })
   }
 
+  function parseSelectedDatesValue(value) {
+    if (Array.isArray(value)) return value
+    if (typeof value !== 'string') return []
+
+    const trimmed = value.trim()
+    if (!trimmed) return []
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed
+      } catch {
+        return []
+      }
+    }
+
+    if (trimmed.includes(',')) {
+      return trimmed
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+
+    return [trimmed]
+  }
+
+  function normalizeIsoDateList(dateValues) {
+    if (!Array.isArray(dateValues)) return []
+
+    return [
+      ...new Set(
+        dateValues
+          .map((value) => toIsoDateString(value))
+          .filter(Boolean),
+      ),
+    ].sort((left, right) => Date.parse(left) - Date.parse(right))
+  }
+
+  function resolveDateSetFromSource(source) {
+    if (!source || typeof source !== 'object') return []
+
+    const selectedDates = normalizeIsoDateList(parseSelectedDatesValue(source?.selected_dates))
+    if (selectedDates.length > 0) return selectedDates
+
+    const startDate = source?.startDate || source?.start_date || null
+    const endDate = source?.endDate || source?.end_date || null
+    if (!startDate && !endDate) return []
+
+    const firstDate = startDate || endDate
+    const lastDate = endDate || startDate
+    return enumerateInclusiveDateRange(firstDate, lastDate)
+  }
+
+  function getStoredRecallDateKeys(source) {
+    if (!source || typeof source !== 'object') return []
+
+    const recalledDates = normalizeIsoDateList(
+      parseSelectedDatesValue(
+        source?.recall_selected_dates ??
+          source?.recallSelectedDates ??
+          source?.raw?.recall_selected_dates ??
+          source?.raw?.recallSelectedDates,
+      ),
+    )
+
+    if (!recalledDates.length) return []
+
+    const selectedDates = resolveDateSetFromSource(source)
+    if (!selectedDates.length) return recalledDates
+
+    const selectedDateSet = new Set(selectedDates)
+    return recalledDates.filter((dateKey) => selectedDateSet.has(dateKey))
+  }
+
+  function getVisibleDateSetForDisplay(app) {
+    const dateSet = resolveDateSetFromSource(app)
+    if (!dateSet.length) return []
+
+    const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+    if (!recalledDateSet.size) return dateSet
+
+    const rawStatus = String(app?.rawStatus || '').toUpperCase()
+    const isRecalledRow = app?.application_row_variant === 'recalled' || rawStatus === 'RECALLED'
+
+    return isRecalledRow
+      ? dateSet.filter((dateKey) => recalledDateSet.has(dateKey))
+      : dateSet.filter((dateKey) => !recalledDateSet.has(dateKey))
+  }
+
+  function getDateSubsetTotalDays(app, dateKeys = []) {
+    const normalizedDateKeys = [...new Set(
+      (Array.isArray(dateKeys) ? dateKeys : [])
+        .map((value) => toIsoDateString(value))
+        .filter(Boolean),
+    )]
+    if (!normalizedDateKeys.length) return 0
+
+    const coverageWeights = getSelectedDateCoverageWeights(app)
+    const totalDays = normalizedDateKeys.reduce((sum, dateKey) => {
+      const weight = Number(coverageWeights[dateKey] ?? 1)
+      return sum + (Number.isFinite(weight) && weight > 0 ? weight : 1)
+    }, 0)
+
+    return Math.round((totalDays + Number.EPSILON) * 100) / 100
+  }
+
+  function normalizePayStatusCode(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return normalizePayStatusCode(
+        value.pay_status ??
+          value.payStatus ??
+          value.status ??
+          value.code ??
+          value.value ??
+          '',
+      )
+    }
+
+    const normalizedValue = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s_-]+/g, '')
+
+    if (normalizedValue === 'WP' || normalizedValue === 'WITHPAY') return 'WP'
+    if (normalizedValue === 'WOP' || normalizedValue === 'WITHOUTPAY') return 'WOP'
+    return ''
+  }
+
+  function normalizeCoverageCode(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return normalizeCoverageCode(
+        value.coverage ??
+          value.coverage_type ??
+          value.coverageType ??
+          value.type ??
+          value.value ??
+          '',
+      )
+    }
+
+    const normalizedValue = String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, '')
+
+    if (normalizedValue === 'half' || normalizedValue === 'halfday') return 'half'
+    if (normalizedValue === 'whole' || normalizedValue === 'wholeday') return 'whole'
+    return ''
+  }
+
+  function toSelectedDatePayStatusMap(value) {
+    if (!value) return {}
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return {}
+      try {
+        const parsed = JSON.parse(trimmed)
+        return toSelectedDatePayStatusMap(parsed)
+      } catch {
+        return {}
+      }
+    }
+
+    if (Array.isArray(value)) {
+      return value.reduce((acc, entry, index) => {
+        const normalized = normalizePayStatusCode(entry)
+        if (normalized) acc[String(index)] = normalized
+        return acc
+      }, {})
+    }
+
+    if (typeof value === 'object') {
+      return Object.entries(value).reduce((acc, [key, entry]) => {
+        const normalized = normalizePayStatusCode(entry)
+        if (normalized) acc[String(key)] = normalized
+        return acc
+      }, {})
+    }
+
+    return {}
+  }
+
+  function toSelectedDateCoverageMap(value) {
+    if (!value) return {}
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return {}
+      try {
+        const parsed = JSON.parse(trimmed)
+        return toSelectedDateCoverageMap(parsed)
+      } catch {
+        return {}
+      }
+    }
+
+    if (Array.isArray(value)) {
+      return value.reduce((acc, entry, index) => {
+        const normalized = normalizeCoverageCode(entry)
+        if (normalized) acc[String(index)] = normalized
+        return acc
+      }, {})
+    }
+
+    if (typeof value === 'object') {
+      return Object.entries(value).reduce((acc, [key, entry]) => {
+        const normalized = normalizeCoverageCode(entry)
+        if (normalized) acc[String(key)] = normalized
+        return acc
+      }, {})
+    }
+
+    return {}
+  }
+
+  function resolveApplicationPayModeCode(app) {
+    const rawPayMode = String(
+      app?.pay_mode ??
+        app?.payMode ??
+        app?.raw?.pay_mode ??
+        app?.raw?.payMode ??
+        '',
+    ).trim()
+
+    return normalizePayStatusCode(rawPayMode) === 'WOP' ? 'WOP' : 'WP'
+  }
+
+  function resolveApplicationTotalDays(app) {
+    const candidates = [
+      app?.total_days,
+      app?.totalDays,
+      app?.duration_value,
+      app?.days,
+      app?.raw?.total_days,
+      app?.raw?.totalDays,
+    ]
+
+    for (const candidate of candidates) {
+      const numericValue = Number(candidate)
+      if (Number.isFinite(numericValue) && numericValue > 0) {
+        return numericValue
+      }
+    }
+
+    return 0
+  }
+
+  function getSelectedDateCoverageWeights(app) {
+    if (!app || typeof app !== 'object') return {}
+
+    const dateSet = resolveDateSetFromSource(app)
+    if (!dateSet.length) return {}
+
+    const rawCoverageMap = toSelectedDateCoverageMap(
+      app?.selected_date_coverage ??
+        app?.selectedDateCoverage ??
+        app?.raw?.selected_date_coverage ??
+        app?.raw?.selectedDateCoverage,
+    )
+
+    const normalizedCoverageMap = {}
+    Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
+      const key = String(rawKey || '').trim()
+      if (!key || !coverage) return
+
+      normalizedCoverageMap[key] = coverage
+
+      const isoKey = toIsoDateString(key)
+      if (isoKey) {
+        normalizedCoverageMap[isoKey] = coverage
+      }
+    })
+
+    const totalDays = resolveApplicationTotalDays(app)
+    const hasCoverageOverrides = Object.keys(normalizedCoverageMap).length > 0
+
+    let defaultCoverageWeight = 1
+    const dateCount = dateSet.length
+    if (dateCount > 0 && totalDays > 0) {
+      const halfMatch = Math.abs(dateCount * 0.5 - totalDays) < 0.00001
+      const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
+
+      if (halfMatch) {
+        defaultCoverageWeight = 0.5
+      } else if (!wholeMatch) {
+        defaultCoverageWeight = Math.max(Math.min(totalDays / dateCount, 1), 0.5)
+      }
+    }
+
+    return dateSet.reduce((acc, dateValue, index) => {
+      const isoDate = toIsoDateString(dateValue)
+      const key = isoDate || String(dateValue)
+      const coverage = (
+        normalizedCoverageMap[key] ??
+        normalizedCoverageMap[String(index)] ??
+        normalizedCoverageMap[String(index + 1)] ??
+        ''
+      )
+
+      if (coverage === 'half') {
+        acc[key] = 0.5
+      } else if (coverage === 'whole') {
+        acc[key] = 1
+      } else if (hasCoverageOverrides) {
+        acc[key] = 1
+      } else {
+        acc[key] = defaultCoverageWeight
+      }
+
+      return acc
+    }, {})
+  }
+
+  function getSelectedDateIndicatorRows(app) {
+    if (!app || typeof app !== 'object') return []
+    if (isCocApplication(app)) return []
+
+    const dateSet = getVisibleDateSetForDisplay(app)
+    if (!dateSet.length) return []
+
+    const rawStatusMap = toSelectedDatePayStatusMap(
+      app?.selected_date_pay_status ??
+        app?.selectedDatePayStatus ??
+        app?.raw?.selected_date_pay_status ??
+        app?.raw?.selectedDatePayStatus,
+    )
+
+    const normalizedStatusMap = {}
+    Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
+      const key = String(rawKey || '').trim()
+      if (!key || !status) return
+
+      normalizedStatusMap[key] = status
+
+      const isoKey = toIsoDateString(key)
+      if (isoKey) {
+        normalizedStatusMap[isoKey] = status
+      }
+    })
+
+    const fallbackStatus = resolveApplicationPayModeCode(app)
+    const coverageWeights = getSelectedDateCoverageWeights(app)
+    const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+    const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
+
+    return dateSet.map((dateValue, index) => {
+      const isoDate = toIsoDateString(dateValue)
+      const key = isoDate || String(dateValue)
+      const payStatus = (
+        normalizedStatusMap[key] ??
+        normalizedStatusMap[String(index)] ??
+        normalizedStatusMap[String(index + 1)] ??
+        fallbackStatus
+      )
+      const coverageWeight = Number(coverageWeights[key] ?? 1)
+
+      return {
+        dateKey: key,
+        dateText: formatDate(key),
+        coverageLabel: coverageWeight === 0.5 ? 'Half Day' : 'Whole Day',
+        payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
+        recalled: shouldMarkRecalledDates && recalledDateSet.has(key),
+      }
+    })
+  }
+
   function getApplicationInclusiveDateLines(app) {
     if (!app) return ['N/A']
 
     if (app.is_monetization) {
-      return [`${formatDayValue(app.days)} day(s)`]
+      return ['N/A']
     }
 
     if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
-      const groupedSelectedDates = formatGroupedInclusiveDateLines(app.selected_dates)
+      const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+      const visibleDateSet = getVisibleDateSetForDisplay(app)
+      const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
+      if (shouldMarkRecalledDates && recalledDateSet.size) {
+        return visibleDateSet.map(
+          (dateKey) => `${formatDate(dateKey)}${recalledDateSet.has(dateKey) ? ' (Recalled)' : ''}`,
+        )
+      }
+
+      const groupedSelectedDates = formatGroupedInclusiveDateLines(visibleDateSet)
       if (groupedSelectedDates.length > 0) return groupedSelectedDates
     }
 
@@ -1032,6 +1512,12 @@ export function useAdminApplicationsPage() {
     const start = app.startDate ? formatDate(app.startDate) : 'N/A'
     const end = app.endDate ? formatDate(app.endDate) : 'N/A'
     return [`${start} - ${end}`]
+  }
+
+  function getApplicationInclusiveDateColumnLines(app) {
+    return getApplicationInclusiveDateLines(app).map((line) =>
+      String(line || '').replace(/\s+\(Recalled\)/gi, ''),
+    )
   }
 
   function getApplicationDayCount(app) {
@@ -1745,10 +2231,11 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationStatusPriority(app) {
-    if (app?.rawStatus === 'PENDING_ADMIN') return 0
-    if (app?.rawStatus === 'PENDING_HR') return 1
-    if (app?.rawStatus === 'APPROVED') return 2
-    if (app?.rawStatus === 'REJECTED' && !isCancelledByUser(app)) return 3
+    const groupedRawStatus = String(app?.group_raw_status || app?.groupRawStatus || app?.rawStatus || '').toUpperCase()
+    if (groupedRawStatus === 'PENDING_ADMIN') return 0
+    if (groupedRawStatus === 'PENDING_HR') return 1
+    if (groupedRawStatus === 'APPROVED') return 2
+    if (groupedRawStatus === 'REJECTED' && !isCancelledByUser(app)) return 3
     if (isCancelledByUser(app)) return 4
     return 5
   }
@@ -1763,7 +2250,13 @@ export function useAdminApplicationsPage() {
 
     const idA = Number(a?.id) || 0
     const idB = Number(b?.id) || 0
-    return idB - idA
+    if (idB !== idA) return idB - idA
+
+    const variantA = a?.application_row_variant === 'recalled' ? 1 : 0
+    const variantB = b?.application_row_variant === 'recalled' ? 1 : 0
+    if (variantA !== variantB) return variantA - variantB
+
+    return 0
   }
 
   function getApplicationRecencyTimestamp(app) {
@@ -1924,7 +2417,14 @@ export function useAdminApplicationsPage() {
 
   function openDetails(app) {
     selectedApp.value = app
+    showTimelineDialog.value = false
     showDetailsDialog.value = true
+  }
+
+  function openTimeline(app) {
+    selectedApp.value = app
+    showDetailsDialog.value = false
+    showTimelineDialog.value = true
   }
 
   function hasMobileApplicationActions(app) {
@@ -2017,7 +2517,7 @@ export function useAdminApplicationsPage() {
 
   function handleApplicationRowClick(_event, row) {
     if (!row) return
-    openDetails(row)
+    openTimeline(row)
   }
 
   function openActionConfirm(type, target) {
@@ -2367,6 +2867,7 @@ export function useAdminApplicationsPage() {
     applicationsForTable,
     showApplyLeaveDialog,
     showDetailsDialog,
+    showTimelineDialog,
     showCalendarPreviewDialog,
     showDisapproveDialog,
     showConfirmActionDialog,
@@ -2395,7 +2896,11 @@ export function useAdminApplicationsPage() {
     printApplicationsPdf,
     handleApplicationRowClick,
     getLeaveBalanceTextItems,
+    getCurrentLeaveBalanceDisplay,
+    getApplicationDurationDisplay,
+    getApplicationInclusiveDateColumnLines,
     getApplicationInclusiveDateLines,
+    getSelectedDateIndicatorRows,
     formatDate,
     getApplicationStatusColor,
     getApplicationStatusLabel,
