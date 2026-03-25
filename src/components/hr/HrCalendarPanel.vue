@@ -67,13 +67,32 @@
           </div>
           <q-btn flat round dense icon="chevron_right" @click="nextMonth" />
         </div>
+        <div class="row items-center justify-between two-week-toolbar">
+          <q-btn
+            flat
+            dense
+            round
+            icon="keyboard_arrow_left"
+            :disable="!hasPrevTwoWeekWindow"
+            @click="prevTwoWeekWindow"
+          />
+          <div class="text-caption text-weight-bold">{{ visibleWeekLabel }}</div>
+          <q-btn
+            flat
+            dense
+            round
+            icon="keyboard_arrow_right"
+            :disable="!hasNextTwoWeekWindow"
+            @click="nextTwoWeekWindow"
+          />
+        </div>
       </div>
       <div class="calendar-grid calendar-grid-header">
         <div v-for="day in dayHeaders" :key="day" class="rounded-borders bg-grey-3 q-pa-sm text-center text-weight-medium">{{ day }}</div>
       </div>
       <div class="calendar-grid q-mt-xs">
         <div
-          v-for="cell in calendarCells"
+          v-for="cell in visibleCalendarCells"
           :key="cell.key"
           class="rounded-borders q-pa-xs cursor-pointer min-h-80"
           :class="[cell.class, { 'today-strong': cell.isToday, 'selected-outline': cell.isSelected }]"
@@ -207,6 +226,7 @@ const monthOptions = [
 ]
 
 const currentMonth = ref(new Date())
+const calendarWindowIndex = ref(0)
 const calendarDept = ref(null)
 const selectedDate = ref(null)
 const showDateDialog = ref(false)
@@ -295,6 +315,10 @@ onMounted(() => {
 watch([currentMonth, calendarDept], () => {
   if (!calendarDept.value) resetDepartmentOptions()
   fetchCalendarLeaves()
+})
+
+watch(currentMonth, () => {
+  calendarWindowIndex.value = 0
 })
 
 const today = new Date()
@@ -512,6 +536,42 @@ const calendarCells = computed(() => {
   return cells
 })
 
+const calendarWeeks = computed(() => {
+  const rows = []
+  for (let index = 0; index < calendarCells.value.length; index += 7) {
+    rows.push(calendarCells.value.slice(index, index + 7))
+  }
+  return rows
+})
+
+const twoWeekWindowCount = computed(() => Math.max(1, Math.ceil(calendarWeeks.value.length / 2)))
+const currentWindowStartIndex = computed(() => calendarWindowIndex.value * 2)
+
+const visibleCalendarCells = computed(() => {
+  const visibleWeeks = calendarWeeks.value.slice(
+    currentWindowStartIndex.value,
+    currentWindowStartIndex.value + 2,
+  )
+  return visibleWeeks.flat()
+})
+
+const hasPrevTwoWeekWindow = computed(() => calendarWindowIndex.value > 0)
+const hasNextTwoWeekWindow = computed(() =>
+  calendarWindowIndex.value < twoWeekWindowCount.value - 1,
+)
+
+const visibleWeekLabel = computed(() => {
+  const startWeek = currentWindowStartIndex.value + 1
+  const endWeek = Math.min(startWeek + 1, calendarWeeks.value.length)
+  return `Weeks ${startWeek}-${endWeek}`
+})
+
+watch(twoWeekWindowCount, (windowCount) => {
+  if (calendarWindowIndex.value >= windowCount) {
+    calendarWindowIndex.value = Math.max(windowCount - 1, 0)
+  }
+})
+
 const selectedDateLabel = computed(() =>
   selectedDate.value
     ? selectedDate.value.toLocaleDateString('en-US', {
@@ -547,6 +607,18 @@ function getCalendarTotalTooltip(date, count) {
   return `${count} total leave record(s)`
 }
 
+function prevTwoWeekWindow() {
+  if (!hasPrevTwoWeekWindow.value) return
+  calendarWindowIndex.value -= 1
+  selectedDate.value = null
+}
+
+function nextTwoWeekWindow() {
+  if (!hasNextTwoWeekWindow.value) return
+  calendarWindowIndex.value += 1
+  selectedDate.value = null
+}
+
 function prevMonth() {
   currentMonth.value = new Date(
     currentMonth.value.getFullYear(),
@@ -575,6 +647,10 @@ function nextMonth() {
   min-height: 40px;
   gap: 6px;
 }
+.two-week-toolbar {
+  min-height: 28px;
+  margin-top: 2px;
+}
 .calendar-picker-group {
   gap: 10px;
 }
@@ -591,7 +667,7 @@ function nextMonth() {
 }
 .calendar-picker :deep(.q-btn__content) {
   gap: 2px;
-  font-size: 1.55rem;
+  font-size: 1.3rem;
   font-weight: 700;
 }
 .calendar-picker :deep(.q-btn-dropdown__arrow-container) {
@@ -604,7 +680,7 @@ function nextMonth() {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 3px;
 }
 .calendar-day-content {
   position: relative;
@@ -649,7 +725,7 @@ function nextMonth() {
 .min-h-80 {
   width: 100%;
   min-height: 0;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 5 / 4;
   overflow: hidden;
 }
 .today-strong {

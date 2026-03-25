@@ -1,8 +1,8 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="row justify-between items-center q-mb-lg">
+  <q-page class="q-pa-sm hr-dashboard-page">
+    <div class="row justify-between items-center q-mb-sm">
       <div>
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">HR Dashboard</h1>
+        <h1 class="text-h5 text-weight-bold q-mt-none q-mb-none">HR Dashboard</h1>
       </div>
     </div>
 
@@ -43,7 +43,7 @@
       </q-card>
     </q-dialog>
 
-    <div class="row q-col-gutter-md q-mb-lg stat-cards-row">
+    <div class="row q-col-gutter-sm q-mb-sm stat-cards-row">
       <div class="col-12 col-sm-6 col-md-3 stat-card-col">
         <q-card class="stat-card stat-card--applications bg-white rounded-borders" flat elevation="1" @click="goToApplications('total')">
           <q-card-section class="stat-card-content">
@@ -130,15 +130,15 @@
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg">
+    <div class="row q-col-gutter-sm q-mb-sm">
       <div class="col-12 col-md-6 dashboard-panel-col">
-        <q-card flat bordered class="rounded-borders full-width manpower-card">
+        <q-card flat bordered class="rounded-borders full-width manpower-card compact-panel">
           <q-card-section class="manpower-card-section">
             <div class="row items-center justify-between q-mb-sm">
               <div>
                 <div class="text-h6">Daily Manpower Percentage</div>
                 <p class="text-caption text-grey-7 q-mb-none">
-                  Daily view for {{ manpowerPeriodLabel }}
+                  Snapshot for {{ manpowerCurrentDateLabel }}
                 </p>
               </div>
               <div class="text-right">
@@ -150,7 +150,7 @@
             <div class="manpower-chart-wrapper">
               <q-no-ssr>
                 <VueApexCharts
-                  type="area"
+                  type="pie"
                   height="100%"
                   :options="manpowerChartOptions"
                   :series="manpowerChartSeries"
@@ -161,13 +161,13 @@
         </q-card>
       </div>
       <div class="col-12 col-md-6 dashboard-panel-col">
-        <HrCalendarPanel />
+        <HrCalendarPanel class="compact-panel" />
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg">
+    <div class="row q-col-gutter-sm q-mb-none">
       <div class="col-12 col-md-6">
-        <q-card flat bordered class="rounded-borders full-height">
+        <q-card flat bordered class="rounded-borders full-height compact-panel">
           <q-card-section>
             <div class="row items-center justify-between q-mb-sm">
               <div>
@@ -180,7 +180,7 @@
               <q-no-ssr>
                 <VueApexCharts
                   type="area"
-                  height="320"
+                  :height="trendChartHeight"
                   :options="trendChartOptions"
                   :series="trendChartSeries"
                 />
@@ -191,14 +191,14 @@
       </div>
 
       <div class="col-12 col-md-6">
-        <q-card flat bordered class="rounded-borders full-height">
+        <q-card flat bordered class="rounded-borders full-height compact-panel">
           <q-card-section>
             <div class="row items-end justify-between q-col-gutter-md q-mb-sm">
               <div class="col-12 col-md-8">
                 <div class="text-h6">Leave Type Line Chart</div>
                 <p class="text-caption text-grey-7 q-mb-none">Monthly leave applications by leave type for {{ trendYearLabel }}</p>
               </div>
-              <div class="col-12 col-sm-4 col-md-3">
+              <div class="col-12 col-sm-4 col-md-4">
                 <q-select
                   v-model="leaveTypeFilter"
                   :options="leaveTypeFilterOptions"
@@ -213,7 +213,7 @@
               <q-no-ssr>
                 <VueApexCharts
                   type="line"
-                  height="320"
+                  :height="trendChartHeight"
                   :options="leaveTypeTrendChartOptions"
                   :series="leaveTypeTrendSeries"
                 />
@@ -478,28 +478,29 @@ function getEmployeeKey(application) {
   return String(key || '').trim()
 }
 
-const manpowerDateRange = computed(() => {
+const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
+
+const manpowerCurrentDateIso = computed(() => {
   const now = new Date()
   const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const daysInMonth = new Date(year, month, 0).getDate()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+})
 
-  return Array.from({ length: daysInMonth }, (_, index) => {
-    const day = String(index + 1).padStart(2, '0')
-    return `${year}-${String(month).padStart(2, '0')}-${day}`
+const manpowerCurrentDateLabel = computed(() => {
+  const parsedDate = new Date(`${manpowerCurrentDateIso.value}T00:00:00`)
+  return parsedDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   })
 })
 
-const manpowerPeriodLabel = computed(() => {
-  const firstDate = manpowerDateRange.value[0]
-  if (!firstDate) return ''
-
-  const parsedDate = new Date(`${firstDate}T00:00:00`)
-  return parsedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-})
-
-const manpowerDailyOnLeave = computed(() => {
-  const dateSetMap = new Map(manpowerDateRange.value.map((date) => [date, new Set()]))
+const manpowerCurrentSnapshot = computed(() => {
+  const todayIsoDate = manpowerCurrentDateIso.value
+  const onLeaveEmployeeKeys = new Set()
 
   for (const application of dashboardApplications.value) {
     if (mergeStatus(application) !== 'Approved') continue
@@ -508,30 +509,27 @@ const manpowerDailyOnLeave = computed(() => {
     if (!employeeKey) continue
 
     const leaveDates = getApplicationLeaveDates(application)
-    for (const leaveDate of leaveDates) {
-      const bucket = dateSetMap.get(leaveDate)
-      if (bucket) bucket.add(employeeKey)
-    }
+    if (leaveDates.includes(todayIsoDate)) onLeaveEmployeeKeys.add(employeeKey)
   }
 
-  return manpowerDateRange.value.map((date) => dateSetMap.get(date)?.size ?? 0)
-})
+  const totalActive = Math.max(Number(activeEmployeeCount.value || 0), 0)
+  const onLeaveCount = Math.min(onLeaveEmployeeKeys.size, totalActive)
+  const availableCount = Math.max(totalActive - onLeaveCount, 0)
+  const availablePercentage = totalActive ? Number(((availableCount / totalActive) * 100).toFixed(2)) : 0
+  const onLeavePercentage = totalActive ? Number(((onLeaveCount / totalActive) * 100).toFixed(2)) : 0
 
-const manpowerDailyPercentage = computed(() => {
-  const totalActive = Number(activeEmployeeCount.value || 0)
-  if (totalActive <= 0) return manpowerDailyOnLeave.value.map(() => 0)
-
-  return manpowerDailyOnLeave.value.map((onLeaveCount) => {
-    const available = Math.max(totalActive - onLeaveCount, 0)
-    return Number(((available / totalActive) * 100).toFixed(2))
-  })
+  return {
+    totalActive,
+    availableCount,
+    onLeaveCount,
+    availablePercentage,
+    onLeavePercentage,
+  }
 })
 
 const manpowerChartSeries = computed(() => [
-  {
-    name: 'Manpower %',
-    data: manpowerDailyPercentage.value,
-  },
+  manpowerCurrentSnapshot.value.availablePercentage,
+  manpowerCurrentSnapshot.value.onLeavePercentage,
 ])
 
 const monthlyLeaveTrend = computed(() => {
@@ -586,74 +584,64 @@ function getEmploymentTypeCardStyle(card) {
 const manpowerChartOptions = computed(() => ({
   chart: {
     id: 'hr-manpower-daily-percentage',
+    type: 'pie',
     toolbar: { show: false },
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
     fontFamily: 'inherit',
   },
-  colors: ['#1e88e5'],
-  dataLabels: { enabled: false },
+  labels: ['Available', 'On Leave'],
+  colors: ['#2e7d32', '#fb8c00'],
+  dataLabels: {
+    enabled: true,
+    formatter: (value) => `${Number(value).toFixed(1)}%`,
+  },
   stroke: {
-    curve: 'smooth',
-    width: 3,
+    width: 1,
+    colors: ['#ffffff'],
   },
-  markers: {
-    size: 3,
-    hover: { sizeOffset: 2 },
-  },
-  fill: {
-    type: 'gradient',
-    gradient: {
-      shadeIntensity: 0.7,
-      opacityFrom: 0.32,
-      opacityTo: 0.08,
-      stops: [0, 90, 100],
+  legend: {
+    show: true,
+    position: 'right',
+    horizontalAlign: 'left',
+    formatter: (seriesName, options) => {
+      const chartValue = Number(options?.w?.globals?.series?.[options.seriesIndex] || 0).toFixed(1)
+      const countValue = options.seriesIndex === 0
+        ? manpowerCurrentSnapshot.value.availableCount
+        : manpowerCurrentSnapshot.value.onLeaveCount
+      return `${seriesName}: ${countValue} (${chartValue}%)`
     },
   },
-  grid: {
-    borderColor: '#e0e0e0',
-    strokeDashArray: 4,
-    xaxis: { lines: { show: false } },
-  },
-  xaxis: {
-    categories: manpowerDateRange.value.map((date) => Number(date.slice(8, 10))),
-    labels: {
-      hideOverlappingLabels: true,
-      rotate: 0,
-      style: { colors: '#6b7280' },
+  responsive: [
+    {
+      breakpoint: 600,
+      options: {
+        legend: {
+          position: 'bottom',
+        },
+      },
     },
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-  },
-  yaxis: {
-    min: 0,
-    max: 100,
-    tickAmount: 5,
-    labels: {
-      formatter: (value) => `${Math.round(value)}%`,
-      style: { colors: '#6b7280' },
+  ],
+  plotOptions: {
+    pie: {
+      expandOnClick: false,
+      dataLabels: {
+        offset: -2,
+      },
     },
   },
   tooltip: {
-    x: {
-      formatter: (_value, context) => {
-        const date = manpowerDateRange.value[context?.dataPointIndex ?? -1]
-        if (!date) return ''
-
-        const parsedDate = new Date(`${date}T00:00:00`)
-        return parsedDate.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        })
-      },
-    },
     y: {
-      formatter: (value) => `${Number(value).toFixed(2)}%`,
+      formatter: (value, options) => {
+        const countValue = options.seriesIndex === 0
+          ? manpowerCurrentSnapshot.value.availableCount
+          : manpowerCurrentSnapshot.value.onLeaveCount
+        return `${countValue} employee(s) | ${Number(value).toFixed(2)}%`
+      },
     },
   },
   noData: {
-    text: 'No daily manpower data available.',
+    text: 'No current manpower data available.',
   },
 }))
 
@@ -813,9 +801,7 @@ const leaveTypeTrendChartOptions = computed(() => ({
     },
   },
   legend: {
-    show: true,
-    position: 'top',
-    horizontalAlign: 'left',
+    show: false,
   },
   tooltip: {
     shared: true,
@@ -893,6 +879,12 @@ onMounted(fetchDashboard)
 </script>
 
 <style scoped>
+.hr-dashboard-page {
+  --dashboard-chart-height: 210px;
+  min-height: auto !important;
+  overflow-y: hidden;
+}
+
 .stat-cards-row > div {
   display: flex;
 }
@@ -903,6 +895,10 @@ onMounted(fetchDashboard)
 
 .dashboard-panel-col > * {
   width: 100%;
+}
+
+.compact-panel :deep(.q-card__section) {
+  padding: 12px;
 }
 
 .manpower-card {
@@ -921,7 +917,8 @@ onMounted(fetchDashboard)
 .manpower-chart-wrapper {
   width: 100%;
   flex: 1 1 auto;
-  min-height: 320px;
+  min-height: var(--dashboard-chart-height);
+  max-height: var(--dashboard-chart-height);
 }
 
 .manpower-chart-wrapper :deep(.q-no-ssr),
@@ -933,20 +930,21 @@ onMounted(fetchDashboard)
 
 .trend-chart-wrapper {
   width: 100%;
-  min-height: 320px;
+  min-height: var(--dashboard-chart-height);
+  max-height: var(--dashboard-chart-height);
 }
 
 .stat-card {
   width: 100%;
   height: 100%;
-  min-height: 116px;
+  min-height: 100px;
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .stat-card-content {
   height: 100%;
-  padding: 12px 16px 10px;
+  padding: 10px 12px 8px;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -969,7 +967,7 @@ onMounted(fetchDashboard)
   margin-top: 2px;
   min-width: 64px;
   text-align: right;
-  font-size: clamp(2.2rem, 3.2vw, 2.8rem);
+  font-size: clamp(1.8rem, 2.4vw, 2.2rem);
   font-weight: 500;
   line-height: 1;
 }
@@ -1052,6 +1050,12 @@ onMounted(fetchDashboard)
 .pending-reminder-card__button {
   min-height: 44px;
   padding-inline: 18px;
+}
+
+@media (max-width: 1199px) {
+  .hr-dashboard-page {
+    --dashboard-chart-height: 190px;
+  }
 }
 
 @media (max-width: 599px) {
