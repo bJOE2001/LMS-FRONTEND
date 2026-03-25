@@ -1,7 +1,9 @@
 <template>
   <q-card flat bordered class="hr-applications-panel rounded-borders q-mb-lg">
     <q-card-section>
-      <div class="row items-center justify-between q-mb-md q-col-gutter-sm applications-panel-toolbar">
+      <div
+        class="row items-center justify-between q-mb-md q-col-gutter-sm applications-panel-toolbar"
+      >
         <div class="col applications-panel-toolbar__search">
           <q-input
             v-model="statusSearch"
@@ -65,12 +67,20 @@
           <div class="application-details-cell">
             <template v-if="hasPendingLeaveTypeUpdate(props.row)">
               <span class="text-caption text-grey-7 block">Current</span>
-              <span class="text-weight-medium text-grey-9 block">{{ getCurrentLeaveTypeLabel(props.row) }}</span>
-              <span class="text-caption text-deep-purple-8 block application-date-change-label">Requested</span>
-              <span class="text-weight-medium text-deep-purple-8 block">{{ getRequestedLeaveTypeLabel(props.row) }}</span>
+              <span class="text-weight-medium text-grey-9 block">{{
+                getCurrentLeaveTypeLabel(props.row)
+              }}</span>
+              <span class="text-caption text-deep-purple-8 block application-date-change-label"
+                >Requested</span
+              >
+              <span class="text-weight-medium text-deep-purple-8 block">{{
+                getRequestedLeaveTypeLabel(props.row)
+              }}</span>
             </template>
             <template v-else>
-              <span class="text-weight-medium text-grey-9 block">{{ getCurrentLeaveTypeLabel(props.row) }}</span>
+              <span class="text-weight-medium text-grey-9 block">{{
+                getCurrentLeaveTypeLabel(props.row)
+              }}</span>
             </template>
           </div>
         </q-td>
@@ -87,7 +97,9 @@
               >
                 {{ line }}
               </span>
-              <span class="text-caption text-deep-purple-8 block application-date-change-label">Requested</span>
+              <span class="text-caption text-deep-purple-8 block application-date-change-label"
+                >Requested</span
+              >
               <span
                 v-for="(line, index) in getPendingUpdateInclusiveDateLines(props.row)"
                 :key="`${props.row.application_uid || props.row.id}-inclusive-requested-${index}`"
@@ -110,7 +122,9 @@
       </template>
       <template #body-cell-dateFiled="props">
         <q-td>
-          <span class="text-weight-medium text-grey-9">{{ formatDate(props.row.dateFiled) || 'N/A' }}</span>
+          <span class="text-weight-medium text-grey-9">{{
+            formatDate(props.row.dateFiled) || 'N/A'
+          }}</span>
         </q-td>
       </template>
       <template #body-cell-status="props">
@@ -131,7 +145,14 @@
       <template #body-cell-actions="props">
         <q-td class="text-center">
           <div class="row inline no-wrap justify-center q-gutter-x-xs">
-            <q-btn flat dense round size="sm" icon="visibility" @click.stop="openDetails(props.row)">
+            <q-btn
+              flat
+              dense
+              round
+              size="sm"
+              icon="visibility"
+              @click.stop="openDetails(props.row)"
+            >
               <q-tooltip>View</q-tooltip>
             </q-btn>
             <q-btn
@@ -156,7 +177,7 @@
               color="negative"
               @click.stop="openActionConfirm('reject', props.row)"
             >
-              <q-tooltip>Reject</q-tooltip>
+              <q-tooltip>Disapprove</q-tooltip>
             </q-btn>
             <q-btn
               v-if="props.row.rawStatus === 'PENDING_HR'"
@@ -188,9 +209,16 @@
     </q-table>
   </q-card>
 
-  <q-dialog v-model="showDetailsDialog" persistent position="standard" class="hr-application-details-dialog">
+  <q-dialog
+    v-model="showDetailsDialog"
+    persistent
+    position="standard"
+    class="hr-application-details-dialog"
+  >
     <q-card v-if="selectedApp" class="hr-application-details-card">
-      <q-card-section class="bg-primary text-white row items-center no-wrap hr-application-details-header">
+      <q-card-section
+        class="bg-primary text-white row items-center no-wrap hr-application-details-header"
+      >
         <div class="text-h6">Application Details</div>
         <q-btn
           v-if="selectedApp && canPrintCocCertificate(selectedApp)"
@@ -220,7 +248,10 @@
             <div class="text-caption text-grey-7">Employee</div>
             <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
           </div>
-          <div v-if="hasApplicationAttachment(selectedApp)" class="hr-application-details-item hr-application-details-item--full">
+          <div
+            v-if="hasApplicationAttachment(selectedApp)"
+            class="hr-application-details-item hr-application-details-item--full"
+          >
             <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
             <q-btn
               flat
@@ -238,7 +269,9 @@
               <template v-if="hasPendingLeaveTypeUpdate(selectedApp)">
                 <div class="text-caption text-grey-7">Current</div>
                 <div>{{ getCurrentLeaveTypeLabel(selectedApp) }}</div>
-                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">Requested</div>
+                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
+                  Requested
+                </div>
                 <div class="text-deep-purple-8">{{ getRequestedLeaveTypeLabel(selectedApp) }}</div>
               </template>
               <template v-else>
@@ -262,7 +295,9 @@
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Department</div>
-            <div class="text-weight-medium">{{ selectedApp.officeShort || selectedApp.office }}</div>
+            <div class="text-weight-medium">
+              {{ selectedApp.officeShort || selectedApp.office }}
+            </div>
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Duration</div>
@@ -270,7 +305,9 @@
               <template v-if="hasPendingDurationUpdate(selectedApp)">
                 <div class="text-caption text-grey-7">Current</div>
                 <div>{{ getApplicationDurationDisplay(selectedApp) }}</div>
-                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">Requested</div>
+                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
+                  Requested
+                </div>
                 <div class="text-deep-purple-8">{{ getRequestedDurationDisplay(selectedApp) }}</div>
               </template>
               <template v-else>
@@ -285,7 +322,11 @@
             <div v-if="selectedApp.is_monetization" class="text-weight-medium">
               {{ selectedApp.days }} day(s)
               <div v-if="selectedApp.equivalent_amount" class="text-caption text-grey-6 q-mt-xs">
-                Est. Amount: &#8369;{{ Number(selectedApp.equivalent_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) }}
+                Est. Amount: &#8369;{{
+                  Number(selectedApp.equivalent_amount).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                  })
+                }}
               </div>
             </div>
             <div
@@ -305,7 +346,9 @@
                       :key="`current-pay-status-${columnIndex}-${entry.dateKey}`"
                       class="hr-application-duration-date-row"
                     >
-                      <span class="text-caption hr-application-duration-date">{{ entry.dateText }}</span>
+                      <span class="text-caption hr-application-duration-date">{{
+                        entry.dateText
+                      }}</span>
                       <q-badge
                         dense
                         rounded
@@ -327,11 +370,15 @@
                   {{ line }}
                 </div>
               </template>
-              <div class="text-caption text-deep-purple-8 hr-application-date-change-label">Requested</div>
+              <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
+                Requested
+              </div>
               <template v-if="getPendingUpdateDatePayStatusRows(selectedApp).length">
                 <div class="text-weight-medium hr-application-duration-columns">
                   <div
-                    v-for="(column, columnIndex) in getPendingUpdateDatePayStatusColumns(selectedApp)"
+                    v-for="(column, columnIndex) in getPendingUpdateDatePayStatusColumns(
+                      selectedApp,
+                    )"
                     :key="`requested-pay-status-column-${columnIndex}`"
                     class="hr-application-duration-column"
                   >
@@ -340,7 +387,9 @@
                       :key="`requested-pay-status-${columnIndex}-${entry.dateKey}`"
                       class="hr-application-duration-date-row"
                     >
-                      <span class="text-caption hr-application-duration-date text-deep-purple-8">{{ entry.dateText }}</span>
+                      <span class="text-caption hr-application-duration-date text-deep-purple-8">{{
+                        entry.dateText
+                      }}</span>
                       <q-badge
                         dense
                         rounded
@@ -377,7 +426,9 @@
                   :key="`duration-pay-status-${columnIndex}-${entry.dateKey}`"
                   class="hr-application-duration-date-row"
                 >
-                  <span class="text-caption hr-application-duration-date">{{ entry.dateText }}</span>
+                  <span class="text-caption hr-application-duration-date">{{
+                    entry.dateText
+                  }}</span>
                   <q-badge
                     dense
                     rounded
@@ -408,7 +459,8 @@
               </div>
             </div>
             <div v-else class="text-weight-medium">
-              {{ selectedApp.startDate ? formatDate(selectedApp.startDate) : 'N/A' }} - {{ selectedApp.endDate ? formatDate(selectedApp.endDate) : 'N/A' }}
+              {{ selectedApp.startDate ? formatDate(selectedApp.startDate) : 'N/A' }} -
+              {{ selectedApp.endDate ? formatDate(selectedApp.endDate) : 'N/A' }}
             </div>
           </div>
           <div class="hr-application-details-item hr-application-details-item--full">
@@ -421,7 +473,9 @@
               <template v-if="hasPendingReasonUpdate(selectedApp)">
                 <div class="text-caption text-grey-7">Current</div>
                 <div>{{ getCurrentReasonDisplay(selectedApp) }}</div>
-                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">Requested</div>
+                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
+                  Requested
+                </div>
                 <div class="text-deep-purple-8">{{ getRequestedReasonDisplay(selectedApp) }}</div>
               </template>
               <template v-else>
@@ -435,41 +489,38 @@
           >
             <div class="text-caption text-grey-7">Requested Changes</div>
             <div class="hr-requested-change-list">
-              <div
-                v-if="hasPendingLeaveTypeUpdate(selectedApp)"
-                class="hr-requested-change-item"
-              >
-                Leave Type: {{ getCurrentLeaveTypeLabel(selectedApp) }} -> {{ getRequestedLeaveTypeLabel(selectedApp) }}
+              <div v-if="hasPendingLeaveTypeUpdate(selectedApp)" class="hr-requested-change-item">
+                Leave Type: {{ getCurrentLeaveTypeLabel(selectedApp) }} ->
+                {{ getRequestedLeaveTypeLabel(selectedApp) }}
               </div>
-              <div
-                v-if="hasPendingDateUpdate(selectedApp)"
-                class="hr-requested-change-item"
-              >
-                Inclusive Dates: {{ getApplicationInclusiveDateSummary(selectedApp) }} -> {{ getPendingUpdateInclusiveDateSummary(selectedApp) }}
+              <div v-if="hasPendingDateUpdate(selectedApp)" class="hr-requested-change-item">
+                Inclusive Dates: {{ getApplicationInclusiveDateSummary(selectedApp) }} ->
+                {{ getPendingUpdateInclusiveDateSummary(selectedApp) }}
               </div>
-              <div
-                v-if="hasPendingDurationUpdate(selectedApp)"
-                class="hr-requested-change-item"
-              >
-                Duration: {{ getApplicationDurationDisplay(selectedApp) }} -> {{ getRequestedDurationDisplay(selectedApp) }}
+              <div v-if="hasPendingDurationUpdate(selectedApp)" class="hr-requested-change-item">
+                Duration: {{ getApplicationDurationDisplay(selectedApp) }} ->
+                {{ getRequestedDurationDisplay(selectedApp) }}
               </div>
-              <div
-                v-if="hasPendingReasonUpdate(selectedApp)"
-                class="hr-requested-change-item"
-              >
-                Reason: {{ getCurrentReasonDisplay(selectedApp) }} -> {{ getRequestedReasonDisplay(selectedApp) }}
+              <div v-if="hasPendingReasonUpdate(selectedApp)" class="hr-requested-change-item">
+                Reason: {{ getCurrentReasonDisplay(selectedApp) }} ->
+                {{ getRequestedReasonDisplay(selectedApp) }}
               </div>
             </div>
           </div>
           <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Remarks</div>
-            <div v-if="getDetailsRemarksRows(selectedApp).length" class="hr-application-remarks-list">
+            <div
+              v-if="getDetailsRemarksRows(selectedApp).length"
+              class="hr-application-remarks-list"
+            >
               <div
                 v-for="(remarkRow, remarkIndex) in getDetailsRemarksRows(selectedApp)"
                 :key="`remarks-${remarkIndex}`"
                 class="hr-application-remarks-row"
               >
-                <div v-if="remarkRow.label" class="text-caption text-grey-7">{{ remarkRow.label }}</div>
+                <div v-if="remarkRow.label" class="text-caption text-grey-7">
+                  {{ remarkRow.label }}
+                </div>
                 <div>{{ remarkRow.text }}</div>
               </div>
             </div>
@@ -478,7 +529,9 @@
           <div class="hr-application-details-item hr-application-details-item--full">
             <div class="text-caption text-grey-7">Available Leave Balance</div>
             <template v-if="hasPendingLeaveTypeUpdate(selectedApp)">
-              <div class="text-caption text-grey-7">Current ({{ getCurrentLeaveTypeLabel(selectedApp) }})</div>
+              <div class="text-caption text-grey-7">
+                Current ({{ getCurrentLeaveTypeLabel(selectedApp) }})
+              </div>
               <div class="text-weight-medium" :class="getCurrentLeaveBalanceClass(selectedApp)">
                 {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
               </div>
@@ -515,7 +568,7 @@
           unelevated
           no-caps
           color="negative"
-          label="Reject"
+          label="Disapprove"
           @click="openActionConfirm('reject', selectedApp)"
         />
         <q-btn
@@ -548,7 +601,15 @@
       "
     >
       <q-card-section class="row justify-end hr-action-dialog-card__top">
-        <q-btn flat round dense icon="close" color="grey-6" aria-label="Close confirmation" v-close-popup />
+        <q-btn
+          flat
+          round
+          dense
+          icon="close"
+          color="grey-6"
+          aria-label="Close confirmation"
+          v-close-popup
+        />
       </q-card-section>
       <q-card-section class="text-center hr-action-dialog-card__content">
         <div class="hr-action-dialog-card__title">
@@ -626,11 +687,15 @@
           >
             <div class="hr-action-impact-preview__label">Leave Balance</div>
             <div :class="getCurrentLeaveBalanceClass(confirmActionResolvedApp)">
-              <span class="text-grey-8">Current ({{ getCurrentLeaveTypeLabel(confirmActionResolvedApp) }}):</span>
+              <span class="text-grey-8"
+                >Current ({{ getCurrentLeaveTypeLabel(confirmActionResolvedApp) }}):</span
+              >
               {{ getCurrentLeaveBalanceDisplay(confirmActionResolvedApp) }}
             </div>
             <div :class="getRequestedLeaveBalanceClass(confirmActionResolvedApp)">
-              <span class="text-deep-purple-8">Requested ({{ getRequestedLeaveTypeLabel(confirmActionResolvedApp) }}):</span>
+              <span class="text-deep-purple-8"
+                >Requested ({{ getRequestedLeaveTypeLabel(confirmActionResolvedApp) }}):</span
+              >
               {{ getRequestedLeaveBalanceDisplay(confirmActionResolvedApp) }}
             </div>
           </div>
@@ -713,7 +778,11 @@
                 outlined
                 dense
                 :readonly="!editForm.isMonetization"
-                :hint="editForm.isMonetization ? 'Days to monetize' : 'Auto-computed from selected date range'"
+                :hint="
+                  editForm.isMonetization
+                    ? 'Days to monetize'
+                    : 'Auto-computed from selected date range'
+                "
                 label="Days"
               />
             </div>
@@ -724,13 +793,7 @@
               </div>
             </div>
             <div class="col-12">
-              <q-input
-                v-model="editForm.reason"
-                type="textarea"
-                rows="4"
-                outlined
-                label="Reason"
-              />
+              <q-input v-model="editForm.reason" type="textarea" rows="4" outlined label="Reason" />
             </div>
             <div class="col-12">
               <q-input
@@ -760,10 +823,10 @@
   <q-dialog v-model="showRejectDialog" persistent>
     <q-card class="hr-action-dialog-card hr-action-dialog-card--reject" style="min-width: 360px">
       <q-card-section>
-        <div class="text-h6">Reject Application</div>
+        <div class="text-h6">Disapprove Application</div>
       </q-card-section>
       <q-card-section class="q-pt-none">
-        <q-input v-model="remarks" type="textarea" label="Reason for rejection" rows="4" outlined />
+        <q-input v-model="remarks" type="textarea" label="Reason for disapproval" rows="4" outlined />
       </q-card-section>
       <q-card-actions align="right">
         <q-btn flat label="Cancel" v-close-popup />
@@ -871,7 +934,18 @@ const tablePagination = ref({
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'recalled'])
-const DEPARTMENT_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
+const DEPARTMENT_STOP_WORDS = new Set([
+  'A',
+  'AN',
+  'AND',
+  'FOR',
+  'IN',
+  'OF',
+  'OFFICE',
+  'ON',
+  'THE',
+  'TO',
+])
 const EMPLOYMENT_TYPE_FILTER_LABELS = {
   elective: 'Elective',
   co_terminous: 'Co-term',
@@ -901,10 +975,14 @@ function getActualRequestedDayCount(app) {
 
   return null
 }
-const employmentTypeFilterLabel = computed(() => EMPLOYMENT_TYPE_FILTER_LABELS[employmentTypeFilter.value] || '')
+const employmentTypeFilterLabel = computed(
+  () => EMPLOYMENT_TYPE_FILTER_LABELS[employmentTypeFilter.value] || '',
+)
 
 function normalizeApplicationType(value) {
-  const normalized = String(value || '').trim().toUpperCase()
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
   if (normalized === 'COC') return 'COC'
   if (normalized === 'LEAVE') return 'LEAVE'
   return ''
@@ -912,18 +990,16 @@ function normalizeApplicationType(value) {
 
 function getApplicationType(application) {
   const explicitType = normalizeApplicationType(
-    application?.application_type ??
-    application?.applicationType ??
-    application?.type,
+    application?.application_type ?? application?.applicationType ?? application?.type,
   )
   if (explicitType) return explicitType
 
   const leaveTypeName = String(
     application?.leaveType ??
-    application?.leave_type ??
-    application?.leaveTypeName ??
-    application?.leave_type_name ??
-    '',
+      application?.leave_type ??
+      application?.leaveTypeName ??
+      application?.leave_type_name ??
+      '',
   )
     .trim()
     .toLowerCase()
@@ -937,11 +1013,7 @@ function isCocApplication(application) {
 }
 
 function getApplicationExplicitId(application) {
-  return (
-    application?.id ??
-    application?.application_id ??
-    application?.leave_application_id
-  )
+  return application?.id ?? application?.application_id ?? application?.leave_application_id
 }
 
 function getApplicationRowKey(application, index = 0) {
@@ -959,24 +1031,26 @@ function getApplicationMergeKey(application, index) {
 
   const employeeKey = String(
     application?.employee_control_no ??
-    application?.employeeControlNo ??
-    application?.control_no ??
-    application?.controlNo ??
-    '',
+      application?.employeeControlNo ??
+      application?.control_no ??
+      application?.controlNo ??
+      '',
   ).trim()
   const leaveTypeKey = String(
     application?.leaveType ??
-    application?.leave_type ??
-    application?.leaveTypeName ??
-    application?.leave_type_name ??
-    '',
-  ).trim().toLowerCase()
+      application?.leave_type ??
+      application?.leaveTypeName ??
+      application?.leave_type_name ??
+      '',
+  )
+    .trim()
+    .toLowerCase()
   const dateKey = String(
     application?.dateFiled ??
-    application?.date_filed ??
-    application?.created_at ??
-    application?.createdAt ??
-    '',
+      application?.date_filed ??
+      application?.created_at ??
+      application?.createdAt ??
+      '',
   ).trim()
 
   const fallback = [getApplicationType(application), employeeKey, leaveTypeKey, dateKey]
@@ -1089,7 +1163,9 @@ function isEditUpdateRequest(app) {
     app?.raw?.hasPendingUpdateRequest,
   ]
 
-  if (candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')) {
+  if (
+    candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')
+  ) {
     return true
   }
 
@@ -1111,10 +1187,10 @@ function normalizeUpdateRequestStatus(value) {
 function getLatestUpdateRequestStatus(app) {
   const explicitStatus = normalizeUpdateRequestStatus(
     app?.latest_update_request_status ??
-    app?.latestUpdateRequestStatus ??
-    app?.raw?.latest_update_request_status ??
-    app?.raw?.latestUpdateRequestStatus ??
-    '',
+      app?.latestUpdateRequestStatus ??
+      app?.raw?.latest_update_request_status ??
+      app?.raw?.latestUpdateRequestStatus ??
+      '',
   )
   if (explicitStatus) return explicitStatus
   return isEditUpdateRequest(app) ? 'PENDING' : ''
@@ -1187,7 +1263,9 @@ function toDepartmentCode(value) {
 
   if (!words.length) return source
 
-  const acronymWords = words.filter((word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word))
+  const acronymWords = words.filter(
+    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
   const selectedWords = acronymWords.length ? acronymWords : words
   const acronym = selectedWords.map((word) => word[0]).join('')
 
@@ -1216,7 +1294,12 @@ function normalizeEmploymentTypeKey(value) {
 
   if (!normalized) return ''
   if (normalized.includes('ELECTIVE')) return 'elective'
-  if (normalized.includes('CO-TER') || normalized.includes('CO-TERM') || normalized.includes('COTER')) return 'co_terminous'
+  if (
+    normalized.includes('CO-TER') ||
+    normalized.includes('CO-TERM') ||
+    normalized.includes('COTER')
+  )
+    return 'co_terminous'
   if (normalized.includes('REGULAR')) return 'regular'
   if (normalized.includes('CASUAL')) return 'casual'
   return ''
@@ -1266,7 +1349,9 @@ function formatCreditDisplay(value) {
 }
 
 function normalizeDurationUnit(value) {
-  const normalized = String(value || '').trim().toLowerCase()
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
   if (normalized.startsWith('hour')) return 'hour'
   if (normalized.startsWith('day')) return 'day'
   return ''
@@ -1352,8 +1437,9 @@ function formatGroupedInclusiveDateLines(dateValues) {
   if (!Array.isArray(dateValues) || dateValues.length === 0) return []
 
   const groupedByMonthYear = new Map()
-  const sortedDates = [...new Set(dateValues.filter(Boolean))]
-    .sort((left, right) => Date.parse(left) - Date.parse(right))
+  const sortedDates = [...new Set(dateValues.filter(Boolean))].sort(
+    (left, right) => Date.parse(left) - Date.parse(right),
+  )
 
   for (const rawDate of sortedDates) {
     const parsedDate = new Date(rawDate)
@@ -1405,11 +1491,9 @@ function parseSelectedDatesValue(value) {
 
 function normalizeIsoDateList(dateValues) {
   if (!Array.isArray(dateValues)) return []
-  return [...new Set(
-    dateValues
-      .map((value) => toIsoDateString(value))
-      .filter(Boolean),
-  )].sort((left, right) => Date.parse(left) - Date.parse(right))
+  return [...new Set(dateValues.map((value) => toIsoDateString(value)).filter(Boolean))].sort(
+    (left, right) => Date.parse(left) - Date.parse(right),
+  )
 }
 
 function resolveDateSetFromSource(source) {
@@ -1459,7 +1543,8 @@ function getPendingUpdatePayload(app) {
 }
 
 function getCurrentLeaveTypeId(app) {
-  const rawValue = app?.leave_type_id ?? app?.leaveTypeId ?? app?.raw?.leave_type_id ?? app?.raw?.leaveTypeId
+  const rawValue =
+    app?.leave_type_id ?? app?.leaveTypeId ?? app?.raw?.leave_type_id ?? app?.raw?.leaveTypeId
   const leaveTypeId = Number(rawValue)
   return Number.isFinite(leaveTypeId) && leaveTypeId > 0 ? leaveTypeId : null
 }
@@ -1474,13 +1559,13 @@ function getRequestedLeaveTypeId(app) {
 function getCurrentLeaveTypeLabel(app) {
   const leaveTypeName = String(
     app?.leaveType ??
-    app?.leave_type_name ??
-    app?.leave_type ??
-    app?.leaveTypeName ??
-    app?.raw?.leave_type_name ??
-    app?.raw?.leaveType ??
-    app?.raw?.leave_type ??
-    '',
+      app?.leave_type_name ??
+      app?.leave_type ??
+      app?.leaveTypeName ??
+      app?.raw?.leave_type_name ??
+      app?.raw?.leaveType ??
+      app?.raw?.leave_type ??
+      '',
   ).trim()
 
   const resolvedName = leaveTypeName || 'Unknown Leave Type'
@@ -1493,10 +1578,10 @@ function getRequestedLeaveTypeLabel(app) {
 
   const requestedName = String(
     payload.leave_type_name ??
-    payload.leaveTypeName ??
-    payload.leave_type ??
-    payload.leaveType ??
-    '',
+      payload.leaveTypeName ??
+      payload.leave_type ??
+      payload.leaveType ??
+      '',
   ).trim()
 
   const fallbackId = getRequestedLeaveTypeId(app)
@@ -1517,8 +1602,12 @@ function hasPendingLeaveTypeUpdate(app) {
     return requestedLeaveTypeId !== currentLeaveTypeId
   }
 
-  const currentName = String(getCurrentLeaveTypeLabel(app) || '').trim().toLowerCase()
-  const requestedName = String(getRequestedLeaveTypeLabel(app) || '').trim().toLowerCase()
+  const currentName = String(getCurrentLeaveTypeLabel(app) || '')
+    .trim()
+    .toLowerCase()
+  const requestedName = String(getRequestedLeaveTypeLabel(app) || '')
+    .trim()
+    .toLowerCase()
   if (!requestedName) return false
   if (!currentName) return true
   return requestedName !== currentName
@@ -1527,14 +1616,14 @@ function hasPendingLeaveTypeUpdate(app) {
 function getPendingUpdateReason(app) {
   return String(
     app?.pending_update_reason ??
-    app?.pendingUpdateReason ??
-    app?.raw?.pending_update_reason ??
-    app?.raw?.pendingUpdateReason ??
-    app?.latest_update_request_reason ??
-    app?.latestUpdateRequestReason ??
-    app?.raw?.latest_update_request_reason ??
-    app?.raw?.latestUpdateRequestReason ??
-    '',
+      app?.pendingUpdateReason ??
+      app?.raw?.pending_update_reason ??
+      app?.raw?.pendingUpdateReason ??
+      app?.latest_update_request_reason ??
+      app?.latestUpdateRequestReason ??
+      app?.raw?.latest_update_request_reason ??
+      app?.raw?.latestUpdateRequestReason ??
+      '',
   ).trim()
 }
 
@@ -1547,7 +1636,9 @@ function getDetailsRemarksRows(app) {
     rows.push({ label: 'Update Request', text: pendingUpdateReason })
   }
 
-  const workflowRemarks = formatWorkflowRemarksDisplay(String(app?.remarks ?? app?.raw?.remarks ?? '').trim())
+  const workflowRemarks = formatWorkflowRemarksDisplay(
+    String(app?.remarks ?? app?.raw?.remarks ?? '').trim(),
+  )
   if (!pendingUpdateReason && workflowRemarks) {
     rows.push({ label: '', text: workflowRemarks })
   }
@@ -1580,14 +1671,16 @@ function normalizeLeaveBalanceEntries(source) {
         leaveTypeId: Number(item.leave_type_id ?? item.leaveTypeId ?? item.type_id ?? 0) || null,
         leaveTypeName: String(
           item.leave_type_name ??
-          item.leaveTypeName ??
-          item.leave_type ??
-          item.leaveType ??
-          item.label ??
-          item.name ??
-          '',
+            item.leaveTypeName ??
+            item.leave_type ??
+            item.leaveType ??
+            item.label ??
+            item.name ??
+            '',
         ).trim(),
-        balance: Number(item.balance ?? item.remaining_balance ?? item.available_balance ?? item.value),
+        balance: Number(
+          item.balance ?? item.remaining_balance ?? item.available_balance ?? item.value,
+        ),
       }))
       .filter((item) => Number.isFinite(item.balance))
   }
@@ -1602,12 +1695,12 @@ function normalizeLeaveBalanceEntries(source) {
         const leaveTypeId = Number(value.leave_type_id ?? value.leaveTypeId ?? 0) || null
         const leaveTypeName = String(
           value.leave_type_name ??
-          value.leaveTypeName ??
-          value.leave_type ??
-          value.leaveType ??
-          value.label ??
-          value.name ??
-          key,
+            value.leaveTypeName ??
+            value.leave_type ??
+            value.leaveType ??
+            value.label ??
+            value.name ??
+            key,
         ).trim()
         const numericBalance = Number(
           value.balance ?? value.remaining_balance ?? value.available_balance ?? value.value,
@@ -1655,9 +1748,16 @@ function findLeaveBalanceEntry(app, leaveTypeId, leaveTypeLabel = '') {
     if (matchById) return matchById
   }
 
-  const normalizedLabel = String(leaveTypeLabel || '').trim().toLowerCase()
+  const normalizedLabel = String(leaveTypeLabel || '')
+    .trim()
+    .toLowerCase()
   if (normalizedLabel) {
-    const matchByName = entries.find((entry) => String(entry.leaveTypeName || '').trim().toLowerCase() === normalizedLabel)
+    const matchByName = entries.find(
+      (entry) =>
+        String(entry.leaveTypeName || '')
+          .trim()
+          .toLowerCase() === normalizedLabel,
+    )
     if (matchByName) return matchByName
   }
 
@@ -1670,7 +1770,9 @@ function getCurrentLeaveBalanceValue(app) {
   const entry = findLeaveBalanceEntry(app, currentLeaveTypeId, currentLeaveTypeLabel)
   if (entry && Number.isFinite(entry.balance)) return Number(entry.balance)
 
-  const directBalance = Number(app?.leaveBalance ?? app?.leave_balance ?? app?.raw?.leaveBalance ?? app?.raw?.leave_balance)
+  const directBalance = Number(
+    app?.leaveBalance ?? app?.leave_balance ?? app?.raw?.leaveBalance ?? app?.raw?.leave_balance,
+  )
   return Number.isFinite(directBalance) ? directBalance : null
 }
 
@@ -1837,8 +1939,9 @@ function hasPendingReasonUpdate(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return false
 
-  const hasReasonField = Object.prototype.hasOwnProperty.call(payload, 'reason')
-    || Object.prototype.hasOwnProperty.call(payload, 'reason_purpose')
+  const hasReasonField =
+    Object.prototype.hasOwnProperty.call(payload, 'reason') ||
+    Object.prototype.hasOwnProperty.call(payload, 'reason_purpose')
   if (!hasReasonField) return false
 
   const currentReason = normalizeReasonForCompare(app?.reason)
@@ -1850,10 +1953,12 @@ function hasRequestedChangePreview(app) {
   if (!app || typeof app !== 'object') return false
   if (!hasEditRequestLifecycle(app)) return false
 
-  return hasPendingLeaveTypeUpdate(app)
-    || hasPendingDateUpdate(app)
-    || hasPendingDurationUpdate(app)
-    || hasPendingReasonUpdate(app)
+  return (
+    hasPendingLeaveTypeUpdate(app) ||
+    hasPendingDateUpdate(app) ||
+    hasPendingDurationUpdate(app) ||
+    hasPendingReasonUpdate(app)
+  )
 }
 
 function getApplicationInclusiveDateLines(app) {
@@ -1984,16 +2089,36 @@ const applicationsForTable = computed(() => {
 const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left' },
   { name: 'employee', label: 'Employee', align: 'left' },
-  { name: 'office', label: 'Department', field: (row) => row.officeShort || row.office, align: 'left' },
+  {
+    name: 'office',
+    label: 'Department',
+    field: (row) => row.officeShort || row.office,
+    align: 'left',
+  },
   {
     name: 'leaveType',
     label: 'Leave Type',
-    field: (row) => row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType,
+    field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
     align: 'left',
   },
-  { name: 'dateFiled', label: 'Date Filed', field: (row) => row.dateFiled ? formatDate(row.dateFiled) : 'N/A', align: 'left' },
-  { name: 'inclusiveDates', label: 'Inclusive Dates', field: (row) => getApplicationDurationLabel(row), align: 'left' },
-  { name: 'days', label: 'Duration', field: (row) => getApplicationDurationDisplay(row), align: 'left' },
+  {
+    name: 'dateFiled',
+    label: 'Date Filed',
+    field: (row) => (row.dateFiled ? formatDate(row.dateFiled) : 'N/A'),
+    align: 'left',
+  },
+  {
+    name: 'inclusiveDates',
+    label: 'Inclusive Dates',
+    field: (row) => getApplicationDurationLabel(row),
+    align: 'left',
+  },
+  {
+    name: 'days',
+    label: 'Duration',
+    field: (row) => getApplicationDurationDisplay(row),
+    align: 'left',
+  },
   { name: 'status', label: 'Status', align: 'left' },
   { name: 'actions', label: 'Actions', align: 'center' },
 ]
@@ -2073,23 +2198,22 @@ function getEmptyEditForm() {
 }
 
 function canEditApplication(app) {
-  return (
-    String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR' &&
-    !isCocApplication(app)
-  )
+  return String(app?.rawStatus || '').toUpperCase() === 'PENDING_HR' && !isCocApplication(app)
 }
 
 function getApplicationLeaveTypeName(app) {
   return String(
     app?.leaveType ??
-    app?.leave_type_name ??
-    app?.leave_type ??
-    app?.leaveTypeName ??
-    app?.raw?.leave_type_name ??
-    app?.raw?.leaveType ??
-    app?.raw?.leave_type ??
-    '',
-  ).trim().toLowerCase()
+      app?.leave_type_name ??
+      app?.leave_type ??
+      app?.leaveTypeName ??
+      app?.raw?.leave_type_name ??
+      app?.raw?.leaveType ??
+      app?.raw?.leave_type ??
+      '',
+  )
+    .trim()
+    .toLowerCase()
 }
 
 function isRecallableLeaveApplication(app) {
@@ -2104,8 +2228,7 @@ function isRecallableLeaveApplication(app) {
 function canRecallApplication(app) {
   if (!app || isCocApplication(app)) return false
   return (
-    String(app?.rawStatus || '').toUpperCase() === 'APPROVED' &&
-    isRecallableLeaveApplication(app)
+    String(app?.rawStatus || '').toUpperCase() === 'APPROVED' && isRecallableLeaveApplication(app)
   )
 }
 
@@ -2189,11 +2312,12 @@ function buildWeekdayDateRange(startDate, endDate) {
 async function fetchApplications() {
   loading.value = true
   try {
-    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
-      api.get('/hr/dashboard'),
-      api.get('/hr/leave-applications').catch(() => null),
-      api.get('/hr/coc-applications').catch(() => null),
-    ])
+    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] =
+      await Promise.all([
+        api.get('/hr/dashboard'),
+        api.get('/hr/leave-applications').catch(() => null),
+        api.get('/hr/coc-applications').catch(() => null),
+      ])
 
     const dashboardData = dashboardResponse?.data ?? {}
     const mergedApplications = mergeApplications(
@@ -2206,7 +2330,8 @@ async function fetchApplications() {
       ...app,
       application_type: getApplicationType(app),
       application_uid: app?.application_uid || getApplicationRowKey(app, index),
-      employeeName: app?.employeeName || app?.applicantName || app?.employee?.full_name || 'Unknown',
+      employeeName:
+        app?.employeeName || app?.applicantName || app?.employee?.full_name || 'Unknown',
       officeShort: toDepartmentCode(app?.office),
       displayStatus: mergeStatus(app),
     }))
@@ -2270,7 +2395,10 @@ function formatDate(dateStr) {
 
 function getSelectedDateColumns(dates, columnCount = 3) {
   const formattedDates = Array.isArray(dates)
-    ? [...dates].sort().map((date) => formatDate(date)).filter(Boolean)
+    ? [...dates]
+        .sort()
+        .map((date) => formatDate(date))
+        .filter(Boolean)
     : []
 
   if (!formattedDates.length) return []
@@ -2289,12 +2417,7 @@ function getSelectedDateColumns(dates, columnCount = 3) {
 function normalizePayStatusCode(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return normalizePayStatusCode(
-      value.pay_status ??
-      value.payStatus ??
-      value.status ??
-      value.code ??
-      value.value ??
-      '',
+      value.pay_status ?? value.payStatus ?? value.status ?? value.code ?? value.value ?? '',
     )
   }
 
@@ -2312,11 +2435,11 @@ function normalizeCoverageCode(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return normalizeCoverageCode(
       value.coverage ??
-      value.coverage_type ??
-      value.coverageType ??
-      value.type ??
-      value.value ??
-      '',
+        value.coverage_type ??
+        value.coverageType ??
+        value.type ??
+        value.value ??
+        '',
     )
   }
 
@@ -2398,11 +2521,7 @@ function toSelectedDateCoverageMap(value) {
 
 function resolveApplicationPayModeCode(app) {
   const rawPayMode = String(
-    app?.pay_mode ??
-    app?.payMode ??
-    app?.raw?.pay_mode ??
-    app?.raw?.payMode ??
-    '',
+    app?.pay_mode ?? app?.payMode ?? app?.raw?.pay_mode ?? app?.raw?.payMode ?? '',
   ).trim()
 
   return normalizePayStatusCode(rawPayMode) === 'WOP' ? 'WOP' : 'WP'
@@ -2416,9 +2535,9 @@ function getSelectedDatePayStatusRows(app) {
 
   const rawStatusMap = toSelectedDatePayStatusMap(
     app?.selected_date_pay_status ??
-    app?.selectedDatePayStatus ??
-    app?.raw?.selected_date_pay_status ??
-    app?.raw?.selectedDatePayStatus,
+      app?.selectedDatePayStatus ??
+      app?.raw?.selected_date_pay_status ??
+      app?.raw?.selectedDatePayStatus,
   )
 
   const normalizedStatusMap = {}
@@ -2439,12 +2558,11 @@ function getSelectedDatePayStatusRows(app) {
   return dateSet.map((dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
     const key = isoDate || String(dateValue)
-    const payStatus = (
+    const payStatus =
       normalizedStatusMap[key] ??
       normalizedStatusMap[String(index)] ??
       normalizedStatusMap[String(index + 1)] ??
       fallbackStatus
-    )
 
     return {
       dateKey: key,
@@ -2482,9 +2600,9 @@ function getSelectedDateCoverageWeights(app) {
 
   const rawCoverageMap = toSelectedDateCoverageMap(
     app?.selected_date_coverage ??
-    app?.selectedDateCoverage ??
-    app?.raw?.selected_date_coverage ??
-    app?.raw?.selectedDateCoverage,
+      app?.selectedDateCoverage ??
+      app?.raw?.selected_date_coverage ??
+      app?.raw?.selectedDateCoverage,
   )
 
   const normalizedCoverageMap = {}
@@ -2506,7 +2624,7 @@ function getSelectedDateCoverageWeights(app) {
   let defaultCoverageWeight = 1
   const dateCount = dateSet.length
   if (dateCount > 0 && totalDays > 0) {
-    const halfMatch = Math.abs((dateCount * 0.5) - totalDays) < 0.00001
+    const halfMatch = Math.abs(dateCount * 0.5 - totalDays) < 0.00001
     const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
     if (halfMatch) {
       defaultCoverageWeight = 0.5
@@ -2518,12 +2636,11 @@ function getSelectedDateCoverageWeights(app) {
   return dateSet.reduce((acc, dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
     const key = isoDate || String(dateValue)
-    const coverage = (
+    const coverage =
       normalizedCoverageMap[key] ??
       normalizedCoverageMap[String(index)] ??
       normalizedCoverageMap[String(index + 1)] ??
       ''
-    )
 
     if (coverage === 'half') {
       acc[key] = 0.5
@@ -2544,16 +2661,15 @@ function buildRecallPreview(app, selectedRecallDates = []) {
 
   const deductibleDays = Number(
     app?.deductible_days ??
-    app?.deductibleDays ??
-    app?.raw?.deductible_days ??
-    app?.raw?.deductibleDays ??
-    0,
+      app?.deductibleDays ??
+      app?.raw?.deductible_days ??
+      app?.raw?.deductibleDays ??
+      0,
   )
 
   const leaveTypeName = getApplicationLeaveTypeName(app)
-  const restoredToLabel = leaveTypeName === 'mandatory / forced leave'
-    ? 'Vacation Leave'
-    : 'Vacation Leave'
+  const restoredToLabel =
+    leaveTypeName === 'mandatory / forced leave' ? 'Vacation Leave' : 'Vacation Leave'
 
   if (app?.is_monetization === true || app?.raw?.is_monetization === true) {
     return {
@@ -2568,7 +2684,13 @@ function buildRecallPreview(app, selectedRecallDates = []) {
   const payStatusRows = getSelectedDatePayStatusRows(app)
   const coverageWeights = getSelectedDateCoverageWeights(app)
   const selectedRecallDateSet = new Set(
-    [...new Set((Array.isArray(selectedRecallDates) ? selectedRecallDates : []).map((value) => toIsoDate(value)).filter(Boolean))].sort(),
+    [
+      ...new Set(
+        (Array.isArray(selectedRecallDates) ? selectedRecallDates : [])
+          .map((value) => toIsoDate(value))
+          .filter(Boolean),
+      ),
+    ].sort(),
   )
   if (!selectedRecallDateSet.size) return null
 
@@ -2646,8 +2768,7 @@ function getPendingUpdateDatePayStatusRows(app) {
   if (!dateSet.length) return []
 
   const rawStatusMap = toSelectedDatePayStatusMap(
-    payload?.selected_date_pay_status ??
-    payload?.selectedDatePayStatus,
+    payload?.selected_date_pay_status ?? payload?.selectedDatePayStatus,
   )
 
   const normalizedStatusMap = {}
@@ -2663,17 +2784,17 @@ function getPendingUpdateDatePayStatusRows(app) {
     }
   })
 
-  const fallbackStatus = normalizePayStatusCode(payload?.pay_mode ?? payload?.payMode) === 'WOP' ? 'WOP' : 'WP'
+  const fallbackStatus =
+    normalizePayStatusCode(payload?.pay_mode ?? payload?.payMode) === 'WOP' ? 'WOP' : 'WP'
 
   return dateSet.map((dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
     const key = isoDate || String(dateValue)
-    const payStatus = (
+    const payStatus =
       normalizedStatusMap[key] ??
       normalizedStatusMap[String(index)] ??
       normalizedStatusMap[String(index + 1)] ??
       fallbackStatus
-    )
 
     return {
       dateKey: key,
@@ -2704,18 +2825,12 @@ function openDetails(app) {
 }
 
 function resolveApplicationAttachmentReference(app) {
-  const directReference = String(
-    app?.attachment_reference ??
-    app?.attachmentReference ??
-    '',
-  ).trim()
+  const directReference = String(app?.attachment_reference ?? app?.attachmentReference ?? '').trim()
 
   if (directReference) return directReference
 
   const rawReference = String(
-    app?.raw?.attachment_reference ??
-    app?.raw?.attachmentReference ??
-    '',
+    app?.raw?.attachment_reference ?? app?.raw?.attachmentReference ?? '',
   ).trim()
 
   return rawReference || ''
@@ -2725,10 +2840,13 @@ function hasApplicationAttachment(app) {
   if (!app || typeof app !== 'object') return false
   if (resolveApplicationAttachmentReference(app)) return true
 
-  const submittedFlag =
-    app?.attachment_submitted ??
-    app?.attachmentSubmitted
-  return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
+  const submittedFlag = app?.attachment_submitted ?? app?.attachmentSubmitted
+  return (
+    submittedFlag === true ||
+    submittedFlag === 1 ||
+    submittedFlag === '1' ||
+    submittedFlag === 'true'
+  )
 }
 
 async function viewApplicationAttachment(app = selectedApp.value) {
@@ -2736,7 +2854,11 @@ async function viewApplicationAttachment(app = selectedApp.value) {
   const id = getApplicationId(target)
 
   if (!id) {
-    $q.notify({ type: 'negative', message: 'Unable to identify this leave application attachment.', position: 'top' })
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to identify this leave application attachment.',
+      position: 'top',
+    })
     return
   }
 
@@ -2764,11 +2886,12 @@ async function viewApplicationAttachment(app = selectedApp.value) {
       return
     }
 
-    const blob = response.data instanceof Blob
-      ? response.data
-      : new Blob([response.data], {
-          type: response?.headers?.['content-type'] || 'application/octet-stream',
-        })
+    const blob =
+      response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], {
+            type: response?.headers?.['content-type'] || 'application/octet-stream',
+          })
     const objectUrl = URL.createObjectURL(blob)
 
     const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer')
@@ -2834,7 +2957,7 @@ function handleApplicationRowClick(_evt, row) {
 
 function getConfirmActionTitle(type) {
   if (type === 'approve') return 'Approve'
-  return 'Reject'
+  return 'Disapprove'
 }
 
 function getConfirmActionMessage(type) {
@@ -2847,8 +2970,8 @@ function getConfirmActionMessage(type) {
       : 'This will finalize the approval of this application.'
   }
   return isEditRequest
-    ? 'You will continue to the rejection form for this edit request.'
-    : 'You will continue to the rejection form.'
+    ? 'You will continue to the disapproval form for this edit request.'
+    : 'You will continue to the disapproval form.'
 }
 
 function getApplicationId(target) {
@@ -2859,7 +2982,9 @@ function resolveApplication(target) {
   if (target && typeof target === 'object') return target
   const id = String(target ?? '').trim()
   if (!id) return null
-  return applications.value.find((application) => String(getApplicationId(application)) === id) || null
+  return (
+    applications.value.find((application) => String(getApplicationId(application)) === id) || null
+  )
 }
 
 function openActionConfirm(type, target) {
@@ -2965,10 +3090,9 @@ async function saveEdit() {
 
   let selectedDates = [...editForm.value.selectedDates]
   if (!editForm.value.isMonetization) {
-    const dateRangeChanged = (
+    const dateRangeChanged =
       editForm.value.startDate !== editForm.value.originalStartDate ||
       editForm.value.endDate !== editForm.value.originalEndDate
-    )
     if (dateRangeChanged || selectedDates.length === 0) {
       selectedDates = buildWeekdayDateRange(editForm.value.startDate, editForm.value.endDate)
     }
@@ -3130,9 +3254,13 @@ async function confirmReject() {
 
 async function confirmRecall() {
   const trimmedRecallReason = String(recallReason.value || '').trim()
-  const selectedRecallDates = [...new Set((Array.isArray(recallSelectedDates.value) ? recallSelectedDates.value : [])
-    .map((value) => toIsoDate(value))
-    .filter(Boolean))]
+  const selectedRecallDates = [
+    ...new Set(
+      (Array.isArray(recallSelectedDates.value) ? recallSelectedDates.value : [])
+        .map((value) => toIsoDate(value))
+        .filter(Boolean),
+    ),
+  ]
   if (!trimmedRecallReason) {
     $q.notify({
       type: 'warning',
@@ -3553,4 +3681,3 @@ async function confirmRecall() {
   }
 }
 </style>
-

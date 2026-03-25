@@ -179,13 +179,12 @@
               </q-btn>
               <template v-if="tableProps.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
-                  unelevated
+                  flat
                   dense
+                  round
                   size="sm"
-                  icon="close"
-                  color="blue-grey-7"
-                  text-color="white"
-                  class="pending-actions-icon-btn pending-actions-icon-btn--cancel"
+                  icon="remove_circle"
+                  color="warning"
                   @click.stop="openActionConfirm('cancel', tableProps.row)"
                 >
                   <q-tooltip>Cancel</q-tooltip>
@@ -215,13 +214,12 @@
               </template>
               <template v-else-if="tableProps.row.rawStatus === 'PENDING_HR'">
                 <q-btn
-                  unelevated
+                  flat
                   dense
+                  round
                   size="sm"
-                  icon="close"
-                  color="blue-grey-7"
-                  text-color="white"
-                  class="pending-actions-icon-btn pending-actions-icon-btn--cancel"
+                  icon="remove_circle"
+                  color="warning"
                   @click.stop="openActionConfirm('cancel', tableProps.row)"
                 >
                   <q-tooltip>Cancel</q-tooltip>
@@ -337,7 +335,7 @@
             <q-btn
               unelevated
               no-caps
-              color="blue-grey-7"
+              color="warning"
               label="Cancel"
               @click="openActionConfirm('cancel', selectedApp)"
             />
@@ -360,7 +358,7 @@
             <q-btn
               unelevated
               no-caps
-              color="blue-grey-7"
+              color="warning"
               label="Cancel"
               @click="openActionConfirm('cancel', selectedApp)"
             />
@@ -433,7 +431,9 @@
         :class="
           confirmActionType === 'approve'
             ? 'admin-action-dialog-card--approve'
-            : 'admin-action-dialog-card--reject'
+            : confirmActionType === 'cancel'
+              ? 'admin-action-dialog-card--cancel'
+              : 'admin-action-dialog-card--reject'
         "
       >
         <q-card-section class="row justify-end admin-action-dialog-card__top">
@@ -472,7 +472,7 @@
               confirmActionType === 'approve'
                 ? 'green-7'
                 : confirmActionType === 'cancel'
-                  ? 'blue-grey-7'
+                  ? 'warning'
                   : 'negative'
             "
             class="admin-action-dialog-card__button"
@@ -484,7 +484,8 @@
 
     <q-dialog v-model="showDisapproveDialog" persistent>
       <q-card
-        class="admin-action-dialog-card admin-action-dialog-card--reject"
+        class="admin-action-dialog-card"
+        :class="rejectionMode === 'cancel' ? 'admin-action-dialog-card--cancel' : 'admin-action-dialog-card--reject'"
         style="min-width: 360px"
       >
         <q-card-section>
@@ -503,7 +504,7 @@
           <q-btn flat label="Cancel" v-close-popup />
           <q-btn
             unelevated
-            :color="rejectionMode === 'cancel' ? 'blue-grey-7' : 'negative'"
+            :color="rejectionMode === 'cancel' ? 'warning' : 'negative'"
             :label="rejectionMode === 'cancel' ? 'Confirm Cancel' : 'Submit'"
             :loading="actionLoading"
             @click="confirmDisapprove"
@@ -521,7 +522,7 @@
               actionResultType === 'approved'
                 ? 'green-7'
                 : actionResultType === 'cancelled'
-                  ? 'blue-grey-7'
+                  ? 'warning'
                   : 'negative'
             "
             size="28px"
@@ -661,22 +662,6 @@ const {
   width: 228px;
   padding-right: 8px;
 }
-.pending-actions-icon-btn {
-  width: 14px;
-  min-width: 14px;
-  height: 14px;
-  min-height: 14px;
-  padding: 0 !important;
-  border-radius: 0;
-}
-.pending-actions-icon-btn :deep(.q-btn__content) {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-}
-.pending-actions-icon-btn :deep(.q-icon) {
-  font-size: 10px;
-}
 .application-status-search {
   width: min(440px, 84vw);
 }
@@ -715,6 +700,9 @@ const {
 }
 .admin-action-dialog-card--approve {
   border-color: #b7ddc1;
+}
+.admin-action-dialog-card--cancel {
+  border-color: #f0d08a;
 }
 .admin-action-dialog-card--reject {
   border-color: #e6b8b8;

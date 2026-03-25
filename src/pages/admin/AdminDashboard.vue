@@ -210,12 +210,20 @@
             <div class="application-details-cell">
               <template v-if="hasPendingLeaveTypeUpdate(props.row)">
                 <span class="text-caption text-grey-7">Current</span>
-                <span class="text-weight-medium text-grey-9">{{ getCurrentLeaveTypeLabel(props.row) }}</span>
-                <span class="text-caption text-deep-purple-8 application-date-change-label">Requested</span>
-                <span class="text-weight-medium text-deep-purple-8">{{ getRequestedLeaveTypeLabel(props.row) }}</span>
+                <span class="text-weight-medium text-grey-9">{{
+                  getCurrentLeaveTypeLabel(props.row)
+                }}</span>
+                <span class="text-caption text-deep-purple-8 application-date-change-label"
+                  >Requested</span
+                >
+                <span class="text-weight-medium text-deep-purple-8">{{
+                  getRequestedLeaveTypeLabel(props.row)
+                }}</span>
               </template>
               <template v-else>
-                <span class="text-weight-medium text-grey-9">{{ getCurrentLeaveTypeLabel(props.row) }}</span>
+                <span class="text-weight-medium text-grey-9">{{
+                  getCurrentLeaveTypeLabel(props.row)
+                }}</span>
               </template>
             </div>
           </q-td>
@@ -249,7 +257,9 @@
                 >
                   {{ line }}
                 </span>
-                <span class="text-caption text-deep-purple-8 application-date-change-label">Requested</span>
+                <span class="text-caption text-deep-purple-8 application-date-change-label"
+                  >Requested</span
+                >
                 <span
                   v-for="(line, index) in getPendingUpdateInclusiveDateLines(props.row)"
                   :key="`${props.row.id}-inclusive-requested-${index}`"
@@ -325,13 +335,12 @@
               </q-btn>
               <template v-if="props.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
-                  unelevated
+                  flat
                   dense
+                  round
                   size="sm"
-                  icon="close"
-                  color="blue-grey-7"
-                  text-color="white"
-                  class="pending-actions-icon-btn pending-actions-icon-btn--cancel"
+                  icon="remove_circle"
+                  color="warning"
                   @click.stop="openActionConfirm('cancel', props.row)"
                 >
                   <q-tooltip>Cancel</q-tooltip>
@@ -361,13 +370,12 @@
               </template>
               <template v-else-if="props.row.rawStatus === 'PENDING_HR'">
                 <q-btn
-                  unelevated
+                  flat
                   dense
+                  round
                   size="sm"
-                  icon="close"
-                  color="blue-grey-7"
-                  text-color="white"
-                  class="pending-actions-icon-btn pending-actions-icon-btn--cancel"
+                  icon="remove_circle"
+                  color="warning"
                   @click.stop="openActionConfirm('cancel', props.row)"
                 >
                   <q-tooltip>Cancel</q-tooltip>
@@ -410,7 +418,10 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="application-timeline-content">
-          <div v-if="hasApplicationAttachment(selectedApp)" class="application-timeline-attachment q-mb-md">
+          <div
+            v-if="hasApplicationAttachment(selectedApp)"
+            class="application-timeline-attachment q-mb-md"
+          >
             <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
             <q-btn
               flat
@@ -422,19 +433,22 @@
               @click="viewApplicationAttachment(selectedApp)"
             />
           </div>
-          <div
-            v-if="hasPendingUpdatePreview(selectedApp)"
-            class="application-date-change-preview"
-          >
+          <div v-if="hasPendingUpdatePreview(selectedApp)" class="application-date-change-preview">
             <div class="application-date-change-preview__title">Update Request Preview</div>
             <template v-if="hasPendingLeaveTypeUpdate(selectedApp)">
               <div class="application-date-change-preview__section-label">Leave Type</div>
               <div class="application-date-change-preview__label">Current</div>
-              <div class="application-date-change-preview__line">{{ getCurrentLeaveTypeLabel(selectedApp) }}</div>
-              <div class="application-date-change-preview__label application-date-change-preview__label--requested">
+              <div class="application-date-change-preview__line">
+                {{ getCurrentLeaveTypeLabel(selectedApp) }}
+              </div>
+              <div
+                class="application-date-change-preview__label application-date-change-preview__label--requested"
+              >
                 Requested
               </div>
-              <div class="application-date-change-preview__line application-date-change-preview__line--requested">
+              <div
+                class="application-date-change-preview__line application-date-change-preview__line--requested"
+              >
                 {{ getRequestedLeaveTypeLabel(selectedApp) }}
               </div>
             </template>
@@ -448,7 +462,9 @@
               >
                 {{ line }}
               </div>
-              <div class="application-date-change-preview__label application-date-change-preview__label--requested">
+              <div
+                class="application-date-change-preview__label application-date-change-preview__label--requested"
+              >
                 Requested
               </div>
               <div
@@ -518,7 +534,7 @@
             <q-btn
               unelevated
               no-caps
-              color="blue-grey-7"
+              color="warning"
               label="Cancel"
               @click="openActionConfirm('cancel', selectedApp)"
             />
@@ -541,7 +557,7 @@
             <q-btn
               unelevated
               no-caps
-              color="blue-grey-7"
+              color="warning"
               label="Cancel"
               @click="openActionConfirm('cancel', selectedApp)"
             />
@@ -557,7 +573,9 @@
         :class="
           confirmActionType === 'approve'
             ? 'admin-action-dialog-card--approve'
-            : 'admin-action-dialog-card--reject'
+            : confirmActionType === 'cancel'
+              ? 'admin-action-dialog-card--cancel'
+              : 'admin-action-dialog-card--reject'
         "
       >
         <q-card-section class="row justify-end admin-action-dialog-card__top">
@@ -596,7 +614,7 @@
               confirmActionType === 'approve'
                 ? 'green-7'
                 : confirmActionType === 'cancel'
-                  ? 'blue-grey-7'
+                  ? 'warning'
                   : 'negative'
             "
             class="admin-action-dialog-card__button"
@@ -609,7 +627,12 @@
     <!-- Disapprove dialog -->
     <q-dialog v-model="showDisapproveDialog" persistent>
       <q-card
-        class="admin-action-dialog-card admin-action-dialog-card--reject"
+        class="admin-action-dialog-card"
+        :class="
+          rejectionMode === 'cancel'
+            ? 'admin-action-dialog-card--cancel'
+            : 'admin-action-dialog-card--reject'
+        "
         style="min-width: 360px"
       >
         <q-card-section>
@@ -628,7 +651,7 @@
           <q-btn flat label="Cancel" v-close-popup />
           <q-btn
             unelevated
-            :color="rejectionMode === 'cancel' ? 'blue-grey-7' : 'negative'"
+            :color="rejectionMode === 'cancel' ? 'warning' : 'negative'"
             :label="rejectionMode === 'cancel' ? 'Confirm Cancel' : 'Submit'"
             :loading="actionLoading"
             @click="confirmDisapprove"
@@ -647,7 +670,7 @@
               actionResultType === 'approved'
                 ? 'green-7'
                 : actionResultType === 'cancelled'
-                  ? 'blue-grey-7'
+                  ? 'warning'
                   : 'negative'
             "
             size="28px"
@@ -825,7 +848,10 @@ function normalizeDashboardAnalytics(value) {
 
   const trendYear = Number(value.trend_year)
   return {
-    trend_year: Number.isFinite(trendYear) && trendYear >= 2000 ? Math.round(trendYear) : new Date().getFullYear(),
+    trend_year:
+      Number.isFinite(trendYear) && trendYear >= 2000
+        ? Math.round(trendYear)
+        : new Date().getFullYear(),
     monthly_leave_trend: normalizeTrendBuckets(value.monthly_leave_trend),
     leave_type_monthly_trend: normalizeLeaveTypeMonthlyTrend(value.leave_type_monthly_trend),
   }
@@ -1137,7 +1163,9 @@ function formatDayValue(value) {
 }
 
 function normalizeDurationUnit(value) {
-  const normalized = String(value || '').trim().toLowerCase()
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
   if (normalized.startsWith('hour')) return 'hour'
   if (normalized.startsWith('day')) return 'day'
   return ''
@@ -1198,7 +1226,9 @@ function formatLeaveBalanceValue(value) {
 }
 
 function normalizeApplicationType(value) {
-  const normalized = String(value || '').trim().toUpperCase()
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
   if (normalized === 'COC') return 'COC'
   if (normalized === 'LEAVE') return 'LEAVE'
   return ''
@@ -1479,7 +1509,8 @@ function addLeaveBalanceEntry(entries, seen, label, value) {
 }
 
 function getEmployeeBalanceLookupKey(app) {
-  const explicitKey = app?.employee_control_no ?? app?.employeeControlNo ?? app?.control_no ?? app?.controlNo
+  const explicitKey =
+    app?.employee_control_no ?? app?.employeeControlNo ?? app?.control_no ?? app?.controlNo
   if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
     return String(explicitKey).trim().toLowerCase()
   }
@@ -1743,11 +1774,9 @@ function parseSelectedDatesValue(value) {
 
 function normalizeIsoDateList(dateValues) {
   if (!Array.isArray(dateValues)) return []
-  return [...new Set(
-    dateValues
-      .map((value) => toIsoDateString(value))
-      .filter(Boolean),
-  )].sort((left, right) => Date.parse(left) - Date.parse(right))
+  return [...new Set(dateValues.map((value) => toIsoDateString(value)).filter(Boolean))].sort(
+    (left, right) => Date.parse(left) - Date.parse(right),
+  )
 }
 
 function resolveDateSetFromSource(source) {
@@ -1793,7 +1822,8 @@ function getPendingUpdatePayload(app) {
 }
 
 function getCurrentLeaveTypeId(app) {
-  const rawValue = app?.leave_type_id ?? app?.leaveTypeId ?? app?.raw?.leave_type_id ?? app?.raw?.leaveTypeId
+  const rawValue =
+    app?.leave_type_id ?? app?.leaveTypeId ?? app?.raw?.leave_type_id ?? app?.raw?.leaveTypeId
   const leaveTypeId = Number(rawValue)
   return Number.isFinite(leaveTypeId) && leaveTypeId > 0 ? leaveTypeId : null
 }
@@ -1808,13 +1838,13 @@ function getRequestedLeaveTypeId(app) {
 function getCurrentLeaveTypeLabel(app) {
   const leaveTypeName = String(
     app?.leaveType ??
-    app?.leave_type_name ??
-    app?.leave_type ??
-    app?.leaveTypeName ??
-    app?.raw?.leave_type_name ??
-    app?.raw?.leaveType ??
-    app?.raw?.leave_type ??
-    '',
+      app?.leave_type_name ??
+      app?.leave_type ??
+      app?.leaveTypeName ??
+      app?.raw?.leave_type_name ??
+      app?.raw?.leaveType ??
+      app?.raw?.leave_type ??
+      '',
   ).trim()
 
   const resolvedName = leaveTypeName || 'Unknown Leave Type'
@@ -1827,10 +1857,10 @@ function getRequestedLeaveTypeLabel(app) {
 
   const requestedName = String(
     payload.leave_type_name ??
-    payload.leaveTypeName ??
-    payload.leave_type ??
-    payload.leaveType ??
-    '',
+      payload.leaveTypeName ??
+      payload.leave_type ??
+      payload.leaveType ??
+      '',
   ).trim()
 
   const fallbackId = getRequestedLeaveTypeId(app)
@@ -1850,8 +1880,12 @@ function hasPendingLeaveTypeUpdate(app) {
     return requestedLeaveTypeId !== currentLeaveTypeId
   }
 
-  const currentName = String(getCurrentLeaveTypeLabel(app) || '').trim().toLowerCase()
-  const requestedName = String(getRequestedLeaveTypeLabel(app) || '').trim().toLowerCase()
+  const currentName = String(getCurrentLeaveTypeLabel(app) || '')
+    .trim()
+    .toLowerCase()
+  const requestedName = String(getRequestedLeaveTypeLabel(app) || '')
+    .trim()
+    .toLowerCase()
   if (!requestedName) return false
   if (!currentName) return true
   return requestedName !== currentName
@@ -2003,7 +2037,9 @@ function isEditUpdateRequest(app) {
     app?.raw?.hasPendingUpdateRequest,
   ]
 
-  if (candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')) {
+  if (
+    candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')
+  ) {
     return true
   }
 
@@ -2503,17 +2539,11 @@ function getActionResultVerb(type) {
 }
 
 function resolveApplicationAttachmentReference(app) {
-  const directReference = String(
-    app?.attachment_reference ??
-    app?.attachmentReference ??
-    '',
-  ).trim()
+  const directReference = String(app?.attachment_reference ?? app?.attachmentReference ?? '').trim()
   if (directReference) return directReference
 
   const rawReference = String(
-    app?.raw?.attachment_reference ??
-    app?.raw?.attachmentReference ??
-    '',
+    app?.raw?.attachment_reference ?? app?.raw?.attachmentReference ?? '',
   ).trim()
 
   return rawReference || ''
@@ -2523,10 +2553,13 @@ function hasApplicationAttachment(app) {
   if (!app || typeof app !== 'object') return false
   if (resolveApplicationAttachmentReference(app)) return true
 
-  const submittedFlag =
-    app?.attachment_submitted ??
-    app?.attachmentSubmitted
-  return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
+  const submittedFlag = app?.attachment_submitted ?? app?.attachmentSubmitted
+  return (
+    submittedFlag === true ||
+    submittedFlag === 1 ||
+    submittedFlag === '1' ||
+    submittedFlag === 'true'
+  )
 }
 
 async function viewApplicationAttachment(app = selectedApp.value) {
@@ -2534,7 +2567,11 @@ async function viewApplicationAttachment(app = selectedApp.value) {
   const id = target?.id
 
   if (!id) {
-    $q.notify({ type: 'negative', message: 'Unable to identify this leave application attachment.', position: 'top' })
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to identify this leave application attachment.',
+      position: 'top',
+    })
     return
   }
 
@@ -2562,11 +2599,12 @@ async function viewApplicationAttachment(app = selectedApp.value) {
       return
     }
 
-    const blob = response.data instanceof Blob
-      ? response.data
-      : new Blob([response.data], {
-          type: response?.headers?.['content-type'] || 'application/octet-stream',
-        })
+    const blob =
+      response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], {
+            type: response?.headers?.['content-type'] || 'application/octet-stream',
+          })
     const objectUrl = URL.createObjectURL(blob)
 
     const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer')
@@ -2621,10 +2659,7 @@ function confirmPendingAction() {
 async function printApplication(app) {
   if (!canPrintApplication(app)) return
   const targetApplicationId = String(
-    app?.id ??
-    app?.application_id ??
-    app?.leave_application_id ??
-    '',
+    app?.id ?? app?.application_id ?? app?.leave_application_id ?? '',
   ).trim()
 
   try {
@@ -2651,17 +2686,16 @@ async function printApplication(app) {
     }
 
     const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
-    const updated = updatedApplications.find((item) => String(item?.id ?? '') === String(app?.id ?? ''))
+    const updated = updatedApplications.find(
+      (item) => String(item?.id ?? '') === String(app?.id ?? ''),
+    )
     let printableApplication = updated || app
 
     if (targetApplicationId !== '' && leaveApplicationsResponse?.data) {
       const detailedApplications = extractApplicationsFromPayload(leaveApplicationsResponse.data)
       const detailedApplication = detailedApplications.find((item) => {
         const itemId = String(
-          item?.id ??
-          item?.application_id ??
-          item?.leave_application_id ??
-          '',
+          item?.id ?? item?.application_id ?? item?.leave_application_id ?? '',
         ).trim()
         return itemId !== '' && itemId === targetApplicationId
       })
@@ -2868,9 +2902,14 @@ async function confirmDisapprove() {
     await api.post(disapprovalEndpoint, {
       remarks: payloadRemarks,
     })
-    const successMessage = rejectionMode.value === 'cancel'
-      ? (isCoc ? 'COC application cancelled with remarks' : 'Leave application cancelled with remarks')
-      : (isCoc ? 'COC application rejected with remarks' : 'Leave application rejected with remarks')
+    const successMessage =
+      rejectionMode.value === 'cancel'
+        ? isCoc
+          ? 'COC application cancelled with remarks'
+          : 'Leave application cancelled with remarks'
+        : isCoc
+          ? 'COC application rejected with remarks'
+          : 'Leave application rejected with remarks'
     $q.notify({ type: 'info', message: successMessage, position: 'top' })
     showDisapproveDialog.value = false
     await fetchDashboard()
@@ -3018,22 +3057,6 @@ async function confirmDisapprove() {
   width: 190px;
   padding-right: 8px;
 }
-.pending-actions-icon-btn {
-  width: 14px;
-  min-width: 14px;
-  height: 14px;
-  min-height: 14px;
-  padding: 0 !important;
-  border-radius: 0;
-}
-.pending-actions-icon-btn :deep(.q-btn__content) {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-}
-.pending-actions-icon-btn :deep(.q-icon) {
-  font-size: 10px;
-}
 .application-status-search {
   width: min(440px, 84vw);
 }
@@ -3081,6 +3104,9 @@ async function confirmDisapprove() {
 }
 .admin-action-dialog-card--approve {
   border-color: #b7ddc1;
+}
+.admin-action-dialog-card--cancel {
+  border-color: #f0d08a;
 }
 .admin-action-dialog-card--reject {
   border-color: #e6b8b8;
@@ -3420,5 +3446,3 @@ async function confirmDisapprove() {
   }
 }
 </style>
-
-
