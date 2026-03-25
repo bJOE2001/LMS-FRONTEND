@@ -1202,6 +1202,37 @@ export function useAdminApplicationsPage() {
       : dateSet.filter((dateKey) => !recalledDateSet.has(dateKey))
   }
 
+  function getPendingUpdatePayload(app) {
+    const candidates = [
+      app?.pending_update,
+      app?.pendingUpdate,
+      app?.raw?.pending_update,
+      app?.raw?.pendingUpdate,
+      app?.latest_update_request_payload,
+      app?.latestUpdateRequestPayload,
+      app?.raw?.latest_update_request_payload,
+      app?.raw?.latestUpdateRequestPayload,
+    ]
+
+    for (const candidate of candidates) {
+      if (!candidate) continue
+      if (candidate && typeof candidate === 'object') return candidate
+
+      if (typeof candidate !== 'string') continue
+      const trimmed = candidate.trim()
+      if (!trimmed) continue
+
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed && typeof parsed === 'object') return parsed
+      } catch {
+        // Ignore malformed payload and continue scanning candidates.
+      }
+    }
+
+    return null
+  }
+
   function getDateSubsetTotalDays(app, dateKeys = []) {
     const normalizedDateKeys = [...new Set(
       (Array.isArray(dateKeys) ? dateKeys : [])
@@ -1478,6 +1509,165 @@ export function useAdminApplicationsPage() {
         recalled: shouldMarkRecalledDates && recalledDateSet.has(key),
       }
     })
+  }
+
+  function getPendingUpdateDateCoverageWeights(app) {
+    const payload = getPendingUpdatePayload(app)
+    if (!payload || typeof payload !== 'object') return {}
+
+    const dateSet = resolveDateSetFromSource(payload)
+    if (!dateSet.length) return {}
+
+    const rawCoverageMap = toSelectedDateCoverageMap(
+      payload?.selected_date_coverage ??
+        payload?.selectedDateCoverage,
+    )
+
+    const normalizedCoverageMap = {}
+    Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
+      const key = String(rawKey || '').trim()
+      if (!key || !coverage) return
+
+      normalizedCoverageMap[key] = coverage
+
+      const isoKey = toIsoDateString(key)
+      if (isoKey) {
+        normalizedCoverageMap[isoKey] = coverage
+      }
+    })
+
+    const totalDays = (() => {
+      const candidates = [
+        payload?.total_days,
+        payload?.totalDays,
+        payload?.duration_value,
+        payload?.days,
+      ]
+
+      for (const candidate of candidates) {
+        const numericValue = Number(candidate)
+        if (Number.isFinite(numericValue) && numericValue > 0) {
+          return numericValue
+        }
+      }
+
+      return 0
+    })()
+
+    const hasCoverageOverrides = Object.keys(normalizedCoverageMap).length > 0
+    let defaultCoverageWeight = 1
+    const dateCount = dateSet.length
+    if (dateCount > 0 && totalDays > 0) {
+      const halfMatch = Math.abs((dateCount * 0.5) - totalDays) < 0.00001
+      const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
+
+      if (halfMatch) {
+        defaultCoverageWeight = 0.5
+      } else if (!wholeMatch) {
+        defaultCoverageWeight = Math.max(Math.min(totalDays / dateCount, 1), 0.5)
+      }
+    }
+
+    return dateSet.reduce((acc, dateValue, index) => {
+      const isoDate = toIsoDateString(dateValue)
+      const key = isoDate || String(dateValue)
+      const coverage = (
+        normalizedCoverageMap[key] ??
+        normalizedCoverageMap[String(index)] ??
+        normalizedCoverageMap[String(index + 1)] ??
+        ''
+      )
+
+      if (coverage === 'half') {
+        acc[key] = 0.5
+      } else if (coverage === 'whole') {
+        acc[key] = 1
+      } else if (hasCoverageOverrides) {
+        acc[key] = 1
+      } else {
+        acc[key] = defaultCoverageWeight
+      }
+
+      return acc
+    }, {})
+  }
+
+  function getPendingUpdateDateIndicatorRows(app) {
+    const payload = getPendingUpdatePayload(app)
+    if (!payload || typeof payload !== 'object') return []
+    if (isCocApplication(app)) return []
+
+    const dateSet = resolveDateSetFromSource(payload)
+    if (!dateSet.length) return []
+
+    const rawStatusMap = toSelectedDatePayStatusMap(
+      payload?.selected_date_pay_status ?? payload?.selectedDatePayStatus,
+    )
+
+    const normalizedStatusMap = {}
+    Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
+      const key = String(rawKey || '').trim()
+      if (!key || !status) return
+
+      normalizedStatusMap[key] = status
+
+      const isoKey = toIsoDateString(key)
+      if (isoKey) {
+        normalizedStatusMap[isoKey] = status
+      }
+    })
+
+    const fallbackStatus =
+      normalizePayStatusCode(payload?.pay_mode ?? payload?.payMode) === 'WOP' ? 'WOP' : 'WP'
+    const coverageWeights = getPendingUpdateDateCoverageWeights(app)
+
+    return dateSet.map((dateValue, index) => {
+      const isoDate = toIsoDateString(dateValue)
+      const key = isoDate || String(dateValue)
+      const payStatus = (
+        normalizedStatusMap[key] ??
+        normalizedStatusMap[String(index)] ??
+        normalizedStatusMap[String(index + 1)] ??
+        fallbackStatus
+      )
+
+      return {
+        dateKey: key,
+        dateText: formatDate(key),
+        coverageLabel: Number(coverageWeights[key] ?? 1) === 0.5 ? 'Half Day' : 'Whole Day',
+        payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
+      }
+    })
+  }
+
+  function hasPendingDateUpdate(app) {
+    const payload = getPendingUpdatePayload(app)
+    if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
+
+    const currentIndicatorRows = getSelectedDateIndicatorRows(app)
+    const requestedIndicatorRows = getPendingUpdateDateIndicatorRows(app)
+    if (requestedIndicatorRows.length) {
+      if (currentIndicatorRows.length !== requestedIndicatorRows.length) return true
+
+      return requestedIndicatorRows.some((requestedRow, index) => {
+        const currentRow = currentIndicatorRows[index]
+        if (!currentRow) return true
+
+        return (
+          requestedRow.dateKey !== currentRow.dateKey ||
+          requestedRow.coverageLabel !== currentRow.coverageLabel ||
+          requestedRow.payStatus !== currentRow.payStatus
+        )
+      })
+    }
+
+    const currentDateSet = resolveDateSetFromSource(app)
+    const requestedDateSet = resolveDateSetFromSource(payload)
+    if (!requestedDateSet.length) return false
+    if (!currentDateSet.length) return true
+    if (currentDateSet.length !== requestedDateSet.length) return true
+
+    return requestedDateSet.some((date, index) => date !== currentDateSet[index])
   }
 
   function getApplicationInclusiveDateLines(app) {
@@ -2901,6 +3091,8 @@ export function useAdminApplicationsPage() {
     getApplicationInclusiveDateColumnLines,
     getApplicationInclusiveDateLines,
     getSelectedDateIndicatorRows,
+    getPendingUpdateDateIndicatorRows,
+    hasPendingDateUpdate,
     formatDate,
     getApplicationStatusColor,
     getApplicationStatusLabel,

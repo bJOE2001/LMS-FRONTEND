@@ -2053,6 +2053,23 @@ function hasPendingDateUpdate(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
+  const currentIndicatorRows = getSelectedDatePayStatusRows(app)
+  const requestedIndicatorRows = getPendingUpdateDatePayStatusRows(app)
+  if (requestedIndicatorRows.length) {
+    if (currentIndicatorRows.length !== requestedIndicatorRows.length) return true
+
+    return requestedIndicatorRows.some((requestedRow, index) => {
+      const currentRow = currentIndicatorRows[index]
+      if (!currentRow) return true
+
+      return (
+        requestedRow.dateKey !== currentRow.dateKey ||
+        requestedRow.coverageLabel !== currentRow.coverageLabel ||
+        requestedRow.payStatus !== currentRow.payStatus
+      )
+    })
+  }
+
   const currentDateSet = resolveDateSetFromSource(app)
   const requestedDateSet = resolveDateSetFromSource(payload)
   if (!requestedDateSet.length) return false
@@ -2063,13 +2080,25 @@ function hasPendingDateUpdate(app) {
 }
 
 function getApplicationInclusiveDateSummary(app) {
+  const rows = getSelectedDatePayStatusRows(app)
+  if (rows.length) return formatInclusiveDateIndicatorSummary(rows)
+
   const lines = getApplicationInclusiveDateLines(app).filter(Boolean)
   return lines.length ? lines.join(' | ') : 'N/A'
 }
 
 function getPendingUpdateInclusiveDateSummary(app) {
+  const rows = getPendingUpdateDatePayStatusRows(app)
+  if (rows.length) return formatInclusiveDateIndicatorSummary(rows)
+
   const lines = getPendingUpdateInclusiveDateLines(app).filter(Boolean)
   return lines.length ? lines.join(' | ') : 'N/A'
+}
+
+function formatInclusiveDateIndicatorSummary(rows) {
+  return rows
+    .map((entry) => `${entry.dateText} (${entry.coverageLabel}, ${entry.payStatus})`)
+    .join(' | ')
 }
 
 function resolveCurrentDurationSnapshot(app) {

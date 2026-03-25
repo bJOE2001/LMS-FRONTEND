@@ -383,6 +383,62 @@
                 </div>
               </div>
               <div
+                v-else-if="hasPendingDateUpdate(selectedApp)"
+                class="text-weight-medium admin-application-duration-columns"
+              >
+                <div class="text-caption text-grey-7">Current</div>
+                <div
+                  v-for="entry in getSelectedDateIndicatorRows(selectedApp)"
+                  :key="`${selectedApp.application_uid || selectedApp.id}-details-current-indicator-${entry.dateKey}`"
+                  class="admin-application-duration-date-row"
+                >
+                  <span class="text-caption admin-application-duration-date">{{ entry.dateText }}</span>
+                  <q-badge
+                    dense
+                    rounded
+                    color="grey-6"
+                    text-color="white"
+                    :label="entry.coverageLabel"
+                    class="admin-application-duration-badge"
+                  />
+                  <q-badge
+                    dense
+                    rounded
+                    :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
+                    text-color="white"
+                    :label="entry.payStatus"
+                    class="admin-application-duration-badge"
+                  />
+                </div>
+
+                <div class="text-caption text-deep-purple-8 q-mt-sm">Requested</div>
+                <div
+                  v-for="entry in getPendingUpdateDateIndicatorRows(selectedApp)"
+                  :key="`${selectedApp.application_uid || selectedApp.id}-details-requested-indicator-${entry.dateKey}`"
+                  class="admin-application-duration-date-row"
+                >
+                  <span class="text-caption text-deep-purple-8 admin-application-duration-date">
+                    {{ entry.dateText }}
+                  </span>
+                  <q-badge
+                    dense
+                    rounded
+                    color="grey-6"
+                    text-color="white"
+                    :label="entry.coverageLabel"
+                    class="admin-application-duration-badge"
+                  />
+                  <q-badge
+                    dense
+                    rounded
+                    :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
+                    text-color="white"
+                    :label="entry.payStatus"
+                    class="admin-application-duration-badge"
+                  />
+                </div>
+              </div>
+              <div
                 v-else-if="getSelectedDateIndicatorRows(selectedApp).length"
                 class="text-weight-medium admin-application-duration-columns"
               >
@@ -730,6 +786,8 @@ const {
   getApplicationInclusiveDateColumnLines,
   getApplicationInclusiveDateLines,
   getSelectedDateIndicatorRows,
+  getPendingUpdateDateIndicatorRows,
+  hasPendingDateUpdate,
   formatDate,
   getApplicationStatusColor,
   getApplicationStatusLabel,
