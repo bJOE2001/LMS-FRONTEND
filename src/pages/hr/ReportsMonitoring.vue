@@ -715,7 +715,7 @@ const reportConfigs = {
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'vlFl', label: 'VL/FL', field: 'vlFl', align: 'right' },
       { name: 'sl', label: 'SL', field: 'sl', align: 'right' },
-      { name: 'mcCo', label: 'MC/CO', field: 'mcCo', align: 'right' },
+      { name: 'mcCo', label: 'MCO6', field: 'mcCo', align: 'right' },
       { name: 'wlp', label: 'WLP', field: 'wlp', align: 'right' },
       { name: 'others', label: 'Others', field: 'others', align: 'right' },
       {

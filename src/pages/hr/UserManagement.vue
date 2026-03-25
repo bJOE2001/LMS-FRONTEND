@@ -205,9 +205,10 @@
                   dense
                   label="Employee *"
                   :loading="loadingEligibleEmployees"
-                  :disable="creatingAccount || loadingEligibleEmployees"
+                  :disable="creatingAccount"
                   :rules="[employeeRequiredRule]"
                   @filter="filterEligibleEmployees"
+                  @popup-show="handleEligibleEmployeePopupShow"
                 >
                   <template #no-option>
                     <q-item>
@@ -533,6 +534,18 @@ function filterEligibleEmployees(value, update) {
     })
 }
 
+async function handleEligibleEmployeePopupShow() {
+  if (createForm.value.is_guest) return
+  if (loadingEligibleEmployees.value) return
+  if (eligibleEmployeeOptions.value.length) return
+
+  try {
+    await fetchEligibleEmployees('', { silent: true })
+  } catch {
+    // The field already shows the error state through the empty options message.
+  }
+}
+
 async function openCreateDialog() {
   showCreateDialog.value = true
   showGuestPassword.value = false
@@ -541,10 +554,7 @@ async function openCreateDialog() {
   eligibleEmployeeSearch.value = ''
   eligibleEmployees.value = []
   eligibleEmployeeOptions.value = []
-  await Promise.all([
-    fetchDepartmentOptions(),
-    fetchEligibleEmployees(''),
-  ])
+  await fetchDepartmentOptions()
 }
 
 async function fetchDepartmentOptions() {
