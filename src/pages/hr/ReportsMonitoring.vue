@@ -164,7 +164,7 @@
         </div>
       </q-card-section>
       <q-separator />
-      <q-card-section class="q-pa-sm">
+      <q-card-section class="q-pa-sm report-table-card-section">
         <component
           :is="selectedReport.component"
           :rows="filteredRows"
@@ -377,8 +377,30 @@ const leaveBalanceColumnGroups = {
   totalBalances: ['balanceVl', 'balanceSl', 'balanceFl', 'balanceMcCo', 'balanceWlp', 'balanceOthers'],
 }
 
+const leaveBalanceAllGroupValues = leaveBalanceColumnGroupOptions.map((option) => option.value)
 const leaveBalanceDefaultVisibleGroups = ['runningBalance']
 const leaveBalanceVisibleGroups = ref([...leaveBalanceDefaultVisibleGroups])
+
+const orderedLeaveBalanceVisibleGroups = computed(() => {
+  const selectedGroups = new Set(leaveBalanceVisibleGroups.value)
+  return leaveBalanceAllGroupValues.filter((groupValue) => selectedGroups.has(groupValue))
+})
+
+watch(leaveBalanceVisibleGroups, (groups) => {
+  const normalizedInputGroups = Array.isArray(groups) ? groups : []
+  const selectedGroups = new Set(normalizedInputGroups)
+  const normalizedGroups = leaveBalanceAllGroupValues.filter((groupValue) =>
+    selectedGroups.has(groupValue),
+  )
+
+  const hasSameOrder =
+    normalizedGroups.length === normalizedInputGroups.length &&
+    normalizedGroups.every((groupValue, index) => groupValue === normalizedInputGroups[index])
+
+  if (!hasSameOrder) {
+    leaveBalanceVisibleGroups.value = normalizedGroups
+  }
+})
 
 
 const lwopRows = computed(() => reportStore.lwopReports)
@@ -462,7 +484,7 @@ const reportConfigs = {
       },
       {
         name: 'annualBalanceMcCo',
-        label: 'Annual Balance MC/CO',
+        label: 'Annual Balance MCO6',
         field: 'annualBalanceMcCo',
         align: 'right',
       },
@@ -492,7 +514,7 @@ const reportConfigs = {
       },
       {
         name: 'daysMcCo',
-        label: 'Days MC/CO',
+        label: 'Days MCO6',
         field: 'daysMcCo',
         align: 'right',
       },
@@ -528,7 +550,7 @@ const reportConfigs = {
       },
       {
         name: 'balanceMcCo',
-        label: 'Balance MC/CO',
+        label: 'Balance MCO6',
         field: 'balanceMcCo',
         align: 'right',
       },
@@ -634,7 +656,7 @@ const reportConfigs = {
       },
       {
         name: 'runningCocBalance',
-        label: 'Running COC Balance as of Date Filed',
+        label: 'Running COC Balance as to Date Filed',
         field: 'runningCocBalance',
         align: 'right',
       },
@@ -764,10 +786,9 @@ const isLeaveBalancesReport = computed(() => selectedReportType.value === 'leave
 const leaveBalanceVisibleColumnNames = computed(() => {
   if (!isLeaveBalancesReport.value) return []
 
-  const selectedGroups = new Set(leaveBalanceVisibleGroups.value)
-  const selectedGroupColumns = Object.entries(leaveBalanceColumnGroups)
-    .filter(([groupName]) => selectedGroups.has(groupName))
-    .flatMap(([, groupColumns]) => groupColumns)
+  const selectedGroupColumns = orderedLeaveBalanceVisibleGroups.value.flatMap(
+    (groupName) => leaveBalanceColumnGroups[groupName] || [],
+  )
 
   return [
     'no',
@@ -783,14 +804,19 @@ const leaveBalanceVisibleColumnNames = computed(() => {
 const activeColumnsSource = computed(() => {
   if (!isLeaveBalancesReport.value) return selectedReport.value.columns
 
-  const allowedColumns = new Set(leaveBalanceVisibleColumnNames.value)
-  return selectedReport.value.columns.filter((column) => allowedColumns.has(column.name))
+  const columnLookup = new Map(
+    selectedReport.value.columns.map((column) => [column.name, column]),
+  )
+
+  return leaveBalanceVisibleColumnNames.value
+    .map((columnName) => columnLookup.get(columnName))
+    .filter(Boolean)
 })
 
 const tableMinWidth = computed(() => {
   if (!isLeaveBalancesReport.value) return selectedReport.value.minTableWidth
 
-  const selectedGroupCount = leaveBalanceVisibleGroups.value.length
+  const selectedGroupCount = orderedLeaveBalanceVisibleGroups.value.length
   if (selectedGroupCount <= 1) return '1250px'
   if (selectedGroupCount === 2) return '1600px'
   if (selectedGroupCount === 3) return '2000px'
@@ -1014,7 +1040,7 @@ async function generatePdf(action = 'open', options = {}) {
       action,
       reportType: selectedReportType.value,
       reportLabel: selectedReport.value.label,
-      columns: selectedReport.value.columns,
+      columns: activeColumnsSource.value,
       rows: filteredRows.value,
       filters: { ...filters },
       monthNames,
@@ -1122,6 +1148,20 @@ onBeforeUnmount(() => {
 .report-header-actions {
   width: fit-content;
   margin-left: auto;
+}
+
+.report-table-card-section {
+  overflow-x: hidden;
+}
+
+.report-table-card-section :deep(.report-table-container),
+.report-table-card-section :deep(.q-table__container) {
+  max-width: 100%;
+}
+
+.report-table-card-section :deep(.q-table__middle) {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 </style>
