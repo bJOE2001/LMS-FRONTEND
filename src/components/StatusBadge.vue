@@ -20,8 +20,8 @@ const props = defineProps({
 const color = computed(() => {
   const map = {
     'Pending': 'warning',
-    'Pending Admin': 'orange-7',
-    'Pending HR': 'amber-8',
+    'Pending Admin': 'warning',
+    'Pending HR': 'blue-6',
     'Approved': 'positive',
     'Recalled': 'blue-grey-7',
     'Rejected': 'negative',
@@ -31,6 +31,6 @@ const color = computed(() => {
 })
 
 const textColor = computed(() => {
-  return ['Pending', 'Pending Admin', 'Pending HR'].includes(props.status) ? 'dark' : 'white'
+  return ['Pending', 'Pending Admin'].includes(props.status) ? 'dark' : 'white'
 })
 </script>
