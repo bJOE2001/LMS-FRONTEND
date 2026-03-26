@@ -4352,7 +4352,7 @@ async function confirmRecall() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 12px;
+  border-radius: 0;
   font-weight: 700;
 }
 
@@ -4522,7 +4522,7 @@ async function confirmRecall() {
 .hr-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 18px;
+  border-radius: 0;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -4566,7 +4566,7 @@ async function confirmRecall() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 12px;
+  border-radius: 0;
   font-weight: 700;
 }
 
@@ -5086,7 +5086,7 @@ async function confirmRecall() {
 
   .hr-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 0;
   }
 
   .hr-action-dialog-card--compact .hr-action-dialog-card__button {

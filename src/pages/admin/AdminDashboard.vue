@@ -42,7 +42,7 @@
     </q-dialog>
 
     <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
-      <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
+      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
           flat
@@ -83,7 +83,7 @@
         </q-card>
       </div>
 
-      <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
+      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
           flat
@@ -120,7 +120,7 @@
         </q-card>
       </div>
 
-      <div class="col-12 col-sm-6 col-md-4 dashboard-kpi-col">
+      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
         <q-card
           class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
           flat
@@ -145,6 +145,37 @@
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
                 <template v-else>{{ dashboardData.total_approved }}</template>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+        <q-card
+          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
+          flat
+          elevation="1"
+          role="button"
+          tabindex="0"
+          :style="{ '--stat-card-hover-bg': '#ffebee' }"
+          @click="openApplicationsView('rejected')"
+          @keyup.enter="openApplicationsView('rejected')"
+          @keyup.space.prevent="openApplicationsView('rejected')"
+        >
+          <q-card-section class="stat-card-content dashboard-kpi-content">
+            <div class="stat-card-main dashboard-kpi-main">
+              <div class="stat-card-left dashboard-kpi-left">
+                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
+                  <q-icon name="cancel" size="28px" color="negative" />
+                </div>
+                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                  Total Rejected
+                </div>
+              </div>
+              <div class="stat-value text-negative dashboard-kpi-value">
+                <q-spinner v-if="loading" size="32px" color="negative" />
+                <template v-else>{{ dashboardData.rejected_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -899,6 +930,7 @@ const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
   total_approved: 0,
+  rejected_count: 0,
   total_count: 0,
   analytics: null,
   kpi_breakdown: {
@@ -908,6 +940,16 @@ const dashboardData = ref({
     total: emptyEmploymentBreakdown(),
   },
 })
+
+function countRejectedApplications(applications) {
+  return applications.filter((app) => {
+    const rawStatus = String(app?.rawStatus || '').toUpperCase()
+    if (rawStatus === 'REJECTED') return true
+
+    const status = String(app?.status || '').toUpperCase()
+    return status.includes('REJECTED') || status.includes('DISAPPROVED')
+  }).length
+}
 
 const kpiBreakdown = computed(() => {
   const source = dashboardData.value.kpi_breakdown ?? {}
@@ -1054,10 +1096,20 @@ async function fetchDashboard() {
     ])
 
     const data = dashboardResponse?.data ?? {}
+    const mergedApplications = mergeApplications(
+      extractApplicationsFromPayload(data),
+      extractApplicationsFromPayload(cocApplicationsResponse?.data),
+    )
+    const apiRejectedCount = Number(data.rejected_count)
+    const rejectedCount = Number.isFinite(apiRejectedCount)
+      ? apiRejectedCount
+      : countRejectedApplications(mergedApplications)
+
     dashboardData.value = {
       pending_count: Number(data.pending_count || 0),
       approved_today: Number(data.approved_today || 0),
       total_approved: Number(data.total_approved || 0),
+      rejected_count: rejectedCount,
       total_count: Number(data.total_count || 0),
       analytics:
         data.analytics && typeof data.analytics === 'object'
@@ -1071,10 +1123,7 @@ async function fetchDashboard() {
       },
     }
 
-    applicationRows.value = mergeApplications(
-      extractApplicationsFromPayload(data),
-      extractApplicationsFromPayload(cocApplicationsResponse?.data),
-    )
+    applicationRows.value = mergedApplications
     maybeShowPendingReminder()
   } catch (err) {
     const message = resolveApiErrorMessage(err, 'Unable to load dashboard data right now.')
@@ -2697,10 +2746,17 @@ async function printApplication(app) {
       api.get('/admin/leave-applications').catch(() => null),
     ])
     const data = dashboardResponse?.data
+    const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
+    const apiRejectedCount = Number(data?.rejected_count)
+    const rejectedCount = Number.isFinite(apiRejectedCount)
+      ? apiRejectedCount
+      : countRejectedApplications(updatedApplications)
+
     dashboardData.value = {
       pending_count: Number(data?.pending_count || 0),
       approved_today: Number(data?.approved_today || 0),
       total_approved: Number(data?.total_approved || 0),
+      rejected_count: rejectedCount,
       total_count: Number(data?.total_count || 0),
       analytics:
         data?.analytics && typeof data.analytics === 'object'
@@ -2714,7 +2770,6 @@ async function printApplication(app) {
       },
     }
 
-    const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
     const updated = updatedApplications.find(
       (item) => String(item?.id ?? '') === String(app?.id ?? ''),
     )
@@ -3203,7 +3258,7 @@ async function confirmDisapprove() {
 .admin-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 18px;
+  border-radius: 0;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -3211,7 +3266,7 @@ async function confirmDisapprove() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 12px;
+  border-radius: 0;
 }
 .admin-action-dialog-card__button--cancel {
   background: transparent;
@@ -3439,7 +3494,7 @@ async function confirmDisapprove() {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 0;
   }
 
   .admin-action-dialog-card--compact .admin-action-dialog-card__button {

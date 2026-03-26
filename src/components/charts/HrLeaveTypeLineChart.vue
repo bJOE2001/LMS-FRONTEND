@@ -5,7 +5,7 @@
         <div class="col-12 col-md-8">
           <div class="text-h6">Leave Type Line Chart</div>
           <p class="text-caption text-grey-7 q-mb-none">
-            Monthly leave applications by leave type for {{ trendYearLabel }}
+            Monthly leave applications by leave type for {{ resolvedTrendYearLabel }}
           </p>
         </div>
         <div class="col-12 col-sm-4 col-md-4">
@@ -51,6 +51,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  analytics: {
+    type: Object,
+    default: null,
+  },
   trendYearLabel: {
     type: Number,
     default: () => new Date().getFullYear(),
@@ -73,6 +77,38 @@ function getApplicationDate(application) {
     null
   )
 }
+
+
+function normalizeTrendBuckets(rawBuckets) {
+  return Array.from({ length: 12 }, (_unused, monthIndex) => {
+    const parsed = Number(rawBuckets?.[monthIndex] ?? 0)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.round(parsed)
+  })
+}
+
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function isApprovedApplication(application) {
+  const candidates = [
+    application?.rawStatus,
+    application?.raw_status,
+    application?.status,
+  ]
+
+  return candidates.some((statusValue) => normalizeStatusKey(statusValue) === 'APPROVED')
+}
+
+const resolvedTrendYearLabel = computed(() => {
+  const parsed = Number(props.analytics?.trend_year)
+  if (!Number.isFinite(parsed) || parsed < 2000) return props.trendYearLabel
+  return Math.round(parsed)
+})
 
 function normalizeLeaveTypeName(value) {
   if (typeof value === 'string' && value.trim()) return value.trim()
@@ -99,14 +135,36 @@ function getApplicationLeaveType(application) {
 
 const leaveTypeMonthlyTrendMap = computed(() => {
   const trendMap = new Map()
+  const leaveTypeTrendPayload = props.analytics?.leave_type_monthly_trend
+
+  if (leaveTypeTrendPayload && typeof leaveTypeTrendPayload === 'object') {
+    for (const [rawLeaveType, buckets] of Object.entries(leaveTypeTrendPayload)) {
+      const leaveTypeName = normalizeLeaveTypeName(rawLeaveType)
+      const normalizedBuckets = normalizeTrendBuckets(buckets)
+      const existingBuckets = trendMap.get(leaveTypeName)
+
+      if (existingBuckets) {
+        trendMap.set(
+          leaveTypeName,
+          existingBuckets.map((count, index) => count + normalizedBuckets[index]),
+        )
+      } else {
+        trendMap.set(leaveTypeName, normalizedBuckets)
+      }
+    }
+
+    return trendMap
+  }
 
   for (const application of props.applications) {
+    if (!isApprovedApplication(application)) continue
+
     const rawDate = getApplicationDate(application)
     if (!rawDate) continue
 
     const parsedDate = new Date(rawDate)
     if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== props.trendYearLabel) continue
+    if (parsedDate.getFullYear() !== resolvedTrendYearLabel.value) continue
 
     const leaveTypeName = getApplicationLeaveType(application)
     if (!trendMap.has(leaveTypeName)) {

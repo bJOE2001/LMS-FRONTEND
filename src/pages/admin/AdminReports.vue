@@ -1,208 +1,357 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="row justify-between items-center q-mb-lg">
+  <q-page class="report-page q-pa-md">
+    <div class="page-header q-mb-lg">
       <div>
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Reports</h1>
+        <div class="text-h4 text-weight-bold">Office Leave Applications Report</div>
+        <div class="text-body2 text-grey-7 q-mt-xs">
+          View and monitor leave applications submitted within your office.
+        </div>
       </div>
-      <q-btn-dropdown
-        v-model="showExportDropdown"
-        color="green-7"
-        icon="download"
-        label="Export Data"
-        dropdown-icon="arrow_drop_down"
-      >
-        <q-list>
-          <q-item clickable v-close-popup @click="exportData('PDF')">
-            <q-item-section>
-              <q-item-label>PDF</q-item-label>
-            </q-item-section>
-          </q-item>
 
-          <q-item clickable v-close-popup @click="exportData('CSV')">
-            <q-item-section>
-              <q-item-label>CSV</q-item-label>
-            </q-item-section>
-          </q-item>
-
-          <q-item clickable v-close-popup @click="exportData('Excel')">
-            <q-item-section>
-              <q-item-label>Excel</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
+      <div class="header-actions row q-gutter-sm">
+        <q-btn outline color="primary" icon="refresh" label="Refresh" no-caps />
+        <q-btn outline color="primary" icon="print" label="Print" no-caps />
+        <q-btn color="primary" icon="file_download" label="Export" no-caps />
+      </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders q-mb-lg">
+    <q-card flat bordered class="filter-card q-mb-md">
+      <q-banner rounded class="bg-blue-1 text-primary q-mb-md">
+        <q-icon name="apartment" class="q-mr-sm" />
+        This report page is for office admin monitoring only. HR review and HR actions are not shown here.
+      </q-banner>
       <q-card-section>
-        <div class="text-h6 q-mb-md">Generate Report</div>
-        <div class="row q-col-gutter-md items-end">
+        <div class="text-subtitle1 text-weight-medium q-mb-md">Filters</div>
+
+        <div class="row q-col-gutter-md">
           <div class="col-12 col-md-3">
             <q-select
-              v-model="reportType"
-              :options="reportTypeOptions"
+              v-model="filters.office"
+              :options="officeOptions"
+              label="Office"
               outlined
               dense
-              label="Report Type"
+              emit-value
+              map-options
+              clearable
             />
           </div>
-          <div class="col-12 col-md-2">
-            <q-input v-model="dateFrom" type="date" outlined dense label="From" />
-          </div>
-          <div class="col-12 col-md-2">
-            <q-input v-model="dateTo" type="date" outlined dense label="To" />
-          </div>
-          <div class="col-12 col-md-2">
-            <q-btn
-              unelevated
-              color="primary"
-              icon="description"
-              label="Generate"
-              @click="showReportModal = true"
+
+          <div class="col-12 col-md-3">
+            <q-select
+              v-model="filters.status"
+              :options="statusOptions"
+              label="Status"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
             />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <q-select
+              v-model="filters.leaveType"
+              :options="leaveTypeOptions"
+              label="Leave Type"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <q-input v-model="filters.search" label="Search employee" outlined dense clearable>
+              <template #prepend>
+                <q-icon name="search" />
+              </template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <q-input v-model="filters.dateFrom" label="Date From" outlined dense>
+              <template #append>
+                <q-icon name="event" class="cursor-pointer">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-date v-model="filters.dateFrom" mask="YYYY-MM-DD">
+                      <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                        <q-btn v-close-popup label="Close" color="primary" flat no-caps />
+                      </div>
+                    </q-date>
+                  </q-popup-proxy>
+                </q-icon>
+              </template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <q-input v-model="filters.dateTo" label="Date To" outlined dense>
+              <template #append>
+                <q-icon name="event" class="cursor-pointer">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-date v-model="filters.dateTo" mask="YYYY-MM-DD">
+                      <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                        <q-btn v-close-popup label="Close" color="primary" flat no-caps />
+                      </div>
+                    </q-date>
+                  </q-popup-proxy>
+                </q-icon>
+              </template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6 flex items-end justify-end q-gutter-sm">
+            <q-btn flat color="grey-7" label="Reset" no-caps @click="resetFilters" />
+            <q-btn color="primary" label="Apply Filters" icon="filter_alt" no-caps />
           </div>
         </div>
       </q-card-section>
     </q-card>
 
-    <q-dialog v-model="showReportModal" position="standard" class="report-preview-dialog">
-      <q-card class="report-preview-card">
-        <q-card-section class="bg-primary text-white">
-          <div class="text-h6">{{ reportType }} - Preview</div>
-        </q-card-section>
-        <q-card-section>
-          <div class="text-center q-mb-lg">
-            <div class="text-h5">City Government</div>
-            <div class="text-subtitle1">Leave Management System</div>
-            <div class="text-caption text-grey-7">Generated: {{ new Date().toLocaleDateString() }}</div>
+    <div class="row q-col-gutter-md q-mb-md">
+      <div class="col-12 col-sm-6 col-lg-3" v-for="card in summaryCards" :key="card.title">
+        <q-card flat bordered class="summary-card">
+          <q-card-section class="row items-center justify-between">
+            <div>
+              <div class="text-caption text-grey-7">{{ card.title }}</div>
+              <div class="text-h5 text-weight-bold q-mt-xs">{{ card.value }}</div>
+            </div>
+            <q-avatar size="48px" color="primary" text-color="white" :icon="card.icon" />
+          </q-card-section>
+        </q-card>
+      </div>
+    </div>
+
+    <q-card flat bordered>
+      <q-card-section class="row items-center justify-between q-pb-sm">
+        <div>
+          <div class="text-subtitle1 text-weight-medium">Leave Application Records</div>
+          <div class="text-caption text-grey-7">Office admin monitoring table layout</div>
+        </div>
+
+        <div class="row q-gutter-sm">
+          <q-btn-dropdown outline color="primary" label="Columns" no-caps>
+            <q-list dense style="min-width: 200px">
+              <q-item v-for="column in toggleableColumns" :key="column.name" tag="label">
+                <q-item-section avatar>
+                  <q-checkbox v-model="visibleColumns" :val="column.name" />
+                </q-item-section>
+                <q-item-section>{{ column.label }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-table
+        flat
+        :rows="rows"
+        :columns="columns"
+        row-key="id"
+        :visible-columns="visibleColumns"
+        :pagination="pagination"
+        class="report-table"
+      >
+        <template #body-cell-status="props">
+          <q-td :props="props">
+            <q-badge :color="statusColor(props.value)" rounded>
+              {{ props.value }}
+            </q-badge>
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row q-gutter-xs">
+              <q-btn flat round dense icon="visibility" color="primary" />
+              <q-btn flat round dense icon="print" color="secondary" />
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="full-width row flex-center q-gutter-sm text-grey-7 q-pa-lg">
+            <q-icon name="assignment" size="28px" />
+            <span>No leave applications found.</span>
           </div>
-          <div class="row q-col-gutter-md report-preview-stats">
-            <div class="col-12 col-sm-4">
-              <q-card flat bordered>
-                <q-card-section class="text-center">
-                  <div class="text-caption">Total</div>
-                  <div class="text-h5 text-primary">{{ adminApplications.length }}</div>
-                </q-card-section>
-              </q-card>
-            </div>
-            <div class="col-12 col-sm-4">
-              <q-card flat bordered>
-                <q-card-section class="text-center">
-                  <div class="text-caption">Approved</div>
-                  <div class="text-h5 text-green-8">{{ approvedCount }}</div>
-                </q-card-section>
-              </q-card>
-            </div>
-            <div class="col-12 col-sm-4">
-              <q-card flat bordered>
-                <q-card-section class="text-center">
-                  <div class="text-caption">Pending</div>
-                  <div class="text-h5 text-warning">{{ pendingCount }}</div>
-                </q-card-section>
-              </q-card>
-            </div>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right" class="report-preview-actions">
-          <q-btn flat label="Close" v-close-popup />
-          <q-btn
-            unelevated
-            color="primary"
-            icon="download"
-            label="Download PDF"
-            @click="downloadReport"
-            v-close-popup
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </template>
+      </q-table>
+    </q-card>
   </q-page>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useQuasar } from 'quasar'
-import { api } from 'src/boot/axios'
-import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { ref } from 'vue'
 
-const $q = useQuasar()
+const filters = ref({
+  office: null,
+  status: null,
+  leaveType: null,
+  search: '',
+  dateFrom: '',
+  dateTo: '',
+})
 
-const reportType = ref('Monthly Summary')
-const dateFrom = ref('')
-const dateTo = ref('')
-const showReportModal = ref(false)
-const showExportDropdown = ref(false)
-const adminApplications = ref([])
+const officeOptions = [
+  { label: 'My Office', value: 'my_office' },
+]
 
-const reportTypeOptions = ['Monthly Summary', 'Department Report', 'Approval Report', 'Leave Type Analysis']
+const statusOptions = [
+  { label: 'Draft', value: 'Draft' },
+  { label: 'Submitted', value: 'Submitted' },
+  { label: 'Returned', value: 'Returned' },
+  { label: 'Forwarded to HR', value: 'Forwarded to HR' },
+]
 
-function getApplicationStatusLabel(application) {
-  if (application?.status) return application.status
-  if (application?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
-  if (application?.rawStatus === 'PENDING_HR') return 'Pending HR'
-  if (application?.rawStatus === 'APPROVED') return 'Approved'
-  if (application?.rawStatus === 'REJECTED') return 'Rejected'
-  return 'Unknown'
-}
+const leaveTypeOptions = [
+  { label: 'Vacation Leave', value: 'Vacation Leave' },
+  { label: 'Sick Leave', value: 'Sick Leave' },
+  { label: 'CTO', value: 'CTO' },
+  { label: 'Wellness Leave', value: 'Wellness Leave' },
+]
 
-const approvedCount = computed(() => (
-  adminApplications.value.filter((application) => getApplicationStatusLabel(application) === 'Approved').length
-))
+const summaryCards = [
+  { title: 'Total Office Applications', value: 128, icon: 'assignment' },
+  { title: 'Submitted', value: 21, icon: 'send' },
+  { title: 'Returned', value: 8, icon: 'reply' },
+  { title: 'Forwarded to HR', value: 99, icon: 'forward' },
+]
 
-const pendingCount = computed(() => (
-  adminApplications.value.filter((application) => {
-    const status = getApplicationStatusLabel(application)
-    return status === 'Pending Admin' || status === 'Pending HR'
-  }).length
-))
+const columns = [
+  { name: 'employeeName', label: 'Employee Name', field: 'employeeName', align: 'left', sortable: true },
+  { name: 'office', label: 'Office', field: 'office', align: 'left', sortable: true },
+  { name: 'leaveType', label: 'Leave Type', field: 'leaveType', align: 'left', sortable: true },
+  { name: 'dateFiled', label: 'Date Filed', field: 'dateFiled', align: 'left', sortable: true },
+  { name: 'dateRange', label: 'Date Range', field: 'dateRange', align: 'left', sortable: true },
+  { name: 'totalDays', label: 'Total Days', field: 'totalDays', align: 'center', sortable: true },
+  { name: 'status', label: 'Office Status', field: 'status', align: 'center', sortable: true },
+  { name: 'actions', label: 'Actions', field: 'actions', align: 'center' },
+]
 
-async function fetchAdminApplications() {
-  try {
-    const { data } = await api.get('/admin/dashboard')
-    adminApplications.value = Array.isArray(data?.applications) ? data.applications : []
-  } catch (err) {
-    adminApplications.value = []
-    const msg = resolveApiErrorMessage(err, 'Unable to load report data right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
+const toggleableColumns = columns.filter((column) => column.name !== 'actions')
+
+const visibleColumns = ref([
+  'employeeName',
+  'office',
+  'leaveType',
+  'dateFiled',
+  'dateRange',
+  'totalDays',
+  'status',
+  'actions',
+])
+
+const rows = [
+  {
+    id: 1,
+    employeeName: 'Jograd Mascariñas Mahusay',
+    office: 'ICTMO',
+    leaveType: 'Vacation Leave',
+    dateFiled: 'Mar 26, 2026',
+    dateRange: 'Apr 15, 2026',
+    totalDays: '1 day',
+    status: 'Submitted',
+  },
+  {
+    id: 2,
+    employeeName: 'Maria Santos',
+    office: 'ICTMO',
+    leaveType: 'Sick Leave',
+    dateFiled: 'Mar 24, 2026',
+    dateRange: 'Mar 28–29, 2026',
+    totalDays: '2 days',
+    status: 'Forwarded to HR',
+  },
+  {
+    id: 3,
+    employeeName: 'John Dela Cruz',
+    office: 'ICTMO',
+    leaveType: 'CTO',
+    dateFiled: 'Mar 21, 2026',
+    dateRange: 'Mar 30, 2026',
+    totalDays: '4 hours',
+    status: 'Returned',
+  },
+]
+
+const pagination = ref({
+  sortBy: 'dateFiled',
+  descending: true,
+  page: 1,
+  rowsPerPage: 10,
+})
+
+function resetFilters() {
+  filters.value = {
+    office: null,
+    status: null,
+    leaveType: null,
+    search: '',
+    dateFrom: '',
+    dateTo: '',
   }
 }
 
-onMounted(() => {
-  fetchAdminApplications()
-})
-
-function downloadReport() {
-  $q.notify({ type: 'info', message: 'Downloading report...', position: 'top' })
-}
-
-function exportData(format) {
-  $q.notify({ type: 'info', message: `Exporting as ${format}...`, position: 'top' })
-  showExportDropdown.value = false
+function statusColor(status) {
+  if (status === 'Forwarded to HR') return 'primary'
+  if (status === 'Returned') return 'negative'
+  if (status === 'Submitted') return 'warning'
+  if (status === 'Draft') return 'grey'
+  return 'grey'
 }
 </script>
 
 <style scoped>
-.report-preview-card {
-  width: min(560px, calc(100vw - 24px));
-  max-width: calc(100vw - 24px);
+.report-page {
+  background: #f8fafc;
+  min-height: 100vh;
 }
 
-@media (max-width: 600px) {
-  .report-preview-dialog :deep(.q-dialog__inner--minimized) {
-    padding: 12px;
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.filter-card,
+.summary-card,
+.report-table {
+  border-radius: 16px;
+}
+
+.summary-card {
+  height: 100%;
+}
+
+.report-table :deep(.q-table thead tr th) {
+  font-weight: 700;
+  background: #f1f5f9;
+}
+
+.report-table :deep(.q-table tbody tr:hover) {
+  background: #f8fbff;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
   }
 
-  .report-preview-card {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-  }
-
-  .report-preview-stats {
-    row-gap: 12px;
-  }
-
-  .report-preview-actions {
-    padding: 0 16px 16px;
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>

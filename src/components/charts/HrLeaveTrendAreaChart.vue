@@ -4,7 +4,7 @@
       <div class="row items-center justify-between q-mb-sm">
         <div>
           <div class="text-h6">Leave Trends by Month</div>
-          <p class="text-caption text-grey-7 q-mb-none">Monthly trend for {{ trendYearLabel }}</p>
+          <p class="text-caption text-grey-7 q-mb-none">Monthly trend for {{ resolvedTrendYearLabel }}</p>
         </div>
       </div>
 
@@ -39,6 +39,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  analytics: {
+    type: Object,
+    default: null,
+  },
   trendYearLabel: {
     type: Number,
     default: () => new Date().getFullYear(),
@@ -60,16 +64,55 @@ function getApplicationDate(application) {
   )
 }
 
+
+function normalizeTrendBuckets(rawBuckets) {
+  return Array.from({ length: 12 }, (_unused, monthIndex) => {
+    const parsed = Number(rawBuckets?.[monthIndex] ?? 0)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.round(parsed)
+  })
+}
+
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function isApprovedApplication(application) {
+  const candidates = [
+    application?.rawStatus,
+    application?.raw_status,
+    application?.status,
+  ]
+
+  return candidates.some((statusValue) => normalizeStatusKey(statusValue) === 'APPROVED')
+}
+
+const resolvedTrendYearLabel = computed(() => {
+  const parsed = Number(props.analytics?.trend_year)
+  if (!Number.isFinite(parsed) || parsed < 2000) return props.trendYearLabel
+  return Math.round(parsed)
+})
+
 const monthlyLeaveTrend = computed(() => {
+  const hasBackendMonthlyTrend = props.analytics && typeof props.analytics === 'object' && props.analytics.monthly_leave_trend != null
+  if (hasBackendMonthlyTrend) {
+    return normalizeTrendBuckets(props.analytics.monthly_leave_trend)
+  }
+
   const buckets = Array(12).fill(0)
 
   for (const application of props.applications) {
+    if (!isApprovedApplication(application)) continue
+
     const rawDate = getApplicationDate(application)
     if (!rawDate) continue
 
     const parsedDate = new Date(rawDate)
     if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== props.trendYearLabel) continue
+    if (parsedDate.getFullYear() !== resolvedTrendYearLabel.value) continue
 
     buckets[parsedDate.getMonth()] += 1
   }

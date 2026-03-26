@@ -308,6 +308,7 @@ async function fetchCalendarLeaves() {
 }
 
 onMounted(() => {
+  syncCalendarWindowToCurrentWeek()
   fetchDepartments()
   fetchCalendarLeaves()
 })
@@ -318,7 +319,7 @@ watch([currentMonth, calendarDept], () => {
 })
 
 watch(currentMonth, () => {
-  calendarWindowIndex.value = 0
+  syncCalendarWindowToCurrentWeek()
 })
 
 const today = new Date()
@@ -347,6 +348,38 @@ const selectedMonthLabel = computed(() =>
   monthOptions.find((month) => month.value === selectedMonthIndex.value)?.label || '',
 )
 const selectedYearLabel = computed(() => String(selectedYearValue.value))
+
+function getCurrentMonthWeekIndex(date) {
+  const dayOfMonth = date.getDate()
+  const firstDayOffset = new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+  return Math.floor((firstDayOffset + dayOfMonth - 1) / 7)
+}
+
+function getVisibleWeekCountForMonth(date) {
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const firstDayOffset = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  return Math.max(1, Math.ceil((firstDayOffset + daysInMonth) / 7))
+}
+
+function isViewingCurrentMonth() {
+  return (
+    currentMonth.value.getFullYear() === today.getFullYear() &&
+    currentMonth.value.getMonth() === today.getMonth()
+  )
+}
+
+function syncCalendarWindowToCurrentWeek() {
+  if (!isViewingCurrentMonth()) {
+    calendarWindowIndex.value = 0
+    return
+  }
+
+  const maxIndex = getVisibleWeekCountForMonth(today) - 1
+  const currentWeekIndex = getCurrentMonthWeekIndex(today)
+  calendarWindowIndex.value = Math.min(currentWeekIndex, maxIndex)
+}
 
 function normalizeLeaveTypeName(value) {
   if (typeof value === 'string' && value.trim()) return value.trim()
@@ -544,15 +577,11 @@ const calendarWeeks = computed(() => {
   return rows
 })
 
-const twoWeekWindowCount = computed(() => Math.max(1, Math.ceil(calendarWeeks.value.length / 2)))
-const currentWindowStartIndex = computed(() => calendarWindowIndex.value * 2)
+const twoWeekWindowCount = computed(() => Math.max(1, calendarWeeks.value.length))
+const currentWindowStartIndex = computed(() => calendarWindowIndex.value)
 
 const visibleCalendarCells = computed(() => {
-  const visibleWeeks = calendarWeeks.value.slice(
-    currentWindowStartIndex.value,
-    currentWindowStartIndex.value + 2,
-  )
-  return visibleWeeks.flat()
+  return calendarWeeks.value[currentWindowStartIndex.value] || []
 })
 
 const hasPrevTwoWeekWindow = computed(() => calendarWindowIndex.value > 0)
@@ -561,9 +590,16 @@ const hasNextTwoWeekWindow = computed(() =>
 )
 
 const visibleWeekLabel = computed(() => {
-  const startWeek = currentWindowStartIndex.value + 1
-  const endWeek = Math.min(startWeek + 1, calendarWeeks.value.length)
-  return `Weeks ${startWeek}-${endWeek}`
+  const currentWeek = calendarWeeks.value[currentWindowStartIndex.value] || []
+  const startDate = currentWeek.find((cell) => cell?.date)?.date || null
+  const endDate = [...currentWeek].reverse().find((cell) => cell?.date)?.date || startDate
+  const weekNumber = currentWindowStartIndex.value + 1
+
+  if (!startDate) return `Week ${weekNumber}`
+
+  const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const endLabel = (endDate || startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `Week ${weekNumber}: ${startLabel} - ${endLabel}`
 })
 
 watch(twoWeekWindowCount, (windowCount) => {

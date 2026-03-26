@@ -1069,7 +1069,7 @@ function shouldScrollInclusiveDates(app) {
 .admin-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 18px;
+  border-radius: 0;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -1077,7 +1077,7 @@ function shouldScrollInclusiveDates(app) {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 12px;
+  border-radius: 0;
 }
 .admin-action-dialog-card__button--cancel {
   background: transparent;
@@ -1774,7 +1774,7 @@ function shouldScrollInclusiveDates(app) {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 0;
   }
 
   .admin-action-dialog-card--compact .admin-action-dialog-card__button {
