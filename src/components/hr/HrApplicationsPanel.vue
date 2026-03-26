@@ -2106,16 +2106,6 @@ function getApplicationInclusiveDateLines(app) {
 
   const dateSet = getVisibleDateSetForDisplay(app)
   if (dateSet.length > 0) {
-    const recalledDateSet = new Set(getStoredRecallDateKeys(app))
-    const shouldMarkRecalledDates =
-      app?.application_row_variant === 'recalled' ||
-      String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
-    if (shouldMarkRecalledDates && recalledDateSet.size) {
-      return dateSet.map(
-        (dateKey) => `${formatDate(dateKey)}${recalledDateSet.has(dateKey) ? ' (Recalled)' : ''}`,
-      )
-    }
-
     const groupedDates = formatGroupedInclusiveDateLines(dateSet)
     if (groupedDates.length > 0) return groupedDates
   }
@@ -2590,12 +2580,23 @@ function formatRecallDateLabel(dateStr) {
 function formatDateTime(dateStr) {
   if (!dateStr) return ''
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr).trim())) {
-    return formatDate(dateStr)
+  const rawValue = String(dateStr).trim()
+  if (!rawValue) return ''
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return formatDate(rawValue)
   }
 
-  const parsedDate = new Date(dateStr)
+  const parsedDate = parseDateTimeValue(rawValue)
   if (Number.isNaN(parsedDate.getTime())) return ''
+
+  if (!hasExplicitTimeComponent(rawValue)) {
+    return parsedDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
 
   return parsedDate.toLocaleString('en-US', {
     year: 'numeric',
@@ -2604,6 +2605,31 @@ function formatDateTime(dateStr) {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function parseDateTimeValue(value) {
+  if (value instanceof Date) return value
+
+  const rawValue = String(value || '').trim()
+  if (!rawValue) return new Date('')
+
+  const candidates = [
+    rawValue,
+    rawValue.replace(' ', 'T'),
+    rawValue.replace(/\//g, '-'),
+    rawValue.replace(/\//g, '-').replace(' ', 'T'),
+  ]
+
+  for (const candidate of candidates) {
+    const parsed = new Date(candidate)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+
+  return new Date('')
+}
+
+function hasExplicitTimeComponent(value) {
+  return /\d{1,2}:\d{2}/.test(String(value || ''))
 }
 
 function isCancelledByUser(app) {
@@ -2657,33 +2683,223 @@ function resolveFiledDateValue(app) {
     app?.submittedAt ||
     app?.dateFiled ||
     app?.date_filed ||
+    app?.raw?.filed_at ||
+    app?.raw?.filedAt ||
+    app?.raw?.created_at ||
+    app?.raw?.createdAt ||
+    app?.raw?.submitted_at ||
+    app?.raw?.submittedAt ||
+    app?.raw?.date_filed ||
+    app?.raw?.dateFiled ||
     null
   )
 }
 
 function resolveDepartmentAdminActor(app) {
-  return app?.adminActionBy || app?.admin_action_by || 'Unknown'
+  const historyEntry = resolveDepartmentAdminHistoryEntry(app)
+  return (
+    app?.adminActionBy ||
+    app?.admin_action_by ||
+    app?.raw?.adminActionBy ||
+    app?.raw?.admin_action_by ||
+    resolveStatusHistoryActor(historyEntry) ||
+    'Unknown'
+  )
 }
 
 function resolveDepartmentAdminActionDateValue(app) {
-  return app?.adminActionAt || app?.admin_action_at || null
+  const directValue =
+    app?.adminActionAt ||
+    app?.admin_action_at ||
+    app?.departmentActionAt ||
+    app?.department_action_at ||
+    app?.raw?.adminActionAt ||
+    app?.raw?.admin_action_at ||
+    app?.raw?.departmentActionAt ||
+    app?.raw?.department_action_at
+  if (directValue) return directValue
+
+  const historyEntry = resolveDepartmentAdminHistoryEntry(app)
+  return resolveStatusHistoryTimestamp(historyEntry)
 }
 
 function resolveHrActor(app) {
-  return app?.hrActionBy || app?.hr_action_by || 'Unknown'
+  const historyEntry = resolveHrApprovalHistoryEntry(app)
+  return (
+    app?.hrActionBy ||
+    app?.hr_action_by ||
+    app?.raw?.hrActionBy ||
+    app?.raw?.hr_action_by ||
+    resolveStatusHistoryActor(historyEntry) ||
+    'Unknown'
+  )
 }
 
 function resolveFinalApprovalDateValue(app) {
-  return app?.hrActionAt || app?.hr_action_at || app?.reviewedAt || app?.reviewed_at || null
+  const directValue =
+    app?.hrActionAt ||
+    app?.hr_action_at ||
+    app?.reviewedAt ||
+    app?.reviewed_at ||
+    app?.approvedAt ||
+    app?.approved_at ||
+    app?.finalApprovedAt ||
+    app?.final_approved_at ||
+    app?.raw?.hrActionAt ||
+    app?.raw?.hr_action_at ||
+    app?.raw?.reviewedAt ||
+    app?.raw?.reviewed_at ||
+    app?.raw?.approvedAt ||
+    app?.raw?.approved_at ||
+    app?.raw?.finalApprovedAt ||
+    app?.raw?.final_approved_at
+  if (directValue) return directValue
+
+  const historyEntry = resolveHrApprovalHistoryEntry(app)
+  return resolveStatusHistoryTimestamp(historyEntry)
 }
 
 function getStatusHistoryEntries(app) {
-  const entries = app?.statusHistory || app?.status_history
-  return Array.isArray(entries) ? entries : []
+  const candidates = [
+    app?.statusHistory,
+    app?.status_history,
+    app?.statusLogs,
+    app?.status_logs,
+    app?.workflowHistory,
+    app?.workflow_history,
+    app?.raw?.statusHistory,
+    app?.raw?.status_history,
+    app?.raw?.statusLogs,
+    app?.raw?.status_logs,
+    app?.raw?.workflowHistory,
+    app?.raw?.workflow_history,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (Array.isArray(candidate)) return candidate
+
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      if (!trimmed) continue
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed
+      } catch {
+        // no-op
+      }
+    }
+  }
+
+  return []
+}
+
+function normalizeStatusHistoryToken(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+}
+
+function resolveStatusHistoryActor(entry) {
+  if (!entry || typeof entry !== 'object') return ''
+  return (
+    entry?.actor_name ||
+    entry?.action_by_name ||
+    entry?.action_by ||
+    entry?.actor ||
+    entry?.actorName ||
+    entry?.performed_by_name ||
+    entry?.performed_by ||
+    ''
+  )
+}
+
+function resolveStatusHistoryTimestamp(entry) {
+  if (!entry || typeof entry !== 'object') return null
+  return (
+    entry?.created_at ||
+    entry?.createdAt ||
+    entry?.action_at ||
+    entry?.actionAt ||
+    entry?.approved_at ||
+    entry?.approvedAt ||
+    entry?.processed_at ||
+    entry?.processedAt ||
+    entry?.updated_at ||
+    entry?.updatedAt ||
+    null
+  )
 }
 
 function findStatusHistoryEntry(app, matcher) {
   return getStatusHistoryEntries(app).find((entry) => matcher(entry || {})) || null
+}
+
+function findLatestStatusHistoryEntry(app, matcher) {
+  const entries = getStatusHistoryEntries(app)
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index] || {}
+    if (matcher(entry)) return entry
+  }
+  return null
+}
+
+function resolveDepartmentAdminHistoryEntry(app) {
+  return findLatestStatusHistoryEntry(app, (entry) => {
+    const action = normalizeStatusHistoryToken(
+      entry?.action || entry?.event || entry?.event_type || entry?.eventType,
+    )
+    const stage = normalizeStatusHistoryToken(
+      entry?.stage ||
+        entry?.status ||
+        entry?.to_status ||
+        entry?.toStatus ||
+        entry?.next_status ||
+        entry?.nextStatus ||
+        entry?.from_status ||
+        entry?.fromStatus,
+    )
+    return (
+      action.includes('department approved') ||
+      action.includes('admin approved') ||
+      action.includes('forwarded to hr') ||
+      action.includes('pending hr') ||
+      stage.includes('department admin review completed') ||
+      stage.includes('department approved') ||
+      stage.includes('forwarded to hr') ||
+      stage.includes('pending hr') ||
+      (stage.includes('admin') && stage.includes('approved'))
+    )
+  })
+}
+
+function resolveHrApprovalHistoryEntry(app) {
+  return findLatestStatusHistoryEntry(app, (entry) => {
+    const action = normalizeStatusHistoryToken(
+      entry?.action || entry?.event || entry?.event_type || entry?.eventType,
+    )
+    const stage = normalizeStatusHistoryToken(
+      entry?.stage ||
+        entry?.status ||
+        entry?.to_status ||
+        entry?.toStatus ||
+        entry?.next_status ||
+        entry?.nextStatus ||
+        entry?.from_status ||
+        entry?.fromStatus,
+    )
+    return (
+      action.includes('hr approved') ||
+      action.includes('approved by hr') ||
+      action.includes('application approved') ||
+      stage.includes('approved by hr') ||
+      stage === 'approved' ||
+      stage.includes('application approved') ||
+      (stage.includes('approved') && stage.includes('hr'))
+    )
+  })
 }
 
 function resolveRecallActor(app) {
@@ -2715,7 +2931,7 @@ function resolveRecallDateValue(app) {
   return (
     app?.recallActionAt ||
     app?.recall_action_at ||
-    historyEntry?.created_at ||
+    resolveStatusHistoryTimestamp(historyEntry) ||
     app?.reviewedAt ||
     app?.reviewed_at ||
     null
