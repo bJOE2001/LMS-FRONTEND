@@ -290,41 +290,76 @@
     class="hr-application-details-dialog"
   >
     <q-card v-if="selectedApp" class="hr-application-details-card">
-      <q-card-section
-        class="bg-primary text-white row items-center no-wrap hr-application-details-header"
-      >
-        <div class="text-h6">Application Details</div>
-        <q-btn
-          v-if="selectedApp && canPrintCocCertificate(selectedApp)"
-          dense
-          flat
-          no-caps
-          icon="print"
-          color="white"
-          label="Print Certificate"
-          class="q-ml-md"
-          @click="printCocCertificate(selectedApp)"
-        />
-        <q-space />
-        <q-btn
-          dense
-          flat
-          round
-          icon="close"
-          color="white"
-          aria-label="Close application details"
-          v-close-popup
-        />
+      <div class="hr-application-details-accent" />
+      <q-card-section class="row items-start no-wrap hr-application-details-header">
+        <div class="hr-application-details-header-main">
+          <q-avatar size="46px" class="hr-application-details-icon">
+            <q-icon name="description" size="24px" />
+          </q-avatar>
+          <div class="hr-application-details-header-copy">
+            <div class="hr-application-details-title">Application Details</div>
+            <div class="row items-center hr-application-details-meta">
+              <q-badge
+                rounded
+                color="grey-2"
+                text-color="grey-8"
+                class="hr-application-details-meta-chip"
+              >
+                {{ selectedApp.employee_control_no || 'No Control No.' }}
+              </q-badge>
+              <q-badge
+                rounded
+                color="grey-2"
+                text-color="grey-8"
+                class="hr-application-details-meta-chip"
+              >
+                Filed: {{ formatDate(selectedApp.dateFiled) || 'N/A' }}
+              </q-badge>
+            </div>
+          </div>
+        </div>
+        <div class="hr-application-details-header-side">
+          <div class="row items-center q-gutter-xs no-wrap">
+            <q-btn
+              v-if="selectedApp && canPrintCocCertificate(selectedApp)"
+              dense
+              flat
+              no-caps
+              icon="print"
+              color="grey-8"
+              label="Print Certificate"
+              @click="printCocCertificate(selectedApp)"
+            />
+            <q-btn
+              flat
+              dense
+              round
+              icon="close"
+              class="hr-application-details-close"
+              aria-label="Close application details"
+              v-close-popup
+            />
+          </div>
+          <div class="hr-application-details-header-balance-text">
+            <div class="hr-application-details-label">Available Leave Balance</div>
+            <div
+              class="hr-application-details-header-balance-value"
+              :class="getCurrentLeaveBalanceClass(selectedApp)"
+            >
+              {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
+            </div>
+          </div>
+        </div>
       </q-card-section>
       <q-card-section class="q-gutter-y-sm hr-application-details-content">
         <div class="hr-application-details-grid">
-          <div class="hr-application-details-item hr-application-details-item--full">
+          <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Employee</div>
             <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
           </div>
           <div
             v-if="hasApplicationAttachment(selectedApp)"
-            class="hr-application-details-item hr-application-details-item--full"
+            class="hr-application-details-item"
           >
             <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
             <q-btn
@@ -354,42 +389,75 @@
             </div>
           </div>
           <div class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Application Status</div>
-            <StatusBadge :status="selectedApp.displayStatus" />
-            <div v-if="getEditRequestStatusLabel(selectedApp)" class="q-mt-sm">
-              <div class="text-caption text-grey-7">Edit Request Status</div>
-              <q-badge
-                :color="getEditRequestBadgeColor(selectedApp)"
-                text-color="white"
-                rounded
-                class="text-weight-medium q-pa-xs status-edit-request-badge"
-                :label="getEditRequestStatusLabel(selectedApp)"
-              />
+            <div
+              class="hr-application-status-pair"
+              :class="{ 'hr-application-status-pair--single': !getEditRequestStatusLabel(selectedApp) }"
+            >
+              <div class="hr-application-status-pair__item">
+                <div class="text-caption text-grey-7">Application Status</div>
+                <StatusBadge :status="selectedApp.displayStatus" />
+              </div>
+              <div v-if="getEditRequestStatusLabel(selectedApp)" class="hr-application-status-pair__item">
+                <div class="text-caption text-grey-7">Edit Request Status</div>
+                <q-badge
+                  :color="getEditRequestBadgeColor(selectedApp)"
+                  text-color="white"
+                  rounded
+                  class="text-weight-medium q-pa-xs status-edit-request-badge"
+                  :label="getEditRequestStatusLabel(selectedApp)"
+                />
+              </div>
             </div>
           </div>
           <div class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Department</div>
+            <div class="text-caption text-grey-7">Office</div>
             <div class="text-weight-medium">
               {{ selectedApp.officeShort || selectedApp.office }}
             </div>
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Duration</div>
-            <div class="text-weight-medium">
-              <template v-if="hasPendingDurationUpdate(selectedApp)">
-                <div class="text-caption text-grey-7">Current</div>
-                <div>{{ getApplicationDurationDisplay(selectedApp) }}</div>
-                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
-                  Requested
+            <template v-if="hasPendingDurationUpdate(selectedApp)">
+              <div class="hr-application-duration-pair">
+                <div class="hr-application-duration-pair__item">
+                  <div class="text-caption text-grey-7">Current</div>
+                  <div class="text-weight-medium">{{ getApplicationDurationDisplay(selectedApp) }}</div>
                 </div>
-                <div class="text-deep-purple-8">{{ getRequestedDurationDisplay(selectedApp) }}</div>
+                <div class="hr-application-duration-pair__item">
+                  <div class="text-caption text-deep-purple-8">Requested</div>
+                  <div class="text-weight-medium text-deep-purple-8">
+                    {{ getRequestedDurationDisplay(selectedApp) }}
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="text-weight-medium">
+                {{ getApplicationDurationDisplay(selectedApp) }}
+              </div>
+            </template>
+          </div>
+          <div class="hr-application-details-item">
+            <div class="text-caption text-grey-7">Reason</div>
+            <div>
+              <template v-if="hasPendingReasonUpdate(selectedApp)">
+                <div class="hr-application-reason-pair">
+                  <div class="hr-application-reason-pair__item">
+                    <div class="text-caption text-grey-7">Current</div>
+                    <div>{{ getCurrentReasonDisplay(selectedApp) }}</div>
+                  </div>
+                  <div class="hr-application-reason-pair__item">
+                    <div class="text-caption text-deep-purple-8">Requested</div>
+                    <div class="text-deep-purple-8">{{ getRequestedReasonDisplay(selectedApp) }}</div>
+                  </div>
+                </div>
               </template>
               <template v-else>
-                {{ getApplicationDurationDisplay(selectedApp) }}
+                {{ getCurrentReasonDisplay(selectedApp) }}
               </template>
             </div>
           </div>
-          <div class="hr-application-details-item hr-application-details-item--full">
+          <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">
               {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Inclusive Dates' }}
             </div>
@@ -570,51 +638,7 @@
               {{ selectedApp.endDate ? formatDate(selectedApp.endDate) : 'N/A' }}
             </div>
           </div>
-          <div class="hr-application-details-item hr-application-details-item--full">
-            <div class="text-caption text-grey-7">Date Filed</div>
-            <div class="text-weight-medium">{{ formatDate(selectedApp.dateFiled) }}</div>
-          </div>
-          <div class="hr-application-details-item hr-application-details-item--full">
-            <div class="text-caption text-grey-7">Reason</div>
-            <div>
-              <template v-if="hasPendingReasonUpdate(selectedApp)">
-                <div class="text-caption text-grey-7">Current</div>
-                <div>{{ getCurrentReasonDisplay(selectedApp) }}</div>
-                <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
-                  Requested
-                </div>
-                <div class="text-deep-purple-8">{{ getRequestedReasonDisplay(selectedApp) }}</div>
-              </template>
-              <template v-else>
-                {{ getCurrentReasonDisplay(selectedApp) }}
-              </template>
-            </div>
-          </div>
-          <div
-            v-if="hasRequestedChangePreview(selectedApp)"
-            class="hr-application-details-item hr-application-details-item--full"
-          >
-            <div class="text-caption text-grey-7">Requested Changes</div>
-            <div class="hr-requested-change-list">
-              <div v-if="hasPendingLeaveTypeUpdate(selectedApp)" class="hr-requested-change-item">
-                Leave Type: {{ getCurrentLeaveTypeLabel(selectedApp) }} ->
-                {{ getRequestedLeaveTypeLabel(selectedApp) }}
-              </div>
-              <div v-if="hasPendingDateUpdate(selectedApp)" class="hr-requested-change-item">
-                Inclusive Dates: {{ getApplicationInclusiveDateSummary(selectedApp) }} ->
-                {{ getPendingUpdateInclusiveDateSummary(selectedApp) }}
-              </div>
-              <div v-if="hasPendingDurationUpdate(selectedApp)" class="hr-requested-change-item">
-                Duration: {{ getApplicationDurationDisplay(selectedApp) }} ->
-                {{ getRequestedDurationDisplay(selectedApp) }}
-              </div>
-              <div v-if="hasPendingReasonUpdate(selectedApp)" class="hr-requested-change-item">
-                Reason: {{ getCurrentReasonDisplay(selectedApp) }} ->
-                {{ getRequestedReasonDisplay(selectedApp) }}
-              </div>
-            </div>
-          </div>
-          <div class="hr-application-details-item hr-application-details-item--full">
+          <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Remarks</div>
             <div
               v-if="getDetailsRemarksRows(selectedApp).length"
@@ -632,28 +656,6 @@
               </div>
             </div>
             <div v-else class="text-grey-6">N/A</div>
-          </div>
-          <div class="hr-application-details-item hr-application-details-item--full">
-            <div class="text-caption text-grey-7">Available Leave Balance</div>
-            <template v-if="hasPendingLeaveTypeUpdate(selectedApp)">
-              <div class="text-caption text-grey-7">
-                Current ({{ getCurrentLeaveTypeLabel(selectedApp) }})
-              </div>
-              <div class="text-weight-medium" :class="getCurrentLeaveBalanceClass(selectedApp)">
-                {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
-              </div>
-              <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
-                Requested ({{ getRequestedLeaveTypeLabel(selectedApp) }})
-              </div>
-              <div class="text-weight-medium" :class="getRequestedLeaveBalanceClass(selectedApp)">
-                {{ getRequestedLeaveBalanceDisplay(selectedApp) }}
-              </div>
-            </template>
-            <template v-else>
-              <div class="text-weight-medium" :class="getCurrentLeaveBalanceClass(selectedApp)">
-                {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
-              </div>
-            </template>
           </div>
         </div>
       </q-card-section>
@@ -1314,10 +1316,6 @@ function getLatestUpdateRequestStatus(app) {
   return isEditUpdateRequest(app) ? 'PENDING' : ''
 }
 
-function hasEditRequestLifecycle(app) {
-  return Boolean(getLatestUpdateRequestStatus(app))
-}
-
 function getEditRequestBadgeLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
   if (status === 'PENDING') return 'Edit Request Pending'
@@ -1966,32 +1964,13 @@ function getCurrentLeaveBalanceValue(app) {
   return Number.isFinite(directBalance) ? directBalance : null
 }
 
-function getRequestedLeaveBalanceValue(app) {
-  const requestedLeaveTypeId = getRequestedLeaveTypeId(app)
-  const requestedLeaveTypeLabel = getRequestedLeaveTypeLabel(app)
-  const entry = findLeaveBalanceEntry(app, requestedLeaveTypeId, requestedLeaveTypeLabel)
-  return entry && Number.isFinite(entry.balance) ? Number(entry.balance) : null
-}
-
 function getCurrentLeaveBalanceDisplay(app) {
   const value = getCurrentLeaveBalanceValue(app)
   return value !== null ? `${formatDayValue(value)} day(s)` : 'N/A (non-credit)'
 }
 
-function getRequestedLeaveBalanceDisplay(app) {
-  const value = getRequestedLeaveBalanceValue(app)
-  return value !== null ? `${formatDayValue(value)} day(s)` : 'N/A (non-credit)'
-}
-
 function getCurrentLeaveBalanceClass(app) {
   const balance = getCurrentLeaveBalanceValue(app)
-  const requiredDays = Number(app?.days)
-  if (balance === null || !Number.isFinite(requiredDays) || requiredDays <= 0) return 'text-green-8'
-  return balance < requiredDays ? 'text-negative' : 'text-green-8'
-}
-
-function getRequestedLeaveBalanceClass(app) {
-  const balance = getRequestedLeaveBalanceValue(app)
   const requiredDays = Number(app?.days)
   if (balance === null || !Number.isFinite(requiredDays) || requiredDays <= 0) return 'text-green-8'
   return balance < requiredDays ? 'text-negative' : 'text-green-8'
@@ -2038,59 +2017,6 @@ function hasPendingDateUpdate(app) {
   return requestedDateSet.some((date, index) => date !== currentDateSet[index])
 }
 
-function getApplicationInclusiveDateSummary(app) {
-  const rows = getSelectedDatePayStatusRows(app)
-  if (rows.length) return formatInclusiveDateIndicatorSummary(rows)
-
-  const lines = getApplicationInclusiveDateLines(app).filter(Boolean)
-  return lines.length ? lines.join(' | ') : 'N/A'
-}
-
-function getPendingUpdateInclusiveDateSummary(app) {
-  const rows = getPendingUpdateDatePayStatusRows(app)
-  if (rows.length) return formatInclusiveDateIndicatorSummary(rows)
-
-  const lines = getPendingUpdateInclusiveDateLines(app).filter(Boolean)
-  return lines.length ? lines.join(' | ') : 'N/A'
-}
-
-function formatInclusiveDateIndicatorSummary(rows) {
-  return rows
-    .map((entry) => `${entry.dateText} (${entry.coverageLabel}, ${entry.payStatus})`)
-    .join(' | ')
-}
-
-function resolveCurrentDurationSnapshot(app) {
-  if (!app || typeof app !== 'object') return null
-
-  const explicitUnit = normalizeDurationUnit(app?.duration_unit)
-  const explicitValue = Number(app?.duration_value)
-  if (explicitUnit && Number.isFinite(explicitValue)) {
-    return { value: explicitValue, unit: explicitUnit }
-  }
-
-  if (isCocApplication(app)) {
-    const hourValue = Number(app?.days ?? app?.total_days)
-    if (Number.isFinite(hourValue)) return { value: hourValue, unit: 'hour' }
-
-    const minutes = Number(app?.total_no_of_coc_applied_minutes)
-    if (Number.isFinite(minutes)) return { value: minutes / 60, unit: 'hour' }
-  }
-
-  const actualDayValue = getActualRequestedDayCount(app)
-  if (Number.isFinite(actualDayValue) && actualDayValue > 0) {
-    return { value: actualDayValue, unit: 'day' }
-  }
-
-  const dayValue = Number(app?.days ?? app?.total_days)
-  if (Number.isFinite(dayValue)) return { value: dayValue, unit: 'day' }
-
-  const dateSet = resolveDateSetFromSource(app)
-  if (dateSet.length > 0) return { value: dateSet.length, unit: 'day' }
-
-  return null
-}
-
 function resolveRequestedDurationSnapshot(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return null
@@ -2101,10 +2027,11 @@ function resolveRequestedDurationSnapshot(app) {
     return { value: explicitValue, unit: explicitUnit }
   }
 
-  const currentSnapshot = resolveCurrentDurationSnapshot(app)
-  const fallbackUnit = currentSnapshot?.unit || (isCocApplication(app) ? 'hour' : 'day')
+  const fallbackUnit = normalizeDurationUnit(app?.duration_unit) || (isCocApplication(app) ? 'hour' : 'day')
   const rawValue = Number(payload?.total_days ?? payload?.days)
-  if (Number.isFinite(rawValue)) return { value: rawValue, unit: fallbackUnit }
+  if (Number.isFinite(rawValue)) {
+    return { value: rawValue, unit: fallbackUnit }
+  }
 
   if (!payload?.is_monetization) {
     const dateSet = resolveDateSetFromSource(payload)
@@ -2121,18 +2048,11 @@ function getRequestedDurationDisplay(app) {
 }
 
 function hasPendingDurationUpdate(app) {
-  const requested = resolveRequestedDurationSnapshot(app)
-  if (!requested) return false
-
-  const current = resolveCurrentDurationSnapshot(app)
-  if (!current) return true
-
-  if (requested.unit !== current.unit) return true
-
-  const roundedRequested = Math.round(requested.value * 100) / 100
-  const roundedCurrent = Math.round(current.value * 100) / 100
-  return roundedRequested !== roundedCurrent
+  const snapshot = resolveRequestedDurationSnapshot(app)
+  if (!snapshot) return false
+  return getRequestedDurationDisplay(app) !== getApplicationDurationDisplay(app)
 }
+
 
 function getRequestedReasonValue(app) {
   const payload = getPendingUpdatePayload(app)
@@ -2166,18 +2086,6 @@ function hasPendingReasonUpdate(app) {
   const currentReason = normalizeReasonForCompare(app?.reason)
   const requestedReason = normalizeReasonForCompare(getRequestedReasonValue(app))
   return currentReason !== requestedReason
-}
-
-function hasRequestedChangePreview(app) {
-  if (!app || typeof app !== 'object') return false
-  if (!hasEditRequestLifecycle(app)) return false
-
-  return (
-    hasPendingLeaveTypeUpdate(app) ||
-    hasPendingDateUpdate(app) ||
-    hasPendingDurationUpdate(app) ||
-    hasPendingReasonUpdate(app)
-  )
 }
 
 function getApplicationInclusiveDateLines(app) {
@@ -4400,54 +4308,205 @@ async function confirmRecall() {
 
 .hr-recall-dialog .q-dialog__inner--minimized > div {
   width: min(550px, calc(100vw - 32px));
-  max-width: min(5500px, calc(100vw - 32px));
+  max-width: min(550px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
 }
 
 .hr-application-details-dialog .q-dialog__inner--minimized {
-  padding: 16px;
+  padding: 12px 14px 16px;
 }
 
 .hr-application-details-dialog .q-dialog__inner--minimized > div {
-  width: min(520px, calc(100vw - 32px));
-  max-width: min(520px, calc(100vw - 32px));
+  width: min(760px, calc(100vw - 28px));
+  max-width: min(760px, calc(100vw - 28px));
 }
 
 .hr-application-details-card {
   width: 100%;
-  max-height: calc(100vh - 32px);
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
+  border-radius: 18px;
   overflow: hidden;
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.hr-application-details-accent {
+  height: 5px;
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 48%, #43a047 100%);
 }
 
 .hr-application-details-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  background: linear-gradient(180deg, rgba(46, 125, 50, 0.14) 0%, rgba(46, 125, 50, 0.06) 100%);
   flex: 0 0 auto;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hr-application-details-header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hr-application-details-icon {
+  background: rgba(46, 125, 50, 0.16);
+  color: #2e7d32;
+  border: 1px solid rgba(46, 125, 50, 0.28);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.09);
+}
+
+.hr-application-details-header-copy {
+  min-width: 0;
+}
+
+.hr-application-details-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #102a43;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.hr-application-details-subtitle {
+  margin-top: 1px;
+  font-size: 0.78rem;
+  color: #486581;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hr-application-details-meta {
+  margin-top: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hr-application-details-meta-chip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #d8e4ee;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.hr-application-details-meta-chip--status {
+  border-color: transparent;
+}
+
+.hr-application-details-header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hr-application-details-header-balance-text {
+  text-align: right;
+}
+
+.hr-application-details-header-balance-value {
+  margin-top: 2px;
+  color: #1b5e20;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.hr-application-details-close {
+  color: #607d8b;
+  margin-top: 0;
 }
 
 .hr-application-details-content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  padding: 10px !important;
+  background:
+    radial-gradient(circle at top right, rgba(2, 119, 189, 0.06), transparent 45%),
+    linear-gradient(to bottom, #ffffff, #fcfdff);
 }
 
 .hr-application-details-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 16px;
+  gap: 8px 10px;
   align-content: start;
 }
 
 .hr-application-details-item {
   min-width: 0;
+  border: 1px solid #d9e8f2;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hr-application-status-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.hr-application-status-pair--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.hr-application-status-pair__item {
+  min-width: 0;
+}
+
+.hr-application-duration-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.hr-application-duration-pair__item {
+  min-width: 0;
+}
+
+.hr-application-reason-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.hr-application-reason-pair__item {
+  min-width: 0;
+}
+
+.hr-application-reason-pair__item > div:last-child {
+  white-space: normal;
+  word-break: break-word;
 }
 
 .hr-application-details-item--full {
   grid-column: 1 / -1;
+}
+
+.hr-application-details-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #829ab1;
 }
 
 .application-timeline-card {
@@ -4589,27 +4648,23 @@ async function confirmRecall() {
 
 .hr-application-details-actions {
   flex: 0 0 auto;
-  padding: 10px 16px 16px;
+  padding: 0 14px 14px;
   gap: 8px;
-  border-top: 1px solid #e5e7eb;
-  background: #faf8f3;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  box-shadow: 0 -10px 20px rgba(15, 23, 42, 0.06);
+  border-top: 1px solid #d6e4ee;
+  background: #fff;
 }
 
 .hr-application-duration-columns {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
 }
 
 .hr-application-duration-column {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -4622,7 +4677,7 @@ async function confirmRecall() {
 .hr-application-duration-date-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-start;
   flex-wrap: wrap;
 }
@@ -4765,16 +4820,46 @@ async function confirmRecall() {
   }
 
   .hr-application-details-dialog .q-dialog__inner--minimized {
-    padding: 12px;
+    padding: 10px 10px 14px;
   }
 
   .hr-application-details-dialog .q-dialog__inner--minimized > div {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
   }
 
   .hr-application-details-card {
     max-height: calc(100vh - 24px);
+  }
+
+  .hr-application-details-header {
+    padding: 12px 12px 8px;
+  }
+
+  .hr-application-details-header-main {
+    align-items: flex-start;
+  }
+
+  .hr-application-details-header-side {
+    gap: 6px;
+  }
+
+  .hr-application-details-header-balance-value {
+    font-size: 0.8rem;
+  }
+
+  .hr-application-details-icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .hr-application-details-meta {
+    gap: 6px;
+  }
+
+  .hr-application-details-meta-chip {
+    font-size: 0.64rem;
+    padding: 2px 8px;
   }
 
   .hr-application-details-content {
@@ -4783,11 +4868,11 @@ async function confirmRecall() {
 
   .hr-application-details-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 12px;
+    gap: 10px;
   }
 
   .hr-application-duration-columns {
-    gap: 4px;
+    gap: 5px;
   }
 
   .hr-application-duration-date {
@@ -4800,7 +4885,7 @@ async function confirmRecall() {
   }
 
   .hr-application-details-actions {
-    padding: 10px 12px 12px;
+    padding: 0 12px 12px;
     justify-content: stretch;
   }
 
