@@ -289,7 +289,11 @@
     position="standard"
     class="hr-application-details-dialog"
   >
-    <q-card v-if="selectedApp" class="hr-application-details-card">
+    <q-card
+      v-if="selectedApp"
+      class="hr-application-details-card"
+      style="width: min(700px, calc(100vw - 28px)); max-width: min(700px, calc(100vw - 28px));"
+    >
       <div class="hr-application-details-accent" />
       <q-card-section class="row items-start no-wrap hr-application-details-header">
         <div class="hr-application-details-header-main">
@@ -320,16 +324,6 @@
         </div>
         <div class="hr-application-details-header-side">
           <div class="row items-center q-gutter-xs no-wrap">
-            <q-btn
-              v-if="selectedApp && canPrintCocCertificate(selectedApp)"
-              dense
-              flat
-              no-caps
-              icon="print"
-              color="grey-8"
-              label="Print Certificate"
-              @click="printCocCertificate(selectedApp)"
-            />
             <q-btn
               flat
               dense
@@ -437,7 +431,7 @@
               </div>
             </template>
           </div>
-          <div class="hr-application-details-item">
+          <div v-if="!isCocApplication(selectedApp)" class="hr-application-details-item">
             <div class="text-caption text-grey-7">Reason</div>
             <div>
               <template v-if="hasPendingReasonUpdate(selectedApp)">
@@ -638,7 +632,7 @@
               {{ selectedApp.endDate ? formatDate(selectedApp.endDate) : 'N/A' }}
             </div>
           </div>
-          <div class="hr-application-details-item">
+          <div v-if="!isCocApplication(selectedApp)" class="hr-application-details-item">
             <div class="text-caption text-grey-7">Remarks</div>
             <div
               v-if="getDetailsRemarksRows(selectedApp).length"
@@ -660,42 +654,57 @@
         </div>
       </q-card-section>
       <q-card-actions
-        v-if="$q.screen.lt.sm && selectedApp && hasMobileApplicationActions(selectedApp)"
+        v-if="
+          selectedApp &&
+          (canPrintCocCertificate(selectedApp) || ($q.screen.lt.sm && hasMobileApplicationActions(selectedApp)))
+        "
         align="right"
         class="hr-application-details-actions"
       >
         <q-btn
-          v-if="showApplicationEditAction && canEditApplication(selectedApp)"
-          unelevated
-          no-caps
-          color="primary"
-          label="Edit"
-          @click="openEdit(selectedApp)"
-        />
-        <q-btn
-          v-if="selectedApp.rawStatus === 'PENDING_HR'"
-          unelevated
-          no-caps
-          color="negative"
-          label="Disapprove"
-          @click="openActionConfirm('reject', selectedApp)"
-        />
-        <q-btn
-          v-if="selectedApp.rawStatus === 'PENDING_HR'"
+          v-if="canPrintCocCertificate(selectedApp)"
           unelevated
           no-caps
           color="green-7"
-          label="Approve"
-          @click="openActionConfirm('approve', selectedApp)"
+          icon="print"
+          label="Print Certificate"
+          class="hr-application-details-print-certificate"
+          @click="printCocCertificate(selectedApp)"
         />
-        <q-btn
-          v-if="canRecallApplication(selectedApp)"
-          unelevated
-          no-caps
-          color="warning"
-          label="Recall"
-          @click="openRecall(selectedApp)"
-        />
+        <template v-if="$q.screen.lt.sm && hasMobileApplicationActions(selectedApp)">
+          <q-btn
+            v-if="showApplicationEditAction && canEditApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="primary"
+            label="Edit"
+            @click="openEdit(selectedApp)"
+          />
+          <q-btn
+            v-if="selectedApp.rawStatus === 'PENDING_HR'"
+            unelevated
+            no-caps
+            color="negative"
+            label="Disapprove"
+            @click="openActionConfirm('reject', selectedApp)"
+          />
+          <q-btn
+            v-if="selectedApp.rawStatus === 'PENDING_HR'"
+            unelevated
+            no-caps
+            color="green-7"
+            label="Approve"
+            @click="openActionConfirm('approve', selectedApp)"
+          />
+          <q-btn
+            v-if="canRecallApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="warning"
+            label="Recall"
+            @click="openRecall(selectedApp)"
+          />
+        </template>
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -2635,7 +2644,7 @@ function getApplicationStatusColor(app) {
 }
 
 function resolveFiledByActor(app) {
-  return app?.filedBy || app?.employeeName || 'Unknown'
+  return app?.filedBy || app?.filed_by || app?.employeeName || app?.employee_name || 'Unknown'
 }
 
 function resolveFiledDateValue(app) {
@@ -2653,7 +2662,7 @@ function resolveFiledDateValue(app) {
 }
 
 function resolveDepartmentAdminActor(app) {
-  return app?.adminActionBy || 'Unknown'
+  return app?.adminActionBy || app?.admin_action_by || 'Unknown'
 }
 
 function resolveDepartmentAdminActionDateValue(app) {
@@ -2661,7 +2670,7 @@ function resolveDepartmentAdminActionDateValue(app) {
 }
 
 function resolveHrActor(app) {
-  return app?.hrActionBy || 'Unknown'
+  return app?.hrActionBy || app?.hr_action_by || 'Unknown'
 }
 
 function resolveFinalApprovalDateValue(app) {
@@ -2691,6 +2700,7 @@ function resolveRecallActor(app) {
     historyEntry?.action_by_name ||
     historyEntry?.action_by ||
     app?.hrActionBy ||
+    app?.hr_action_by ||
     'Unknown'
   )
 }
@@ -2719,7 +2729,13 @@ function formatRecallRemarks(app) {
 }
 
 function resolveCancelledActor(app) {
-  return app?.cancelledBy || app?.employeeName || 'Unknown'
+  return (
+    app?.cancelledBy ||
+    app?.cancelled_by ||
+    app?.employeeName ||
+    app?.employee_name ||
+    'Unknown'
+  )
 }
 
 function resolveCancelledDateValue(app) {
@@ -2728,7 +2744,15 @@ function resolveCancelledDateValue(app) {
 
 function resolveDisapprovalActor(app) {
   if (isCancelledByUser(app)) return resolveCancelledActor(app)
-  return app?.disapprovedBy || app?.hrActionBy || app?.adminActionBy || 'Unknown'
+  return (
+    app?.disapprovedBy ||
+    app?.disapproved_by ||
+    app?.hrActionBy ||
+    app?.hr_action_by ||
+    app?.adminActionBy ||
+    app?.admin_action_by ||
+    'Unknown'
+  )
 }
 
 function resolveDisapprovedDateValue(app) {
@@ -3395,10 +3419,39 @@ function openDetails(app) {
   showDetailsDialog.value = true
 }
 
-function openTimeline(app) {
-  selectedApp.value = app
+async function openTimeline(app) {
+  const baseApplication = resolveApplication(app) || app
+  selectedApp.value = baseApplication
   showDetailsDialog.value = false
   showTimelineDialog.value = true
+
+  const id = getApplicationId(baseApplication)
+  if (!id) return
+
+  const endpoint = isCocApplication(baseApplication)
+    ? `/hr/coc-applications/${id}`
+    : `/hr/leave-applications/${id}`
+
+  try {
+    const response = await api.get(endpoint)
+    const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+    if (!detailedApplication || typeof detailedApplication !== 'object') return
+
+    // Keep row-specific overrides (e.g. recalled companion rows) while enriching timeline metadata.
+    const mergedApplication = {
+      ...detailedApplication,
+      ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
+    }
+
+    if (!showTimelineDialog.value) return
+
+    const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+    if (selectedId !== String(id).trim()) return
+
+    selectedApp.value = mergedApplication
+  } catch {
+    // Keep existing row payload when detail endpoint fails.
+  }
 }
 
 function resolveApplicationAttachmentReference(app) {
@@ -4317,12 +4370,13 @@ async function confirmRecall() {
 }
 
 .hr-application-details-dialog .q-dialog__inner--minimized > div {
-  width: min(760px, calc(100vw - 28px));
-  max-width: min(760px, calc(100vw - 28px));
+  width: min(700px, calc(100vw - 28px)) !important;
+  max-width: min(700px, calc(100vw - 28px)) !important;
 }
 
 .hr-application-details-card {
-  width: 100%;
+  width: min(700px, calc(100vw - 28px)) !important;
+  max-width: min(700px, calc(100vw - 28px)) !important;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -4654,6 +4708,11 @@ async function confirmRecall() {
   background: #fff;
 }
 
+.hr-application-details-print-certificate {
+  font-weight: 700;
+  box-shadow: 0 8px 16px rgba(46, 125, 50, 0.3);
+}
+
 .hr-application-duration-columns {
   display: flex;
   flex-direction: column;
@@ -4824,11 +4883,13 @@ async function confirmRecall() {
   }
 
   .hr-application-details-dialog .q-dialog__inner--minimized > div {
-    width: calc(100vw - 20px);
-    max-width: calc(100vw - 20px);
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
   }
 
   .hr-application-details-card {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
     max-height: calc(100vh - 24px);
   }
 

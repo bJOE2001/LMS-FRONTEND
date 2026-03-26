@@ -19,15 +19,6 @@ function normalizeText(value) {
     .trim()
 }
 
-function firstPresentValue(...values) {
-  for (const value of values) {
-    if (value === undefined || value === null) continue
-    if (typeof value === 'string' && normalizeText(value) === '') continue
-    return value
-  }
-  return ''
-}
-
 function toFiniteNumber(value) {
   if (value === undefined || value === null || value === '') return null
   const numericValue = Number(value)
@@ -163,17 +154,19 @@ function resolveEmployeeName(app) {
 
 function resolveEmployeePosition(app) {
   return normalizeText(
-    firstPresentValue(
-      app?.position,
-      app?.designation,
-      app?.job_title,
-      app?.jobTitle,
-      app?.employee?.position,
-      app?.employee?.designation,
-      app?.employee?.job_title,
-      app?.employee?.jobTitle,
-      app?.employee?.rank,
-    ),
+    app?.userInfo?.position ||
+      app?.user_info?.position ||
+      app?.position ||
+      app?.designation ||
+      app?.job_title ||
+      app?.jobTitle ||
+      app?.employee?.position ||
+      app?.employee?.designation ||
+      app?.employee?.job_title ||
+      app?.employee?.jobTitle ||
+      app?.employee?.rank ||
+      app?.employee_info?.position ||
+      app?.employeeInfo?.position,
   )
 }
 
@@ -870,6 +863,7 @@ export async function generateCocApplicationPdf(app) {
                 nameFontSize: 13,
                 captionItalics: true,
                 captionFontSize: 9,
+                captionAlignment: 'center',
               }),
             ],
           },
