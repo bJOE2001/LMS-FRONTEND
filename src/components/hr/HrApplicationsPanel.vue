@@ -698,119 +698,35 @@
     </q-card>
   </q-dialog>
 
-  <q-dialog v-model="showConfirmActionDialog">
+  <q-dialog v-model="showConfirmActionDialog" persistent>
     <q-card
-      class="hr-action-dialog-card"
+      class="hr-action-dialog-card hr-action-dialog-card--compact"
       :class="
         confirmActionType === 'approve'
           ? 'hr-action-dialog-card--approve'
-          : 'hr-action-dialog-card--reject'
+          : confirmActionType === 'cancel'
+            ? 'hr-action-dialog-card--cancel'
+            : 'hr-action-dialog-card--reject'
       "
     >
-      <q-card-section class="row justify-end hr-action-dialog-card__top">
-        <q-btn
-          flat
-          round
-          dense
-          icon="close"
-          color="grey-6"
-          aria-label="Close confirmation"
-          v-close-popup
-        />
-      </q-card-section>
-      <q-card-section class="text-center hr-action-dialog-card__content">
+      <q-card-section class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact">
+        <q-avatar
+          size="64px"
+          class="hr-action-dialog-card__avatar"
+          :class="`hr-action-dialog-card__avatar--${getConfirmActionTone(confirmActionType)}`"
+        >
+          <q-icon :name="getConfirmActionIcon(confirmActionType)" size="32px" />
+        </q-avatar>
         <div class="hr-action-dialog-card__title">
           {{ getConfirmActionTitle(confirmActionType) }}
         </div>
         <div class="hr-action-dialog-card__message">
           {{ getConfirmActionMessage(confirmActionType) }}
         </div>
-        <div v-if="showConfirmActionImpactPreview" class="hr-action-impact-preview">
-          <div class="hr-action-impact-preview__title">Impact Preview</div>
-
-          <div
-            v-if="hasPendingLeaveTypeUpdate(confirmActionResolvedApp)"
-            class="hr-action-impact-preview__item"
-          >
-            <div class="hr-action-impact-preview__label">Leave Type</div>
-            <div>
-              <span class="text-grey-8">Current:</span>
-              {{ getCurrentLeaveTypeLabel(confirmActionResolvedApp) }}
-            </div>
-            <div class="text-deep-purple-8">
-              <span>Requested:</span>
-              {{ getRequestedLeaveTypeLabel(confirmActionResolvedApp) }}
-            </div>
-          </div>
-
-          <div
-            v-if="hasPendingDateUpdate(confirmActionResolvedApp)"
-            class="hr-action-impact-preview__item"
-          >
-            <div class="hr-action-impact-preview__label">Inclusive Dates</div>
-            <div>
-              <span class="text-grey-8">Current:</span>
-              {{ getApplicationInclusiveDateSummary(confirmActionResolvedApp) }}
-            </div>
-            <div class="text-deep-purple-8">
-              <span>Requested:</span>
-              {{ getPendingUpdateInclusiveDateSummary(confirmActionResolvedApp) }}
-            </div>
-          </div>
-
-          <div
-            v-if="hasPendingDurationUpdate(confirmActionResolvedApp)"
-            class="hr-action-impact-preview__item"
-          >
-            <div class="hr-action-impact-preview__label">Duration</div>
-            <div>
-              <span class="text-grey-8">Current:</span>
-              {{ getApplicationDurationDisplay(confirmActionResolvedApp) }}
-            </div>
-            <div class="text-deep-purple-8">
-              <span>Requested:</span>
-              {{ getRequestedDurationDisplay(confirmActionResolvedApp) }}
-            </div>
-          </div>
-
-          <div
-            v-if="hasPendingReasonUpdate(confirmActionResolvedApp)"
-            class="hr-action-impact-preview__item"
-          >
-            <div class="hr-action-impact-preview__label">Reason</div>
-            <div>
-              <span class="text-grey-8">Current:</span>
-              {{ getCurrentReasonDisplay(confirmActionResolvedApp) }}
-            </div>
-            <div class="text-deep-purple-8">
-              <span>Requested:</span>
-              {{ getRequestedReasonDisplay(confirmActionResolvedApp) }}
-            </div>
-          </div>
-
-          <div
-            v-if="hasPendingLeaveTypeUpdate(confirmActionResolvedApp)"
-            class="hr-action-impact-preview__item"
-          >
-            <div class="hr-action-impact-preview__label">Leave Balance</div>
-            <div :class="getCurrentLeaveBalanceClass(confirmActionResolvedApp)">
-              <span class="text-grey-8"
-                >Current ({{ getCurrentLeaveTypeLabel(confirmActionResolvedApp) }}):</span
-              >
-              {{ getCurrentLeaveBalanceDisplay(confirmActionResolvedApp) }}
-            </div>
-            <div :class="getRequestedLeaveBalanceClass(confirmActionResolvedApp)">
-              <span class="text-deep-purple-8"
-                >Requested ({{ getRequestedLeaveTypeLabel(confirmActionResolvedApp) }}):</span
-              >
-              {{ getRequestedLeaveBalanceDisplay(confirmActionResolvedApp) }}
-            </div>
-          </div>
-        </div>
       </q-card-section>
-      <q-card-actions class="hr-action-dialog-card__actions">
+      <q-card-actions class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact">
         <q-btn
-          outline
+          flat
           no-caps
           label="Cancel"
           color="grey-7"
@@ -821,7 +737,14 @@
           unelevated
           no-caps
           label="Confirm"
-          :color="confirmActionType === 'approve' ? 'green-7' : 'negative'"
+          :icon="getConfirmActionIcon(confirmActionType)"
+          :color="
+            confirmActionType === 'approve'
+              ? 'green-7'
+              : confirmActionType === 'cancel'
+                ? 'warning'
+                : 'negative'
+          "
           class="hr-action-dialog-card__button"
           @click="confirmPendingAction"
         />
@@ -928,19 +851,25 @@
   </q-dialog>
 
   <q-dialog v-model="showRejectDialog" persistent>
-    <q-card class="hr-action-dialog-card hr-action-dialog-card--reject" style="min-width: 360px">
-      <q-card-section>
-        <div class="text-h6">Disapprove Application</div>
+    <q-card class="hr-action-dialog-card hr-action-dialog-card--compact hr-action-dialog-card--reject">
+      <q-card-section class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact">
+        <q-avatar size="64px" class="hr-action-dialog-card__avatar hr-action-dialog-card__avatar--reject">
+          <q-icon name="cancel" size="32px" />
+        </q-avatar>
+        <div class="hr-action-dialog-card__title">Disapprove Application</div>
       </q-card-section>
-      <q-card-section class="q-pt-none">
+      <q-card-section class="q-pt-none hr-action-dialog-card__content--compact">
         <q-input v-model="remarks" type="textarea" label="Reason for disapproval" rows="4" outlined />
       </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cancel" v-close-popup />
+      <q-card-actions class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact">
+        <q-btn flat no-caps label="Cancel" color="grey-7" class="hr-action-dialog-card__button" v-close-popup />
         <q-btn
           unelevated
           color="negative"
+          icon="cancel"
+          no-caps
           label="Submit"
+          class="hr-action-dialog-card__button"
           :loading="actionLoading"
           @click="confirmReject"
         />
@@ -948,58 +877,68 @@
     </q-card>
   </q-dialog>
 
-  <q-dialog v-model="showRecallDialog" persistent>
-    <q-card class="hr-action-dialog-card hr-action-dialog-card--reject" style="min-width: 360px">
+  <q-dialog v-model="showRecallDialog" persistent class="hr-recall-dialog">
+    <q-card
+      class="hr-action-dialog-card hr-action-dialog-card--reject hr-action-dialog-card--recall"
+      style="min-width: 360px"
+    >
       <q-card-section>
         <div class="text-h6">Recall Application</div>
       </q-card-section>
-      <q-card-section class="q-pt-none">
-        <div class="text-subtitle2 q-mb-sm">Recall Dates *</div>
-        <div class="recall-date-calendar">
-          <q-date
-            v-model="recallSelectedDates"
-            multiple
-            mask="YYYY-MM-DD"
-            color="warning"
-            :options="isRecallDateAllowed"
-          />
-        </div>
-        <div class="text-caption text-grey-7 q-mt-sm">
-          Select the leave dates HR is recalling. Only dates from this application can be selected.
-        </div>
-        <q-input
-          v-model="recallReason"
-          type="textarea"
-          label="Reason for recall *"
-          rows="4"
-          outlined
-          class="q-mt-md"
-        />
-        <div v-if="recallPreview" class="hr-action-impact-preview">
-          <div class="hr-action-impact-preview__title">Recall Preview</div>
-          <div class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Selected Recall Dates</div>
-            <div>{{ recallPreview.selectedRecallDates.join(', ') || 'N/A' }}</div>
+      <q-card-section class="q-pt-none hr-action-dialog-card__content--recall">
+        <div class="hr-recall-layout">
+          <div class="hr-recall-layout__left">
+            <div class="text-subtitle2 q-mb-sm">Recall Dates *</div>
+            <div class="recall-date-grid">
+              <div class="recall-date-grid__head">
+                <div class="recall-date-grid__cell recall-date-grid__cell--select">Pick</div>
+                <div class="recall-date-grid__cell">Date</div>
+                <div class="recall-date-grid__cell">Whole/Half Day</div>
+                <div class="recall-date-grid__cell">With/Without Pay</div>
+              </div>
+              <div class="recall-date-grid__body">
+                <div
+                  v-for="row in recallDateSelectionRows"
+                  :key="row.value"
+                  class="recall-date-grid__row"
+                >
+                  <div class="recall-date-grid__cell recall-date-grid__cell--select">
+                    <q-checkbox
+                      v-model="recallSelectedDates"
+                      :val="row.value"
+                      dense
+                      color="warning"
+                      size="sm"
+                    />
+                  </div>
+                  <div class="recall-date-grid__cell recall-date-grid__cell--date">
+                    {{ row.dateLabel }}
+                  </div>
+                  <div class="recall-date-grid__cell recall-date-grid__cell--meta">
+                    {{ row.coverageLabel }}
+                  </div>
+                  <div class="recall-date-grid__cell recall-date-grid__cell--meta">
+                    {{ row.payLabel }}
+                  </div>
+                </div>
+                <div v-if="!recallDateSelectionRows.length" class="recall-date-grid__empty">
+                  No recall dates available.
+                </div>
+              </div>
+            </div>
+            <div class="text-caption text-grey-7 q-mt-sm">
+              Select the leave dates HR is recalling. Only dates from this application can be selected.
+            </div>
           </div>
-          <div class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Credits To Restore</div>
-            <div>{{ formatCreditDisplay(recallPreview.creditsToRestore) }}</div>
-          </div>
-          <div class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Restored To</div>
-            <div>{{ recallPreview.restoredToLabel }}</div>
-          </div>
-          <div v-if="recallPreview.restorableDates.length" class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Dates To Restore</div>
-            <div>{{ recallPreview.restorableDates.join(', ') }}</div>
-          </div>
-          <div v-if="recallPreview.pastUsedDates.length" class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Selected But Already Used</div>
-            <div>{{ recallPreview.pastUsedDates.join(', ') }}</div>
-          </div>
-          <div v-if="recallPreview.withoutPayDates.length" class="hr-action-impact-preview__item">
-            <div class="hr-action-impact-preview__label">Without Pay, Not Restored</div>
-            <div>{{ recallPreview.withoutPayDates.join(', ') }}</div>
+          <div class="hr-recall-layout__right">
+            <q-input
+              v-model="recallReason"
+              type="textarea"
+              label="Reason for recall *"
+              rows="12"
+              outlined
+              class="hr-recall-reason"
+            />
           </div>
         </div>
       </q-card-section>
@@ -1496,12 +1435,6 @@ function formatDayValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return '0'
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
-}
-
-function formatCreditDisplay(value) {
-  const numericValue = Number(value)
-  if (!Number.isFinite(numericValue)) return '0.00 credits'
-  return `${numericValue.toFixed(2)} credit${numericValue === 1 ? '' : 's'}`
 }
 
 function normalizeDurationUnit(value) {
@@ -2452,13 +2385,6 @@ const recallSelectedDates = ref([])
 const recallReason = ref('')
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
-const confirmActionResolvedApp = computed(() => resolveApplication(confirmActionTarget.value))
-const showConfirmActionImpactPreview = computed(() => {
-  const application = confirmActionResolvedApp.value
-  if (!application) return false
-  if (!isPendingEditRequest(application)) return false
-  return hasRequestedChangePreview(application)
-})
 const editForm = ref(getEmptyEditForm())
 const showApplicationEditAction = false
 
@@ -2521,28 +2447,32 @@ function getRecallDateOptions(app) {
   return [...new Set(getRemainingRecallableDateKeys(app))].sort()
 }
 
-function resolveDefaultRecallSelectedDates(app) {
-  const options = getRecallDateOptions(app)
+const recallDateSelectionRows = computed(() => {
+  const application = recallTargetApp.value || selectedApp.value
+  const options = getRecallDateOptions(application)
   if (!options.length) return []
 
-  const todayIso = toIsoDateString(new Date())
-  if (todayIso) {
-    const currentOrFutureOptions = options.filter((value) => value >= todayIso)
-    if (currentOrFutureOptions.length) {
-      return currentOrFutureOptions
+  const payStatusByDate = getSelectedDatePayStatusRows(application).reduce((acc, row) => {
+    const normalizedDate = toIsoDate(row?.dateKey)
+    if (!normalizedDate) return acc
+    acc[normalizedDate] = String(row?.payStatus || '').toUpperCase() === 'WOP' ? 'WOP' : 'WP'
+    return acc
+  }, {})
+
+  const coverageWeights = getSelectedDateCoverageWeights(application)
+  return options.map((rawDate) => {
+    const normalizedDate = toIsoDate(rawDate) || rawDate
+    const coverageWeight = Number(coverageWeights[normalizedDate] ?? 1)
+    const payStatusCode = payStatusByDate[normalizedDate] || 'WP'
+
+    return {
+      dateLabel: formatRecallDateLabel(normalizedDate),
+      coverageLabel: coverageWeight === 0.5 ? 'Half Day' : 'Whole Day',
+      payLabel: payStatusCode === 'WOP' ? 'Without Pay' : 'With Pay',
+      value: normalizedDate,
     }
-  }
-
-  return options
-}
-
-function isRecallDateAllowed(dateValue) {
-  const application = recallTargetApp.value || selectedApp.value
-  const allowedDates = new Set(getRecallDateOptions(application))
-  const normalizedDate = toIsoDate(dateValue)
-
-  return normalizedDate ? allowedDates.has(normalizedDate) : false
-}
+  })
+})
 
 function toIsoDate(value) {
   const raw = String(value || '').trim()
@@ -2674,6 +2604,18 @@ function formatDate(dateStr) {
   })
 }
 
+function formatRecallDateLabel(dateStr) {
+  const isoDate = toIsoDate(dateStr)
+  const parsedDate = isoDate ? new Date(`${isoDate}T00:00:00`) : new Date(dateStr)
+  if (Number.isNaN(parsedDate.getTime())) return String(dateStr || '')
+
+  return parsedDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
 function formatDateTime(dateStr) {
   if (!dateStr) return ''
 
@@ -3062,7 +3004,6 @@ function getTimelineEntryIcon(entry) {
   if (tone === 'neutral') return 'radio_button_unchecked'
   return 'check'
 }
-
 function getSelectedDateColumns(dates, columnCount = 3) {
   const formattedDates = Array.isArray(dates)
     ? [...dates]
@@ -3415,96 +3356,6 @@ function getPendingUpdateDateCoverageWeights(app) {
     return acc
   }, {})
 }
-
-function buildRecallPreview(app, selectedRecallDates = []) {
-  if (!app || !canRecallApplication(app)) return null
-
-  const deductibleDays = Number(
-    app?.deductible_days ??
-      app?.deductibleDays ??
-      app?.raw?.deductible_days ??
-      app?.raw?.deductibleDays ??
-      0,
-  )
-
-  const leaveTypeName = getApplicationLeaveTypeName(app)
-  const restoredToLabel =
-    leaveTypeName === 'mandatory / forced leave' ? 'Vacation Leave' : 'Vacation Leave'
-
-  if (app?.is_monetization === true || app?.raw?.is_monetization === true) {
-    return {
-      creditsToRestore: Number.isFinite(deductibleDays) ? Math.max(deductibleDays, 0) : 0,
-      restoredToLabel,
-      restorableDates: [],
-      pastUsedDates: [],
-      withoutPayDates: [],
-    }
-  }
-
-  const payStatusRows = getSelectedDatePayStatusRows(app)
-  const coverageWeights = getSelectedDateCoverageWeights(app)
-  const selectedRecallDateSet = new Set(
-    [
-      ...new Set(
-        (Array.isArray(selectedRecallDates) ? selectedRecallDates : [])
-          .map((value) => toIsoDate(value))
-          .filter(Boolean),
-      ),
-    ].sort(),
-  )
-  if (!selectedRecallDateSet.size) return null
-
-  const restorableDates = []
-  const pastUsedDates = []
-  const withoutPayDates = []
-  const selectedRecallDateLabels = []
-  let creditsToRestore = 0
-
-  payStatusRows.forEach((row) => {
-    if (!selectedRecallDateSet.has(String(row.dateKey))) {
-      return
-    }
-
-    const weight = Number(coverageWeights[row.dateKey] ?? 1)
-    const label = weight === 0.5 ? `${row.dateText} (Half Day)` : row.dateText
-    selectedRecallDateLabels.push(label)
-
-    if (row.payStatus !== 'WP') {
-      withoutPayDates.push(label)
-      return
-    }
-
-    if (String(row.dateKey) < toIsoDateString(new Date())) {
-      pastUsedDates.push(label)
-      return
-    }
-
-    restorableDates.push(label)
-    creditsToRestore += Number.isFinite(weight) ? weight : 1
-  })
-
-  if (Number.isFinite(deductibleDays) && deductibleDays > 0) {
-    creditsToRestore = Math.min(creditsToRestore, deductibleDays)
-  }
-
-  return {
-    selectedRecallDates: selectedRecallDateLabels,
-    creditsToRestore: Math.max(Math.round((creditsToRestore + Number.EPSILON) * 100) / 100, 0),
-    restoredToLabel,
-    restorableDates,
-    pastUsedDates,
-    withoutPayDates,
-  }
-}
-
-const recallPreview = computed(() => {
-  const application = recallTargetApp.value || selectedApp.value
-  const selectedRecallDates = recallSelectedDates.value.length
-    ? recallSelectedDates.value
-    : resolveDefaultRecallSelectedDates(application)
-  return buildRecallPreview(application, selectedRecallDates)
-})
-
 function getSelectedDatePayStatusColumns(app, columnCount = 3) {
   const rows = getSelectedDatePayStatusRows(app)
   if (!rows.length) return []
@@ -3727,21 +3578,30 @@ function handleApplicationRowClick(_evt, row) {
 
 function getConfirmActionTitle(type) {
   if (type === 'approve') return 'Approve'
+  if (type === 'cancel') return 'Cancel'
   return 'Disapprove'
 }
 
 function getConfirmActionMessage(type) {
-  const application = confirmActionResolvedApp.value
-  const isEditRequest = isPendingEditRequest(application)
-
   if (type === 'approve') {
-    return isEditRequest
-      ? 'This will approve the edit request and apply the requested changes.'
-      : 'This will finalize the approval of this application.'
+    return 'This will forward the application to HR for final review.'
   }
-  return isEditRequest
-    ? 'You will continue to the disapproval form for this edit request.'
-    : 'You will continue to the disapproval form.'
+  if (type === 'cancel') {
+    return 'You will continue to the cancellation form.'
+  }
+  return 'You will continue to the disapproval form.'
+}
+
+function getConfirmActionTone(type) {
+  if (type === 'approve') return 'approve'
+  if (type === 'cancel') return 'cancel'
+  return 'reject'
+}
+
+function getConfirmActionIcon(type) {
+  if (type === 'approve') return 'check_circle'
+  if (type === 'cancel') return 'warning'
+  return 'cancel'
 }
 
 function getApplicationId(target) {
@@ -3974,7 +3834,7 @@ function openRecall(target) {
   if (!canRecallApplication(application || target)) return
   recallId.value = getApplicationId(application || target)
   recallTargetApp.value = application || target || null
-  recallSelectedDates.value = resolveDefaultRecallSelectedDates(application || target || null)
+  recallSelectedDates.value = []
   recallReason.value = ''
   showRecallDialog.value = true
 }
@@ -4161,6 +4021,12 @@ async function confirmRecall() {
   gap: 10px;
 }
 
+.hr-action-impact-preview--recall {
+  margin-top: 12px;
+  padding: 10px 12px;
+  gap: 8px;
+}
+
 .hr-action-impact-preview__title {
   font-size: 0.82rem;
   font-weight: 700;
@@ -4197,8 +4063,175 @@ async function confirmRecall() {
   border-color: #b7ddc1;
 }
 
+.hr-action-dialog-card--cancel {
+  border-color: #efd6a7;
+}
+
 .hr-action-dialog-card--reject {
   border-color: #e6b8b8;
+}
+
+.hr-action-dialog-card--compact {
+  width: min(420px, calc(100vw - 24px));
+  min-width: 340px;
+  max-width: 420px;
+  border-radius: 20px;
+}
+
+.hr-action-dialog-card__content--compact {
+  padding: 22px 26px 12px;
+}
+
+.hr-action-dialog-card--compact .hr-action-dialog-card__title {
+  margin-top: 14px;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.hr-action-dialog-card--compact .hr-action-dialog-card__message {
+  margin-top: 14px;
+  font-size: 1.02rem;
+}
+
+.hr-action-dialog-card__avatar {
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
+}
+
+.hr-action-dialog-card__avatar--approve {
+  background: #2e7d32;
+}
+
+.hr-action-dialog-card__avatar--cancel {
+  background: #f59e0b;
+}
+
+.hr-action-dialog-card__avatar--reject {
+  background: #c62828;
+}
+
+.hr-action-dialog-card__actions--compact {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 22px 20px;
+}
+
+.hr-action-dialog-card--compact .hr-action-dialog-card__button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 140px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.hr-action-dialog-card--recall {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hr-action-dialog-card__content--recall {
+  padding-top: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.hr-recall-layout {
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.hr-recall-layout__left,
+.hr-recall-layout__right {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recall-date-grid {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.recall-date-grid__head,
+.recall-date-grid__row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+}
+
+.recall-date-grid__head {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.recall-date-grid__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.recall-date-grid__row {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.recall-date-grid__row:last-child {
+  border-bottom: 0;
+}
+
+.recall-date-grid__cell {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  color: #1f2937;
+  min-width: 0;
+}
+
+.recall-date-grid__cell--select {
+  display: flex;
+  justify-content: center;
+}
+
+.recall-date-grid__cell--date {
+  font-weight: 600;
+}
+
+.recall-date-grid__cell--meta {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.recall-date-grid__empty {
+  padding: 12px;
+  font-size: 0.82rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.hr-recall-reason {
+  flex: 1 1 auto;
+}
+
+.hr-recall-reason .q-field__native {
+  min-height: 260px;
 }
 
 .hr-action-dialog-card__top {
@@ -4239,9 +4272,59 @@ async function confirmRecall() {
 }
 
 .hr-action-dialog-card__button--cancel {
-  background: #ffffff;
-  border-color: #d6dbe1;
-  color: #111827;
+  background: transparent;
+  border-color: transparent;
+  color: #6b7280;
+}
+
+/* Keep HR confirmation dialog sizing/padding identical to Admin confirmation dialog */
+.hr-action-dialog-card.hr-action-dialog-card--compact {
+  width: min(420px, calc(100vw - 24px));
+  min-width: 340px;
+  max-width: 420px;
+  border-radius: 20px;
+}
+
+.hr-action-dialog-card__content.hr-action-dialog-card__content--compact {
+  padding: 22px 26px 12px;
+}
+
+.hr-action-dialog-card--compact .hr-action-dialog-card__title {
+  margin-top: 14px;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.hr-action-dialog-card--compact .hr-action-dialog-card__message {
+  margin-top: 14px;
+  font-size: 1.02rem;
+}
+
+.hr-action-dialog-card__actions.hr-action-dialog-card__actions--compact {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 22px 20px;
+}
+
+.hr-action-dialog-card--compact .hr-action-dialog-card__button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 140px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.hr-recall-dialog .q-dialog__inner--minimized {
+  padding: 16px;
+  overflow: hidden;
+}
+
+.hr-recall-dialog .q-dialog__inner--minimized > div {
+  width: min(980px, calc(100vw - 32px));
+  max-width: min(980px, calc(100vw - 32px));
+  height: min(680px, calc(100vh - 32px));
+  max-height: min(680px, calc(100vh - 32px));
+  min-height: min(680px, calc(100vh - 32px));
 }
 
 .hr-application-details-dialog .q-dialog__inner--minimized {
@@ -4521,6 +4604,12 @@ async function confirmRecall() {
     border-radius: 20px;
   }
 
+  .hr-action-dialog-card--compact {
+    min-width: 0;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+
   .hr-action-dialog-card__content {
     padding: 4px 20px 10px;
   }
@@ -4539,6 +4628,41 @@ async function confirmRecall() {
     padding: 10px 12px;
   }
 
+  .hr-recall-dialog .q-dialog__inner--minimized {
+    padding: 12px;
+  }
+
+  .hr-recall-dialog .q-dialog__inner--minimized > div {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+    min-height: calc(100vh - 24px);
+  }
+
+  .hr-recall-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .recall-date-grid__head,
+  .recall-date-grid__row {
+    grid-template-columns: 48px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .recall-date-grid__cell {
+    padding: 7px 8px;
+    font-size: 0.78rem;
+  }
+
+  .recall-date-grid__cell--meta {
+    font-size: 0.74rem;
+  }
+
+  .hr-recall-reason .q-field__native {
+    min-height: 150px;
+  }
+
   .hr-action-dialog-card__actions {
     gap: 12px;
     padding: 0 20px 20px;
@@ -4547,6 +4671,11 @@ async function confirmRecall() {
   .hr-action-dialog-card__button {
     min-height: 50px;
     border-radius: 16px;
+  }
+
+  .hr-action-dialog-card--compact .hr-action-dialog-card__button {
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   .hr-application-details-dialog .q-dialog__inner--minimized {
