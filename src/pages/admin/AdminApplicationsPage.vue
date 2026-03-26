@@ -425,29 +425,25 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showConfirmActionDialog">
+    <q-dialog v-model="showConfirmActionDialog" persistent>
       <q-card
-        class="admin-action-dialog-card"
+        class="admin-action-dialog-card admin-action-dialog-card--compact"
         :class="
           confirmActionType === 'approve'
             ? 'admin-action-dialog-card--approve'
             : confirmActionType === 'cancel'
               ? 'admin-action-dialog-card--cancel'
-              : 'admin-action-dialog-card--reject'
+            : 'admin-action-dialog-card--reject'
         "
       >
-        <q-card-section class="row justify-end admin-action-dialog-card__top">
-          <q-btn
-            flat
-            round
-            dense
-            icon="close"
-            color="grey-6"
-            aria-label="Close confirmation"
-            v-close-popup
-          />
-        </q-card-section>
-        <q-card-section class="text-center admin-action-dialog-card__content">
+        <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
+          <q-avatar
+            size="64px"
+            class="admin-action-dialog-card__avatar"
+            :class="`admin-action-dialog-card__avatar--${getAdminConfirmActionTone(confirmActionType)}`"
+          >
+            <q-icon :name="getAdminConfirmActionIcon(confirmActionType)" size="32px" />
+          </q-avatar>
           <div class="admin-action-dialog-card__title">
             {{ getConfirmActionTitle(confirmActionType) }}
           </div>
@@ -455,9 +451,9 @@
             {{ getConfirmActionMessage(confirmActionType) }}
           </div>
         </q-card-section>
-        <q-card-actions class="admin-action-dialog-card__actions">
+        <q-card-actions class="admin-action-dialog-card__actions admin-action-dialog-card__actions--compact">
           <q-btn
-            outline
+            flat
             no-caps
             label="Cancel"
             color="grey-7"
@@ -468,6 +464,7 @@
             unelevated
             no-caps
             label="Confirm"
+            :icon="getAdminConfirmActionIcon(confirmActionType)"
             :color="
               confirmActionType === 'approve'
                 ? 'green-7'
@@ -484,14 +481,20 @@
 
     <q-dialog v-model="showDisapproveDialog" persistent>
       <q-card
-        class="admin-action-dialog-card"
+        class="admin-action-dialog-card admin-action-dialog-card--compact"
         :class="rejectionMode === 'cancel' ? 'admin-action-dialog-card--cancel' : 'admin-action-dialog-card--reject'"
-        style="min-width: 360px"
       >
-        <q-card-section>
-          <div class="text-h6">{{ rejectionDialogTitle }}</div>
+        <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
+          <q-avatar
+            size="64px"
+            class="admin-action-dialog-card__avatar"
+            :class="`admin-action-dialog-card__avatar--${getAdminRejectTone(rejectionMode)}`"
+          >
+            <q-icon :name="getAdminRejectIcon(rejectionMode)" size="32px" />
+          </q-avatar>
+          <div class="admin-action-dialog-card__title">{{ rejectionDialogTitle }}</div>
         </q-card-section>
-        <q-card-section class="q-pt-none">
+        <q-card-section class="q-pt-none admin-action-dialog-card__content--compact">
           <q-input
             v-model="remarks"
             type="textarea"
@@ -500,12 +503,15 @@
             outlined
           />
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" v-close-popup />
+        <q-card-actions class="admin-action-dialog-card__actions admin-action-dialog-card__actions--compact">
+          <q-btn flat no-caps label="Cancel" color="grey-7" class="admin-action-dialog-card__button" v-close-popup />
           <q-btn
             unelevated
+            no-caps
             :color="rejectionMode === 'cancel' ? 'warning' : 'negative'"
+            :icon="getAdminRejectIcon(rejectionMode)"
             :label="rejectionMode === 'cancel' ? 'Confirm Cancel' : 'Submit'"
+            class="admin-action-dialog-card__button"
             :loading="actionLoading"
             @click="confirmDisapprove"
           />
@@ -623,6 +629,26 @@ const {
   getActionResultVerb,
   printActionResult,
 } = useAdminApplicationsPage()
+
+function getAdminConfirmActionTone(type) {
+  if (type === 'approve') return 'approve'
+  if (type === 'cancel') return 'cancel'
+  return 'reject'
+}
+
+function getAdminConfirmActionIcon(type) {
+  if (type === 'approve') return 'check_circle'
+  if (type === 'cancel') return 'warning'
+  return 'cancel'
+}
+
+function getAdminRejectTone(mode) {
+  return mode === 'cancel' ? 'cancel' : 'reject'
+}
+
+function getAdminRejectIcon(mode) {
+  return mode === 'cancel' ? 'warning' : 'cancel'
+}
 </script>
 
 <style scoped>
@@ -698,6 +724,12 @@ const {
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
 }
+.admin-action-dialog-card--compact {
+  width: min(420px, calc(100vw - 24px));
+  min-width: 340px;
+  max-width: 420px;
+  border-radius: 20px;
+}
 .admin-action-dialog-card--approve {
   border-color: #b7ddc1;
 }
@@ -713,11 +745,19 @@ const {
 .admin-action-dialog-card__content {
   padding: 8px 28px 12px;
 }
+.admin-action-dialog-card__content--compact {
+  padding: 22px 26px 12px;
+}
 .admin-action-dialog-card__title {
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 500;
   color: #111827;
+}
+.admin-action-dialog-card--compact .admin-action-dialog-card__title {
+  margin-top: 14px;
+  font-size: 2rem;
+  line-height: 1.1;
 }
 .admin-action-dialog-card__message {
   margin-top: 20px;
@@ -725,11 +765,33 @@ const {
   line-height: 1.45;
   color: #6b7280;
 }
+.admin-action-dialog-card--compact .admin-action-dialog-card__message {
+  margin-top: 14px;
+  font-size: 1.02rem;
+}
+.admin-action-dialog-card__avatar {
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
+}
+.admin-action-dialog-card__avatar--approve {
+  background: #2e7d32;
+}
+.admin-action-dialog-card__avatar--cancel {
+  background: #f59e0b;
+}
+.admin-action-dialog-card__avatar--reject {
+  background: #c62828;
+}
 .admin-action-dialog-card__actions {
   display: flex;
   flex-wrap: nowrap;
   gap: 16px;
   padding: 0 28px 28px;
+}
+.admin-action-dialog-card__actions--compact {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 22px 20px;
 }
 .admin-action-dialog-card__button {
   flex: 1 1 0;
@@ -738,10 +800,16 @@ const {
   font-size: 1rem;
   font-weight: 700;
 }
+.admin-action-dialog-card--compact .admin-action-dialog-card__button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 140px;
+  border-radius: 12px;
+}
 .admin-action-dialog-card__button--cancel {
-  background: #ffffff;
-  border-color: #d6dbe1;
-  color: #111827;
+  background: transparent;
+  border-color: transparent;
+  color: #6b7280;
 }
 .leave-balance-cell {
   min-width: 150px;
@@ -1129,6 +1197,12 @@ const {
     border-radius: 20px;
   }
 
+  .admin-action-dialog-card--compact {
+    min-width: 0;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+
   .admin-action-dialog-card__content {
     padding: 4px 20px 10px;
   }
@@ -1150,6 +1224,11 @@ const {
   .admin-action-dialog-card__button {
     min-height: 50px;
     border-radius: 16px;
+  }
+
+  .admin-action-dialog-card--compact .admin-action-dialog-card__button {
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   .apply-leave-dialog-card {
