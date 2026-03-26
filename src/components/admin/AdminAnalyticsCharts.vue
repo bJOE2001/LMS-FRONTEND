@@ -129,6 +129,23 @@ function getApplicationLeaveType(application) {
   return normalizeLeaveTypeName(leaveTypeValue)
 }
 
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function isApprovedApplication(application) {
+  const candidates = [
+    application?.rawStatus,
+    application?.raw_status,
+    application?.status,
+  ]
+
+  return candidates.some((statusValue) => normalizeStatusKey(statusValue) === 'APPROVED')
+}
+
 const trendAnalysis = computed(() => {
   const hasBackendMonthlyTrend = props.analytics && typeof props.analytics === 'object' && props.analytics.monthly_leave_trend != null
   if (hasBackendMonthlyTrend) {
@@ -142,6 +159,8 @@ const trendAnalysis = computed(() => {
   const buckets = Array(12).fill(0)
 
   for (const application of props.applications) {
+    if (!isApprovedApplication(application)) continue
+
     const rawDate = getApplicationDate(application)
     if (!rawDate) continue
 
@@ -249,6 +268,8 @@ const leaveTypeMonthlyTrendMap = computed(() => {
   }
 
   for (const application of props.applications) {
+    if (!isApprovedApplication(application)) continue
+
     const rawDate = getApplicationDate(application)
     if (!rawDate) continue
 

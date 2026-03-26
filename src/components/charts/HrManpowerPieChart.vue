@@ -96,6 +96,12 @@ const manpowerChartOptions = computed(() => ({
     show: true,
     position: 'right',
     horizontalAlign: 'left',
+    fontSize: '14px',
+    markers: {
+      width: 12,
+      height: 12,
+      radius: 12,
+    },
     formatter: (seriesName, options) => {
       const chartValue = Number(options?.w?.globals?.series?.[options.seriesIndex] || 0).toFixed(1)
       const countValue = options.seriesIndex === 0
@@ -110,6 +116,12 @@ const manpowerChartOptions = computed(() => ({
       options: {
         legend: {
           position: 'bottom',
+          fontSize: '13px',
+          markers: {
+            width: 11,
+            height: 11,
+            radius: 11,
+          },
         },
         plotOptions: {
           pie: {

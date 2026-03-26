@@ -44,7 +44,7 @@
     </q-dialog>
 
     <div class="row q-col-gutter-sm q-mb-sm stat-cards-row">
-      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+      <div class="col-12 col-sm-6 col-md stat-card-col">
         <q-card class="stat-card stat-card--applications bg-white rounded-borders" flat elevation="1" @click="goToApplications('total')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
@@ -73,7 +73,7 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+      <div class="col-12 col-sm-6 col-md stat-card-col">
         <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('pending')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
@@ -92,7 +92,7 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+      <div class="col-12 col-sm-6 col-md stat-card-col">
         <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('approved')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
@@ -110,7 +110,7 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-6 col-md-3 stat-card-col">
+      <div class="col-12 col-sm-6 col-md stat-card-col">
         <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('rejected')">
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
@@ -123,6 +123,24 @@
               <div class="stat-value text-negative">
                 <q-spinner v-if="loading" size="32px" color="negative" />
                 <template v-else>{{ dashboardData.rejected_count }}</template>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+      <div class="col-12 col-sm-6 col-md stat-card-col">
+        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('recalled')">
+          <q-card-section class="stat-card-content">
+            <div class="stat-card-main">
+              <div class="stat-card-left">
+                <div class="row items-center no-wrap q-gutter-xs">
+                  <q-icon name="history" size="28px" color="blue-grey-7" class="stat-card-icon" />
+                </div>
+                <div class="text-caption text-weight-medium q-mt-sm">Recalled Applications</div>
+              </div>
+              <div class="stat-value text-blue-grey-7">
+                <q-spinner v-if="loading" size="32px" color="blue-grey-7" />
+                <template v-else>{{ dashboardData.recalled_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -151,6 +169,7 @@
           class="compact-panel"
           :loading="loading"
           :applications="dashboardApplications"
+          :analytics="dashboardData.analytics"
           :trend-year-label="trendYearLabel"
         />
       </div>
@@ -160,6 +179,7 @@
           class="compact-panel"
           :loading="loading"
           :applications="dashboardApplications"
+          :analytics="dashboardData.analytics"
           :trend-year-label="trendYearLabel"
         />
       </div>
@@ -220,6 +240,47 @@ function normalizeEmploymentBreakdown(source) {
   return breakdown
 }
 
+
+function emptyDashboardAnalytics() {
+  return {
+    trend_year: new Date().getFullYear(),
+    monthly_leave_trend: Array.from({ length: 12 }, () => 0),
+    leave_type_monthly_trend: {},
+  }
+}
+
+function normalizeTrendBuckets(value) {
+  return Array.from({ length: 12 }, (_unused, index) => {
+    const parsed = Number(value?.[index] ?? 0)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.round(parsed)
+  })
+}
+
+function normalizeLeaveTypeMonthlyTrend(value) {
+  if (!value || typeof value !== 'object') return {}
+
+  return Object.entries(value).reduce((result, [rawLeaveType, buckets]) => {
+    const normalizedLeaveType = String(rawLeaveType || '').trim() || 'Unknown'
+    result[normalizedLeaveType] = normalizeTrendBuckets(buckets)
+    return result
+  }, {})
+}
+
+function normalizeDashboardAnalytics(value) {
+  if (!value || typeof value !== 'object') return emptyDashboardAnalytics()
+
+  const trendYear = Number(value.trend_year)
+  return {
+    trend_year:
+      Number.isFinite(trendYear) && trendYear >= 2000
+        ? Math.round(trendYear)
+        : new Date().getFullYear(),
+    monthly_leave_trend: normalizeTrendBuckets(value.monthly_leave_trend),
+    leave_type_monthly_trend: normalizeLeaveTypeMonthlyTrend(value.leave_type_monthly_trend),
+  }
+}
+
 function getApplicationEmploymentTypeKey(application) {
   const candidates = [
     application?.employment_status,
@@ -264,6 +325,8 @@ const dashboardData = ref({
   pending_count: 0,
   approved_count: 0,
   rejected_count: 0,
+  recalled_count: 0,
+  analytics: null,
   kpi_breakdown: {
     total: emptyEmploymentBreakdown(),
   },
@@ -271,7 +334,11 @@ const dashboardData = ref({
 const dashboardApplications = ref([])
 const activeEmployeeCount = ref(0)
 const showPendingReminderDialog = ref(false)
-const trendYearLabel = new Date().getFullYear()
+const trendYearLabel = computed(() => {
+  const parsed = Number(dashboardData.value.analytics?.trend_year)
+  if (!Number.isFinite(parsed) || parsed < 2000) return new Date().getFullYear()
+  return Math.round(parsed)
+})
 
 function pendingReminderSeenSessionKey() {
   return `lms_pending_reminder_seen:hr:${authStore.user?.id ?? 'unknown'}`
@@ -317,6 +384,7 @@ function mergeStatus(app) {
 
   if (raw.includes('PENDING') || status.includes('PENDING')) return 'Pending'
   if (raw.includes('APPROVED') || status.includes('APPROVED')) return 'Approved'
+  if (raw.includes('RECALLED') || status.includes('RECALLED')) return 'Recalled'
   if (
     raw.includes('REJECTED') ||
     raw.includes('DISAPPROVED') ||
@@ -468,12 +536,18 @@ async function fetchDashboard() {
     const pendingFromApps = applications.filter((app) => mergeStatus(app) === 'Pending').length
     const approvedFromApps = applications.filter((app) => mergeStatus(app) === 'Approved').length
     const rejectedFromApps = applications.filter((app) => mergeStatus(app) === 'Rejected').length
+    const recalledFromApps = applications.filter((app) => mergeStatus(app) === 'Recalled').length
 
     dashboardData.value = {
       total_count: Number(data.total_count ?? applications.length ?? 0),
       pending_count: Number(data.pending_count ?? pendingFromApps),
       approved_count: Number(data.approved_count ?? approvedFromApps),
       rejected_count: Number(data.rejected_count ?? rejectedFromApps),
+      recalled_count: Number(data.recalled_count ?? recalledFromApps),
+      analytics:
+        data?.analytics && typeof data.analytics === 'object'
+          ? normalizeDashboardAnalytics(data.analytics)
+          : null,
       kpi_breakdown: data?.kpi_breakdown ?? {
         total: buildEmploymentBreakdown(applications),
       },

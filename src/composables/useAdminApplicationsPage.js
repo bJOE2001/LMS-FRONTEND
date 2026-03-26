@@ -2,19 +2,16 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { api } from 'src/boot/axios'
-import pdfMake from 'pdfmake/build/pdfmake'
-import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
 import { generateCocApplicationPdf } from 'src/utils/coc-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { printAdminApplicationsPdf } from 'src/utils/admin-applications-pdf'
 import {
   getApplicationRequestedDayCount,
   getApplicationSelectedDates,
   normalizeIsoDate,
   parseInclusiveDateText,
 } from 'src/utils/leave-date-locking'
-
-pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
 const mobileApplicationColumnWidths = {
   employee: '180px',
@@ -2863,78 +2860,16 @@ export function useAdminApplicationsPage() {
       return
     }
 
-    const searchText = statusSearch.value.trim()
-    const title = searchText
-      ? `Applications Report (Filtered: ${searchText})`
-      : 'Applications Report (All)'
-
-    const printedAt = new Date().toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+    printAdminApplicationsPdf({
+      rows: rowsToPrint,
+      searchText: statusSearch.value,
+      formatDate,
+      getApplicationInclusiveDateLines,
+      getApplicationDurationDisplay,
+      getApplicationStatusLabel,
+      resolveProcessedBy,
+      formatReviewedDate,
     })
-
-    const tableBody = [
-      [
-        { text: 'Employee', style: 'tableHeader' },
-        { text: 'Leave Type', style: 'tableHeader' },
-        { text: 'Date Filed', style: 'tableHeader' },
-        { text: 'Inclusive Dates', style: 'tableHeader' },
-        { text: 'Duration', style: 'tableHeader' },
-        { text: 'Status', style: 'tableHeader' },
-        { text: 'Processed By', style: 'tableHeader' },
-        { text: 'Reviewed Date', style: 'tableHeader' },
-      ],
-      ...rowsToPrint.map((app) => [
-        `${app.employeeName || ''}${app.employee_control_no ? `\n${app.employee_control_no}` : ''}`,
-        app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
-        formatDate(app.dateFiled) || 'N/A',
-        getApplicationInclusiveDateLines(app).join('\n'),
-        getApplicationDurationDisplay(app),
-        getApplicationStatusLabel(app),
-        resolveProcessedBy(app),
-        formatReviewedDate(app),
-      ]),
-    ]
-
-    const docDefinition = {
-      pageOrientation: 'landscape',
-      pageSize: 'A4',
-      pageMargins: [24, 24, 24, 24],
-      content: [
-        { text: title, style: 'title' },
-        { text: `Printed: ${printedAt}`, style: 'meta' },
-        {
-          text: `Total Applications: ${rowsToPrint.length}`,
-          style: 'meta',
-          margin: [0, 0, 0, 10],
-        },
-        {
-          table: {
-            headerRows: 1,
-            widths: ['*', '*', 72, 125, 38, 68, 100, 82],
-            body: tableBody,
-          },
-          layout: {
-            fillColor: (rowIndex) => (rowIndex === 0 ? '#ECEFF1' : null),
-            hLineColor: () => '#CFD8DC',
-            vLineColor: () => '#CFD8DC',
-          },
-        },
-      ],
-      styles: {
-        title: { fontSize: 15, bold: true, color: '#263238', margin: [0, 0, 0, 4] },
-        meta: { fontSize: 10, color: '#455A64', margin: [0, 0, 0, 2] },
-        tableHeader: { bold: true, color: '#263238', fontSize: 10 },
-      },
-      defaultStyle: {
-        fontSize: 9,
-      },
-    }
-
-    pdfMake.createPdf(docDefinition).open()
   }
 
   function resolveApp(target) {
@@ -3161,5 +3096,4 @@ export function useAdminApplicationsPage() {
     printActionResult,
   }
 }
-
 
