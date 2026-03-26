@@ -245,21 +245,26 @@ async function onClickNotif(notif) {
   selectedNotif.value = { ...notif }
   showDetailDialog.value = true
 
-  if (selectedNotif.value.leave_application || !selectedNotif.value.leave_application_id) return
+  const applicationId = relatedApplicationId(selectedNotif.value)
+  if (!applicationId || hasApplicationDetails(selectedNotif.value)) return
 
   loadingAppDetails.value = true
   try {
     const { data } = await api.get(`/notifications/${notif.id}/application`)
     if (data?.application) {
+      const applicationType = data.application_type || resolveNotificationApplicationType(selectedNotif.value)
       const enrichedNotif = {
         ...selectedNotif.value,
-        leave_application: data.application,
+        application_type: applicationType,
+        application: data.application,
+        leave_application: applicationType === 'LEAVE' ? data.application : null,
+        coc_application: applicationType === 'COC' ? data.application : null,
       }
       selectedNotif.value = enrichedNotif
 
       const index = notifStore.notifications.findIndex((item) => item.id === notif.id)
       if (index !== -1) {
-        notifStore.notifications[index] = enrichedNotif
+        notifStore.notifications.splice(index, 1, enrichedNotif)
       }
     }
   } catch {
@@ -279,6 +284,7 @@ function formatType(type) {
   if (!type) return ''
   return type
     .replace(/_/g, ' ')
+    .replace(/\bcoc\b/gi, 'COC')
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
@@ -290,6 +296,10 @@ function getNotifIcon(type) {
     leave_edit_requested: 'edit_note',
     leave_request: 'description',
     leave_pending: 'hourglass_empty',
+    coc_request: 'pending_actions',
+    coc_pending: 'hourglass_top',
+    coc_approved: 'task_alt',
+    coc_rejected: 'cancel',
     reminder: 'alarm',
     system: 'info',
   }
@@ -304,6 +314,10 @@ function getNotifColor(type) {
     leave_edit_requested: 'indigo',
     leave_request: 'primary',
     leave_pending: 'warning',
+    coc_request: 'primary',
+    coc_pending: 'warning',
+    coc_approved: 'positive',
+    coc_rejected: 'negative',
     reminder: 'orange',
     system: 'info',
   }
@@ -318,6 +332,10 @@ function getNotifHex(type) {
     leave_edit_requested: '#3949ab',
     leave_request: '#1565c0',
     leave_pending: '#ef6c00',
+    coc_request: '#1565c0',
+    coc_pending: '#ef6c00',
+    coc_approved: '#2e7d32',
+    coc_rejected: '#c62828',
     reminder: '#e65100',
     system: '#0277bd',
   }
@@ -374,6 +392,16 @@ function formatDayCount(days) {
   return `${displayValue} day${numericValue === 1 ? '' : 's'}`
 }
 
+function formatHourCount(hours) {
+  if (hours === null || hours === undefined || hours === '') return ''
+  const numericValue = Number(hours)
+  if (Number.isNaN(numericValue)) return String(hours)
+  const displayValue = Number.isInteger(numericValue)
+    ? String(numericValue)
+    : numericValue.toFixed(2).replace(/\.?0+$/, '')
+  return `${displayValue} h`
+}
+
 function formatDateRange(startDate, endDate, isMonetization) {
   if (isMonetization) return 'Monetization request'
   if (!startDate && !endDate) return ''
@@ -398,6 +426,14 @@ function isLeaveNotificationType(type) {
   return String(type || '').startsWith('leave_')
 }
 
+function isCocNotificationType(type) {
+  return String(type || '').startsWith('coc_')
+}
+
+function isApplicationNotificationType(type) {
+  return isLeaveNotificationType(type) || isCocNotificationType(type)
+}
+
 function statusFromNotificationType(type) {
   const statusMap = {
     leave_approved: 'Approved',
@@ -406,6 +442,10 @@ function statusFromNotificationType(type) {
     leave_edit_requested: 'Edit Requested',
     leave_request: 'Pending Review',
     leave_pending: 'Pending Review',
+    coc_request: 'Pending Admin',
+    coc_pending: 'Pending HR',
+    coc_approved: 'Approved',
+    coc_rejected: 'Rejected',
   }
   return statusMap[type] || ''
 }
@@ -417,15 +457,53 @@ function parseDaysValue(value) {
 }
 
 function parseApplicationFromMessage(notif) {
-  if (!notif || !isLeaveNotificationType(notif.type)) return null
+  if (!notif || !isApplicationNotificationType(notif.type)) return null
 
   const message = String(notif.message || '').trim()
   if (!message) return null
 
   const parsed = {
-    id: notif.leave_application_id || null,
+    id: relatedApplicationId(notif),
+    application_type: resolveNotificationApplicationType(notif),
     status: statusFromNotificationType(notif.type),
     date_filed: notif.created_at || null,
+  }
+
+  if (isCocNotificationType(notif.type)) {
+    parsed.leave_type_name = 'COC Application'
+
+    const submitCoc = message.match(/^(.+?)\s+submitted a COC application\s+\(([^)]+)\)/i)
+    if (submitCoc) {
+      parsed.applicant_name = submitCoc[1]?.trim()
+      parsed.duration_label = submitCoc[2]?.trim()
+      parsed.total_hours = parseDaysValue(submitCoc[2])
+    }
+
+    const pendingHr = message.match(/^(.+?)'s COC application\s+\(([^)]+)\)\s+is pending HR review/i)
+    if (pendingHr) {
+      parsed.applicant_name = pendingHr[1]?.trim()
+      parsed.duration_label = pendingHr[2]?.trim()
+      parsed.total_hours = parseDaysValue(pendingHr[2])
+    }
+
+    const hrDecision = message.match(/^COC application for\s+(.+?)\s+was\s+(approved|rejected)\s+by HR/i)
+    if (hrDecision) {
+      parsed.applicant_name = parsed.applicant_name || hrDecision[1]?.trim()
+      parsed.status = hrDecision[2]?.toLowerCase() === 'approved' ? 'Approved' : 'Rejected'
+    }
+
+    const creditedDays = message.match(/CTO credited:\s*([^.]*)/i)
+    if (creditedDays) {
+      parsed.cto_credited_days = parseDaysValue(creditedDays[1])
+    }
+
+    const hasCocDetail =
+      parsed.id ||
+      parsed.applicant_name ||
+      parsed.total_hours !== null ||
+      parsed.cto_credited_days !== null
+
+    return hasCocDetail ? parsed : null
   }
 
   const submitLeave = message.match(/^(.+?)\s+submitted a\s+(.+?)\s+leave request\s+\(([^)]+)\)/i)
@@ -466,7 +544,22 @@ function parseApplicationFromMessage(notif) {
 
 function applicationFromNotification(notif) {
   if (!notif) return null
-  return notif.leave_application || parseApplicationFromMessage(notif)
+  return notif.application || notif.leave_application || notif.coc_application || parseApplicationFromMessage(notif)
+}
+
+function relatedApplicationId(notif) {
+  if (!notif) return null
+  return notif.leave_application_id || notif.coc_application_id || notif.application?.id || null
+}
+
+function resolveNotificationApplicationType(notif) {
+  const type = String(notif?.application_type || '').trim().toUpperCase()
+  if (type) return type
+  if (notif?.coc_application_id || notif?.coc_application) return 'COC'
+  if (notif?.leave_application_id || notif?.leave_application) return 'LEAVE'
+  if (isCocNotificationType(notif?.type)) return 'COC'
+  if (isLeaveNotificationType(notif?.type)) return 'LEAVE'
+  return ''
 }
 
 function hasApplicationDetails(notif) {
@@ -477,6 +570,27 @@ function hasApplicationDetails(notif) {
 
 function buildApplicationDetails(application) {
   if (!application) return []
+
+  if (String(application.application_type || '').trim().toUpperCase() === 'COC') {
+    const details = [
+      { label: 'Application ID', value: application.id ? `#${application.id}` : null },
+      { label: 'Status', value: application.status || application.raw_status },
+      { label: 'Application Type', value: application.leave_type_name || 'COC Application' },
+      { label: 'Overtime Dates', value: formatSelectedDates(application.selected_dates) },
+      { label: 'Total Hours', value: application.duration_label || formatHourCount(application.total_hours) },
+      { label: 'Date Filed', value: formatShortDate(application.date_filed) },
+      { label: 'Applicant', value: application.applicant_name },
+      { label: 'Office', value: application.office },
+      { label: 'CTO Leave Type', value: application.cto_leave_type_name },
+      { label: 'CTO Credited Days', value: application.cto_credited_days !== null ? formatDayCount(application.cto_credited_days) : null },
+      { label: 'Remarks', value: application.remarks },
+    ]
+
+    return details.filter((item) => {
+      if (item.value === null || item.value === undefined) return false
+      return String(item.value).trim() !== ''
+    })
+  }
 
   const details = [
     { label: 'Application ID', value: application.id ? `#${application.id}` : null },
@@ -500,6 +614,16 @@ function buildApplicationDetails(application) {
     if (item.value === null || item.value === undefined) return false
     return String(item.value).trim() !== ''
   })
+}
+
+function formatSelectedDates(dates) {
+  if (!Array.isArray(dates) || !dates.length) return ''
+
+  const formatted = dates
+    .map((value) => formatShortDate(value))
+    .filter((value) => String(value || '').trim() !== '')
+
+  return formatted.join(', ')
 }
 </script>
 

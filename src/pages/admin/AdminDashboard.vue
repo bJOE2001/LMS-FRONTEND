@@ -13,13 +13,13 @@
             size="28px"
             class="q-mr-sm pending-reminder-card__icon"
           />
-          <div class="text-h6 pending-reminder-card__title">Pending Leave Applications</div>
+          <div class="text-h6 pending-reminder-card__title">Pending Applications</div>
         </q-card-section>
         <q-card-section class="pending-reminder-card__body">
           <div class="text-body2 text-grey-8 pending-reminder-card__message">
             You have
             <span class="text-weight-bold">{{ dashboardData.pending_count }}</span>
-            pending leave application(s) that need review and approval.
+            pending application(s) that need review and approval.
           </div>
         </q-card-section>
         <q-card-actions align="right" class="pending-reminder-card__actions">
@@ -248,7 +248,10 @@
         <template #body-cell-inclusiveDates="props">
           <q-td>
             <div class="application-details-cell">
-              <template v-if="hasPendingDateUpdate(props.row)">
+              <template v-if="props.row?.is_monetization">
+                <span class="text-weight-medium text-grey-9">N/A</span>
+              </template>
+              <template v-else-if="hasPendingDateUpdate(props.row)">
                 <span class="text-caption text-grey-7">Current</span>
                 <span
                   v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
@@ -784,7 +787,7 @@ const columns = [
   {
     name: 'inclusiveDates',
     label: 'Inclusive Dates',
-    field: 'selected_dates',
+    field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row),
     align: 'left',
   },
   {
@@ -796,7 +799,7 @@ const columns = [
   {
     name: 'days',
     label: 'Duration',
-    field: (row) => getApplicationDurationDisplay(row),
+    field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row),
     align: 'center',
   },
   {
@@ -1037,8 +1040,8 @@ function syncPendingReminderNotification(pendingCount) {
   notifStore.upsertLocalNotification({
     id,
     type: 'reminder',
-    title: 'Pending Leave Applications',
-    message: `You have ${pendingCount} pending leave ${noun} that need review and approval.`,
+    title: 'Pending Applications',
+    message: `You have ${pendingCount} pending ${noun} that need review and approval.`,
   })
 }
 

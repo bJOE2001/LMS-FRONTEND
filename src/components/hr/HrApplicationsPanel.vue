@@ -88,10 +88,13 @@
       <template #body-cell-inclusiveDates="props">
         <q-td>
           <div class="application-details-cell">
-            <template v-if="hasPendingDateUpdate(props.row)">
+            <template v-if="props.row?.is_monetization">
+              <span class="text-weight-medium text-grey-9 block">N/A</span>
+            </template>
+            <template v-else-if="hasPendingDateUpdate(props.row)">
               <span class="text-caption text-grey-7 block">Current</span>
               <span
-                v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
+                v-for="(line, index) in getApplicationInclusiveDateColumnLines(props.row)"
                 :key="`${props.row.application_uid || props.row.id}-inclusive-current-${index}`"
                 class="text-weight-medium text-grey-9 block"
               >
@@ -110,7 +113,7 @@
             </template>
             <template v-else>
               <span
-                v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
+                v-for="(line, index) in getApplicationInclusiveDateColumnLines(props.row)"
                 :key="`${props.row.application_uid || props.row.id}-inclusive-${index}`"
                 class="text-weight-medium text-grey-9 block"
               >
@@ -153,7 +156,7 @@
               icon="visibility"
               @click.stop="openDetails(props.row)"
             >
-              <q-tooltip>View</q-tooltip>
+              <q-tooltip>View Application Details</q-tooltip>
             </q-btn>
             <q-btn
               v-if="showApplicationEditAction && canEditApplication(props.row)"
@@ -208,6 +211,77 @@
       </template>
     </q-table>
   </q-card>
+
+  <q-dialog v-model="showTimelineDialog" persistent position="standard">
+    <q-card
+      v-if="selectedApp"
+      class="application-timeline-card"
+      style="width: 560px; max-width: 94vw"
+    >
+      <q-card-section class="row items-start no-wrap application-timeline-header">
+        <div class="application-timeline-header-copy">
+          <div class="text-h6 application-timeline-header-title">Application Timeline</div>
+          <div class="application-timeline-header-caption">
+            Track this application through department and HR review
+          </div>
+        </div>
+        <q-space />
+        <q-btn flat dense round icon="close" color="grey-8" v-close-popup />
+      </q-card-section>
+      <q-separator />
+      <q-card-section class="application-timeline-content">
+        <div v-if="hasApplicationAttachment(selectedApp)" class="q-mb-md">
+          <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="attach_file"
+            color="primary"
+            label="View Attachment"
+            @click="viewApplicationAttachment(selectedApp)"
+          />
+        </div>
+
+        <div class="application-timeline-panel">
+          <div
+            v-for="(entry, index) in selectedAppTimeline"
+            :key="`${entry.title}-${index}`"
+            class="application-timeline-item"
+          >
+            <div class="application-timeline-marker-column">
+              <div
+                class="application-timeline-marker"
+                :class="`application-timeline-marker--${getTimelineEntryTone(entry)}`"
+              >
+                <q-icon :name="getTimelineEntryIcon(entry)" size="16px" />
+              </div>
+              <div
+                v-if="index < selectedAppTimeline.length - 1"
+                class="application-timeline-line"
+                :class="`application-timeline-line--${getTimelineEntryTone(entry)}`"
+              />
+            </div>
+
+            <div class="application-timeline-body">
+              <div v-if="entry.subtitle" class="application-timeline-meta">
+                {{ entry.subtitle }}
+              </div>
+              <div class="application-timeline-title">
+                {{ entry.title }}
+              </div>
+              <div v-if="entry.actor" class="application-timeline-actor">
+                Action by: {{ entry.actor }}
+              </div>
+              <div v-else-if="entry.description" class="application-timeline-actor">
+                {{ entry.description }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 
   <q-dialog
     v-model="showDetailsDialog"
@@ -350,6 +424,23 @@
                         entry.dateText
                       }}</span>
                       <q-badge
+                        v-if="entry.recalled"
+                        dense
+                        rounded
+                        color="warning"
+                        text-color="dark"
+                        label="Recalled"
+                        class="hr-application-pay-status-badge"
+                      />
+                      <q-badge
+                        dense
+                        rounded
+                        color="grey-6"
+                        text-color="white"
+                        :label="entry.coverageLabel"
+                        class="hr-application-coverage-badge"
+                      />
+                      <q-badge
                         dense
                         rounded
                         :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
@@ -393,6 +484,14 @@
                       <q-badge
                         dense
                         rounded
+                        color="grey-6"
+                        text-color="white"
+                        :label="entry.coverageLabel"
+                        class="hr-application-coverage-badge"
+                      />
+                      <q-badge
+                        dense
+                        rounded
                         :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
                         text-color="white"
                         :label="entry.payStatus"
@@ -429,6 +528,14 @@
                   <span class="text-caption hr-application-duration-date">{{
                     entry.dateText
                   }}</span>
+                  <q-badge
+                    dense
+                    rounded
+                    color="grey-6"
+                    text-color="white"
+                    :label="entry.coverageLabel"
+                    class="hr-application-coverage-badge"
+                  />
                   <q-badge
                     dense
                     rounded
@@ -999,6 +1106,55 @@ function getApplicationMergeKey(application, index) {
   return fallback ? `fallback:${fallback}` : `index:${index}`
 }
 
+function createRecalledCompanionRow(app, index = 0) {
+  if (!app || typeof app !== 'object' || isCocApplication(app)) return null
+  if (String(app?.rawStatus || '').toUpperCase() !== 'APPROVED') return null
+
+  const recalledDateKeys = getStoredRecallDateKeys(app)
+  if (!recalledDateKeys.length) return null
+
+  const recalledDays = getDateSubsetTotalDays(app, recalledDateKeys) || recalledDateKeys.length
+  const baseKey = app?.application_uid || getApplicationRowKey(app, index)
+
+  return {
+    ...app,
+    application_uid: `${baseKey}:recalled`,
+    application_row_variant: 'recalled',
+    group_raw_status: app?.rawStatus || 'APPROVED',
+    status: 'Recalled',
+    rawStatus: 'RECALLED',
+    displayStatus: 'Recalled',
+    selected_dates: recalledDateKeys,
+    selectedDates: recalledDateKeys,
+    recall_selected_dates: recalledDateKeys,
+    recallSelectedDates: recalledDateKeys,
+    actual_total_days: recalledDays,
+    requested_total_days: recalledDays,
+    display_total_days: recalledDays,
+    total_days: recalledDays,
+    days: recalledDays,
+    duration_value: recalledDays,
+    duration_label: formatDurationDisplay(recalledDays, 'day'),
+    remarks: 'Recalled by HR.',
+  }
+}
+
+function expandApplicationsForDisplay(applications) {
+  const rows = []
+
+  applications.forEach((app, index) => {
+    if (!app || typeof app !== 'object') return
+    rows.push(app)
+
+    const recalledCompanionRow = createRecalledCompanionRow(app, index)
+    if (recalledCompanionRow) {
+      rows.push(recalledCompanionRow)
+    }
+  })
+
+  return rows
+}
+
 function extractApplicationsFromPayload(payload) {
   if (!payload) return []
   if (Array.isArray(payload)) return payload
@@ -1299,8 +1455,37 @@ function formatDurationDisplay(value, unit) {
   return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
 }
 
+function getDateSubsetTotalDays(app, dateKeys = []) {
+  const normalizedDateKeys = [...new Set(
+    (Array.isArray(dateKeys) ? dateKeys : [])
+      .map((value) => toIsoDateString(value))
+      .filter(Boolean),
+  )]
+  if (!normalizedDateKeys.length) return 0
+
+  const coverageWeights = getSelectedDateCoverageWeights(app)
+  const totalDays = normalizedDateKeys.reduce((sum, dateKey) => {
+    const weight = Number(coverageWeights[dateKey] ?? 1)
+    return sum + (Number.isFinite(weight) && weight > 0 ? weight : 1)
+  }, 0)
+
+  return Math.round((totalDays + Number.EPSILON) * 100) / 100
+}
+
 function getApplicationDurationDisplay(app) {
   if (!app) return '0 days'
+
+  if (!isCocApplication(app) && !app?.is_monetization) {
+    const storedRecallDateKeys = getStoredRecallDateKeys(app)
+    const shouldUseVisibleDuration = storedRecallDateKeys.length > 0 || app?.application_row_variant === 'recalled'
+    const visibleDateSet = getVisibleDateSetForDisplay(app)
+    if (shouldUseVisibleDuration && visibleDateSet.length) {
+      const visibleDays = getDateSubsetTotalDays(app, visibleDateSet)
+      if (Number.isFinite(visibleDays) && visibleDays > 0) {
+        return formatDurationDisplay(visibleDays, 'day')
+      }
+    }
+  }
 
   const explicitLabel = String(app?.duration_label || '').trim()
   if (explicitLabel) return explicitLabel
@@ -1442,6 +1627,50 @@ function resolveDateSetFromSource(source) {
   const firstDate = startDate || endDate
   const lastDate = endDate || startDate
   return enumerateInclusiveDateRange(firstDate, lastDate)
+}
+
+function getStoredRecallDateKeys(source) {
+  if (!source || typeof source !== 'object') return []
+
+  const recalledDates = normalizeIsoDateList(
+    parseSelectedDatesValue(
+      source?.recall_selected_dates ??
+      source?.recallSelectedDates ??
+      source?.raw?.recall_selected_dates ??
+      source?.raw?.recallSelectedDates,
+    ),
+  )
+
+  if (!recalledDates.length) return []
+
+  const selectedDates = resolveDateSetFromSource(source)
+  if (!selectedDates.length) return recalledDates
+
+  const selectedDateSet = new Set(selectedDates)
+  return recalledDates.filter((dateKey) => selectedDateSet.has(dateKey))
+}
+
+function getVisibleDateSetForDisplay(app) {
+  const dateSet = resolveDateSetFromSource(app)
+  if (!dateSet.length) return []
+
+  const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+  if (!recalledDateSet.size) return dateSet
+
+  const rawStatus = String(app?.rawStatus || '').toUpperCase()
+  const isRecalledRow = app?.application_row_variant === 'recalled' || rawStatus === 'RECALLED'
+
+  return isRecalledRow
+    ? dateSet.filter((dateKey) => recalledDateSet.has(dateKey))
+    : dateSet.filter((dateKey) => !recalledDateSet.has(dateKey))
+}
+
+function getRemainingRecallableDateKeys(app) {
+  const selectedDates = resolveDateSetFromSource(app)
+  if (!selectedDates.length) return []
+
+  const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+  return selectedDates.filter((dateKey) => !recalledDateSet.has(dateKey))
 }
 
 function getPendingUpdatePayload(app) {
@@ -1700,7 +1929,9 @@ function findLeaveBalanceEntry(app, leaveTypeId, leaveTypeLabel = '') {
 function getCurrentLeaveBalanceValue(app) {
   const currentLeaveTypeId = getCurrentLeaveTypeId(app)
   const currentLeaveTypeLabel = getCurrentLeaveTypeLabel(app)
-  const entry = findLeaveBalanceEntry(app, currentLeaveTypeId, currentLeaveTypeLabel)
+  const entry =
+    findLeaveBalanceEntry(app, currentLeaveTypeId, currentLeaveTypeLabel) ||
+    (isCocApplication(app) ? findLeaveBalanceEntry(app, null, 'CTO Leave') : null)
   if (entry && Number.isFinite(entry.balance)) return Number(entry.balance)
 
   const directBalance = Number(
@@ -1901,8 +2132,14 @@ function getApplicationInclusiveDateLines(app) {
     return [`${formatDayValue(app.days)} day(s)`]
   }
 
-  const dateSet = resolveDateSetFromSource(app)
+  const dateSet = getVisibleDateSetForDisplay(app)
   if (dateSet.length > 0) {
+    const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+    const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
+    if (shouldMarkRecalledDates && recalledDateSet.size) {
+      return dateSet.map((dateKey) => `${formatDate(dateKey)}${recalledDateSet.has(dateKey) ? ' (Recalled)' : ''}`)
+    }
+
     const groupedDates = formatGroupedInclusiveDateLines(dateSet)
     if (groupedDates.length > 0) return groupedDates
   }
@@ -1910,6 +2147,12 @@ function getApplicationInclusiveDateLines(app) {
   const start = app.startDate ? formatDate(app.startDate) : 'N/A'
   const end = app.endDate ? formatDate(app.endDate) : 'N/A'
   return [`${start} - ${end}`]
+}
+
+function getApplicationInclusiveDateColumnLines(app) {
+  return getApplicationInclusiveDateLines(app).map((line) =>
+    String(line || '').replace(/\s+\(Recalled\)/gi, ''),
+  )
 }
 
 function getApplicationDurationLabel(app) {
@@ -1923,6 +2166,12 @@ function getApplicationStatusLabel(app) {
 }
 
 function getApplicationStatusPriority(app) {
+  const groupedRawStatus = String(app?.group_raw_status || app?.groupRawStatus || '').toUpperCase()
+  if (groupedRawStatus === 'PENDING_ADMIN' || groupedRawStatus === 'PENDING_HR') return 0
+  if (groupedRawStatus === 'APPROVED') return 1
+  if (groupedRawStatus === 'RECALLED') return 2
+  if (groupedRawStatus === 'REJECTED') return 3
+
   const status = String(getApplicationStatusLabel(app) || '').toLowerCase()
   if (status.includes('pending')) return 0
   if (status.includes('approved')) return 1
@@ -1942,6 +2191,10 @@ function compareApplicationsForTable(a, b) {
   const idA = Number(a?.id) || 0
   const idB = Number(b?.id) || 0
   if (idB !== idA) return idB - idA
+
+  const variantA = a?.application_row_variant === 'recalled' ? 1 : 0
+  const variantB = b?.application_row_variant === 'recalled' ? 1 : 0
+  if (variantA !== variantB) return variantA - variantB
 
   const keyA = String(a?.application_uid || '')
   const keyB = String(b?.application_uid || '')
@@ -2020,7 +2273,6 @@ const applicationsForTable = computed(() => {
 })
 
 const columns = [
-  { name: 'id', label: 'ID', field: 'id', align: 'left' },
   { name: 'employee', label: 'Employee', align: 'left' },
   {
     name: 'office',
@@ -2043,13 +2295,13 @@ const columns = [
   {
     name: 'inclusiveDates',
     label: 'Inclusive Dates',
-    field: (row) => getApplicationDurationLabel(row),
+    field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row)),
     align: 'left',
   },
   {
     name: 'days',
     label: 'Duration',
-    field: (row) => getApplicationDurationDisplay(row),
+    field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row)),
     align: 'left',
   },
   { name: 'status', label: 'Status', align: 'left' },
@@ -2087,12 +2339,14 @@ const applicationTableColumns = computed(() => {
     .filter(Boolean)
 })
 
+const showTimelineDialog = ref(false)
 const showDetailsDialog = ref(false)
 const showEditDialog = ref(false)
 const showRejectDialog = ref(false)
 const showRecallDialog = ref(false)
 const showConfirmActionDialog = ref(false)
 const selectedApp = ref(null)
+const selectedAppTimeline = computed(() => buildApplicationTimeline(selectedApp.value))
 const rejectId = ref('')
 const rejectTargetApp = ref(null)
 const remarks = ref('')
@@ -2154,16 +2408,14 @@ function isRecallableLeaveApplication(app) {
 function canRecallApplication(app) {
   if (!app || isCocApplication(app)) return false
   return (
-    String(app?.rawStatus || '').toUpperCase() === 'APPROVED' && isRecallableLeaveApplication(app)
+    String(app?.rawStatus || '').toUpperCase() === 'APPROVED' &&
+    getRemainingRecallableDateKeys(app).length > 0 &&
+    isRecallableLeaveApplication(app)
   )
 }
 
 function getRecallDateOptions(app) {
-  const dateSet = resolveDateSetFromSource(app)
-    .map((value) => toIsoDateString(value))
-    .filter(Boolean)
-
-  return [...new Set(dateSet)].sort()
+  return [...new Set(getRemainingRecallableDateKeys(app))].sort()
 }
 
 const recallDateSelectionRows = computed(() => {
@@ -2250,11 +2502,11 @@ async function fetchApplications() {
       ])
 
     const dashboardData = dashboardResponse?.data ?? {}
-    const mergedApplications = mergeApplications(
+    const mergedApplications = expandApplicationsForDisplay(mergeApplications(
       extractApplicationsFromPayload(dashboardData),
       extractApplicationsFromPayload(leaveApplicationsResponse?.data),
       extractApplicationsFromPayload(cocApplicationsResponse?.data),
-    )
+    ))
 
     applications.value = mergedApplications.map((app, index) => ({
       ...app,
@@ -2335,7 +2587,394 @@ function formatRecallDateLabel(dateStr) {
     year: 'numeric',
   })
 }
+function formatDateTime(dateStr) {
+  if (!dateStr) return ''
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr).trim())) {
+    return formatDate(dateStr)
+  }
+
+  const parsedDate = new Date(dateStr)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  return parsedDate.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function isCancelledByUser(app) {
+  const remarksText = String(app?.remarks || '').trim()
+  return /^cancelled\b/i.test(remarksText)
+}
+
+function getApplicationRawStatusKey(app) {
+  const candidates = [
+    app?.group_raw_status,
+    app?.groupRawStatus,
+    app?.rawStatus,
+    app?.raw?.status,
+    app?.status,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
+
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
+function getApplicationStatusColor(app) {
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (isCancelledByUser(app)) return 'grey-7'
+  if (rawStatus === 'PENDING_ADMIN') return 'warning'
+  if (rawStatus === 'PENDING_HR') return 'blue-6'
+  if (rawStatus === 'APPROVED') return 'green'
+  if (rawStatus === 'RECALLED') return 'blue-grey-6'
+  if (rawStatus === 'REJECTED') return 'negative'
+  return 'grey-6'
+}
+
+function resolveFiledByActor(app) {
+  return app?.filedBy || app?.employeeName || 'Unknown'
+}
+
+function resolveFiledDateValue(app) {
+  return (
+    app?.filed_at ||
+    app?.filedAt ||
+    app?.created_at ||
+    app?.createdAt ||
+    app?.submitted_at ||
+    app?.submittedAt ||
+    app?.dateFiled ||
+    app?.date_filed ||
+    null
+  )
+}
+
+function resolveDepartmentAdminActor(app) {
+  return app?.adminActionBy || 'Unknown'
+}
+
+function resolveDepartmentAdminActionDateValue(app) {
+  return app?.adminActionAt || app?.admin_action_at || null
+}
+
+function resolveHrActor(app) {
+  return app?.hrActionBy || 'Unknown'
+}
+
+function resolveFinalApprovalDateValue(app) {
+  return app?.hrActionAt || app?.hr_action_at || app?.reviewedAt || app?.reviewed_at || null
+}
+
+function getStatusHistoryEntries(app) {
+  const entries = app?.statusHistory || app?.status_history
+  return Array.isArray(entries) ? entries : []
+}
+
+function findStatusHistoryEntry(app, matcher) {
+  return getStatusHistoryEntries(app).find((entry) => matcher(entry || {})) || null
+}
+
+function resolveRecallActor(app) {
+  const historyEntry = findStatusHistoryEntry(app, (entry) => {
+    const action = String(entry?.action || '').toUpperCase()
+    const stage = String(entry?.stage || '').toLowerCase()
+    return action === 'HR_RECALLED' || stage === 'hr recalled'
+  })
+
+  return (
+    app?.recallActionBy ||
+    app?.recall_action_by ||
+    historyEntry?.actor_name ||
+    historyEntry?.action_by_name ||
+    historyEntry?.action_by ||
+    app?.hrActionBy ||
+    'Unknown'
+  )
+}
+
+function resolveRecallDateValue(app) {
+  const historyEntry = findStatusHistoryEntry(app, (entry) => {
+    const action = String(entry?.action || '').toUpperCase()
+    const stage = String(entry?.stage || '').toLowerCase()
+    return action === 'HR_RECALLED' || stage === 'hr recalled'
+  })
+
+  return (
+    app?.recallActionAt ||
+    app?.recall_action_at ||
+    historyEntry?.created_at ||
+    app?.reviewedAt ||
+    app?.reviewed_at ||
+    null
+  )
+}
+
+function formatRecallRemarks(app) {
+  const remarksText = String(app?.remarks || '').trim()
+  if (!remarksText) return ''
+  return remarksText.replace(/^recalled by hr\b:?\s*/i, '').trim()
+}
+
+function resolveCancelledActor(app) {
+  return app?.cancelledBy || app?.employeeName || 'Unknown'
+}
+
+function resolveCancelledDateValue(app) {
+  return (
+    app?.cancelledAt ||
+    app?.cancelled_at ||
+    app?.disapprovedAt ||
+    app?.disapproved_at ||
+    null
+  )
+}
+
+function resolveDisapprovalActor(app) {
+  if (isCancelledByUser(app)) return resolveCancelledActor(app)
+  return app?.disapprovedBy || app?.hrActionBy || app?.adminActionBy || 'Unknown'
+}
+
+function resolveDisapprovedDateValue(app) {
+  return (
+    app?.disapprovedAt ||
+    app?.disapproved_at ||
+    app?.hrActionAt ||
+    app?.hr_action_at ||
+    app?.adminActionAt ||
+    app?.admin_action_at ||
+    null
+  )
+}
+
+function formatRecentRemarks(app) {
+  const remarksText = String(app?.remarks || '').trim()
+  if (!remarksText) return ''
+  return remarksText.replace(/^cancelled(?:\s+via\s+erms)?\b:?\s*/i, '').trim()
+}
+
+function buildApplicationTimeline(app) {
+  if (!app) return []
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  const entries = [
+    {
+      title: 'Application Filed',
+      subtitle:
+        formatDateTime(resolveFiledDateValue(app)) ||
+        formatDate(app?.dateFiled) ||
+        'Date unavailable',
+      description: `${app?.employeeName || 'Employee'} submitted this leave request.`,
+      icon: 'check_circle',
+      color: 'positive',
+      actor: resolveFiledByActor(app),
+    },
+  ]
+
+  if (isCancelledByUser(app)) {
+    entries.push({
+      title: 'Application Cancelled',
+      subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Application closed',
+      description: formatRecentRemarks(app) || 'Application was cancelled by the requester.',
+      icon: 'cancel',
+      color: 'negative',
+      actor: resolveCancelledActor(app),
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Completed',
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: resolveCancelledActor(app),
+    })
+    return entries
+  }
+
+  if (rawStatus === 'PENDING_ADMIN') {
+    entries.push({
+      title: 'Department Admin Review Pending',
+      subtitle: 'Current stage',
+      description: 'Waiting for department admin approval or disapproval.',
+      icon: 'pending_actions',
+      color: 'warning',
+    })
+    entries.push({
+      title: 'Pending HR Review',
+      subtitle: 'Upcoming',
+      description: 'This stage starts after department admin approval.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: 'Upcoming',
+      description: 'Application will be closed after final HR action.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+    })
+    return entries
+  }
+
+  if (rawStatus === 'REJECTED') {
+    const disapprovedAt = formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed'
+    const disapprovedBy = resolveDisapprovalActor(app)
+
+    if (resolveDepartmentAdminActionDateValue(app)) {
+      entries.push({
+        title: 'Department Admin Review Completed',
+        subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+        description: 'Application was reviewed and forwarded to HR.',
+        icon: 'check_circle',
+        color: 'positive',
+        actor: resolveDepartmentAdminActor(app),
+      })
+    }
+
+    entries.push({
+      title: 'Application Disapproved',
+      subtitle: disapprovedAt,
+      description: formatRecentRemarks(app) || 'Application was disapproved.',
+      icon: 'cancel',
+      color: 'negative',
+      actor: disapprovedBy,
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: disapprovedAt,
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: disapprovedBy,
+    })
+    return entries
+  }
+
+  entries.push({
+    title: 'Department Admin Review Completed',
+    subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+    description: 'Application was reviewed and forwarded to HR.',
+    icon: 'check_circle',
+    color: 'positive',
+    actor: resolveDepartmentAdminActor(app),
+  })
+
+  if (rawStatus === 'PENDING_HR') {
+    entries.push({
+      title: 'Pending HR Review',
+      subtitle: 'Current stage',
+      description: 'Waiting for HR final evaluation and approval.',
+      icon: 'pending_actions',
+      color: 'warning',
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: 'Upcoming',
+      description: 'Application will be closed after final HR action.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+    })
+    return entries
+  }
+
+  if (rawStatus === 'APPROVED') {
+    const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app)) || 'Completed'
+    const approvedBy = resolveHrActor(app)
+
+    entries.push({
+      title: 'Approved by HR',
+      subtitle: approvedAt,
+      description: 'Application is fully approved.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: approvedBy,
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: approvedAt,
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: approvedBy,
+    })
+    return entries
+  }
+
+  if (rawStatus === 'RECALLED') {
+    const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
+    const approvedBy = resolveHrActor(app)
+    const recalledAt = formatDateTime(resolveRecallDateValue(app)) || 'Completed'
+    const recalledBy = resolveRecallActor(app)
+
+    if (approvedAt || approvedBy !== 'Unknown') {
+      entries.push({
+        title: 'Approved by HR',
+        subtitle: approvedAt || 'Completed',
+        description: 'Application was fully approved before recall.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: approvedBy,
+      })
+    }
+
+    entries.push({
+      title: 'Recalled by HR',
+      subtitle: recalledAt,
+      description: formatRecallRemarks(app) || 'Application was recalled by HR.',
+      icon: 'undo',
+      color: 'warning',
+      actor: recalledBy,
+    })
+    entries.push({
+      title: 'Application Closed',
+      subtitle: recalledAt,
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: recalledBy,
+    })
+    return entries
+  }
+
+  entries.push({
+    title: 'Current Status',
+    subtitle: getApplicationStatusLabel(app),
+    description: 'Latest application status.',
+    icon: 'info',
+    color: getApplicationStatusColor(app),
+  })
+
+  return entries
+}
+
+function getTimelineEntryTone(entry) {
+  const color = String(entry?.color || '').toLowerCase()
+  const icon = String(entry?.icon || '').toLowerCase()
+
+  if (color.includes('negative') || icon.includes('cancel')) return 'negative'
+  if (color.includes('warning') || icon.includes('pending')) return 'warning'
+  if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
+  return 'positive'
+}
+
+function getTimelineEntryIcon(entry) {
+  const tone = getTimelineEntryTone(entry)
+  if (tone === 'negative') return 'close'
+  if (tone === 'warning') return 'schedule'
+  if (tone === 'neutral') return 'radio_button_unchecked'
+  return 'check'
+}
 function getSelectedDateColumns(dates, columnCount = 3) {
   const formattedDates = Array.isArray(dates)
     ? [...dates]
@@ -2472,8 +3111,9 @@ function resolveApplicationPayModeCode(app) {
 
 function getSelectedDatePayStatusRows(app) {
   if (!app || typeof app !== 'object') return []
+  if (isCocApplication(app)) return []
 
-  const dateSet = resolveDateSetFromSource(app)
+  const dateSet = getVisibleDateSetForDisplay(app)
   if (!dateSet.length) return []
 
   const rawStatusMap = toSelectedDatePayStatusMap(
@@ -2497,6 +3137,9 @@ function getSelectedDatePayStatusRows(app) {
   })
 
   const fallbackStatus = resolveApplicationPayModeCode(app)
+  const coverageWeights = getSelectedDateCoverageWeights(app)
+  const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+  const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
 
   return dateSet.map((dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
@@ -2510,7 +3153,9 @@ function getSelectedDatePayStatusRows(app) {
     return {
       dateKey: key,
       dateText: formatDate(key),
+      coverageLabel: getDateCoverageLabel(coverageWeights[key] ?? 1),
       payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
+      recalled: shouldMarkRecalledDates && recalledDateSet.has(key),
     }
   })
 }
@@ -2599,6 +3244,89 @@ function getSelectedDateCoverageWeights(app) {
   }, {})
 }
 
+function getDateCoverageLabel(weight) {
+  return Number(weight) === 0.5 ? 'Half Day' : 'Whole Day'
+}
+
+function getPendingUpdateDateCoverageWeights(app) {
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || typeof payload !== 'object') return {}
+
+  const dateSet = resolveDateSetFromSource(payload)
+  if (!dateSet.length) return {}
+
+  const rawCoverageMap = toSelectedDateCoverageMap(
+    payload?.selected_date_coverage ??
+    payload?.selectedDateCoverage,
+  )
+
+  const normalizedCoverageMap = {}
+  Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
+    const key = String(rawKey || '').trim()
+    if (!key || !coverage) return
+
+    normalizedCoverageMap[key] = coverage
+
+    const isoKey = toIsoDateString(key)
+    if (isoKey) {
+      normalizedCoverageMap[isoKey] = coverage
+    }
+  })
+
+  const totalDays = (() => {
+    const candidates = [
+      payload?.total_days,
+      payload?.totalDays,
+      payload?.duration_value,
+      payload?.days,
+    ]
+
+    for (const candidate of candidates) {
+      const numericValue = Number(candidate)
+      if (Number.isFinite(numericValue) && numericValue > 0) {
+        return numericValue
+      }
+    }
+
+    return 0
+  })()
+
+  const hasCoverageOverrides = Object.keys(normalizedCoverageMap).length > 0
+  let defaultCoverageWeight = 1
+  const dateCount = dateSet.length
+  if (dateCount > 0 && totalDays > 0) {
+    const halfMatch = Math.abs((dateCount * 0.5) - totalDays) < 0.00001
+    const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
+    if (halfMatch) {
+      defaultCoverageWeight = 0.5
+    } else if (!wholeMatch) {
+      defaultCoverageWeight = Math.max(Math.min(totalDays / dateCount, 1), 0.5)
+    }
+  }
+
+  return dateSet.reduce((acc, dateValue, index) => {
+    const isoDate = toIsoDateString(dateValue)
+    const key = isoDate || String(dateValue)
+    const coverage = (
+      normalizedCoverageMap[key] ??
+      normalizedCoverageMap[String(index)] ??
+      normalizedCoverageMap[String(index + 1)] ??
+      ''
+    )
+
+    if (coverage === 'half') {
+      acc[key] = 0.5
+    } else if (coverage === 'whole') {
+      acc[key] = 1
+    } else if (hasCoverageOverrides) {
+      acc[key] = 1
+    } else {
+      acc[key] = defaultCoverageWeight
+    }
+
+    return acc
+  }, {})
+}
 function getSelectedDatePayStatusColumns(app, columnCount = 3) {
   const rows = getSelectedDatePayStatusRows(app)
   if (!rows.length) return []
@@ -2617,6 +3345,7 @@ function getSelectedDatePayStatusColumns(app, columnCount = 3) {
 function getPendingUpdateDatePayStatusRows(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return []
+  if (isCocApplication(app)) return []
 
   const dateSet = resolveDateSetFromSource(payload)
   if (!dateSet.length) return []
@@ -2640,6 +3369,7 @@ function getPendingUpdateDatePayStatusRows(app) {
 
   const fallbackStatus =
     normalizePayStatusCode(payload?.pay_mode ?? payload?.payMode) === 'WOP' ? 'WOP' : 'WP'
+  const coverageWeights = getPendingUpdateDateCoverageWeights(app)
 
   return dateSet.map((dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
@@ -2653,6 +3383,7 @@ function getPendingUpdateDatePayStatusRows(app) {
     return {
       dateKey: key,
       dateText: formatDate(key),
+      coverageLabel: getDateCoverageLabel(coverageWeights[key] ?? 1),
       payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
     }
   })
@@ -2675,7 +3406,14 @@ function getPendingUpdateDatePayStatusColumns(app, columnCount = 3) {
 
 function openDetails(app) {
   selectedApp.value = app
+  showTimelineDialog.value = false
   showDetailsDialog.value = true
+}
+
+function openTimeline(app) {
+  selectedApp.value = app
+  showDetailsDialog.value = false
+  showTimelineDialog.value = true
 }
 
 function resolveApplicationAttachmentReference(app) {
@@ -2806,7 +3544,7 @@ async function printCocCertificate(app = selectedApp.value) {
 
 function handleApplicationRowClick(_evt, row) {
   if (!row) return
-  openDetails(row)
+  openTimeline(row)
 }
 
 function getConfirmActionTitle(type) {
@@ -3606,6 +4344,143 @@ async function confirmRecall() {
   grid-column: 1 / -1;
 }
 
+.application-timeline-card {
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+}
+
+.application-timeline-header {
+  padding: 12px 14px 10px;
+  background: #fff;
+}
+
+.application-timeline-header-copy {
+  min-width: 0;
+}
+
+.application-timeline-header-title {
+  color: #111827;
+  font-weight: 700;
+}
+
+.application-timeline-header-caption {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.application-timeline-content {
+  padding: 14px;
+  background: #fff;
+  overflow-y: auto;
+}
+
+.application-timeline-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f7f8fb 0%, #f4f5f8 100%);
+  padding: 10px 12px;
+}
+
+.application-timeline-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.application-timeline-item + .application-timeline-item {
+  margin-top: 2px;
+}
+
+.application-timeline-marker-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.application-timeline-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.application-timeline-marker--positive {
+  background: #22c55e;
+}
+
+.application-timeline-marker--warning {
+  background: #f59e0b;
+}
+
+.application-timeline-marker--negative {
+  background: #ef4444;
+}
+
+.application-timeline-marker--neutral {
+  background: #cbd5e1;
+  color: #475569;
+}
+
+.application-timeline-line {
+  width: 2px;
+  flex: 1 1 auto;
+  min-height: 42px;
+  margin-top: 4px;
+  border-radius: 999px;
+}
+
+.application-timeline-line--positive {
+  background: #22c55e;
+}
+
+.application-timeline-line--warning {
+  background: #f59e0b;
+}
+
+.application-timeline-line--negative {
+  background: #ef4444;
+}
+
+.application-timeline-line--neutral {
+  background: #cbd5e1;
+}
+
+.application-timeline-body {
+  padding-bottom: 18px;
+}
+
+.application-timeline-meta {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.application-timeline-title {
+  margin-top: 2px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+
+.application-timeline-actor {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
 .hr-application-details-actions {
   flex: 0 0 auto;
   padding: 10px 16px 16px;
@@ -3619,30 +4494,42 @@ async function confirmRecall() {
 }
 
 .hr-application-duration-columns {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: 100%;
 }
 
 .hr-application-duration-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
 }
 
 .hr-application-duration-date {
   line-height: 1.45;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .hr-application-duration-date-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .hr-application-pay-status-badge {
+  flex: 0 0 auto;
   min-width: 42px;
+  justify-content: center;
+}
+
+.hr-application-coverage-badge {
+  flex: 0 0 auto;
+  min-width: 78px;
   justify-content: center;
 }
 
@@ -3785,12 +4672,16 @@ async function confirmRecall() {
   }
 
   .hr-application-duration-columns {
-    gap: 4px 10px;
+    gap: 4px;
   }
 
   .hr-application-duration-date {
     font-size: 0.8rem;
     line-height: 1.35;
+  }
+
+  .hr-application-coverage-badge {
+    min-width: 72px;
   }
 
   .hr-application-details-actions {

@@ -113,7 +113,7 @@
           <q-td>
             <div class="application-details-cell">
               <span
-                v-for="(line, index) in getApplicationInclusiveDateLines(tableProps.row)"
+                v-for="(line, index) in getApplicationInclusiveDateColumnLines(tableProps.row)"
                 :key="`${tableProps.row.id}-inclusive-${index}`"
                 class="text-weight-medium text-grey-9"
                 @click.stop="openCalendarPreview(tableProps.row)"
@@ -152,7 +152,7 @@
                 icon="visibility"
                 @click.stop="openDetails(tableProps.row)"
               >
-                <q-tooltip>View Application Timeline</q-tooltip>
+                <q-tooltip>View Application Details</q-tooltip>
               </q-btn>
               <q-btn
                 flat
@@ -243,7 +243,7 @@
       </q-table>
     </q-card>
 
-    <q-dialog v-model="showDetailsDialog" persistent position="standard">
+    <q-dialog v-model="showTimelineDialog" persistent position="standard">
       <q-card
         v-if="selectedApp"
         class="application-timeline-card"
@@ -253,7 +253,7 @@
           <div class="application-timeline-header-copy">
             <div class="text-h6 application-timeline-header-title">Application Timeline</div>
             <div class="application-timeline-header-caption">
-              Track your leave request through department and HR review
+              Track this application through department and HR review
             </div>
           </div>
           <q-space />
@@ -261,7 +261,7 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="application-timeline-content">
-          <div v-if="hasApplicationAttachment(selectedApp)" class="application-timeline-attachment q-mb-md">
+          <div v-if="hasApplicationAttachment(selectedApp)" class="q-mb-md">
             <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
             <q-btn
               flat
@@ -273,6 +273,7 @@
               @click="viewApplicationAttachment(selectedApp)"
             />
           </div>
+
           <div class="application-timeline-panel">
             <div
               v-for="(entry, index) in selectedAppTimeline"
@@ -310,19 +311,144 @@
             </div>
           </div>
         </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog
+      v-model="showDetailsDialog"
+      persistent
+      position="standard"
+      class="admin-application-details-dialog"
+    >
+      <q-card v-if="selectedApp" class="admin-application-details-card">
+        <q-card-section class="bg-primary text-white row items-center no-wrap admin-application-details-header">
+          <div class="text-h6">Application Details</div>
+          <q-space />
+          <q-btn flat dense round icon="close" color="white" v-close-popup />
+        </q-card-section>
+        <q-card-section class="q-gutter-y-sm admin-application-details-content">
+          <div class="admin-application-details-grid">
+            <div class="admin-application-details-item admin-application-details-item--full">
+              <div class="text-caption text-grey-7">Employee</div>
+              <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
+            </div>
+
+            <div
+              v-if="hasApplicationAttachment(selectedApp)"
+              class="admin-application-details-item admin-application-details-item--full"
+            >
+              <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="attach_file"
+                color="primary"
+                label="View Attachment"
+                @click="viewApplicationAttachment(selectedApp)"
+              />
+            </div>
+
+            <div class="admin-application-details-item">
+              <div class="text-caption text-grey-7">Leave Type</div>
+              <div class="text-weight-medium">
+                {{ getApplicationDetailsLeaveTypeLabel(selectedApp) }}
+              </div>
+            </div>
+
+            <div class="admin-application-details-item">
+              <div class="text-caption text-grey-7">Application Status</div>
+              <StatusBadge :status="selectedApp.displayStatus || getApplicationStatusLabel(selectedApp)" />
+            </div>
+
+            <div class="admin-application-details-item">
+              <div class="text-caption text-grey-7">Duration</div>
+              <div class="text-weight-medium">
+                {{ getApplicationDurationDisplay(selectedApp) }}
+              </div>
+            </div>
+
+            <div class="admin-application-details-item admin-application-details-item--full">
+              <div class="text-caption text-grey-7">
+                {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Inclusive Dates' }}
+              </div>
+              <div v-if="selectedApp.is_monetization" class="text-weight-medium">
+                {{ selectedApp.days }} day(s)
+                <div v-if="selectedApp.equivalent_amount" class="text-caption text-grey-6 q-mt-xs">
+                  Est. Amount: &#8369;{{
+                    Number(selectedApp.equivalent_amount).toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                    })
+                  }}
+                </div>
+              </div>
+              <div
+                v-else-if="getSelectedDateIndicatorRows(selectedApp).length"
+                class="text-weight-medium admin-application-duration-columns"
+              >
+                <div
+                  v-for="entry in getSelectedDateIndicatorRows(selectedApp)"
+                  :key="`${selectedApp.application_uid || selectedApp.id}-details-indicator-${entry.dateKey}`"
+                  class="admin-application-duration-date-row"
+                >
+                  <span class="text-caption admin-application-duration-date">{{ entry.dateText }}</span>
+                  <q-badge
+                    dense
+                    rounded
+                    color="grey-6"
+                    text-color="white"
+                    :label="entry.coverageLabel"
+                    class="admin-application-duration-badge"
+                  />
+                  <q-badge
+                    dense
+                    rounded
+                    :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
+                    text-color="white"
+                    :label="entry.payStatus"
+                    class="admin-application-duration-badge"
+                  />
+                </div>
+              </div>
+              <div v-else class="text-weight-medium admin-application-details-lines">
+                <span
+                  v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
+                  :key="`${selectedApp.application_uid || selectedApp.id}-details-inclusive-${index}`"
+                  class="text-weight-medium text-grey-9 block"
+                >
+                  {{ line }}
+                </span>
+              </div>
+            </div>
+
+            <div class="admin-application-details-item admin-application-details-item--full">
+              <div class="text-caption text-grey-7">Date Filed</div>
+              <div class="text-weight-medium">{{ formatDate(selectedApp.dateFiled) || 'N/A' }}</div>
+            </div>
+
+            <div class="admin-application-details-item admin-application-details-item--full">
+              <div class="text-caption text-grey-7">Reason</div>
+              <div>{{ getApplicationDetailsReason(selectedApp) }}</div>
+            </div>
+
+            <div class="admin-application-details-item admin-application-details-item--full">
+              <div class="text-caption text-grey-7">Remarks</div>
+              <div>{{ getApplicationDetailsRemarks(selectedApp) }}</div>
+            </div>
+
+            <div class="admin-application-details-item admin-application-details-item--full">
+              <div class="text-caption text-grey-7">Available Leave Balance</div>
+              <div class="text-weight-medium text-positive">
+                {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
+              </div>
+            </div>
+          </div>
+        </q-card-section>
         <q-card-actions
           v-if="$q.screen.lt.sm && selectedApp"
           align="right"
-          class="application-timeline-actions"
+          class="admin-application-details-actions"
         >
-          <q-btn
-            unelevated
-            no-caps
-            color="primary"
-            label="Calendar"
-            icon="calendar_month"
-            @click="openCalendarPreview(selectedApp)"
-          />
           <q-btn
             v-if="canPrintApplication(selectedApp)"
             unelevated
@@ -563,6 +689,7 @@
 
 <script setup>
 import AdminApplySelf from 'pages/admin/AdminApplySelf.vue'
+import StatusBadge from 'components/StatusBadge.vue'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
 
 const {
@@ -576,6 +703,7 @@ const {
   applicationsForTable,
   showApplyLeaveDialog,
   showDetailsDialog,
+  showTimelineDialog,
   showCalendarPreviewDialog,
   showDisapproveDialog,
   showConfirmActionDialog,
@@ -603,7 +731,11 @@ const {
   printApplicationsPdf,
   handleApplicationRowClick,
   getLeaveBalanceTextItems,
+  getCurrentLeaveBalanceDisplay,
+  getApplicationDurationDisplay,
+  getApplicationInclusiveDateColumnLines,
   getApplicationInclusiveDateLines,
+  getSelectedDateIndicatorRows,
   formatDate,
   getApplicationStatusColor,
   getApplicationStatusLabel,
@@ -648,6 +780,23 @@ function getAdminRejectTone(mode) {
 
 function getAdminRejectIcon(mode) {
   return mode === 'cancel' ? 'warning' : 'cancel'
+}
+
+function getApplicationDetailsLeaveTypeLabel(app) {
+  if (!app) return 'N/A'
+  const leaveType = String(app.leaveType || '').trim()
+  if (!leaveType) return 'N/A'
+  return app.is_monetization ? `${leaveType} (Monetization)` : leaveType
+}
+
+function getApplicationDetailsReason(app) {
+  const reason = String(app?.reason || '').trim()
+  return reason || 'N/A'
+}
+
+function getApplicationDetailsRemarks(app) {
+  const remarks = String(app?.remarks || '').trim()
+  return remarks || 'N/A'
 }
 </script>
 
@@ -834,6 +983,97 @@ function getAdminRejectIcon(mode) {
   flex-direction: column;
   gap: 2px;
 }
+.admin-application-details-dialog .q-dialog__inner--minimized {
+  padding: 16px;
+}
+
+.admin-application-details-dialog .q-dialog__inner--minimized > div {
+  width: min(520px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 32px)) !important;
+}
+
+.admin-application-details-card {
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-application-details-header {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.admin-application-details-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.admin-application-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-content: start;
+}
+
+.admin-application-details-item {
+  min-width: 0;
+}
+
+.admin-application-details-item--full {
+  grid-column: 1 / -1;
+}
+
+.admin-application-details-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-application-duration-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.admin-application-duration-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-application-duration-date {
+  line-height: 1.45;
+}
+
+.admin-application-duration-badge {
+  min-width: 42px;
+  justify-content: center;
+}
+
+.admin-application-details-balance {
+  margin-top: 4px;
+}
+
+.admin-application-details-actions {
+  flex: 0 0 auto;
+  padding: 10px 16px 16px;
+  gap: 8px;
+  border-top: 1px solid #e5e7eb;
+  background: #faf8f3;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  box-shadow: 0 -10px 20px rgba(15, 23, 42, 0.06);
+}
+
 .application-timeline-card {
   border-radius: 12px;
   overflow: hidden;
@@ -1191,6 +1431,46 @@ function getAdminRejectIcon(mode) {
 }
 
 @media (max-width: 599px) {
+  .admin-application-details-dialog .q-dialog__inner--minimized {
+    padding: 12px;
+  }
+
+  .admin-application-details-card {
+    max-height: calc(100vh - 24px);
+  }
+
+  .admin-application-details-content {
+    padding: 12px !important;
+  }
+
+  .admin-application-details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 12px;
+  }
+
+  .admin-application-details-lines {
+    gap: 4px;
+  }
+
+  .admin-application-duration-columns {
+    gap: 5px;
+  }
+
+  .admin-application-duration-date {
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+
+  .admin-application-details-actions {
+    padding: 10px 12px 12px;
+    justify-content: stretch;
+  }
+
+  .admin-application-details-actions .q-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .admin-action-dialog-card {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);

@@ -15,13 +15,13 @@
             size="28px"
             class="q-mr-sm pending-reminder-card__icon"
           />
-          <div class="text-h6 pending-reminder-card__title">Pending Leave Applications</div>
+          <div class="text-h6 pending-reminder-card__title">Pending Applications</div>
         </q-card-section>
         <q-card-section class="pending-reminder-card__body">
           <div class="text-body2 text-grey-8 pending-reminder-card__message">
             You have
             <span class="text-weight-bold">{{ dashboardData.pending_count }}</span>
-            pending leave application(s) that need review and approval.
+            pending application(s) that need review and approval.
           </div>
         </q-card-section>
         <q-card-actions align="right" class="pending-reminder-card__actions">
@@ -132,33 +132,13 @@
 
     <div class="row q-col-gutter-sm q-mb-sm">
       <div class="col-12 col-md-6 dashboard-panel-col">
-        <q-card flat bordered class="rounded-borders full-width manpower-card compact-panel">
-          <q-card-section class="manpower-card-section">
-            <div class="row items-center justify-between q-mb-sm">
-              <div>
-                <div class="text-h6">Daily Manpower Percentage</div>
-                <p class="text-caption text-grey-7 q-mb-none">
-                  Snapshot for {{ manpowerCurrentDateLabel }}
-                </p>
-              </div>
-              <div class="text-right">
-                <div class="text-caption text-grey-7">Active Employees</div>
-                <div class="text-subtitle1 text-weight-bold">{{ activeEmployeeCount || 0 }}</div>
-              </div>
-            </div>
-
-            <div class="manpower-chart-wrapper">
-              <q-no-ssr>
-                <VueApexCharts
-                  type="pie"
-                  height="100%"
-                  :options="manpowerChartOptions"
-                  :series="manpowerChartSeries"
-                />
-              </q-no-ssr>
-            </div>
-          </q-card-section>
-        </q-card>
+        <HrManpowerPieChart
+          class="compact-panel"
+          :loading="loading"
+          :current-date-label="manpowerCurrentDateLabel"
+          :active-employee-count="activeEmployeeCount"
+          :snapshot="manpowerCurrentSnapshot"
+        />
       </div>
       <div class="col-12 col-md-6 dashboard-panel-col">
         <HrCalendarPanel class="compact-panel" />
@@ -167,74 +147,37 @@
 
     <div class="row q-col-gutter-sm q-mb-none">
       <div class="col-12 col-md-6">
-        <q-card flat bordered class="rounded-borders full-height compact-panel">
-          <q-card-section>
-            <div class="row items-center justify-between q-mb-sm">
-              <div>
-                <div class="text-h6">Leave Trends by Month</div>
-                <p class="text-caption text-grey-7 q-mb-none">Monthly trend for {{ trendYearLabel }}</p>
-              </div>
-            </div>
-
-            <div class="trend-chart-wrapper">
-              <q-no-ssr>
-                <VueApexCharts
-                  type="area"
-                  :height="trendChartHeight"
-                  :options="trendChartOptions"
-                  :series="trendChartSeries"
-                />
-              </q-no-ssr>
-            </div>
-          </q-card-section>
-        </q-card>
+        <HrLeaveTrendAreaChart
+          class="compact-panel"
+          :loading="loading"
+          :applications="dashboardApplications"
+          :trend-year-label="trendYearLabel"
+        />
       </div>
 
       <div class="col-12 col-md-6">
-        <q-card flat bordered class="rounded-borders full-height compact-panel">
-          <q-card-section>
-            <div class="row items-end justify-between q-col-gutter-md q-mb-sm">
-              <div class="col-12 col-md-8">
-                <div class="text-h6">Leave Type Line Chart</div>
-                <p class="text-caption text-grey-7 q-mb-none">Monthly leave applications by leave type for {{ trendYearLabel }}</p>
-              </div>
-              <div class="col-12 col-sm-4 col-md-4">
-                <q-select
-                  v-model="leaveTypeFilter"
-                  :options="leaveTypeFilterOptions"
-                  outlined
-                  dense
-                  label="Leave Type"
-                />
-              </div>
-            </div>
-
-            <div class="trend-chart-wrapper">
-              <q-no-ssr>
-                <VueApexCharts
-                  type="line"
-                  :height="trendChartHeight"
-                  :options="leaveTypeTrendChartOptions"
-                  :series="leaveTypeTrendSeries"
-                />
-              </q-no-ssr>
-            </div>
-          </q-card-section>
-        </q-card>
+        <HrLeaveTypeLineChart
+          class="compact-panel"
+          :loading="loading"
+          :applications="dashboardApplications"
+          :trend-year-label="trendYearLabel"
+        />
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import HrCalendarPanel from 'components/hr/HrCalendarPanel.vue'
-import VueApexCharts from 'vue3-apexcharts'
+import HrManpowerPieChart from 'components/charts/HrManpowerPieChart.vue'
+import HrLeaveTrendAreaChart from 'components/charts/HrLeaveTrendAreaChart.vue'
+import HrLeaveTypeLineChart from 'components/charts/HrLeaveTypeLineChart.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
@@ -328,10 +271,7 @@ const dashboardData = ref({
 const dashboardApplications = ref([])
 const activeEmployeeCount = ref(0)
 const showPendingReminderDialog = ref(false)
-const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const trendYearLabel = new Date().getFullYear()
-const leaveTypeFilter = ref('All')
-const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 
 function pendingReminderSeenSessionKey() {
   return `lms_pending_reminder_seen:hr:${authStore.user?.id ?? 'unknown'}`
@@ -366,8 +306,8 @@ function syncPendingReminderNotification(pendingCount) {
   notifStore.upsertLocalNotification({
     id,
     type: 'reminder',
-    title: 'Pending Leave Applications',
-    message: `You have ${pendingCount} pending leave ${noun} that need review and approval.`,
+    title: 'Pending Applications',
+    message: `You have ${pendingCount} pending ${noun} that need review and approval.`,
   })
 }
 
@@ -387,40 +327,6 @@ function mergeStatus(app) {
   }
 
   return app.status || ''
-}
-
-function getApplicationDate(application) {
-  return (
-    application?.dateFiled ??
-    application?.date_filed ??
-    application?.created_at ??
-    application?.startDate ??
-    application?.start_date ??
-    null
-  )
-}
-
-function normalizeLeaveTypeName(value) {
-  if (typeof value === 'string' && value.trim()) return value.trim()
-
-  if (value && typeof value === 'object') {
-    const nestedName = value.name ?? value.label ?? value.type
-    if (typeof nestedName === 'string' && nestedName.trim()) return nestedName.trim()
-  }
-
-  return 'Unknown'
-}
-
-function getApplicationLeaveType(application) {
-  const leaveTypeValue =
-    application?.leaveType ??
-    application?.leave_type_name ??
-    application?.leaveTypeName ??
-    application?.leave_type ??
-    application?.leaveType?.name ??
-    application?.leave?.name
-
-  return normalizeLeaveTypeName(leaveTypeValue)
 }
 
 function toIsoDate(value) {
@@ -478,8 +384,6 @@ function getEmployeeKey(application) {
   return String(key || '').trim()
 }
 
-const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
-
 const manpowerCurrentDateIso = computed(() => {
   const now = new Date()
   const year = now.getFullYear()
@@ -527,35 +431,6 @@ const manpowerCurrentSnapshot = computed(() => {
   }
 })
 
-const manpowerChartSeries = computed(() => [
-  manpowerCurrentSnapshot.value.availablePercentage,
-  manpowerCurrentSnapshot.value.onLeavePercentage,
-])
-
-const monthlyLeaveTrend = computed(() => {
-  const buckets = Array(12).fill(0)
-
-  for (const application of dashboardApplications.value) {
-    const rawDate = getApplicationDate(application)
-    if (!rawDate) continue
-
-    const parsedDate = new Date(rawDate)
-    if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== trendYearLabel) continue
-
-    buckets[parsedDate.getMonth()] += 1
-  }
-
-  return buckets
-})
-
-const trendChartSeries = computed(() => [
-  {
-    name: 'Leave Applications',
-    data: monthlyLeaveTrend.value,
-  },
-])
-
 const totalApplicationsBreakdown = computed(() => {
   const apiBreakdown = normalizeEmploymentBreakdown(dashboardData.value.kpi_breakdown?.total)
   if (Object.values(apiBreakdown).some((value) => value > 0)) return apiBreakdown
@@ -581,240 +456,6 @@ function getEmploymentTypeCardStyle(card) {
   }
 }
 
-const manpowerChartOptions = computed(() => ({
-  chart: {
-    id: 'hr-manpower-daily-percentage',
-    type: 'pie',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { easing: 'easeinout', speed: 450 },
-    fontFamily: 'inherit',
-  },
-  labels: ['Available', 'On Leave'],
-  colors: ['#2e7d32', '#fb8c00'],
-  dataLabels: {
-    enabled: true,
-    formatter: (value) => `${Number(value).toFixed(1)}%`,
-  },
-  stroke: {
-    width: 1,
-    colors: ['#ffffff'],
-  },
-  legend: {
-    show: true,
-    position: 'right',
-    horizontalAlign: 'left',
-    formatter: (seriesName, options) => {
-      const chartValue = Number(options?.w?.globals?.series?.[options.seriesIndex] || 0).toFixed(1)
-      const countValue = options.seriesIndex === 0
-        ? manpowerCurrentSnapshot.value.availableCount
-        : manpowerCurrentSnapshot.value.onLeaveCount
-      return `${seriesName}: ${countValue} (${chartValue}%)`
-    },
-  },
-  responsive: [
-    {
-      breakpoint: 600,
-      options: {
-        legend: {
-          position: 'bottom',
-        },
-      },
-    },
-  ],
-  plotOptions: {
-    pie: {
-      expandOnClick: false,
-      dataLabels: {
-        offset: -2,
-      },
-    },
-  },
-  tooltip: {
-    y: {
-      formatter: (value, options) => {
-        const countValue = options.seriesIndex === 0
-          ? manpowerCurrentSnapshot.value.availableCount
-          : manpowerCurrentSnapshot.value.onLeaveCount
-        return `${countValue} employee(s) | ${Number(value).toFixed(2)}%`
-      },
-    },
-  },
-  noData: {
-    text: 'No current manpower data available.',
-  },
-}))
-
-const trendChartOptions = computed(() => ({
-  chart: {
-    id: 'hr-dashboard-leave-trend',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { easing: 'easeinout', speed: 450 },
-    fontFamily: 'inherit',
-  },
-  colors: ['#1e88e5'],
-  dataLabels: { enabled: false },
-  stroke: {
-    curve: 'smooth',
-    width: 3,
-  },
-  markers: {
-    size: 4,
-    strokeWidth: 2,
-    colors: ['#ffffff'],
-    strokeColors: '#1e88e5',
-    hover: { sizeOffset: 2 },
-  },
-  fill: {
-    type: 'gradient',
-    gradient: {
-      shadeIntensity: 0.7,
-      opacityFrom: 0.35,
-      opacityTo: 0.06,
-      stops: [0, 90, 100],
-    },
-  },
-  grid: {
-    borderColor: '#e0e0e0',
-    strokeDashArray: 4,
-    xaxis: { lines: { show: false } },
-  },
-  xaxis: {
-    categories: monthLabels,
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
-  },
-  yaxis: {
-    min: 0,
-    forceNiceScale: true,
-    tickAmount: 4,
-    labels: {
-      style: { colors: '#6b7280' },
-      formatter: (value) => String(Math.round(value)),
-    },
-  },
-  legend: { show: false },
-  tooltip: {
-    y: {
-      formatter: (value) => `${Math.round(value)} leaves`,
-    },
-  },
-}))
-
-const leaveTypeMonthlyTrendMap = computed(() => {
-  const trendMap = new Map()
-
-  for (const application of dashboardApplications.value) {
-    const rawDate = getApplicationDate(application)
-    if (!rawDate) continue
-
-    const parsedDate = new Date(rawDate)
-    if (Number.isNaN(parsedDate.getTime())) continue
-    if (parsedDate.getFullYear() !== trendYearLabel) continue
-
-    const leaveTypeName = getApplicationLeaveType(application)
-    if (!trendMap.has(leaveTypeName)) {
-      trendMap.set(leaveTypeName, Array(12).fill(0))
-    }
-
-    trendMap.get(leaveTypeName)[parsedDate.getMonth()] += 1
-  }
-
-  return trendMap
-})
-
-const leaveTypeFilterOptions = computed(() => [
-  'All',
-  ...Array.from(leaveTypeMonthlyTrendMap.value.keys()).sort((left, right) => left.localeCompare(right)),
-])
-
-watch(
-  leaveTypeFilterOptions,
-  (options) => {
-    if (!options.includes(leaveTypeFilter.value)) {
-      leaveTypeFilter.value = 'All'
-    }
-  },
-  { immediate: true },
-)
-
-const leaveTypeTrendSeries = computed(() => {
-  const trendEntries = Array.from(leaveTypeMonthlyTrendMap.value.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-
-  if (leaveTypeFilter.value === 'All') {
-    return trendEntries.map(([leaveType, data]) => ({
-      name: leaveType,
-      data,
-    }))
-  }
-
-  const selectedTypeData = leaveTypeMonthlyTrendMap.value.get(leaveTypeFilter.value)
-  if (!selectedTypeData) return []
-
-  return [
-    {
-      name: leaveTypeFilter.value,
-      data: selectedTypeData,
-    },
-  ]
-})
-
-const leaveTypeTrendChartOptions = computed(() => ({
-  chart: {
-    id: 'hr-dashboard-leave-type-trend',
-    toolbar: { show: false },
-    zoom: { enabled: false },
-    animations: { easing: 'easeinout', speed: 450 },
-    fontFamily: 'inherit',
-  },
-  colors: leaveTypeChartPalette,
-  dataLabels: { enabled: false },
-  stroke: {
-    curve: 'smooth',
-    width: 3,
-  },
-  markers: {
-    size: 3,
-    hover: { sizeOffset: 2 },
-  },
-  grid: {
-    borderColor: '#e0e0e0',
-    strokeDashArray: 4,
-    xaxis: { lines: { show: false } },
-  },
-  xaxis: {
-    categories: monthLabels,
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
-  },
-  yaxis: {
-    min: 0,
-    forceNiceScale: true,
-    tickAmount: 4,
-    labels: {
-      style: { colors: '#6b7280' },
-      formatter: (value) => String(Math.round(value)),
-    },
-  },
-  legend: {
-    show: false,
-  },
-  tooltip: {
-    shared: true,
-    intersect: false,
-    y: {
-      formatter: (value) => `${Math.round(value)} leaves`,
-    },
-  },
-  noData: {
-    text: 'No leave data for selected leave type.',
-  },
-}))
-
 async function fetchDashboard() {
   loading.value = true
   try {
@@ -829,10 +470,10 @@ async function fetchDashboard() {
     const rejectedFromApps = applications.filter((app) => mergeStatus(app) === 'Rejected').length
 
     dashboardData.value = {
-      total_count: applications.length || data.total_count || 0,
-      pending_count: applications.length ? pendingFromApps : (data.pending_count ?? 0),
-      approved_count: applications.length ? approvedFromApps : (data.approved_count ?? 0),
-      rejected_count: applications.length ? rejectedFromApps : (data.rejected_count ?? 0),
+      total_count: Number(data.total_count ?? applications.length ?? 0),
+      pending_count: Number(data.pending_count ?? pendingFromApps),
+      approved_count: Number(data.approved_count ?? approvedFromApps),
+      rejected_count: Number(data.rejected_count ?? rejectedFromApps),
       kpi_breakdown: data?.kpi_breakdown ?? {
         total: buildEmploymentBreakdown(applications),
       },
@@ -880,7 +521,6 @@ onMounted(fetchDashboard)
 
 <style scoped>
 .hr-dashboard-page {
-  --dashboard-chart-height: 210px;
   min-height: auto !important;
   overflow-y: hidden;
 }
@@ -899,39 +539,6 @@ onMounted(fetchDashboard)
 
 .compact-panel :deep(.q-card__section) {
   padding: 12px;
-}
-
-.manpower-card {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.manpower-card-section {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.manpower-chart-wrapper {
-  width: 100%;
-  flex: 1 1 auto;
-  min-height: var(--dashboard-chart-height);
-  max-height: var(--dashboard-chart-height);
-}
-
-.manpower-chart-wrapper :deep(.q-no-ssr),
-.manpower-chart-wrapper :deep(.vue-apexcharts),
-.manpower-chart-wrapper :deep(.apexcharts-canvas),
-.manpower-chart-wrapper :deep(.apexcharts-svg) {
-  height: 100% !important;
-}
-
-.trend-chart-wrapper {
-  width: 100%;
-  min-height: var(--dashboard-chart-height);
-  max-height: var(--dashboard-chart-height);
 }
 
 .stat-card {
@@ -1050,12 +657,6 @@ onMounted(fetchDashboard)
 .pending-reminder-card__button {
   min-height: 44px;
   padding-inline: 18px;
-}
-
-@media (max-width: 1199px) {
-  .hr-dashboard-page {
-    --dashboard-chart-height: 190px;
-  }
 }
 
 @media (max-width: 599px) {
@@ -1193,4 +794,3 @@ onMounted(fetchDashboard)
   }
 }
 </style>
-
