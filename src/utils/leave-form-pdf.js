@@ -675,6 +675,8 @@ export async function generateLeaveFormPdf(sourceApp) {
     const isVacation = lt.includes('vacation')
     const isMandatory = lt.includes('mandatory') || lt.includes('forced')
     const isSick = lt.includes('sick')
+    const isWellness = lt.includes('wellness')
+    const isCTO = lt.includes('cto') || lt.includes('compensatory time off')
     const isMaternity = lt.includes('maternity')
     const isPaternity = lt.includes('paternity')
     const isSpecPriv = lt.includes('special privilege')
@@ -685,7 +687,7 @@ export async function generateLeaveFormPdf(sourceApp) {
     const isSLBW = lt.includes('special leave benefit')
     const isCalamity = lt.includes('calamity') || lt.includes('emergency')
     const isAdoption = lt.includes('adoption')
-    const isOther = !(isVacation || isMandatory || isSick || isMaternity || isPaternity || isSpecPriv || isSoloParent || isStudy || isVAWC || isRehab || isSLBW || isCalamity || isAdoption)
+    const isOther = !(isVacation || isMandatory || isSick || isWellness || isCTO || isMaternity || isPaternity || isSpecPriv || isSoloParent || isStudy || isVAWC || isRehab || isSLBW || isCalamity || isAdoption)
 
     const isCommutationRequested = String(app.commutation || '').toLowerCase().trim() === 'requested'
     const isForApproval = rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || statusLabel === 'APPROVED' || statusLabel === 'PENDING HR'
@@ -861,6 +863,8 @@ export async function generateLeaveFormPdf(sourceApp) {
                                     checkboxRow(isVacation, 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)', { marginVertical: 0 }),
                                     checkboxRow(isMandatory, 'Mandatory/Forced Leave (Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)'),
                                     checkboxRow(isSick, 'Sick Leave  (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)'),
+                                    checkboxRow(isWellness, 'Wellness Leave Policy (CSC Resolution No. 2501292)'),
+                                    checkboxRow(isCTO, 'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)'),
                                     checkboxRow(isMaternity, 'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)'),
                                     checkboxRow(isPaternity, 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)'),
                                     checkboxRow(isSpecPriv, 'Special Privilege Leave (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)'),

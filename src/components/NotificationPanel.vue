@@ -195,7 +195,7 @@
               <div
                 v-for="detail in buildApplicationDetails(applicationFromNotification(selectedNotif))"
                 :key="detail.label"
-                class="notif-application-item"
+                :class="['notif-application-item', { 'notif-application-item--full': detail.fullWidth }]"
               >
                 <div class="notif-application-label">{{ detail.label }}</div>
                 <div class="notif-application-value">{{ detail.value }}</div>
@@ -568,39 +568,90 @@ function hasApplicationDetails(notif) {
   return buildApplicationDetails(application).length > 0
 }
 
+function resolveEmployeeName(application) {
+  return (
+    application?.employee_name ||
+    application?.employeeName ||
+    application?.applicant_name ||
+    application?.applicantName ||
+    application?.employee?.full_name ||
+    application?.employee?.name ||
+    ''
+  )
+}
+
+function formatOfficeAcronym(office) {
+  const rawOffice = String(office || '').trim()
+  if (!rawOffice) return ''
+
+  const normalizedOffice = rawOffice
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalizedOffice) return ''
+  if (/^[A-Za-z]{2,12}$/.test(normalizedOffice)) return normalizedOffice.toUpperCase()
+
+  const words = normalizedOffice.split(' ').filter(Boolean)
+  const stopWords = new Set(['A', 'AN', 'AND', 'BY', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
+  const meaningfulWords = words.filter((word) => !stopWords.has(word.toUpperCase()))
+  const sourceWords = meaningfulWords.length ? meaningfulWords : words
+  const acronym = sourceWords.map((word) => word[0]).join('').toUpperCase()
+
+  return acronym || normalizedOffice.toUpperCase()
+}
+
+function finalizeApplicationDetails(details) {
+  const visibleDetails = details.filter((item) => {
+    if (item.value === null || item.value === undefined) return false
+    return String(item.value).trim() !== ''
+  })
+
+  if (!visibleDetails.length) return visibleDetails
+
+  const isOddCount = visibleDetails.length % 2 === 1
+
+  return visibleDetails.map((item, index) => {
+    const isLastItem = index === visibleDetails.length - 1
+    if (isLastItem && isOddCount) {
+      return { ...item, fullWidth: true }
+    }
+    if (item.fullWidth) {
+      return { ...item, fullWidth: false }
+    }
+    return item
+  })
+}
+
 function buildApplicationDetails(application) {
   if (!application) return []
 
   if (String(application.application_type || '').trim().toUpperCase() === 'COC') {
     const details = [
-      { label: 'Application ID', value: application.id ? `#${application.id}` : null },
+      { label: 'Employee Name', value: resolveEmployeeName(application) },
+      { label: 'Office', value: formatOfficeAcronym(application.office) },
       { label: 'Status', value: application.status || application.raw_status },
       { label: 'Application Type', value: application.leave_type_name || 'COC Application' },
       { label: 'Overtime Dates', value: formatSelectedDates(application.selected_dates) },
       { label: 'Total Hours', value: application.duration_label || formatHourCount(application.total_hours) },
       { label: 'Date Filed', value: formatShortDate(application.date_filed) },
-      { label: 'Applicant', value: application.applicant_name },
-      { label: 'Office', value: application.office },
       { label: 'CTO Leave Type', value: application.cto_leave_type_name },
       { label: 'CTO Credited Days', value: application.cto_credited_days !== null ? formatDayCount(application.cto_credited_days) : null },
       { label: 'Remarks', value: application.remarks },
     ]
 
-    return details.filter((item) => {
-      if (item.value === null || item.value === undefined) return false
-      return String(item.value).trim() !== ''
-    })
+    return finalizeApplicationDetails(details)
   }
 
   const details = [
-    { label: 'Application ID', value: application.id ? `#${application.id}` : null },
+    { label: 'Employee Name', value: resolveEmployeeName(application) },
+    { label: 'Office', value: formatOfficeAcronym(application.office) },
     { label: 'Status', value: application.status || application.raw_status },
     { label: 'Leave Type', value: application.leave_type_name },
     { label: 'Date Range', value: formatDateRange(application.start_date, application.end_date, application.is_monetization) },
     { label: 'Total Days', value: formatDayCount(application.total_days) },
     { label: 'Date Filed', value: formatShortDate(application.date_filed) },
-    { label: 'Applicant', value: application.applicant_name },
-    { label: 'Office', value: application.office },
     { label: 'Commutation', value: application.commutation },
     {
       label: 'Equivalent Amount',
@@ -610,10 +661,7 @@ function buildApplicationDetails(application) {
     { label: 'Remarks', value: application.remarks },
   ]
 
-  return details.filter((item) => {
-    if (item.value === null || item.value === undefined) return false
-    return String(item.value).trim() !== ''
-  })
+  return finalizeApplicationDetails(details)
 }
 
 function formatSelectedDates(dates) {
@@ -825,6 +873,10 @@ function formatSelectedDates(dates) {
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.65);
   min-width: 0;
+}
+
+.notif-application-item--full {
+  grid-column: 1 / -1;
 }
 
 .notif-application-label {
