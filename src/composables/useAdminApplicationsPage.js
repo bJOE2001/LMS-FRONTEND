@@ -2277,7 +2277,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveFiledByActor(app) {
-    return app?.filedBy || app?.employeeName || 'Unknown'
+    return app?.filedBy || app?.filed_by || app?.employeeName || app?.employee_name || 'Unknown'
   }
 
   function resolveFiledDateValue(app) {
@@ -2295,7 +2295,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveDepartmentAdminActor(app) {
-    return app?.adminActionBy || 'Unknown'
+    return app?.adminActionBy || app?.admin_action_by || 'Unknown'
   }
 
   function resolveDepartmentAdminActionDateValue(app) {
@@ -2303,7 +2303,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveHrActor(app) {
-    return app?.hrActionBy || 'Unknown'
+    return app?.hrActionBy || app?.hr_action_by || 'Unknown'
   }
 
   function resolveFinalApprovalDateValue(app) {
@@ -2333,6 +2333,7 @@ export function useAdminApplicationsPage() {
       historyEntry?.action_by_name ||
       historyEntry?.action_by ||
       app?.hrActionBy ||
+      app?.hr_action_by ||
       'Unknown'
     )
   }
@@ -2361,7 +2362,13 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveCancelledActor(app) {
-    return app?.cancelledBy || app?.employeeName || 'Unknown'
+    return (
+      app?.cancelledBy ||
+      app?.cancelled_by ||
+      app?.employeeName ||
+      app?.employee_name ||
+      'Unknown'
+    )
   }
 
   function resolveCancelledDateValue(app) {
@@ -2376,7 +2383,15 @@ export function useAdminApplicationsPage() {
 
   function resolveDisapprovalActor(app) {
     if (isCancelledByUser(app)) return resolveCancelledActor(app)
-    return app?.disapprovedBy || app?.hrActionBy || app?.adminActionBy || 'Unknown'
+    return (
+      app?.disapprovedBy ||
+      app?.disapproved_by ||
+      app?.hrActionBy ||
+      app?.hr_action_by ||
+      app?.adminActionBy ||
+      app?.admin_action_by ||
+      'Unknown'
+    )
   }
 
   function resolveDisapprovedDateValue(app) {
@@ -2611,10 +2626,44 @@ export function useAdminApplicationsPage() {
     showDetailsDialog.value = true
   }
 
-  function openTimeline(app) {
-    selectedApp.value = app
+  async function openTimeline(app) {
+    const baseApplication = resolveApp(app) || app
+    selectedApp.value = baseApplication
     showDetailsDialog.value = false
     showTimelineDialog.value = true
+
+    const id = baseApplication?.id ?? baseApplication?.application_id ?? baseApplication?.leave_application_id
+    if (!id) return
+
+    const endpoint = isCocApplication(baseApplication)
+      ? `/admin/coc-applications/${id}`
+      : `/admin/leave-applications/${id}`
+
+    try {
+      const response = await api.get(endpoint)
+      const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+      if (!detailedApplication || typeof detailedApplication !== 'object') return
+
+      // Keep row-specific overrides (e.g. recalled companion rows) while enriching timeline metadata.
+      const mergedApplication = {
+        ...detailedApplication,
+        ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
+      }
+
+      if (!showTimelineDialog.value) return
+
+      const selectedId = String(
+        selectedApp.value?.id ??
+          selectedApp.value?.application_id ??
+          selectedApp.value?.leave_application_id ??
+          '',
+      ).trim()
+      if (selectedId !== String(id).trim()) return
+
+      selectedApp.value = mergedApplication
+    } catch {
+      // Keep existing row payload when detail endpoint fails.
+    }
   }
 
   function hasMobileApplicationActions(app) {

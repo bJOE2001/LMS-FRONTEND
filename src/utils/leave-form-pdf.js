@@ -811,7 +811,12 @@ export async function generateLeaveFormPdf(sourceApp) {
                             {
                                 text: [
                                     { text: '4.  POSITION: ', bold: true, fontSize: 8 },
-                                    { text: app.position || '', fontSize: 9, bold: true, decoration: 'underline' },
+                                    {
+                                        text: app?.userInfo?.position || app?.user_info?.position || app.position || '',
+                                        fontSize: 9,
+                                        bold: true,
+                                        decoration: 'underline',
+                                    },
                                 ],
                                 border: [false, false, false, true],
                                 margin: [8, 8],

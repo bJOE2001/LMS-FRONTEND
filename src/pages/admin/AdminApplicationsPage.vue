@@ -1112,8 +1112,8 @@ function shouldScrollInclusiveDates(app) {
 }
 
 .admin-application-details-dialog :deep(.q-dialog__inner--minimized > div) {
-  width: min(760px, calc(100vw - 28px));
-  max-width: min(760px, calc(100vw - 28px)) !important;
+  width: min(700px, calc(100vw - 28px));
+  max-width: min(700px, calc(100vw - 28px)) !important;
 }
 
 .admin-application-details-card {
