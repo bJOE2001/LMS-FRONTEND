@@ -103,7 +103,7 @@
               <span :class="cell.dayClass">{{ cell.day }}</span>
               <q-badge
                 v-if="cell.count"
-                color="orange"
+                color="positive"
                 text-color="white"
                 rounded
                 class="calendar-total-badge"
@@ -180,7 +180,7 @@
               <div class="row q-gutter-xs q-mt-xs calendar-date-employee-meta">
                 <q-badge outline color="primary" :label="emp.leaveType" class="calendar-date-employee-badge" />
                 <q-badge outline color="grey-7" :label="emp.office" class="calendar-date-employee-badge calendar-date-employee-badge--office" />
-                <q-badge outline color="orange" :label="emp.days + ' day(s)'" class="calendar-date-employee-badge" />
+                <q-badge outline color="positive" :label="emp.days + ' day(s)'" class="calendar-date-employee-badge" />
               </div>
               <div class="text-caption text-grey-6 q-mt-xs calendar-date-employee-range">
                 {{ formatDate(emp.startDate) }} - {{ formatDate(emp.endDate) }}
@@ -514,7 +514,7 @@ const calendarCells = computed(() => {
 
     let cls = 'bg-white'
     if (isWeekend) cls = 'bg-grey-2'
-    if (employees.length) cls = 'bg-orange-1'
+    if (employees.length) cls = 'bg-green-1'
 
     let dayClass = 'text-grey-9'
     if (isToday) dayClass = 'text-primary text-weight-bold'
@@ -865,4 +865,3 @@ function nextMonth() {
   }
 }
 </style>
-

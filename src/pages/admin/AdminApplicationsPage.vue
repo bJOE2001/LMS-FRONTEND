@@ -321,23 +321,66 @@
       class="admin-application-details-dialog"
     >
       <q-card v-if="selectedApp" class="admin-application-details-card">
-        <q-card-section class="bg-primary text-white row items-center no-wrap admin-application-details-header">
-          <div class="text-h6">Application Details</div>
-          <q-space />
-          <q-btn flat dense round icon="close" color="white" v-close-popup />
+        <div class="admin-application-details-accent" />
+        <q-card-section class="row items-start no-wrap admin-application-details-header">
+          <div class="admin-application-details-header-main">
+            <q-avatar size="46px" class="admin-application-details-icon">
+              <q-icon name="description" size="24px" />
+            </q-avatar>
+            <div class="admin-application-details-header-copy">
+              <div class="admin-application-details-title">Application Details</div>
+              <div class="admin-application-details-subtitle">{{ selectedApp.employeeName }}</div>
+              <div class="row items-center admin-application-details-meta">
+                <q-badge
+                  rounded
+                  color="grey-2"
+                  text-color="grey-8"
+                  class="admin-application-details-meta-chip"
+                >
+                  {{ selectedApp.employee_control_no || 'No Control No.' }}
+                </q-badge>
+                <q-badge
+                  v-if="!['Pending HR', 'Pending Admin'].includes(getApplicationStatusLabel(selectedApp))"
+                  rounded
+                  :color="getApplicationStatusColor(selectedApp)"
+                  text-color="white"
+                  class="admin-application-details-meta-chip admin-application-details-meta-chip--status"
+                >
+                  {{ getApplicationStatusLabel(selectedApp) }}
+                </q-badge>
+                <q-badge
+                  rounded
+                  color="grey-2"
+                  text-color="grey-8"
+                  class="admin-application-details-meta-chip"
+                >
+                  Filed: {{ formatDate(selectedApp.dateFiled) || 'N/A' }}
+                </q-badge>
+              </div>
+            </div>
+          </div>
+          <div class="admin-application-details-header-side">
+            <q-btn flat dense round icon="close" class="admin-application-details-close" v-close-popup />
+            <div class="admin-application-details-header-balance-text">
+              <div class="admin-application-details-label">Available Leave Balance</div>
+              <div class="admin-application-details-header-balance-value">
+                {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
+              </div>
+            </div>
+          </div>
         </q-card-section>
         <q-card-section class="q-gutter-y-sm admin-application-details-content">
           <div class="admin-application-details-grid">
-            <div class="admin-application-details-item admin-application-details-item--full">
-              <div class="text-caption text-grey-7">Employee</div>
+            <div class="admin-application-details-item">
+              <div class="admin-application-details-label">Employee</div>
               <div class="text-weight-medium">{{ selectedApp.employeeName }}</div>
             </div>
 
             <div
               v-if="hasApplicationAttachment(selectedApp)"
-              class="admin-application-details-item admin-application-details-item--full"
+              class="admin-application-details-item"
             >
-              <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+              <div class="admin-application-details-label q-mb-xs">Attachment</div>
               <q-btn
                 flat
                 dense
@@ -350,26 +393,26 @@
             </div>
 
             <div class="admin-application-details-item">
-              <div class="text-caption text-grey-7">Leave Type</div>
+              <div class="admin-application-details-label">Leave Type</div>
               <div class="text-weight-medium">
                 {{ getApplicationDetailsLeaveTypeLabel(selectedApp) }}
               </div>
             </div>
 
             <div class="admin-application-details-item">
-              <div class="text-caption text-grey-7">Application Status</div>
+              <div class="admin-application-details-label">Application Status</div>
               <StatusBadge :status="selectedApp.displayStatus || getApplicationStatusLabel(selectedApp)" />
             </div>
 
             <div class="admin-application-details-item">
-              <div class="text-caption text-grey-7">Duration</div>
+              <div class="admin-application-details-label">Duration</div>
               <div class="text-weight-medium">
                 {{ getApplicationDurationDisplay(selectedApp) }}
               </div>
             </div>
 
-            <div class="admin-application-details-item admin-application-details-item--full">
-              <div class="text-caption text-grey-7">
+            <div class="admin-application-details-item admin-application-details-item--inclusive">
+              <div class="admin-application-details-label">
                 {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Inclusive Dates' }}
               </div>
               <div v-if="selectedApp.is_monetization" class="text-weight-medium">
@@ -384,7 +427,11 @@
               </div>
               <div
                 v-else-if="hasPendingDateUpdate(selectedApp)"
-                class="text-weight-medium admin-application-duration-columns"
+                :class="[
+                  'text-weight-medium',
+                  'admin-application-duration-columns',
+                  { 'admin-application-details-scroll-area': shouldScrollInclusiveDates(selectedApp) },
+                ]"
               >
                 <div class="text-caption text-grey-7">Current</div>
                 <div
@@ -440,7 +487,11 @@
               </div>
               <div
                 v-else-if="getSelectedDateIndicatorRows(selectedApp).length"
-                class="text-weight-medium admin-application-duration-columns"
+                :class="[
+                  'text-weight-medium',
+                  'admin-application-duration-columns',
+                  { 'admin-application-details-scroll-area': shouldScrollInclusiveDates(selectedApp) },
+                ]"
               >
                 <div
                   v-for="entry in getSelectedDateIndicatorRows(selectedApp)"
@@ -466,7 +517,14 @@
                   />
                 </div>
               </div>
-              <div v-else class="text-weight-medium admin-application-details-lines">
+              <div
+                v-else
+                :class="[
+                  'text-weight-medium',
+                  'admin-application-details-lines',
+                  { 'admin-application-details-scroll-area': shouldScrollInclusiveDates(selectedApp) },
+                ]"
+              >
                 <span
                   v-for="(line, index) in getApplicationInclusiveDateLines(selectedApp)"
                   :key="`${selectedApp.application_uid || selectedApp.id}-details-inclusive-${index}`"
@@ -477,26 +535,17 @@
               </div>
             </div>
 
-            <div class="admin-application-details-item admin-application-details-item--full">
-              <div class="text-caption text-grey-7">Date Filed</div>
-              <div class="text-weight-medium">{{ formatDate(selectedApp.dateFiled) || 'N/A' }}</div>
-            </div>
-
-            <div class="admin-application-details-item admin-application-details-item--full">
-              <div class="text-caption text-grey-7">Reason</div>
+            <div class="admin-application-details-item admin-application-details-item--reason">
+              <div class="admin-application-details-label">Reason</div>
               <div>{{ getApplicationDetailsReason(selectedApp) }}</div>
             </div>
 
-            <div class="admin-application-details-item admin-application-details-item--full">
-              <div class="text-caption text-grey-7">Remarks</div>
+            <div
+              v-if="hasPendingDateUpdate(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Remarks</div>
               <div>{{ getApplicationDetailsRemarks(selectedApp) }}</div>
-            </div>
-
-            <div class="admin-application-details-item admin-application-details-item--full">
-              <div class="text-caption text-grey-7">Available Leave Balance</div>
-              <div class="text-weight-medium text-positive">
-                {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
-              </div>
             </div>
           </div>
         </q-card-section>
@@ -830,6 +879,23 @@ function getApplicationDetailsRemarks(app) {
   const remarks = String(app?.remarks || '').trim()
   return remarks || 'N/A'
 }
+
+function shouldScrollInclusiveDates(app) {
+  if (!app || app.is_monetization) return false
+
+  if (hasPendingDateUpdate(app)) {
+    return (
+      getSelectedDateIndicatorRows(app).length + getPendingUpdateDateIndicatorRows(app).length >= 5
+    )
+  }
+
+  const dateIndicatorRows = getSelectedDateIndicatorRows(app)
+  if (dateIndicatorRows.length) {
+    return dateIndicatorRows.length >= 5
+  }
+
+  return getApplicationInclusiveDateLines(app).length >= 5
+}
 </script>
 
 <style scoped>
@@ -973,56 +1039,172 @@ function getApplicationDetailsRemarks(app) {
   flex-direction: column;
   gap: 2px;
 }
-.admin-application-details-dialog .q-dialog__inner--minimized {
-  padding: 16px;
+.admin-application-details-dialog :deep(.q-dialog__inner--minimized) {
+  padding: 12px 14px 16px;
 }
 
-.admin-application-details-dialog .q-dialog__inner--minimized > div {
-  width: min(520px, calc(100vw - 32px));
-  max-width: min(520px, calc(100vw - 32px)) !important;
+.admin-application-details-dialog :deep(.q-dialog__inner--minimized > div) {
+  width: min(760px, calc(100vw - 28px));
+  max-width: min(760px, calc(100vw - 28px)) !important;
 }
 
 .admin-application-details-card {
   width: 100%;
-  max-height: calc(100vh - 32px);
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
+  border-radius: 18px;
   overflow: hidden;
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.admin-application-details-accent {
+  height: 5px;
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 48%, #43a047 100%);
 }
 
 .admin-application-details-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  background: linear-gradient(180deg, rgba(46, 125, 50, 0.14) 0%, rgba(46, 125, 50, 0.06) 100%);
   flex: 0 0 auto;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.admin-application-details-header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-application-details-icon {
+  background: rgba(46, 125, 50, 0.16);
+  color: #2e7d32;
+  border: 1px solid rgba(46, 125, 50, 0.28);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.09);
+}
+
+.admin-application-details-header-copy {
+  min-width: 0;
+}
+
+.admin-application-details-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #102a43;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.admin-application-details-subtitle {
+  margin-top: 1px;
+  font-size: 0.78rem;
+  color: #486581;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-application-details-meta {
+  margin-top: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-application-details-meta-chip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #d8e4ee;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.admin-application-details-meta-chip--status {
+  border-color: transparent;
+}
+
+.admin-application-details-header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-application-details-header-balance-text {
+  text-align: right;
+}
+
+.admin-application-details-header-balance-value {
+  margin-top: 2px;
+  color: #1b5e20;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.admin-application-details-close {
+  color: #607d8b;
+  margin-top: 0;
 }
 
 .admin-application-details-content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  padding: 14px !important;
+  background:
+    radial-gradient(circle at top right, rgba(2, 119, 189, 0.06), transparent 45%),
+    linear-gradient(to bottom, #ffffff, #fcfdff);
 }
 
 .admin-application-details-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 16px;
+  gap: 10px 12px;
   align-content: start;
 }
 
 .admin-application-details-item {
   min-width: 0;
+  border: 1px solid #d9e8f2;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.65);
 }
 
 .admin-application-details-item--full {
   grid-column: 1 / -1;
 }
 
+.admin-application-details-item--reason {
+  height: 100%;
+}
+
+.admin-application-details-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #829ab1;
+}
+
 .admin-application-details-lines {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.admin-application-details-scroll-area {
+  max-height: 198px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .admin-application-duration-columns {
@@ -1048,20 +1230,12 @@ function getApplicationDetailsRemarks(app) {
   justify-content: center;
 }
 
-.admin-application-details-balance {
-  margin-top: 4px;
-}
-
 .admin-application-details-actions {
   flex: 0 0 auto;
-  padding: 10px 16px 16px;
+  padding: 0 14px 14px;
   gap: 8px;
-  border-top: 1px solid #e5e7eb;
-  background: #faf8f3;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  box-shadow: 0 -10px 20px rgba(15, 23, 42, 0.06);
+  border-top: 1px solid #d6e4ee;
+  background: #fff;
 }
 
 .application-timeline-card {
@@ -1421,12 +1595,47 @@ function getApplicationDetailsRemarks(app) {
 }
 
 @media (max-width: 599px) {
-  .admin-application-details-dialog .q-dialog__inner--minimized {
-    padding: 12px;
+  .admin-application-details-dialog :deep(.q-dialog__inner--minimized) {
+    padding: 10px 10px 14px;
+  }
+
+  .admin-application-details-dialog :deep(.q-dialog__inner--minimized > div) {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px) !important;
   }
 
   .admin-application-details-card {
     max-height: calc(100vh - 24px);
+  }
+
+  .admin-application-details-header {
+    padding: 12px 12px 8px;
+  }
+
+  .admin-application-details-header-main {
+    align-items: flex-start;
+  }
+
+  .admin-application-details-header-side {
+    gap: 6px;
+  }
+
+  .admin-application-details-header-balance-value {
+    font-size: 0.8rem;
+  }
+
+  .admin-application-details-icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .admin-application-details-meta {
+    gap: 6px;
+  }
+
+  .admin-application-details-meta-chip {
+    font-size: 0.64rem;
+    padding: 2px 8px;
   }
 
   .admin-application-details-content {
@@ -1435,11 +1644,15 @@ function getApplicationDetailsRemarks(app) {
 
   .admin-application-details-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 12px;
+    gap: 10px;
   }
 
   .admin-application-details-lines {
     gap: 4px;
+  }
+
+  .admin-application-details-scroll-area {
+    max-height: 172px;
   }
 
   .admin-application-duration-columns {
@@ -1452,7 +1665,7 @@ function getApplicationDetailsRemarks(app) {
   }
 
   .admin-application-details-actions {
-    padding: 10px 12px 12px;
+    padding: 0 12px 12px;
     justify-content: stretch;
   }
 
@@ -1637,4 +1850,3 @@ function getApplicationDetailsRemarks(app) {
   }
 }
 </style>
-
