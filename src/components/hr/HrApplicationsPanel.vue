@@ -3583,13 +3583,20 @@ function getConfirmActionTitle(type) {
 }
 
 function getConfirmActionMessage(type) {
+  const application = resolveApplication(confirmActionTarget.value)
+  const isEditRequest = isPendingEditRequest(application)
+
   if (type === 'approve') {
-    return 'This will forward the application to HR for final review.'
+    return isEditRequest
+      ? 'This will approve the edit request and apply the requested changes.'
+      : 'This will finalize the approval of this application.'
   }
   if (type === 'cancel') {
-    return 'You will continue to the cancellation form.'
+    return 'This will cancel this application.'
   }
-  return 'You will continue to the disapproval form.'
+  return isEditRequest
+    ? 'You will continue to the disapproval form for this edit request.'
+    : 'You will continue to the disapproval form.'
 }
 
 function getConfirmActionTone(type) {
