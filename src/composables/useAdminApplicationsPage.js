@@ -1678,15 +1678,7 @@ export function useAdminApplicationsPage() {
     }
 
     if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
-      const recalledDateSet = new Set(getStoredRecallDateKeys(app))
       const visibleDateSet = getVisibleDateSetForDisplay(app)
-      const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
-      if (shouldMarkRecalledDates && recalledDateSet.size) {
-        return visibleDateSet.map(
-          (dateKey) => `${formatDate(dateKey)}${recalledDateSet.has(dateKey) ? ' (Recalled)' : ''}`,
-        )
-      }
-
       const groupedSelectedDates = formatGroupedInclusiveDateLines(visibleDateSet)
       if (groupedSelectedDates.length > 0) return groupedSelectedDates
     }
