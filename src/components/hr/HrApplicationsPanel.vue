@@ -709,7 +709,9 @@
             : 'hr-action-dialog-card--reject'
       "
     >
-      <q-card-section class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact">
+      <q-card-section
+        class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact"
+      >
         <q-avatar
           size="64px"
           class="hr-action-dialog-card__avatar"
@@ -724,7 +726,9 @@
           {{ getConfirmActionMessage(confirmActionType) }}
         </div>
       </q-card-section>
-      <q-card-actions class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact">
+      <q-card-actions
+        class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact"
+      >
         <q-btn
           flat
           no-caps
@@ -851,18 +855,40 @@
   </q-dialog>
 
   <q-dialog v-model="showRejectDialog" persistent>
-    <q-card class="hr-action-dialog-card hr-action-dialog-card--compact hr-action-dialog-card--reject">
-      <q-card-section class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact">
-        <q-avatar size="64px" class="hr-action-dialog-card__avatar hr-action-dialog-card__avatar--reject">
+    <q-card
+      class="hr-action-dialog-card hr-action-dialog-card--compact hr-action-dialog-card--reject"
+    >
+      <q-card-section
+        class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact"
+      >
+        <q-avatar
+          size="64px"
+          class="hr-action-dialog-card__avatar hr-action-dialog-card__avatar--reject"
+        >
           <q-icon name="cancel" size="32px" />
         </q-avatar>
         <div class="hr-action-dialog-card__title">Disapprove Application</div>
       </q-card-section>
       <q-card-section class="q-pt-none hr-action-dialog-card__content--compact">
-        <q-input v-model="remarks" type="textarea" label="Reason for disapproval" rows="4" outlined />
+        <q-input
+          v-model="remarks"
+          type="textarea"
+          label="Reason for disapproval"
+          rows="4"
+          outlined
+        />
       </q-card-section>
-      <q-card-actions class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact">
-        <q-btn flat no-caps label="Cancel" color="grey-7" class="hr-action-dialog-card__button" v-close-popup />
+      <q-card-actions
+        class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact"
+      >
+        <q-btn
+          flat
+          no-caps
+          label="Cancel"
+          color="grey-7"
+          class="hr-action-dialog-card__button"
+          v-close-popup
+        />
         <q-btn
           unelevated
           color="negative"
@@ -887,70 +913,67 @@
       </q-card-section>
       <q-card-section class="q-pt-none hr-action-dialog-card__content--recall">
         <div class="hr-recall-layout">
-          <div class="hr-recall-layout__left">
-            <div class="text-subtitle2 q-mb-sm">Recall Dates *</div>
-            <div class="recall-date-grid">
-              <div class="recall-date-grid__head">
-                <div class="recall-date-grid__cell recall-date-grid__cell--select">Pick</div>
-                <div class="recall-date-grid__cell">Date</div>
-                <div class="recall-date-grid__cell">Whole/Half Day</div>
-                <div class="recall-date-grid__cell">With/Without Pay</div>
-              </div>
-              <div class="recall-date-grid__body">
-                <div
-                  v-for="row in recallDateSelectionRows"
-                  :key="row.value"
-                  class="recall-date-grid__row"
-                >
-                  <div class="recall-date-grid__cell recall-date-grid__cell--select">
-                    <q-checkbox
-                      v-model="recallSelectedDates"
-                      :val="row.value"
-                      dense
-                      color="warning"
-                      size="sm"
-                    />
-                  </div>
-                  <div class="recall-date-grid__cell recall-date-grid__cell--date">
-                    {{ row.dateLabel }}
-                  </div>
-                  <div class="recall-date-grid__cell recall-date-grid__cell--meta">
-                    {{ row.coverageLabel }}
-                  </div>
-                  <div class="recall-date-grid__cell recall-date-grid__cell--meta">
-                    {{ row.payLabel }}
-                  </div>
+          <div class="text-subtitle2 q-mb-sm">Recall Dates *</div>
+          <div class="recall-date-grid">
+            <div class="recall-date-grid__body">
+              <div
+                v-for="row in recallDateSelectionRows"
+                :key="row.value"
+                class="recall-date-grid__row"
+              >
+                <div class="recall-date-grid__cell recall-date-grid__cell--select">
+                  <q-checkbox
+                    v-model="recallSelectedDates"
+                    :val="row.value"
+                    dense
+                    color="warning"
+                    size="sm"
+                  />
                 </div>
-                <div v-if="!recallDateSelectionRows.length" class="recall-date-grid__empty">
-                  No recall dates available.
+                <div class="recall-date-grid__cell recall-date-grid__cell--date">
+                  {{ row.dateLabel }}
+                </div>
+                <div class="recall-date-grid__cell recall-date-grid__cell--meta">
+                  {{ row.coverageLabel }}
+                </div>
+                <div class="recall-date-grid__cell recall-date-grid__cell--meta">
+                  {{ row.payLabel }}
                 </div>
               </div>
-            </div>
-            <div class="text-caption text-grey-7 q-mt-sm">
-              Select the leave dates HR is recalling. Only dates from this application can be selected.
+              <div v-if="!recallDateSelectionRows.length" class="recall-date-grid__empty">
+                No recall dates available.
+              </div>
             </div>
           </div>
-          <div class="hr-recall-layout__right">
-            <q-input
-              v-model="recallReason"
-              type="textarea"
-              label="Reason for recall *"
-              rows="12"
-              outlined
-              class="hr-recall-reason"
-            />
+          <div class="text-caption text-grey-7 q-mt-sm">
+            Select the leave dates HR is recalling. Only dates from this application can be
+            selected.
           </div>
+          <q-input
+            v-model="recallReason"
+            type="textarea"
+            rows="2"
+            label="Reason for recall *"
+            outlined
+            class="hr-recall-reason q-mt-md"
+          />
         </div>
       </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cancel" v-close-popup />
-        <q-btn
-          unelevated
-          color="warning"
-          label="Recall"
-          :loading="actionLoading"
-          @click="confirmRecall"
-        />
+      <q-card-actions class="hr-recall-actions">
+        <div class="hr-recall-total">
+          <span class="hr-recall-total__label">Total Credits Restored:</span>
+          <span class="hr-recall-total__value">{{ recallTotalCreditsRestoredDisplay }}</span>
+        </div>
+        <div class="hr-recall-actions__buttons">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn
+            unelevated
+            color="warning"
+            label="Recall"
+            :loading="actionLoading"
+            @click="confirmRecall"
+          />
+        </div>
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -1456,11 +1479,13 @@ function formatDurationDisplay(value, unit) {
 }
 
 function getDateSubsetTotalDays(app, dateKeys = []) {
-  const normalizedDateKeys = [...new Set(
-    (Array.isArray(dateKeys) ? dateKeys : [])
-      .map((value) => toIsoDateString(value))
-      .filter(Boolean),
-  )]
+  const normalizedDateKeys = [
+    ...new Set(
+      (Array.isArray(dateKeys) ? dateKeys : [])
+        .map((value) => toIsoDateString(value))
+        .filter(Boolean),
+    ),
+  ]
   if (!normalizedDateKeys.length) return 0
 
   const coverageWeights = getSelectedDateCoverageWeights(app)
@@ -1477,7 +1502,8 @@ function getApplicationDurationDisplay(app) {
 
   if (!isCocApplication(app) && !app?.is_monetization) {
     const storedRecallDateKeys = getStoredRecallDateKeys(app)
-    const shouldUseVisibleDuration = storedRecallDateKeys.length > 0 || app?.application_row_variant === 'recalled'
+    const shouldUseVisibleDuration =
+      storedRecallDateKeys.length > 0 || app?.application_row_variant === 'recalled'
     const visibleDateSet = getVisibleDateSetForDisplay(app)
     if (shouldUseVisibleDuration && visibleDateSet.length) {
       const visibleDays = getDateSubsetTotalDays(app, visibleDateSet)
@@ -1635,9 +1661,9 @@ function getStoredRecallDateKeys(source) {
   const recalledDates = normalizeIsoDateList(
     parseSelectedDatesValue(
       source?.recall_selected_dates ??
-      source?.recallSelectedDates ??
-      source?.raw?.recall_selected_dates ??
-      source?.raw?.recallSelectedDates,
+        source?.recallSelectedDates ??
+        source?.raw?.recall_selected_dates ??
+        source?.raw?.recallSelectedDates,
     ),
   )
 
@@ -2164,9 +2190,13 @@ function getApplicationInclusiveDateLines(app) {
   const dateSet = getVisibleDateSetForDisplay(app)
   if (dateSet.length > 0) {
     const recalledDateSet = new Set(getStoredRecallDateKeys(app))
-    const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
+    const shouldMarkRecalledDates =
+      app?.application_row_variant === 'recalled' ||
+      String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
     if (shouldMarkRecalledDates && recalledDateSet.size) {
-      return dateSet.map((dateKey) => `${formatDate(dateKey)}${recalledDateSet.has(dateKey) ? ' (Recalled)' : ''}`)
+      return dateSet.map(
+        (dateKey) => `${formatDate(dateKey)}${recalledDateSet.has(dateKey) ? ' (Recalled)' : ''}`,
+      )
     }
 
     const groupedDates = formatGroupedInclusiveDateLines(dateSet)
@@ -2469,9 +2499,31 @@ const recallDateSelectionRows = computed(() => {
       dateLabel: formatRecallDateLabel(normalizedDate),
       coverageLabel: coverageWeight === 0.5 ? 'Half Day' : 'Whole Day',
       payLabel: payStatusCode === 'WOP' ? 'Without Pay' : 'With Pay',
+      coverageWeight,
+      payStatusCode,
       value: normalizedDate,
     }
   })
+})
+
+const recallTotalCreditsRestored = computed(() => {
+  const selectedDateSet = new Set(normalizeSelectedDates(recallSelectedDates.value))
+  if (!selectedDateSet.size) return 0
+
+  const total = recallDateSelectionRows.value.reduce((sum, row) => {
+    if (!selectedDateSet.has(row.value)) return sum
+    if (row.payStatusCode === 'WOP') return sum
+
+    const weight = Number(row.coverageWeight ?? 1)
+    return sum + (Number.isFinite(weight) && weight > 0 ? weight : 1)
+  }, 0)
+
+  return Math.round((total + Number.EPSILON) * 100) / 100
+})
+
+const recallTotalCreditsRestoredDisplay = computed(() => {
+  const total = recallTotalCreditsRestored.value
+  return `${formatDayValue(total)} ${total === 1 ? 'day' : 'days'}`
 })
 
 function toIsoDate(value) {
@@ -2531,11 +2583,13 @@ async function fetchApplications() {
       ])
 
     const dashboardData = dashboardResponse?.data ?? {}
-    const mergedApplications = expandApplicationsForDisplay(mergeApplications(
-      extractApplicationsFromPayload(dashboardData),
-      extractApplicationsFromPayload(leaveApplicationsResponse?.data),
-      extractApplicationsFromPayload(cocApplicationsResponse?.data),
-    ))
+    const mergedApplications = expandApplicationsForDisplay(
+      mergeApplications(
+        extractApplicationsFromPayload(dashboardData),
+        extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+        extractApplicationsFromPayload(cocApplicationsResponse?.data),
+      ),
+    )
 
     applications.value = mergedApplications.map((app, index) => ({
       ...app,
@@ -2761,13 +2815,7 @@ function resolveCancelledActor(app) {
 }
 
 function resolveCancelledDateValue(app) {
-  return (
-    app?.cancelledAt ||
-    app?.cancelled_at ||
-    app?.disapprovedAt ||
-    app?.disapproved_at ||
-    null
-  )
+  return app?.cancelledAt || app?.cancelled_at || app?.disapprovedAt || app?.disapproved_at || null
 }
 
 function resolveDisapprovalActor(app) {
@@ -3168,7 +3216,9 @@ function getSelectedDatePayStatusRows(app) {
   const fallbackStatus = resolveApplicationPayModeCode(app)
   const coverageWeights = getSelectedDateCoverageWeights(app)
   const recalledDateSet = new Set(getStoredRecallDateKeys(app))
-  const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
+  const shouldMarkRecalledDates =
+    app?.application_row_variant === 'recalled' ||
+    String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
 
   return dateSet.map((dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
@@ -3285,8 +3335,7 @@ function getPendingUpdateDateCoverageWeights(app) {
   if (!dateSet.length) return {}
 
   const rawCoverageMap = toSelectedDateCoverageMap(
-    payload?.selected_date_coverage ??
-    payload?.selectedDateCoverage,
+    payload?.selected_date_coverage ?? payload?.selectedDateCoverage,
   )
 
   const normalizedCoverageMap = {}
@@ -3324,7 +3373,7 @@ function getPendingUpdateDateCoverageWeights(app) {
   let defaultCoverageWeight = 1
   const dateCount = dateSet.length
   if (dateCount > 0 && totalDays > 0) {
-    const halfMatch = Math.abs((dateCount * 0.5) - totalDays) < 0.00001
+    const halfMatch = Math.abs(dateCount * 0.5 - totalDays) < 0.00001
     const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
     if (halfMatch) {
       defaultCoverageWeight = 0.5
@@ -3336,12 +3385,11 @@ function getPendingUpdateDateCoverageWeights(app) {
   return dateSet.reduce((acc, dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
     const key = isoDate || String(dateValue)
-    const coverage = (
+    const coverage =
       normalizedCoverageMap[key] ??
       normalizedCoverageMap[String(index)] ??
       normalizedCoverageMap[String(index + 1)] ??
       ''
-    )
 
     if (coverage === 'half') {
       acc[key] = 0.5
@@ -4133,9 +4181,7 @@ async function confirmRecall() {
 
 .hr-action-dialog-card--recall {
   width: 100%;
-  height: 100%;
-  min-height: 0;
-  max-height: none;
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4143,25 +4189,14 @@ async function confirmRecall() {
 
 .hr-action-dialog-card__content--recall {
   padding-top: 0;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
+  overflow: visible;
 }
 
 .hr-recall-layout {
   width: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-  gap: 16px;
-}
-
-.hr-recall-layout__left,
-.hr-recall-layout__right {
-  min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 
 .recall-date-grid {
@@ -4171,7 +4206,7 @@ async function confirmRecall() {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  max-height: 260px;
 }
 
 .recall-date-grid__head,
@@ -4192,8 +4227,8 @@ async function confirmRecall() {
 }
 
 .recall-date-grid__body {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 1 auto;
+  max-height: 220px;
   overflow-y: auto;
 }
 
@@ -4234,11 +4269,48 @@ async function confirmRecall() {
 }
 
 .hr-recall-reason {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
 }
 
 .hr-recall-reason .q-field__native {
-  min-height: 260px;
+  min-height: 56px;
+  max-height: 56px;
+  overflow-y: auto;
+  resize: none;
+}
+
+.hr-recall-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.hr-recall-total__label {
+  font-weight: 600;
+}
+
+.hr-recall-total__value {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.hr-recall-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 8px 24px 16px;
+}
+
+.hr-recall-actions__buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
 .hr-action-dialog-card__top {
@@ -4327,11 +4399,9 @@ async function confirmRecall() {
 }
 
 .hr-recall-dialog .q-dialog__inner--minimized > div {
-  width: min(980px, calc(100vw - 32px));
-  max-width: min(980px, calc(100vw - 32px));
-  height: min(680px, calc(100vh - 32px));
-  max-height: min(680px, calc(100vh - 32px));
-  min-height: min(680px, calc(100vh - 32px));
+  width: min(550px, calc(100vw - 32px));
+  max-width: min(5500px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
 }
 
 .hr-application-details-dialog .q-dialog__inner--minimized {
@@ -4642,14 +4712,7 @@ async function confirmRecall() {
   .hr-recall-dialog .q-dialog__inner--minimized > div {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    height: calc(100vh - 24px);
     max-height: calc(100vh - 24px);
-    min-height: calc(100vh - 24px);
-  }
-
-  .hr-recall-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
   }
 
   .recall-date-grid__head,
@@ -4667,7 +4730,23 @@ async function confirmRecall() {
   }
 
   .hr-recall-reason .q-field__native {
-    min-height: 150px;
+    min-height: 52px;
+    max-height: 52px;
+    overflow-y: auto;
+    resize: none;
+  }
+
+  .hr-recall-total {
+    font-size: 0.85rem;
+  }
+
+  .hr-recall-actions {
+    padding: 8px 20px 14px;
+    gap: 8px;
+  }
+
+  .hr-recall-actions__buttons {
+    gap: 8px;
   }
 
   .hr-action-dialog-card__actions {
