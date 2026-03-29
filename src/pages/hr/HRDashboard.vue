@@ -184,6 +184,12 @@
         />
       </div>
     </div>
+
+    <div class="row q-col-gutter-sm q-mt-sm">
+      <div class="col-12 dashboard-panel-col">
+        <DepartmentStatistics class="compact-panel full-width" />
+      </div>
+    </div>
   </q-page>
 </template>
 
@@ -198,6 +204,7 @@ import HrCalendarPanel from 'components/hr/HrCalendarPanel.vue'
 import HrManpowerPieChart from 'components/charts/HrManpowerPieChart.vue'
 import HrLeaveTrendAreaChart from 'components/charts/HrLeaveTrendAreaChart.vue'
 import HrLeaveTypeLineChart from 'components/charts/HrLeaveTypeLineChart.vue'
+import DepartmentStatistics from 'components/charts/departmentStatistics.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
