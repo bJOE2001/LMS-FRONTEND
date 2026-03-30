@@ -324,11 +324,15 @@ export function useAdminApplicationsPage() {
         api.get('/admin/coc-applications').catch(() => null),
       ])
 
-      applicationRows.value = expandApplicationsForDisplay(mergeApplications(
+      const mergedApplications = mergeApplications(
         extractApplicationsFromPayload(dashboardResponse?.data),
         extractApplicationsFromPayload(leaveApplicationsResponse?.data),
         extractApplicationsFromPayload(cocApplicationsResponse?.data),
-      ))
+      )
+
+      applicationRows.value = expandApplicationsForDisplay(
+        mergedApplications.map((application) => normalizeAdminApplicationForDisplay(application)),
+      )
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to load applications right now.')
       $q.notify({ type: 'negative', message, position: 'top' })
@@ -752,6 +756,23 @@ export function useAdminApplicationsPage() {
     return incomingApplication
   }
 
+  function mergeApplicationRecords(existingApplication, incomingApplication) {
+    if (!existingApplication) return incomingApplication
+
+    const preferredApplication = choosePreferredApplication(existingApplication, incomingApplication)
+    if (preferredApplication === incomingApplication) {
+      return {
+        ...existingApplication,
+        ...incomingApplication,
+      }
+    }
+
+    return {
+      ...incomingApplication,
+      ...existingApplication,
+    }
+  }
+
   function mergeApplications(...sources) {
     const mergedApplications = new Map()
 
@@ -763,13 +784,92 @@ export function useAdminApplicationsPage() {
       }
       const key = getApplicationMergeKey(normalizedApplication, index)
       const existingApplication = mergedApplications.get(key)
-      mergedApplications.set(
-        key,
-        choosePreferredApplication(existingApplication, normalizedApplication),
-      )
+      mergedApplications.set(key, mergeApplicationRecords(existingApplication, normalizedApplication))
     })
 
     return Array.from(mergedApplications.values())
+  }
+
+  function isAdminEditUpdateRequest(app) {
+    if (!app || typeof app !== 'object') return false
+
+    const candidates = [
+      app?.has_pending_update_request,
+      app?.hasPendingUpdateRequest,
+      app?.raw?.has_pending_update_request,
+      app?.raw?.hasPendingUpdateRequest,
+    ]
+
+    if (
+      candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')
+    ) {
+      return true
+    }
+
+    return Boolean(
+      app?.pending_update ||
+        app?.pendingUpdate ||
+        app?.raw?.pending_update ||
+        app?.raw?.pendingUpdate,
+    )
+  }
+
+  function normalizeAdminUpdateRequestStatus(value) {
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
+
+    if (normalized === 'PENDING') return 'PENDING'
+    if (normalized === 'APPROVED') return 'APPROVED'
+    if (normalized === 'REJECTED') return 'REJECTED'
+    return ''
+  }
+
+  function getAdminLatestUpdateRequestStatus(app) {
+    const explicitStatus = normalizeAdminUpdateRequestStatus(
+      app?.latest_update_request_status ??
+        app?.latestUpdateRequestStatus ??
+        app?.latest_update_status ??
+        app?.latestUpdateStatus ??
+        app?.raw?.latest_update_request_status ??
+        app?.raw?.latestUpdateRequestStatus ??
+        app?.raw?.latest_update_status ??
+        app?.raw?.latestUpdateStatus ??
+        '',
+    )
+
+    if (explicitStatus) return explicitStatus
+    return isAdminEditUpdateRequest(app) ? 'PENDING' : ''
+  }
+
+  function normalizeAdminApplicationForDisplay(app) {
+    if (!app || typeof app !== 'object') return app
+
+    if (isCancelledByUser(app)) return app
+
+    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
+    const rawStatus = String(
+      app?.rawStatus ??
+        app?.raw_status ??
+        app?.group_raw_status ??
+        app?.groupRawStatus ??
+        '',
+    ).toUpperCase()
+
+    if (
+      latestUpdateStatus === 'PENDING' &&
+      (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
+    ) {
+      return {
+        ...app,
+        rawStatus: app?.rawStatus ?? app?.raw_status ?? rawStatus,
+        group_raw_status: app?.group_raw_status ?? app?.groupRawStatus ?? rawStatus,
+        status: 'Approved',
+      }
+    }
+
+    return app
   }
 
   function prettifyLeaveBalanceLabel(value) {
@@ -1976,24 +2076,56 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusLabel(app) {
     if (isCancelledByUser(app)) return 'Cancelled'
+    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
+    if (
+      latestUpdateStatus === 'PENDING' &&
+      (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
+    ) {
+      return 'Approved'
+    }
     if (app?.status) return app.status
 
-    if (app?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
-    if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
-    if (app?.rawStatus === 'APPROVED') return 'Approved'
-    if (app?.rawStatus === 'RECALLED') return 'Recalled'
-    if (app?.rawStatus === 'REJECTED') return 'Rejected'
+    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+    if (rawStatus === 'PENDING_HR') return 'Pending HR'
+    if (rawStatus === 'APPROVED') return 'Approved'
+    if (rawStatus === 'RECALLED') return 'Recalled'
+    if (rawStatus === 'REJECTED') return 'Rejected'
     return 'Unknown'
   }
 
   function getApplicationStatusColor(app) {
     if (isCancelledByUser(app)) return 'grey-7'
-    if (app?.rawStatus === 'PENDING_ADMIN') return 'warning'
-    if (app?.rawStatus === 'PENDING_HR') return 'blue-6'
-    if (app?.rawStatus === 'APPROVED') return 'green'
-    if (app?.rawStatus === 'RECALLED') return 'blue-grey-6'
-    if (app?.rawStatus === 'REJECTED') return 'negative'
+    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
+    if (
+      latestUpdateStatus === 'PENDING' &&
+      (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
+    ) {
+      return 'green'
+    }
+    if (rawStatus === 'PENDING_ADMIN') return 'warning'
+    if (rawStatus === 'PENDING_HR') return 'blue-6'
+    if (rawStatus === 'APPROVED') return 'green'
+    if (rawStatus === 'RECALLED') return 'blue-grey-6'
+    if (rawStatus === 'REJECTED') return 'negative'
     return 'grey-6'
+  }
+
+  function getEditRequestBadgeLabel(app) {
+    const status = getAdminLatestUpdateRequestStatus(app)
+    if (status === 'PENDING') return 'Edit Request Pending'
+    if (status === 'APPROVED') return 'Edit Request Approved'
+    if (status === 'REJECTED') return 'Edit Request Rejected'
+    return ''
+  }
+
+  function getEditRequestBadgeColor(app) {
+    const status = getAdminLatestUpdateRequestStatus(app)
+    if (status === 'PENDING') return 'deep-purple-7'
+    if (status === 'APPROVED') return 'positive'
+    if (status === 'REJECTED') return 'negative'
+    return 'grey-7'
   }
 
   function canPrintApplication(app) {
@@ -3072,6 +3204,8 @@ export function useAdminApplicationsPage() {
     formatDate,
     getApplicationStatusColor,
     getApplicationStatusLabel,
+    getEditRequestBadgeLabel,
+    getEditRequestBadgeColor,
     openDetails,
     openCalendarPreview,
     onCalendarPreviewNavigation,
@@ -3096,4 +3230,3 @@ export function useAdminApplicationsPage() {
     printActionResult,
   }
 }
-
