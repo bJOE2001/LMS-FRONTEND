@@ -254,7 +254,7 @@ const adminNav = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/admin/applications', label: 'Applications', icon: 'assignment' },
   { path: '/admin/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
+  // { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
 ]
 const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
