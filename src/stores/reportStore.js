@@ -31,6 +31,16 @@ const REPORT_ENDPOINTS = {
   leaveAvailmentPerOffice: '/hr/reports/leave-availment',
 }
 
+function normalizeReportRowsPayload(payload) {
+  const rawRows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : []
+
+  return rawRows.filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+}
+
 function normalizeReportType(type) {
   return REPORT_TYPE_ALIASES[type] || ''
 }
@@ -91,7 +101,7 @@ export const useReportStore = defineStore('reports', () => {
 
     try {
       const { data } = await api.get(REPORT_ENDPOINTS[resolvedType])
-      reportRefs[resolvedType].value = Array.isArray(data) ? data : []
+      reportRefs[resolvedType].value = normalizeReportRowsPayload(data)
       loadedReports.value[resolvedType] = true
       return reportRefs[resolvedType].value
     } catch (error) {

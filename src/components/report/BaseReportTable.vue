@@ -1,16 +1,15 @@
 <template>
   <div class="report-table-container">
     <q-table
-      :rows="rows"
+      :rows="normalizedRows"
       :columns="columns"
-      row-key="id"
+      row-key="__rowKey"
       flat
       wrap-cells
       v-model:pagination="tablePagination"
       :rows-per-page-options="[5, 10, 15, 20]"
       :loading="loading"
       table-header-class="bg-grey-2 text-weight-bold"
-      :table-style="{ minWidth }"
       class="report-preview-table"
     >
       <template #header="scope">
@@ -44,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   rows: {
@@ -73,8 +72,17 @@ const tablePagination = ref({
   rowsPerPage: 10,
 })
 
+const normalizedRows = computed(() =>
+  (Array.isArray(props.rows) ? props.rows : [])
+    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+    .map((row, index) => ({
+      ...row,
+      __rowKey: row.id ?? row.no ?? `${String(row.name || 'row')}-${index}`,
+    })),
+)
+
 watch(
-  () => props.rows.length,
+  () => normalizedRows.value.length,
   () => {
     tablePagination.value.page = 1
   },
@@ -125,7 +133,8 @@ function wrapLine(line, maxChars) {
 
 <style scoped>
 .report-table-container {
-  overflow-x: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 .report-th-wrap {
@@ -143,17 +152,31 @@ function wrapLine(line, maxChars) {
   text-align: left;
 }
 
+.report-table-container :deep(.q-table__container) {
+  width: 100%;
+}
+
+.report-table-container :deep(.q-table__middle) {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.report-table-container :deep(table) {
+  width: 100%;
+  min-width: v-bind(minWidth);
+}
+
 .report-table-container :deep(.q-table thead th),
 .report-table-container :deep(.q-table tbody td) {
   padding: 6px 8px;
 }
 
-.report-table-container :deep(.q-table__middle) {
-  overflow-x: auto;
-}
-
 .report-table-container :deep(.q-table tbody td) {
   white-space: normal;
   vertical-align: top;
+}
+.report-table-card-section {
+  width: 100%;
+  min-width: 0;
 }
 </style>

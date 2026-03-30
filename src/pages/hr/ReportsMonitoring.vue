@@ -778,8 +778,10 @@ const reportTypeOptions = Object.entries(reportConfigs).map(([value, config]) =>
 const selectedReport = computed(() => reportConfigs[selectedReportType.value] || reportConfigs.lwop)
 const selectedReportRows = computed(() => {
   const rowsSource = selectedReport.value.rows
-  const normalizedRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
-  return Array.isArray(normalizedRows) ? normalizedRows : []
+  const rawRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
+  if (!Array.isArray(rawRows)) return []
+
+  return rawRows.filter((row) => row && typeof row === 'object' && !Array.isArray(row))
 })
 const isLeaveBalancesReport = computed(() => selectedReportType.value === 'leaveBalances')
 
@@ -889,7 +891,14 @@ const yearOptions = computed(() => {
 })
 
 const officeOptions = computed(() => {
-  const offices = Array.from(new Set(selectedReportRows.value.map((row) => row.office))).sort()
+  const offices = Array.from(
+    new Set(
+      selectedReportRows.value
+        .map((row) => row?.office)
+        .filter((office) => office != null && String(office).trim() !== ''),
+    ),
+  ).sort()
+
   return [
     { label: 'All Offices', value: null },
     ...offices.map((office) => ({ label: toOfficeCode(office), value: office })),
@@ -897,7 +906,14 @@ const officeOptions = computed(() => {
 })
 
 const statusOptions = computed(() => {
-  const statuses = Array.from(new Set(selectedReportRows.value.map((row) => row.status))).sort()
+  const statuses = Array.from(
+    new Set(
+      selectedReportRows.value
+        .map((row) => row?.status)
+        .filter((status) => status != null && String(status).trim() !== ''),
+    ),
+  ).sort()
+
   return [{ label: 'All Statuses', value: null }, ...statuses.map((status) => ({ label: status, value: status }))]
 })
 
@@ -917,9 +933,9 @@ const filteredRows = computed(() => {
       if (filters.year && !rowYears.includes(filters.year)) return false
     }
 
-    if (filters.office && row.office !== filters.office) return false
-    if (filters.status && row.status !== filters.status) return false
-    if (search && !String(row.name || '').toLowerCase().includes(search)) return false
+    if (filters.office && row?.office !== filters.office) return false
+    if (filters.status && row?.status !== filters.status) return false
+    if (search && !String(row?.name || '').toLowerCase().includes(search)) return false
     return true
   })
 })
