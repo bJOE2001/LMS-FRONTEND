@@ -132,13 +132,23 @@
         </template>
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
-            <q-badge
-              :color="getApplicationStatusColor(tableProps.row)"
-              :label="getApplicationStatusLabel(tableProps.row)"
-              rounded
-              class="text-weight-medium q-pa-xs application-status-badge"
-              style="padding-left: 10px; padding-right: 10px"
-            />
+            <div class="status-cell-wrap">
+              <q-badge
+                :color="getApplicationStatusColor(tableProps.row)"
+                :label="getApplicationStatusLabel(tableProps.row)"
+                rounded
+                class="text-weight-medium q-pa-xs application-status-badge"
+                style="padding-left: 10px; padding-right: 10px"
+              />
+              <q-badge
+                v-if="getEditRequestBadgeLabel(tableProps.row)"
+                :color="getEditRequestBadgeColor(tableProps.row)"
+                text-color="white"
+                rounded
+                class="text-weight-medium q-pa-xs status-edit-request-badge"
+                :label="getEditRequestBadgeLabel(tableProps.row)"
+              />
+            </div>
           </q-td>
         </template>
         <template #body-cell-actions="tableProps">
@@ -846,6 +856,8 @@ const {
   formatDate,
   getApplicationStatusColor,
   getApplicationStatusLabel,
+  getEditRequestBadgeLabel,
+  getEditRequestBadgeColor,
   openDetails,
   openCalendarPreview,
   onCalendarPreviewNavigation,
@@ -986,6 +998,16 @@ function shouldScrollInclusiveDates(app) {
   justify-content: flex-start;
   margin-left: 0;
   max-width: none;
+}
+.status-cell-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.status-edit-request-badge {
+  display: inline-flex;
+  white-space: nowrap;
 }
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
