@@ -1688,7 +1688,11 @@ function getPendingUpdatePayload(app) {
 }
 
 function getCurrentLeaveTypeId(app) {
-  const rawValue = app?.leave_type_id
+  const rawValue =
+    app?.leave_type_id ??
+    app?.leaveTypeId ??
+    app?.raw?.leave_type_id ??
+    app?.raw?.leaveTypeId
   const leaveTypeId = Number(rawValue)
   return Number.isFinite(leaveTypeId) && leaveTypeId > 0 ? leaveTypeId : null
 }
@@ -1858,15 +1862,126 @@ function normalizeLeaveBalanceEntries(source) {
     .filter(Boolean)
 }
 
-function getLeaveBalanceEntriesForApplication(app) {
-  const sources = [app?.leave_balances]
+function normalizeLeaveBalanceLookupKey(value) {
+  const normalizedValue = String(value || '')
+    .replace(/\s*\(monetization\)\s*$/i, '')
+    .replace(/\s*\(mc06\)\s*$/i, '')
+    .trim()
+    .toLowerCase()
 
-  for (const source of sources) {
-    const entries = normalizeLeaveBalanceEntries(source)
-    if (entries.length > 0) return entries
+  if (!normalizedValue) return ''
+
+  if (
+    normalizedValue === 'special privilege leave' ||
+    normalizedValue === 'special privilege' ||
+    normalizedValue === 'mco6 leave' ||
+    normalizedValue === 'mc06 leave' ||
+    normalizedValue === 'mc06' ||
+    normalizedValue === 'mo6 leave'
+  ) {
+    return 'special privilege leave'
   }
 
-  return []
+  return normalizedValue
+}
+
+function getEmployeeBalanceLookupKey(app) {
+  const explicitKey =
+    app?.employee_control_no ?? app?.employeeControlNo ?? app?.control_no ?? app?.controlNo
+  if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
+    return String(explicitKey).trim().toLowerCase()
+  }
+
+  const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employeeName]
+    .map((value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean)
+    .join('|')
+
+  return nameKey || ''
+}
+
+function getRawLeaveBalanceEntriesFromApplication(app) {
+  const sources = [
+    app?.leave_balances,
+    app?.leaveBalances,
+    app?.employee_leave_balances,
+    app?.employeeLeaveBalances,
+    app?.leaveBalance,
+    app?.leave_balance,
+    app?.raw?.leave_balances,
+    app?.raw?.leaveBalances,
+    app?.raw?.employee_leave_balances,
+    app?.raw?.employeeLeaveBalances,
+    app?.raw?.leaveBalance,
+    app?.raw?.leave_balance,
+  ]
+
+  const entries = []
+  const seen = new Set()
+
+  for (const source of sources) {
+    const normalizedEntries = normalizeLeaveBalanceEntries(source)
+    for (const entry of normalizedEntries) {
+      const entryKey = `${entry.leaveTypeId ?? ''}:${normalizeLeaveBalanceLookupKey(entry.leaveTypeName)}`
+      if (seen.has(entryKey)) continue
+      seen.add(entryKey)
+      entries.push(entry)
+    }
+  }
+
+  return entries
+}
+
+const latestLeaveBalanceEntriesByEmployee = computed(() => {
+  const entriesByEmployee = new Map()
+  const sortedApplications = [...(applications.value ?? [])].sort((a, b) => {
+    const dateA = Date.parse(a?.dateFiled || a?.filedAt || a?.created_at || '') || 0
+    const dateB = Date.parse(b?.dateFiled || b?.filedAt || b?.created_at || '') || 0
+    if (dateA !== dateB) return dateB - dateA
+
+    const idA = Number(a?.id) || 0
+    const idB = Number(b?.id) || 0
+    return idB - idA
+  })
+
+  for (const app of sortedApplications) {
+    const employeeKey = getEmployeeBalanceLookupKey(app)
+    if (!employeeKey) continue
+
+    const latestEntries = getRawLeaveBalanceEntriesFromApplication(app)
+    if (!latestEntries.length) continue
+
+    let employeeEntries = entriesByEmployee.get(employeeKey)
+    if (!employeeEntries) {
+      employeeEntries = new Map()
+      entriesByEmployee.set(employeeKey, employeeEntries)
+    }
+
+    for (const entry of latestEntries) {
+      const entryKey = `${entry.leaveTypeId ?? ''}:${normalizeLeaveBalanceLookupKey(entry.leaveTypeName)}`
+      if (!entryKey || employeeEntries.has(entryKey)) continue
+      employeeEntries.set(entryKey, entry)
+    }
+  }
+
+  return entriesByEmployee
+})
+
+function getLeaveBalanceEntriesForApplication(app) {
+  const directEntries = getRawLeaveBalanceEntriesFromApplication(app)
+  if (directEntries.length > 0) return directEntries
+
+  const employeeKey = getEmployeeBalanceLookupKey(app)
+  if (!employeeKey) return []
+
+  const employeeEntries = latestLeaveBalanceEntriesByEmployee.value.get(employeeKey)
+  if (!employeeEntries || employeeEntries.size === 0) return []
+
+  return Array.from(employeeEntries.values())
 }
 
 function findLeaveBalanceEntry(app, leaveTypeId, leaveTypeLabel = '') {
@@ -1878,15 +1993,10 @@ function findLeaveBalanceEntry(app, leaveTypeId, leaveTypeLabel = '') {
     if (matchById) return matchById
   }
 
-  const normalizedLabel = String(leaveTypeLabel || '')
-    .trim()
-    .toLowerCase()
+  const normalizedLabel = normalizeLeaveBalanceLookupKey(leaveTypeLabel)
   if (normalizedLabel) {
     const matchByName = entries.find(
-      (entry) =>
-        String(entry.leaveTypeName || '')
-          .trim()
-          .toLowerCase() === normalizedLabel,
+      (entry) => normalizeLeaveBalanceLookupKey(entry.leaveTypeName) === normalizedLabel,
     )
     if (matchByName) return matchByName
   }
@@ -1902,8 +2012,25 @@ function getCurrentLeaveBalanceValue(app) {
     (isCocApplication(app) ? findLeaveBalanceEntry(app, null, 'CTO Leave') : null)
   if (entry && Number.isFinite(entry.balance)) return Number(entry.balance)
 
-  const directBalance = Number(app?.leave_balance)
-  return Number.isFinite(directBalance) ? directBalance : null
+  const directBalanceCandidates = [
+    app?.leaveBalance,
+    app?.leave_balance,
+    app?.balance,
+    app?.remaining_balance,
+    app?.available_balance,
+    app?.raw?.leaveBalance,
+    app?.raw?.leave_balance,
+    app?.raw?.balance,
+    app?.raw?.remaining_balance,
+    app?.raw?.available_balance,
+  ]
+
+  for (const candidate of directBalanceCandidates) {
+    const directBalance = Number(candidate)
+    if (Number.isFinite(directBalance)) return directBalance
+  }
+
+  return null
 }
 
 function getCurrentLeaveBalanceDisplay(app) {
@@ -3942,10 +4069,67 @@ function getPendingUpdateDatePayStatusColumns(app, columnCount = 3) {
   return columns
 }
 
-function openDetails(app) {
-  selectedApp.value = app
+async function openDetails(app) {
+  const baseApplication = resolveApplication(app) || app
+  selectedApp.value = baseApplication
   showTimelineDialog.value = false
   showDetailsDialog.value = true
+
+  const id = getApplicationId(baseApplication)
+  if (!id) return
+
+  const endpoint = isCocApplication(baseApplication)
+    ? `/hr/coc-applications/${id}`
+    : `/hr/leave-applications/${id}`
+
+  try {
+    const response = await api.get(endpoint)
+    const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+    if (!detailedApplication || typeof detailedApplication !== 'object') return
+
+    const mergedApplication = {
+      ...detailedApplication,
+      ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
+      leaveBalance:
+        detailedApplication.leaveBalance ??
+        baseApplication?.leaveBalance ??
+        baseApplication?.leave_balance ??
+        null,
+      leaveBalances:
+        detailedApplication.leaveBalances ??
+        detailedApplication.leave_balances ??
+        detailedApplication.employee_leave_balances ??
+        baseApplication?.leaveBalances ??
+        baseApplication?.leave_balances ??
+        baseApplication?.employee_leave_balances ??
+        null,
+      leave_balances:
+        detailedApplication.leave_balances ??
+        detailedApplication.leaveBalances ??
+        detailedApplication.employee_leave_balances ??
+        baseApplication?.leave_balances ??
+        baseApplication?.leaveBalances ??
+        baseApplication?.employee_leave_balances ??
+        null,
+      employee_leave_balances:
+        detailedApplication.employee_leave_balances ??
+        detailedApplication.leave_balances ??
+        detailedApplication.leaveBalances ??
+        baseApplication?.employee_leave_balances ??
+        baseApplication?.leave_balances ??
+        baseApplication?.leaveBalances ??
+        null,
+    }
+
+    if (!showDetailsDialog.value) return
+
+    const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+    if (selectedId !== String(id).trim()) return
+
+    selectedApp.value = mergedApplication
+  } catch {
+    // Keep existing row payload when detail endpoint fails.
+  }
 }
 
 async function openTimeline(app) {

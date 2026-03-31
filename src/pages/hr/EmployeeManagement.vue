@@ -598,7 +598,7 @@
                   min="0"
                   :max="resolveLeaveTypeMaxDays(leaveType) ?? undefined"
                   step="0.01"
-                  :label="`${leaveType.name} *`"
+                  :label="`${getLeaveTypeDisplayName(leaveType)} *`"
                   :hint="formatLeaveTypeInputHint(leaveType)"
                   :rules="leaveCreditBalanceRules(leaveType)"
                   lazy-rules
@@ -1170,6 +1170,10 @@ function normalizeLeaveTypeName(value) {
   return String(value ?? '').trim().toLowerCase()
 }
 
+function getLeaveTypeDisplayName(leaveType) {
+  return String(leaveType?.display_name || leaveType?.name || '').trim()
+}
+
 function isManualAddLeaveCreditType(leaveType) {
   if (!leaveType?.is_credit_based) return false
 
@@ -1182,11 +1186,10 @@ function getCreditLeaveTypeDisplayPriority(leaveType) {
     'vacation leave': 0,
     'sick leave': 1,
     'mandatory / forced leave': 2,
-    'mco6 leave': 3,
+    'special privilege leave': 3,
     'wellness leave': 4,
     'solo parent leave': 5,
     'special emergency (calamity) leave': 6,
-    'special privilege leave': 7,
   }
 
   return Object.prototype.hasOwnProperty.call(preferredOrder, normalizedName)
@@ -2620,18 +2623,20 @@ function formatDayLimitLabel(value) {
 }
 
 function leaveCreditBalanceRules(leaveType) {
+  const leaveTypeLabel = getLeaveTypeDisplayName(leaveType)
+
   return [
     (value) => {
       const rawValue = normalizeBalanceInputValue(value)
-      if (rawValue === '') return `${leaveType.name} is required.`
+      if (rawValue === '') return `${leaveTypeLabel} is required.`
 
       const numericValue = Number(rawValue)
-      if (!Number.isFinite(numericValue)) return `${leaveType.name} must be a number.`
-      if (numericValue < 0) return `${leaveType.name} cannot be negative.`
+      if (!Number.isFinite(numericValue)) return `${leaveTypeLabel} must be a number.`
+      if (numericValue < 0) return `${leaveTypeLabel} cannot be negative.`
 
       const maxDays = resolveLeaveTypeMaxDays(leaveType)
       if (maxDays !== null && numericValue > maxDays) {
-        return `${leaveType.name} cannot exceed ${formatDayLimitLabel(maxDays)}.`
+        return `${leaveTypeLabel} cannot exceed ${formatDayLimitLabel(maxDays)}.`
       }
 
       return true
@@ -2656,13 +2661,14 @@ function leaveCreditValidationError() {
   let hasPositiveBalance = false
 
   for (const leaveType of creditLeaveTypes.value) {
+    const leaveTypeLabel = getLeaveTypeDisplayName(leaveType)
     const balanceKey = String(leaveType.id)
     const rawBalance = normalizeBalanceInputValue(leaveCreditForm.value.balances?.[balanceKey])
-    if (rawBalance === '') return `${leaveType.name} is required.`
+    if (rawBalance === '') return `${leaveTypeLabel} is required.`
 
     const numericValue = Number(rawBalance)
-    if (!Number.isFinite(numericValue)) return `${leaveType.name} must be a number.`
-    if (numericValue < 0) return `${leaveType.name} cannot be negative.`
+    if (!Number.isFinite(numericValue)) return `${leaveTypeLabel} must be a number.`
+    if (numericValue < 0) return `${leaveTypeLabel} cannot be negative.`
 
     if (numericValue > 0) {
       hasPositiveBalance = true
@@ -2670,7 +2676,7 @@ function leaveCreditValidationError() {
 
     const maxDays = resolveLeaveTypeMaxDays(leaveType)
     if (maxDays !== null && numericValue > maxDays) {
-      return `${leaveType.name} cannot exceed ${formatDayLimitLabel(maxDays)}.`
+      return `${leaveTypeLabel} cannot exceed ${formatDayLimitLabel(maxDays)}.`
     }
   }
 
