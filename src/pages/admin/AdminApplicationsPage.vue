@@ -181,18 +181,6 @@
               >
                 <q-tooltip>Print PDF</q-tooltip>
               </q-btn>
-              <q-btn
-                v-if="canPrintRequestChangesApplication(tableProps.row)"
-                flat
-                dense
-                round
-                size="sm"
-                icon="description"
-                color="teal-7"
-                @click.stop="printRequestChangesApplication(tableProps.row)"
-              >
-                <q-tooltip>Print Form</q-tooltip>
-              </q-btn>
               <template v-if="tableProps.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
                   flat

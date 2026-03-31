@@ -224,9 +224,40 @@
           <div class="application-timeline-header-caption">
             Track this application through department and HR review
           </div>
+          <div
+            v-if="isApplicationReceivedByHr(selectedApp)"
+            class="application-timeline-header-received"
+          >
+            {{ getReceivedByHrSummary(selectedApp) }}
+          </div>
         </div>
         <q-space />
-        <q-btn flat dense round icon="close" color="grey-8" v-close-popup />
+        <div class="row items-center no-wrap q-gutter-xs application-timeline-header-actions">
+          <q-btn
+            v-if="canReceiveApplication(selectedApp)"
+            unelevated
+            dense
+            no-caps
+            icon="inventory_2"
+            color="primary"
+            label="Receive"
+            :loading="receiveLoading"
+            class="application-timeline-receive-button"
+            @click="markApplicationReceived(selectedApp)"
+          />
+          <q-btn
+            v-else-if="isApplicationReceivedByHr(selectedApp)"
+            flat
+            dense
+            no-caps
+            disable
+            icon="inventory_2"
+            color="positive"
+            label="Received by HR"
+            class="application-timeline-received-indicator"
+          />
+          <q-btn flat dense round icon="close" color="grey-8" v-close-popup />
+        </div>
       </q-card-section>
       <q-separator />
       <q-card-section class="application-timeline-content">
@@ -1006,6 +1037,7 @@ const router = useRouter()
 
 const loading = ref(false)
 const actionLoading = ref(false)
+const receiveLoading = ref(false)
 const applications = ref([])
 const tablePagination = ref({
   page: 1,
@@ -1267,7 +1299,12 @@ function mergeStatus(app) {
 function isEditUpdateRequest(app) {
   if (!app || typeof app !== 'object') return false
 
-  const candidates = [app?.has_pending_update_request]
+  const candidates = [
+    app?.has_pending_update_request,
+    app?.hasPendingUpdateRequest,
+    app?.raw?.has_pending_update_request,
+    app?.raw?.hasPendingUpdateRequest,
+  ]
 
   if (
     candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')
@@ -1275,7 +1312,12 @@ function isEditUpdateRequest(app) {
     return true
   }
 
-  return Boolean(app?.pending_update)
+  return Boolean(
+    app?.pending_update ||
+      app?.pendingUpdate ||
+      app?.raw?.pending_update ||
+      app?.raw?.pendingUpdate,
+  )
 }
 
 function normalizeUpdateRequestStatus(value) {
@@ -1293,12 +1335,46 @@ function normalizeUpdateRequestStatus(value) {
 function shouldExposeEditRequestStatusToHr(app, status) {
   if (status !== 'PENDING') return true
 
-  const rawStatus = String(app?.rawStatus || '').toUpperCase()
-  return rawStatus === 'PENDING_HR'
+  const rawStatus = String(
+    app?.rawStatus ??
+      app?.raw_status ??
+      app?.group_raw_status ??
+      app?.groupRawStatus ??
+      app?.raw?.rawStatus ??
+      app?.raw?.raw_status ??
+      app?.raw?.group_raw_status ??
+      app?.raw?.groupRawStatus ??
+      '',
+  )
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+  if (rawStatus === 'PENDING_HR') return true
+  if (rawStatus !== 'PENDING_ADMIN') return false
+
+  return Boolean(
+    isEditUpdateRequest(app) ||
+      getPendingUpdatePayload(app) ||
+      app?.latest_update_requested_at ||
+      app?.latestUpdateRequestedAt ||
+      app?.raw?.latest_update_requested_at ||
+      app?.raw?.latestUpdateRequestedAt,
+  )
 }
 
 function getLatestUpdateRequestStatus(app) {
-  const explicitStatus = normalizeUpdateRequestStatus(app?.latest_update_request_status)
+  const explicitStatus = normalizeUpdateRequestStatus(
+    app?.latest_update_request_status ??
+      app?.latestUpdateRequestStatus ??
+      app?.latest_update_status ??
+      app?.latestUpdateStatus ??
+      app?.raw?.latest_update_request_status ??
+      app?.raw?.latestUpdateRequestStatus ??
+      app?.raw?.latest_update_status ??
+      app?.raw?.latestUpdateStatus ??
+      '',
+  )
   if (explicitStatus && shouldExposeEditRequestStatusToHr(app, explicitStatus)) {
     return explicitStatus
   }
@@ -1330,7 +1406,12 @@ function getEditRequestBadgeColor(app) {
 function getEditRequestStatusLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
   if (status === 'PENDING') {
-    const rawStatus = String(app?.rawStatus || '').toUpperCase()
+    const rawStatus = String(
+      app?.rawStatus ?? app?.raw_status ?? app?.group_raw_status ?? app?.groupRawStatus ?? '',
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
     if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
     if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin Review'
     return 'Pending Review'
@@ -2285,7 +2366,12 @@ function getApplicationSearchTokenSet(app) {
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
   const rows = applications.value.filter((app) => {
-    const rawStatus = String(app?.rawStatus || '').toUpperCase()
+    const rawStatus = String(
+      app?.rawStatus ?? app?.raw_status ?? app?.group_raw_status ?? app?.groupRawStatus ?? '',
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
     const shouldHidePendingAdmin = rawStatus === 'PENDING_ADMIN' && !isPendingEditRequest(app)
     if (shouldHidePendingAdmin) return false
     return matchesEmploymentTypeFilter(app)
@@ -3278,6 +3364,72 @@ function resolveHrApprovalHistoryEntry(app) {
   })
 }
 
+function resolveReceivedHistoryEntry(app) {
+  return findLatestStatusHistoryEntry(app, (entry) => {
+    const action = String(entry?.action || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
+    return action === 'HR_RECEIVED'
+  })
+}
+
+function resolveReceivedActor(app) {
+  const directActor = String(app?.received_by || '').trim()
+  if (directActor) return directActor
+
+  const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
+  return historyActor || 'Unknown'
+}
+
+function resolveReceivedDateValue(app) {
+  return app?.received_at || resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null
+}
+
+function isApplicationReceivedByHr(app) {
+  if (!app) return false
+
+  return Boolean(app?.has_hr_received || resolveReceivedHistoryEntry(app) || resolveReceivedDateValue(app))
+}
+
+function canReceiveApplication(app) {
+  if (!app || isCocApplication(app)) return false
+  if (isApplicationReceivedByHr(app)) return false
+  if (isCancelledByUser(app)) return false
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  return rawStatus === 'PENDING_HR'
+}
+
+function getReceivedByHrSummary(app) {
+  if (!isApplicationReceivedByHr(app)) return ''
+
+  const receivedBy = String(resolveReceivedActor(app) || '').trim()
+  const receivedAt = formatDateTime(resolveReceivedDateValue(app))
+  if (receivedBy && receivedBy !== 'Unknown' && receivedAt) {
+    return `Received by ${receivedBy} on ${receivedAt}`
+  }
+  if (receivedAt) return `Received on ${receivedAt}`
+  if (receivedBy && receivedBy !== 'Unknown') return `Received by ${receivedBy}`
+  return 'Application already received by HR.'
+}
+
+function getReceivedApplicationTimelineEntry(app) {
+  if (!isApplicationReceivedByHr(app)) return null
+
+  const receivedAt = formatDateTime(resolveReceivedDateValue(app)) || 'Completed'
+  const receivedBy = resolveReceivedActor(app)
+
+  return {
+    title: 'Received Application',
+    subtitle: receivedAt,
+    description: 'HR confirmed receipt of the hard copy leave application form.',
+    icon: 'inventory_2',
+    color: 'positive',
+    actor: receivedBy,
+  }
+}
+
 function resolveRecallActor(app) {
   const historyEntry = findStatusHistoryEntry(app, (entry) => {
     const action = String(entry?.action || '').toUpperCase()
@@ -3372,6 +3524,7 @@ function buildApplicationTimeline(app) {
   const hasEditRequest = hasEditRequestSignal(app)
   const preEditHrApprovalEntry = hasEditRequest ? getPreEditHrApprovalTimelineEntry(app) : null
   const editRequestEntries = hasEditRequest ? getEditRequestTimelineEntries(app) : []
+  const receivedTimelineEntry = getReceivedApplicationTimelineEntry(app)
   const entries = [
     {
       title: 'Application Filed',
@@ -3387,6 +3540,9 @@ function buildApplicationTimeline(app) {
   ]
 
   if (isCancelledByUser(app)) {
+    if (receivedTimelineEntry) {
+      entries.push(receivedTimelineEntry)
+    }
     entries.push({
       title: 'Application Cancelled',
       subtitle: formatDateTime(resolveCancelledDateValue(app)) || 'Application closed',
@@ -3408,6 +3564,17 @@ function buildApplicationTimeline(app) {
 
   if (rawStatus === 'PENDING_ADMIN') {
     if (hasEditRequest) {
+      entries.push({
+        title: 'Admin Review Completed',
+        subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+        description: 'Application was reviewed and forwarded to HR.',
+        icon: 'check_circle',
+        color: 'positive',
+        actor: resolveDepartmentAdminActor(app),
+      })
+      if (receivedTimelineEntry) {
+        entries.push(receivedTimelineEntry)
+      }
       if (preEditHrApprovalEntry) {
         entries.push(preEditHrApprovalEntry)
       }
@@ -3453,13 +3620,16 @@ function buildApplicationTimeline(app) {
 
     if (resolveDepartmentAdminActionDateValue(app)) {
       entries.push({
-        title: 'Department Admin Review Completed',
+        title: 'Admin Review Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
         color: 'positive',
         actor: resolveDepartmentAdminActor(app),
       })
+    }
+    if (receivedTimelineEntry) {
+      entries.push(receivedTimelineEntry)
     }
 
     entries.push({
@@ -3483,13 +3653,16 @@ function buildApplicationTimeline(app) {
   }
 
   entries.push({
-    title: 'Department Admin Review Completed',
+    title: 'Admin Review Completed',
     subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
     description: 'Application was reviewed and forwarded to HR.',
     icon: 'check_circle',
     color: 'positive',
     actor: resolveDepartmentAdminActor(app),
   })
+  if (receivedTimelineEntry) {
+    entries.push(receivedTimelineEntry)
+  }
 
   if (rawStatus === 'PENDING_HR') {
     if (hasEditRequest) {
@@ -4344,6 +4517,84 @@ function resolveApplication(target) {
   return (
     applications.value.find((application) => String(getApplicationId(application)) === id) || null
   )
+}
+
+function applyLeaveApplicationUpdate(updatedApplication) {
+  if (!updatedApplication || typeof updatedApplication !== 'object') return
+  if (isCocApplication(updatedApplication)) return
+
+  const updatedId = String(getApplicationId(updatedApplication) ?? '').trim()
+  if (!updatedId) return
+
+  applications.value = applications.value.map((row) => {
+    if (!row || typeof row !== 'object') return row
+    if (isCocApplication(row) || row?.application_row_variant === 'recalled') return row
+
+    const rowId = String(getApplicationId(row) ?? '').trim()
+    if (rowId !== updatedId) return row
+
+    const mergedRow = {
+      ...row,
+      ...updatedApplication,
+    }
+
+    return {
+      ...mergedRow,
+      application_type: getApplicationType(mergedRow),
+      application_uid:
+        row?.application_uid || mergedRow?.application_uid || getApplicationRowKey(mergedRow),
+      employeeName: mergedRow?.employeeName || row?.employeeName || 'Unknown',
+      officeShort: toDepartmentCode(mergedRow?.office || row?.office),
+      displayStatus: mergeStatus(mergedRow),
+    }
+  })
+}
+
+async function markApplicationReceived(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canReceiveApplication(application)) return
+
+  const id = getApplicationId(application)
+  if (!id) {
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to identify this leave application.',
+      position: 'top',
+    })
+    return
+  }
+
+  receiveLoading.value = true
+  try {
+    const response = await api.post(`/hr/leave-applications/${id}/receive`)
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = extractSingleApplicationFromPayload(response?.data)
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication = {
+        ...(application && typeof application === 'object' ? application : {}),
+        ...updatedApplication,
+      }
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      applyLeaveApplicationUpdate(mergedApplication)
+    }
+
+    $q.notify({
+      type: 'positive',
+      message: responseMessage || 'Application marked as received by HR.',
+      position: 'top',
+    })
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to mark this application as received right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    receiveLoading.value = false
+  }
 }
 
 function openActionConfirm(type, target) {
@@ -5303,6 +5554,27 @@ async function confirmRecall() {
   margin-top: 2px;
   font-size: 0.78rem;
   color: #6b7280;
+}
+
+.application-timeline-header-received {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #166534;
+}
+
+.application-timeline-header-actions {
+  flex: 0 0 auto;
+}
+
+.application-timeline-receive-button {
+  min-height: 30px;
+  font-weight: 700;
+}
+
+.application-timeline-received-indicator {
+  min-height: 30px;
+  font-weight: 700;
 }
 
 .application-timeline-content {

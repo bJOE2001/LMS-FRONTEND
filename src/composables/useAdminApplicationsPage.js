@@ -2693,6 +2693,14 @@ export function useAdminApplicationsPage() {
 
     if (rawStatus === 'PENDING_ADMIN') {
       if (hasEditRequest) {
+        entries.push({
+          title: 'Admin Review Completed',
+          subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+          description: 'Application was reviewed and forwarded to HR.',
+          icon: 'check_circle',
+          color: 'positive',
+          actor: resolveDepartmentAdminActor(app),
+        })
         if (preEditHrApprovalEntry) {
           entries.push(preEditHrApprovalEntry)
         }
@@ -2738,7 +2746,7 @@ export function useAdminApplicationsPage() {
 
       if (resolveDepartmentAdminActionDateValue(app)) {
         entries.push({
-          title: 'Department Admin Review Completed',
+          title: 'Admin Review Completed',
           subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
           description: 'Application was reviewed and forwarded to HR.',
           icon: 'check_circle',
@@ -2768,7 +2776,7 @@ export function useAdminApplicationsPage() {
     }
 
     entries.push({
-      title: 'Department Admin Review Completed',
+      title: 'Admin Review Completed',
       subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
       description: 'Application was reviewed and forwarded to HR.',
       icon: 'check_circle',
