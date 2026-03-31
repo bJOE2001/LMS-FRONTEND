@@ -47,7 +47,7 @@ const faqs = [
   { category: 'Leave Application', question: 'What documents do I need for sick leave?', answer: 'For sick leave exceeding 5 consecutive days, submit a medical certificate from a licensed physician within 5 days upon your return to work.' },
   { category: 'Leave Credits', question: 'How many leave credits do I have?', answer: 'Your leave credits are displayed on your Employee Dashboard. Government employees typically earn 1.25 days of vacation leave and 1.25 days of sick leave per month (15 days each per year).' },
   { category: 'Leave Credits', question: 'Do unused leave credits carry over?', answer: 'Yes, unused vacation leave can be accumulated and carried over. Sick leave credits are also carried over and can be accumulated without limit.' },
-  { category: 'Leave Types', question: 'What types of leave are available?', answer: 'Available leave types include: Vacation Leave, Sick Leave, Mandatory / Forced Leave, MCO6 Leave, Wellness Leave, and Monetization Leave.' },
+  { category: 'Leave Types', question: 'What types of leave are available?', answer: 'Available leave types include: Vacation Leave, Sick Leave, Mandatory / Forced Leave, Special Privilege Leave(MC06), Wellness Leave, and Monetization Leave.' },
   { category: 'Approval Process', question: 'How long does approval take?', answer: 'Leave applications are typically processed within 2-3 business days. You will receive a notification once your application is approved or requires additional information.' },
 ]
 

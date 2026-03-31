@@ -358,10 +358,15 @@ function prettifyLeaveBalanceLabel(value) {
     .trim()
 
   const lower = normalized.toLowerCase()
+  if (lower === 'vl') return 'Vacation Leave'
+  if (lower === 'sl') return 'Sick Leave'
+  if (lower === 'fl') return 'Mandatory / Forced Leave'
+  if (lower === 'spl' || lower === 'special privilege') return 'Special Privilege Leave'
+  if (lower === 'wl' || lower === 'wlp' || lower === 'wellness leave policy') return 'Wellness Leave'
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave')
     return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
@@ -371,6 +376,24 @@ function prettifyLeaveBalanceLabel(value) {
     return 'CTO Leave'
 
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function resolvePrintableLeaveType(app) {
+  const rawLeaveType = String(
+    app?.leaveType ??
+      app?.leave_type_name ??
+      app?.leave_type ??
+      app?.leaveTypeName ??
+      app?.raw?.leave_type_name ??
+      app?.raw?.leaveType ??
+      app?.raw?.leave_type ??
+      '',
+  ).trim()
+
+  if (!rawLeaveType) return ''
+
+  const normalizedLeaveType = rawLeaveType.replace(/\s*\(monetization\)\s*$/i, '').trim()
+  return prettifyLeaveBalanceLabel(normalizedLeaveType)
 }
 
 function getLeaveBalanceTypeKey(value) {
@@ -542,6 +565,34 @@ function applyCertificationLessThisApplicationOverride(columns, selectedLeaveTyp
   })
 }
 
+function openPdfDocument(pdfDocument, options = {}) {
+  const targetWindow = options?.targetWindow && !options.targetWindow.closed
+    ? options.targetWindow
+    : null
+  const fileName = String(options?.fileName || 'leave-application.pdf').trim() || 'leave-application.pdf'
+
+  return pdfDocument.getBlob().then((blob) => {
+    const objectUrl = URL.createObjectURL(blob)
+
+    if (targetWindow) {
+      targetWindow.location.replace(objectUrl)
+    } else {
+      const opened = window.open(objectUrl, '_blank')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = fileName
+        anchor.rel = 'noopener noreferrer'
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      }
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  })
+}
+
 function buildCertificationTable(columns) {
   const isDualColumns = columns.length > 1
   const widths = isDualColumns ? ['38%', '31%', '31%'] : ['52%', '48%']
@@ -603,7 +654,7 @@ function toBase64(url) {
  * Generate and open a CS Form No. 6 (Application for Leave) PDF.
  * @param {Object} app - The leave application object from the store.
  */
-export async function generateLeaveFormPdf(app) {
+export async function generateLeaveFormPdf(app, options = {}) {
   if (!app) return
   const printableApp = await enrichAppWithDepartmentHead(app)
 
@@ -620,7 +671,7 @@ export async function generateLeaveFormPdf(app) {
   const nameParts = fullName.trim().split(/\s+/)
   const firstName = nameParts[0] || ''
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
-  const lt = printableApp.leaveType || ''
+  const lt = resolvePrintableLeaveType(printableApp)
   const office = normalizeOfficeDepartment(printableApp.office || '')
   const officeFontSize = getOfficeDepartmentFontSize(office)
   const dateFiled = formatDate(printableApp.dateFiled)
@@ -635,7 +686,7 @@ export async function generateLeaveFormPdf(app) {
   const asOfDate = cert.as_of_date || ''
   const certificationColumns = applyCertificationLessThisApplicationOverride(
     buildCertificationColumns(printableApp),
-    printableApp?.leaveType,
+    lt,
     approvedForSection.withPayDays,
   )
 
@@ -683,9 +734,11 @@ export async function generateLeaveFormPdf(app) {
     { key: 'Vacation Leave', label: 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
     { key: 'Mandatory/Forced Leave', label: 'Mandatory/Forced Leave(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
     { key: 'Sick Leave', label: 'Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
+    { key: 'Wellness Leave', label: 'Wellness Leave Policy (CSC Resolution No. 2501292)' },
+    { key: 'CTO Leave', label: 'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)' },
     { key: 'Maternity Leave', label: 'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)' },
     { key: 'Paternity Leave', label: 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)' },
-    { key: 'Special Privilege Leave', label: 'Special Privilege Leave (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
+    { key: 'Special Privilege Leave', label: 'Special Privilege Leave(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
     { key: 'Solo Parent Leave', label: 'Solo Parent Leave (RA No. 8972 / CSC MC No. 8, s. 2004)' },
     { key: 'Study Leave', label: 'Study Leave (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
     { key: '10-Day VAWC Leave', label: '10-Day VAWC Leave (RA No. 9262 / CSC MC No. 15, s. 2005)' },
@@ -717,7 +770,7 @@ export async function generateLeaveFormPdf(app) {
     stack: [
       { text: '6.B  DETAILS OF LEAVE', bold: true, fontSize: 7.5, margin: [0, 3, 0, 4] },
 
-      { text: 'In case of Vacation/Special Privilege Leave:', fontSize: 7, italics: true, margin: [0, 2, 0, 2] },
+      { text: 'In case of Vacation/Special Privilege Leave(MC06):', fontSize: 7, italics: true, margin: [0, 2, 0, 2] },
       cbLine(false, 'Within the Philippines ___________________'),
       cbLine(false, 'Abroad (Specify) ________________________'),
 
@@ -1042,5 +1095,5 @@ export async function generateLeaveFormPdf(app) {
     ],
   }
 
-  pdfMake.createPdf(docDefinition).open()
+  await openPdfDocument(pdfMake.createPdf(docDefinition), options)
 }

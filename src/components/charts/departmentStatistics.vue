@@ -103,11 +103,10 @@ const leaveTypeColumns = [
   { name: 'vacationLeave', label: 'Vacation Leave' },
   { name: 'sickLeave', label: 'Sick Leave' },
   { name: 'mandatoryForcedLeave', label: 'Mandatory / Forced Leave' },
-  { name: 'mco6Leave', label: 'MCO6 Leave' },
   { name: 'wellnessLeave', label: 'Wellness Leave' },
   { name: 'maternityLeave', label: 'Maternity Leave' },
   { name: 'paternityLeave', label: 'Paternity Leave' },
-  { name: 'specialPrivilegeLeave', label: 'Special Privilege Leave' },
+  { name: 'specialPrivilegeLeave', label: 'Special Privilege Leave(MC06)' },
   { name: 'soloParentLeave', label: 'Solo Parent Leave' },
 ]
 

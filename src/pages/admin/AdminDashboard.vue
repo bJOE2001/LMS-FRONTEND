@@ -1490,14 +1490,13 @@ const REQUIRED_LEAVE_BALANCE_TYPES = [
   'Sick Leave',
   'CTO Leave',
   'Mandatory / Forced Leave',
-  'MCO6 Leave',
+  'Special Privilege Leave',
   'Wellness Leave',
 ]
 
 const EVENT_BASED_LEAVE_BALANCE_TYPES = [
   'Maternity Leave',
   'Paternity Leave',
-  'Special Privilege Leave',
   'Solo Parent Leave',
   'Study Leave',
   '10-Day VAWC Leave',
@@ -1521,7 +1520,7 @@ function prettifyLeaveBalanceLabel(value) {
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave')
     return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
   if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
@@ -1539,7 +1538,7 @@ function toLeaveBalanceAcronym(value) {
   const lower = label.toLowerCase()
   if (lower === 'cto leave') return 'CTO'
   if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'special privilege leave') return 'SPL'
   if (lower === 'sick leave') return 'SL'
   if (lower === 'vacation leave') return 'VL'
   if (lower === 'wellness leave') return 'WL'
@@ -2592,7 +2591,7 @@ function getAdminConfirmActionTone(type) {
 
 function getAdminConfirmActionIcon(type) {
   if (type === 'approve') return 'check_circle'
-  if (type === 'cancel') return 'warning'
+  if (type === 'cancel') return 'remove_circle'
   return 'cancel'
 }
 
@@ -2601,7 +2600,7 @@ function getAdminRejectTone(mode) {
 }
 
 function getAdminRejectIcon(mode) {
-  return mode === 'cancel' ? 'warning' : 'cancel'
+  return mode === 'cancel' ? 'remove_circle' : 'cancel'
 }
 
 function getActionResultLabel(type) {
@@ -2736,6 +2735,15 @@ function confirmPendingAction() {
 
 async function printApplication(app) {
   if (!canPrintApplication(app)) return
+  const pdfWindow = window.open('', '_blank')
+  if (pdfWindow) {
+    try {
+      pdfWindow.document.title = 'Preparing PDF...'
+      pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+    } catch {
+      // Ignore interim window rendering issues.
+    }
+  }
   const targetApplicationId = String(
     app?.id ?? app?.application_id ?? app?.leave_application_id ?? '',
   ).trim()
@@ -2792,9 +2800,14 @@ async function printApplication(app) {
       }
     }
 
-    await generateLeaveFormPdf(printableApplication)
+    await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
   } catch {
-    await generateLeaveFormPdf(app)
+    try {
+      await generateLeaveFormPdf(app, { targetWindow: pdfWindow })
+    } catch (error) {
+      if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+      throw error
+    }
   }
 }
 
@@ -3258,7 +3271,7 @@ async function confirmDisapprove() {
 .admin-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 0;
+  border-radius: 16px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -3266,7 +3279,7 @@ async function confirmDisapprove() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 0;
+  border-radius: 16px;
 }
 .admin-action-dialog-card__button--cancel {
   background: transparent;
@@ -3494,7 +3507,7 @@ async function confirmDisapprove() {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 0;
+    border-radius: 16px;
   }
 
   .admin-action-dialog-card--compact .admin-action-dialog-card__button {

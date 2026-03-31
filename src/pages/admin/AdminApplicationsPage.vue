@@ -1001,6 +1001,7 @@ const {
   printActionResult,
   canPrintRequestChangesApplication,
   printRequestChangesApplication,
+  formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
 } = useAdminApplicationsPage()
 
@@ -1012,7 +1013,7 @@ function getAdminConfirmActionTone(type) {
 
 function getAdminConfirmActionIcon(type) {
   if (type === 'approve') return 'check_circle'
-  if (type === 'cancel') return 'warning'
+  if (type === 'cancel') return 'remove_circle'
   return 'cancel'
 }
 
@@ -1021,12 +1022,12 @@ function getAdminRejectTone(mode) {
 }
 
 function getAdminRejectIcon(mode) {
-  return mode === 'cancel' ? 'warning' : 'cancel'
+  return mode === 'cancel' ? 'remove_circle' : 'cancel'
 }
 
 function getApplicationDetailsLeaveTypeLabel(app) {
   if (!app) return 'N/A'
-  const leaveType = String(app.leaveType || '').trim()
+  const leaveType = String(formatApplicationLeaveTypeLabel(app?.leaveType) || '').trim()
   if (!leaveType) return 'N/A'
   return app.is_monetization ? `${leaveType} (Monetization)` : leaveType
 }
@@ -1216,7 +1217,7 @@ function shouldScrollInclusiveDates(app) {
 .admin-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 0;
+  border-radius: 16px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -1224,7 +1225,7 @@ function shouldScrollInclusiveDates(app) {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 0;
+  border-radius: 16px;
 }
 .admin-action-dialog-card__button--cancel {
   background: transparent;
@@ -1996,7 +1997,7 @@ function shouldScrollInclusiveDates(app) {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 0;
+    border-radius: 16px;
   }
 
   .admin-action-dialog-card--compact .admin-action-dialog-card__button {

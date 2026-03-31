@@ -484,7 +484,7 @@ const reportConfigs = {
       },
       {
         name: 'annualBalanceMcCo',
-        label: 'Annual Balance MCO6',
+        label: 'Annual Balance MC06',
         field: 'annualBalanceMcCo',
         align: 'right',
       },
@@ -514,7 +514,7 @@ const reportConfigs = {
       },
       {
         name: 'daysMcCo',
-        label: 'Days MCO6',
+        label: 'Days MC06',
         field: 'daysMcCo',
         align: 'right',
       },
@@ -550,7 +550,7 @@ const reportConfigs = {
       },
       {
         name: 'balanceMcCo',
-        label: 'Balance MCO6',
+        label: 'Balance MC06',
         field: 'balanceMcCo',
         align: 'right',
       },
@@ -737,7 +737,7 @@ const reportConfigs = {
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'vlFl', label: 'VL/FL', field: 'vlFl', align: 'right' },
       { name: 'sl', label: 'SL', field: 'sl', align: 'right' },
-      { name: 'mcCo', label: 'MCO6', field: 'mcCo', align: 'right' },
+      { name: 'mcCo', label: 'MC06', field: 'mcCo', align: 'right' },
       { name: 'wlp', label: 'WLP', field: 'wlp', align: 'right' },
       { name: 'others', label: 'Others', field: 'others', align: 'right' },
       {
