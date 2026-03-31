@@ -295,6 +295,7 @@ function shortUnderline(value, options = {}) {
 
 function buildHeader(logoBase64) {
   const headerBarHeight = 18
+  const smallRectHeight = headerBarHeight
   const headerTextSize = 10
   const leftInset = 6
 
@@ -303,7 +304,7 @@ function buildHeader(logoBase64) {
       {
         width: 28,
         margin: [0, 35, 8, 0],
-        canvas: [{ type: 'rect', x: 0, y: 0, w: 22, h: headerBarHeight, color: HEADER_BAR_COLOR }],
+        canvas: [{ type: 'rect', x: 0, y: 0, w: 22, h: smallRectHeight, color: HEADER_BAR_COLOR }],
       },
       logoBase64
         ? { width: 78, image: logoBase64, fit: [72, 72], margin: [0, 0, 8, 0] }
@@ -386,14 +387,7 @@ function fromToRow(fromValue, toValue) {
 function signerBlock(label, name, title) {
   return {
     stack: [
-      {
-        columns: [
-          { width: 92, text: label, fontSize: 11, bold: true },
-          { width: 8, text: ':', fontSize: 11, bold: true, alignment: 'center' },
-          { width: '*', text: '' },
-        ],
-        columnGap: 0,
-      },
+      { text: `${label} :`, fontSize: 11, bold: true },
       { text: ' ', margin: [0, 6, 0, 0] },
       { text: name, bold: true, fontSize: 10 },
       { text: title, italics: true, fontSize: 9 },
