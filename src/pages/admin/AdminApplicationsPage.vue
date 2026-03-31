@@ -93,7 +93,7 @@
           </q-td>
         </template>
         <template #body-cell-leaveBalance="tableProps">
-          <q-td>
+          <q-td class="leave-balance-cell-column">
             <div class="leave-balance-cell">
               <q-badge
                 v-for="(item, index) in getLeaveBalanceTextItems(tableProps.row)"
@@ -132,13 +132,17 @@
         </template>
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
-            <q-badge
-              :color="getApplicationStatusColor(tableProps.row)"
-              :label="getApplicationStatusLabel(tableProps.row)"
-              rounded
-              class="text-weight-medium q-pa-xs application-status-badge"
-              style="padding-left: 10px; padding-right: 10px"
-            />
+            <div class="status-cell-wrap">
+              <StatusBadge :status="tableProps.row.displayStatus || getApplicationStatusLabel(tableProps.row)" />
+              <q-badge
+                v-if="getEditRequestBadgeLabel(tableProps.row)"
+                :color="getEditRequestBadgeColor(tableProps.row)"
+                text-color="white"
+                rounded
+                class="text-weight-medium q-pa-xs status-edit-request-badge"
+                :label="getEditRequestBadgeLabel(tableProps.row)"
+              />
+            </div>
           </q-td>
         </template>
         <template #body-cell-actions="tableProps">
@@ -769,14 +773,29 @@
         </q-card-section>
         <q-card-section class="q-pt-none">
           <div class="text-body2 text-grey-8">
-            The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
-            finalized form now.
+            <template v-if="actionResultType === 'approved' && actionResultIsEditRequestApproval">
+              The request update has been approved. You can print the leave form and request-change
+              form now.
+            </template>
+            <template v-else>
+              The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
+              finalized form now.
+            </template>
           </div>
           <div v-if="actionResultApp" class="text-caption text-grey-7 q-mt-sm">
             {{ actionResultApp.employeeName }} - {{ actionResultApp.leaveType }}
           </div>
         </q-card-section>
         <q-card-actions align="right">
+          <q-btn
+            v-if="canPrintRequestChangesActionResult"
+            unelevated
+            color="teal-7"
+            icon="description"
+            label="Print Request Form"
+            :disable="!actionResultApp"
+            @click="printRequestChangesActionResult"
+          />
           <q-btn
             unelevated
             color="primary"
@@ -830,6 +849,8 @@ const {
   remarks,
   actionResultType,
   actionResultApp,
+  actionResultIsEditRequestApproval,
+  canPrintRequestChangesActionResult,
   openApplyLeaveDialog,
   closeApplyLeaveDialog,
   handleApplyLeaveSubmitted,
@@ -846,6 +867,8 @@ const {
   formatDate,
   getApplicationStatusColor,
   getApplicationStatusLabel,
+  getEditRequestBadgeLabel,
+  getEditRequestBadgeColor,
   openDetails,
   openCalendarPreview,
   onCalendarPreviewNavigation,
@@ -868,6 +891,7 @@ const {
   getActionResultVerb,
   printActionResult,
   formatApplicationLeaveTypeLabel,
+  printRequestChangesActionResult,
 } = useAdminApplicationsPage()
 
 function getAdminConfirmActionTone(type) {
@@ -988,6 +1012,18 @@ function shouldScrollInclusiveDates(app) {
   margin-left: 0;
   max-width: none;
 }
+.status-cell-wrap {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.status-edit-request-badge {
+  display: inline-flex;
+  white-space: nowrap;
+  font-size: 11px;
+}
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
 }
@@ -1085,8 +1121,13 @@ function shouldScrollInclusiveDates(app) {
   border-color: transparent;
   color: #6b7280;
 }
+.leave-balance-cell-column {
+  padding-left: 4px !important;
+  padding-right: 6px !important;
+}
 .leave-balance-cell {
-  min-width: 150px;
+  min-width: 116px;
+  margin-left: -4px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1094,8 +1135,8 @@ function shouldScrollInclusiveDates(app) {
   line-height: 1.2;
 }
 .leave-balance-badge {
-  padding: 2px 7px;
-  font-size: 0.68rem;
+  padding: 2px 6px;
+  font-size: 0.66rem;
   font-weight: 700;
   line-height: 1.1;
   white-space: nowrap;
