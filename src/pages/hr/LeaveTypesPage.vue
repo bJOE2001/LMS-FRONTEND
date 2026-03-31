@@ -289,7 +289,7 @@ const categoryFilterOptions = [
 const form = ref(defaultForm())
 
 const columns = [
-  { name: 'name', label: 'Name', align: 'left', field: 'name', sortable: true },
+  { name: 'name', label: 'Name', align: 'left', field: (row) => getLeaveTypeDisplayName(row), sortable: true },
   { name: 'category', label: 'Category', align: 'left', field: 'category', sortable: true },
   { name: 'credit', label: 'Credit-Based', align: 'center', field: 'is_credit_based', sortable: true },
   { name: 'requires_documents', label: 'Required Documents', align: 'center', field: 'requires_documents', sortable: true },
@@ -305,7 +305,9 @@ const filteredRows = computed(() => {
     const matchCategory = !filterCategory.value || row.category === filterCategory.value
     if (!matchCategory) return false
     if (!needle) return true
-    return row.name.toLowerCase().includes(needle)
+    return [row.display_name, row.name]
+      .map((value) => String(value || '').toLowerCase())
+      .some((value) => value.includes(needle))
   })
 })
 
@@ -353,6 +355,10 @@ function categoryColor(category) {
   if (category === 'ACCRUED') return 'green-7'
   if (category === 'RESETTABLE') return 'blue-7'
   return 'orange-8'
+}
+
+function getLeaveTypeDisplayName(row) {
+  return row?.display_name || row?.name || ''
 }
 
 async function fetchLeaveTypes() {
@@ -473,7 +479,7 @@ function confirmDelete(row) {
   if (usageTotal > 0) {
     $q.notify({
       type: 'warning',
-      message: `Cannot delete "${row.name}" because it is already used in ${usageTotal} record(s).`,
+      message: `Cannot delete "${getLeaveTypeDisplayName(row)}" because it is already used in ${usageTotal} record(s).`,
       position: 'top',
     })
     return
@@ -481,7 +487,7 @@ function confirmDelete(row) {
 
   $q.dialog({
     title: 'Delete Leave Type',
-    message: `Delete "${row.name}" permanently?`,
+    message: `Delete "${getLeaveTypeDisplayName(row)}" permanently?`,
     persistent: true,
     ok: { label: 'Delete', color: 'negative', unelevated: true, noCaps: true },
     cancel: { label: 'Cancel', flat: true, noCaps: true },

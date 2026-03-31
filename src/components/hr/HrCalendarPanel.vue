@@ -178,7 +178,7 @@
                 <q-badge color="positive" label="Approved" class="calendar-date-employee-status" />
               </div>
               <div class="row q-gutter-xs q-mt-xs calendar-date-employee-meta">
-                <q-badge outline color="primary" :label="emp.leaveType" class="calendar-date-employee-badge" />
+                <q-badge outline color="primary" :label="formatLeaveTypeDisplayLabel(emp.leaveType)" class="calendar-date-employee-badge" />
                 <q-badge outline color="grey-7" :label="emp.office" class="calendar-date-employee-badge calendar-date-employee-badge--office" />
                 <q-badge outline color="positive" :label="emp.days + ' day(s)'" class="calendar-date-employee-badge" />
               </div>
@@ -209,7 +209,7 @@ const PRIORITY_LEAVE_TYPES = [
   'Vacation Leave',
   'Wellness Leave',
 ]
-const LAST_LEAVE_TYPES = ['MCO6 Leave']
+const LAST_LEAVE_TYPES = ['Special Privilege Leave']
 const monthOptions = [
   { label: 'January', value: 0 },
   { label: 'February', value: 1 },
@@ -405,7 +405,7 @@ function prettifyLeaveTypeLabel(value) {
   const lower = normalized.toLowerCase()
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
@@ -419,13 +419,24 @@ function getLeaveTypeKey(value) {
   return prettifyLeaveTypeLabel(value).trim().toLowerCase()
 }
 
+function formatLeaveTypeDisplayLabel(value) {
+  const label = prettifyLeaveTypeLabel(value)
+  if (!label) return ''
+
+  if (getLeaveTypeKey(label) === getLeaveTypeKey('Special Privilege Leave')) {
+    return 'Special Privilege Leave(MC06)'
+  }
+
+  return label
+}
+
 function toLeaveTypeAcronym(value) {
   const label = prettifyLeaveTypeLabel(value)
   if (!label) return ''
 
   const lower = label.toLowerCase()
   if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'special privilege leave') return 'MC06'
   if (lower === 'sick leave') return 'SL'
   if (lower === 'vacation leave') return 'VL'
   if (lower === 'wellness leave') return 'WL'
@@ -453,8 +464,8 @@ function getApplicationLeaveType(application) {
 }
 
 function compareLeaveTypeBreakdown(left, right) {
-  const leftKey = getLeaveTypeKey(left.tooltip)
-  const rightKey = getLeaveTypeKey(right.tooltip)
+  const leftKey = getLeaveTypeKey(left.sortKey || left.tooltip)
+  const rightKey = getLeaveTypeKey(right.sortKey || right.tooltip)
   const leftIsLast = LAST_LEAVE_TYPES.some((label) => getLeaveTypeKey(label) === leftKey)
   const rightIsLast = LAST_LEAVE_TYPES.some((label) => getLeaveTypeKey(label) === rightKey)
 
@@ -489,9 +500,11 @@ function getLeaveTypeBreakdown(applications) {
   return Array.from(totals.entries())
     .map(([leaveType, count]) => {
       const acronym = toLeaveTypeAcronym(leaveType)
+      const displayLabel = formatLeaveTypeDisplayLabel(leaveType)
       return {
         label: `${acronym || leaveType}: ${count}`,
-        tooltip: leaveType,
+        tooltip: displayLabel,
+        sortKey: leaveType,
         count,
       }
     })

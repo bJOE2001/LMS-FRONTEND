@@ -784,7 +784,7 @@ const REQUIRED_LEAVE_BALANCE_TYPES = [
   'Sick Leave',
   'CTO Leave',
   'Mandatory / Forced Leave',
-  'MCO6 Leave',
+  'Special Privilege Leave',
   'Wellness Leave',
 ]
 
@@ -807,7 +807,7 @@ function prettifyLeaveBalanceLabel(value) {
   const lower = normalized.toLowerCase()
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
   if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
@@ -818,13 +818,19 @@ function prettifyLeaveBalanceLabel(value) {
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function getLeaveTypeDisplayLabel(value) {
+  const prettified = prettifyLeaveBalanceLabel(value)
+  if (prettified === 'Special Privilege Leave') return 'MC06'
+  return prettified
+}
+
 function toLeaveBalanceAcronym(value) {
   const label = prettifyLeaveBalanceLabel(value)
   if (!label) return ''
 
   const lower = label.toLowerCase()
   if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'special privilege leave') return 'SPL'
   if (lower === 'cto leave') return 'CTO'
   if (lower === 'sick leave') return 'SL'
   if (lower === 'vacation leave') return 'VL'
@@ -1365,7 +1371,7 @@ function sortLeaveTypeOptions(leaveTypes) {
   return [...leaveTypes]
     .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
     .map((leaveType) => ({
-      label: leaveType.name,
+      label: getLeaveTypeDisplayLabel(leaveType.name),
       value: leaveType.leave_type_id || leaveType.id,
     }))
 }
@@ -1507,7 +1513,7 @@ function getSelectionLimitWarningForTotal(totalDays) {
   return getMaxDaysWarningForTotal(totalDays)
 }
 
-const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'MCO6 Leave')
+const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'Special Privilege Leave')
 const isMaternityLeave = computed(() => selectedLeaveTypeName.value === 'Maternity Leave')
 const isPaternityLeave = computed(() => selectedLeaveTypeName.value === 'Paternity Leave')
 const isMonetization = computed(() => selectedLeaveTypeName.value === 'Monetization Leave')

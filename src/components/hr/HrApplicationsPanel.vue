@@ -1763,7 +1763,17 @@ function getCurrentLeaveTypeLabel(app) {
       '',
   ).trim()
 
-  const resolvedName = leaveTypeName || 'Unknown Leave Type'
+  let resolvedName = leaveTypeName || 'Unknown Leave Type'
+  const resolvedNameKey = resolvedName.toLowerCase()
+  if (
+    resolvedNameKey === 'special privilege leave' ||
+    resolvedNameKey === 'mco6 leave' ||
+    resolvedNameKey === 'mc06 leave' ||
+    resolvedNameKey === 'mc06' ||
+    resolvedNameKey === 'mo6 leave'
+  ) {
+    resolvedName = 'Special Privilege Leave(MC06)'
+  }
   return app?.is_monetization ? `${resolvedName} (Monetization)` : resolvedName
 }
 
@@ -1780,7 +1790,17 @@ function getRequestedLeaveTypeLabel(app) {
   ).trim()
 
   const fallbackId = getRequestedLeaveTypeId(app)
-  const resolvedName = requestedName || (fallbackId ? `Leave Type #${fallbackId}` : '')
+  let resolvedName = requestedName || (fallbackId ? `Leave Type #${fallbackId}` : '')
+  const resolvedNameKey = resolvedName.toLowerCase()
+  if (
+    resolvedNameKey === 'special privilege leave' ||
+    resolvedNameKey === 'mco6 leave' ||
+    resolvedNameKey === 'mc06 leave' ||
+    resolvedNameKey === 'mc06' ||
+    resolvedNameKey === 'mo6 leave'
+  ) {
+    resolvedName = 'Special Privilege Leave(MC06)'
+  }
   if (!resolvedName) return ''
 
   const isMonetization = payload?.is_monetization === true || app?.is_monetization === true

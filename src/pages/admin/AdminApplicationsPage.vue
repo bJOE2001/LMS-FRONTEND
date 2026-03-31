@@ -867,6 +867,7 @@ const {
   getActionResultLabel,
   getActionResultVerb,
   printActionResult,
+  formatApplicationLeaveTypeLabel,
 } = useAdminApplicationsPage()
 
 function getAdminConfirmActionTone(type) {
@@ -891,7 +892,7 @@ function getAdminRejectIcon(mode) {
 
 function getApplicationDetailsLeaveTypeLabel(app) {
   if (!app) return 'N/A'
-  const leaveType = String(app.leaveType || '').trim()
+  const leaveType = String(formatApplicationLeaveTypeLabel(app?.leaveType) || '').trim()
   if (!leaveType) return 'N/A'
   return app.is_monetization ? `${leaveType} (Monetization)` : leaveType
 }

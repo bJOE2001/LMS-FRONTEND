@@ -124,6 +124,34 @@ function formatMinutesAsHoursAndMinutes(totalMinutes) {
   return `${hours}h ${String(minutes).padStart(2, '0')}m`
 }
 
+function openPdfDocument(pdfDocument, options = {}) {
+  const targetWindow = options?.targetWindow && !options.targetWindow.closed
+    ? options.targetWindow
+    : null
+  const fileName = String(options?.fileName || 'coc-application.pdf').trim() || 'coc-application.pdf'
+
+  return pdfDocument.getBlob().then((blob) => {
+    const objectUrl = URL.createObjectURL(blob)
+
+    if (targetWindow) {
+      targetWindow.location.replace(objectUrl)
+    } else {
+      const opened = window.open(objectUrl, '_blank')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = fileName
+        anchor.rel = 'noopener noreferrer'
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      }
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  })
+}
+
 // function unwrapArray(value) {
 //   if (Array.isArray(value)) return value
 //   if (!value || typeof value !== 'object') return []
@@ -493,7 +521,7 @@ function createRightAlignedSignatureBlock(name, caption, options = {}) {
   }
 }
 
-export async function generateCocApplicationPdf(app) {
+export async function generateCocApplicationPdf(app, options = {}) {
   if (!app) return
 
 //  // ===== RAW APP DATA =====
@@ -954,5 +982,5 @@ export async function generateCocApplicationPdf(app) {
     },
   }
 
-  pdfMake.createPdf(docDefinition).open()
+  await openPdfDocument(pdfMake.createPdf(docDefinition), options)
 }

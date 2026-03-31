@@ -103,6 +103,13 @@
                     label="Dept. Head"
                     rounded
                   />
+                  <q-badge
+                    v-if="isDepartmentReassigned(props.row)"
+                    color="blue-7"
+                    text-color="white"
+                    label="LMS Assigned"
+                    rounded
+                  />
                 </div>
                 <div class="employee-designation text-grey-6 text-left">{{ props.row.designation || '-' }}</div>
               </div>
@@ -141,11 +148,21 @@
                   isDepartmentHeadRecord(props.row) ? 'Current Department Head' : 'Assign Dept. Head'
                 }}</q-tooltip>
               </q-btn>
-              <q-btn flat dense round icon="edit" color="orange-8" size="sm" @click="openEditDialog(props.row)">
-                <q-tooltip>Edit</q-tooltip>
-              </q-btn>
-              <q-btn flat dense round icon="delete" color="negative" size="sm" @click="confirmDelete(props.row)">
-                <q-tooltip>Delete</q-tooltip>
+              <q-btn
+                flat
+                dense
+                round
+                icon="delete"
+                color="negative"
+                size="sm"
+                :disable="!isDepartmentReassigned(props.row)"
+                @click="confirmDelete(props.row)"
+              >
+                <q-tooltip>{{
+                  isDepartmentReassigned(props.row)
+                    ? 'Remove from this department'
+                    : 'Only LMS-assigned employees can be removed'
+                }}</q-tooltip>
               </q-btn>
               <q-btn flat dense round icon="description" color="green-8" size="sm" @click="applyLeaveFor(props.row)">
                 <q-tooltip>Apply Leave</q-tooltip>
@@ -201,17 +218,6 @@
         <q-card-section class="row items-center q-pb-none employee-view-dialog-header">
           <div class="row items-center no-wrap q-gutter-sm employee-view-dialog-header-main">
             <div class="text-h6">Employee Details</div>
-            <q-btn
-              v-if="$q.screen.lt.sm"
-              flat
-              dense
-              no-caps
-              label="Edit"
-              color="orange-8"
-              icon="edit"
-              class="employee-view-dialog-edit-btn"
-              @click="openEditDialog(selectedEmployee); showViewDialog = false"
-            />
           </div>
           <q-space />
           <q-btn icon="close" flat round dense v-close-popup />
@@ -252,8 +258,16 @@
               <div class="text-body2 text-weight-medium">{{ selectedEmployee.designation || '-' }}</div>
             </div>
             <div class="col-12">
-              <div class="text-caption text-grey-6">Office / Department</div>
+              <div class="text-caption text-grey-6">Office</div>
+              <div class="text-caption text-grey-6">Office</div>
               <div class="text-body2 text-weight-medium">{{ selectedEmployee.office || '-' }}</div>
+            </div>
+            <div
+              v-if="selectedEmployee.hris_office && selectedEmployee.hris_office !== selectedEmployee.office"
+              class="col-12"
+            >
+              <div class="text-caption text-grey-6">HRIS Main Office</div>
+              <div class="text-body2 text-weight-medium">{{ selectedEmployee.hris_office }}</div>
             </div>
             <div class="col-12">
               <div class="text-caption text-grey-6">Rate / Month</div>
@@ -398,7 +412,7 @@
     <q-dialog v-model="showFormDialog" persistent>
       <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">{{ isEditMode ? 'Edit Employee' : 'Add Employee' }}</div>
+          <div class="text-h6">Add Employee</div>
           <q-space />
           <q-btn icon="close" flat round dense :disable="submitting" v-close-popup />
         </q-card-section>
@@ -406,56 +420,80 @@
         <q-form ref="formRef" @submit.prevent="saveEmployee">
           <q-card-section class="q-pt-sm">
             <div class="row q-col-gutter-md">
-              <div class="col-12 col-md-4">
-                <q-input
-                  v-model="employeeForm.control_no"
-                  outlined
-                  dense
-                  label="Control No *"
-                  :readonly="isEditMode"
-                  :rules="[requiredRule('Control No'), digitsOnlyRule]"
-                />
-              </div>
-              <div class="col-12 col-md-4">
+              <div class="col-12">
                 <q-select
-                  v-model="employeeForm.status"
-                  :options="statusOptions"
+                  v-model="selectedEmployeeOption"
+                  :options="employeePickerOptions"
                   outlined
                   dense
-                  label="Status *"
-                  emit-value
-                  map-options
-                  :rules="[requiredRule('Status')]"
-                />
-              </div>
-              <div class="col-12 col-md-4">
-                <q-input :model-value="adminDepartmentName" outlined dense label="Office / Department" readonly />
+                  use-input
+                  fill-input
+                  hide-selected
+                  clearable
+                  input-debounce="250"
+                  label="Select Employee *"
+                  option-label="label"
+                  :loading="employeePickerLoading"
+                  :rules="[() => !!employeeForm.control_no || 'Employee is required.']"
+                  @filter="filterEmployeeOptions"
+                  @popup-show="handleEmployeePickerPopupShow"
+                  @update:model-value="handleSelectedEmployeeOption"
+                  @clear="clearSelectedEmployeeOption"
+                >
+                  <template #option="scope">
+                    <q-item v-bind="scope.itemProps">
+                      <q-item-section>
+                        <q-item-label>{{ scope.opt.full_name || scope.opt.label }}</q-item-label>
+                        <q-item-label caption>
+                          {{ scope.opt.designation || '-' }} • {{ scope.opt.office_acronym || '-' }}
+                        </q-item-label>
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
               </div>
 
               <div class="col-12 col-md-4">
-                <q-input v-model="employeeForm.surname" outlined dense label="Surname *" :rules="[requiredRule('Surname')]" />
+                <q-input v-model="employeeForm.control_no" outlined dense label="Control No" readonly />
               </div>
               <div class="col-12 col-md-4">
-                <q-input v-model="employeeForm.firstname" outlined dense label="Firstname *" :rules="[requiredRule('Firstname')]" />
+                <q-input v-model="employeeForm.status" outlined dense label="Status" readonly />
               </div>
               <div class="col-12 col-md-4">
-                <q-input v-model="employeeForm.middlename" outlined dense label="Middlename" />
+                <q-input :model-value="adminDepartmentName" outlined dense label="Assign To Department" readonly />
+              </div>
+
+              <div class="col-12 col-md-4">
+                <q-input v-model="employeeForm.surname" outlined dense label="Surname" readonly />
+              </div>
+              <div class="col-12 col-md-4">
+                <q-input v-model="employeeForm.firstname" outlined dense label="Firstname" readonly />
+              </div>
+              <div class="col-12 col-md-4">
+                <q-input v-model="employeeForm.middlename" outlined dense label="Middlename" readonly />
               </div>
 
               <div class="col-12 col-md-6">
-                <q-input v-model="employeeForm.designation" outlined dense label="Designation" />
+                <q-input v-model="employeeForm.designation" outlined dense label="Designation" readonly />
               </div>
               <div class="col-12 col-md-6">
                 <q-input
-                  v-model.number="employeeForm.rate_mon"
+                  :model-value="formatMoney(employeeForm.rate_mon)"
                   outlined
                   dense
-                  type="number"
-                  min="0"
-                  step="0.01"
                   label="Rate / Month"
-                  :rules="[nonNegativeNumberRule]"
+                  readonly
                 />
+              </div>
+
+              <div class="col-12 col-md-6">
+                <q-input v-model="employeeForm.office" outlined dense label="Employee Current Office" readonly />
+              </div>
+              <div
+                v-if="employeeForm.hris_office && employeeForm.hris_office !== employeeForm.office"
+                class="col-12 col-md-6"
+              >
+                <q-input v-model="employeeForm.hris_office" outlined dense label="HRIS Main Office" readonly />
               </div>
             </div>
           </q-card-section>
@@ -465,7 +503,7 @@
             <q-btn
               unelevated
               no-caps
-              :label="isEditMode ? 'Update Employee' : 'Create Employee'"
+              label="Add Employee"
               color="primary"
               :loading="submitting"
               type="submit"
@@ -493,10 +531,27 @@ const showApplyLeaveDialog = ref(false)
 const showViewDialog = ref(false)
 const showDepartmentHeadDialog = ref(false)
 const showFormDialog = ref(false)
-const isEditMode = ref(false)
 const submitting = ref(false)
 const departmentHeadFormRef = ref(null)
 const formRef = ref(null)
+const selectedEmployeeOption = ref(null)
+const employeePickerOptions = ref([])
+const employeePickerLoading = ref(false)
+let employeePickerRequestId = 0
+
+const DEPARTMENT_STOP_WORDS = new Set([
+  'OF',
+  'THE',
+  'AND',
+  'CITY',
+  'OFFICE',
+  'FOR',
+  'ON',
+  'AT',
+  'TO',
+  'IN',
+  'MANAGEMENT',
+])
 
 const selectedEmployee = ref(null)
 const employees = ref([])
@@ -529,6 +584,8 @@ const createDefaultEmployeeForm = () => ({
   status: 'REGULAR',
   designation: '',
   rate_mon: null,
+  office: '',
+  hris_office: '',
 })
 
 const employeeForm = ref(createDefaultEmployeeForm())
@@ -838,6 +895,8 @@ function formatMoney(value) {
 }
 
 function resetForm() {
+  selectedEmployeeOption.value = null
+  employeePickerOptions.value = []
   employeeForm.value = createDefaultEmployeeForm()
 }
 
@@ -958,31 +1017,9 @@ function openCreateDialog() {
     return
   }
 
-  isEditMode.value = false
   resetForm()
   showFormDialog.value = true
-}
-
-function openEditDialog(employee) {
-  if (!employee) return
-
-  if (isDepartmentHeadRecord(employee)) {
-    departmentHeadDialogMode.value = 'edit'
-    showDepartmentHeadDialog.value = true
-    return
-  }
-
-  isEditMode.value = true
-  employeeForm.value = {
-    control_no: employee.control_no || '',
-    surname: employee.surname || '',
-    firstname: employee.firstname || '',
-    middlename: employee.middlename || '',
-    status: employee.status || 'REGULAR',
-    designation: employee.designation || '',
-    rate_mon: employee.rate_mon ?? null,
-  }
-  showFormDialog.value = true
+  fetchEmployeePickerOptions('', true)
 }
 
 function toNullableString(value) {
@@ -996,21 +1033,138 @@ function toNullableNumber(value) {
   return Number.isFinite(num) ? num : null
 }
 
+function isDepartmentReassigned(employee) {
+  return employee?.is_department_reassigned === true
+}
+
+function toOfficeAcronym(value) {
+  const source = String(value || '').trim()
+  if (!source) return ''
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter(
+    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source.toUpperCase()
+}
+
+function toEmployeePickerOption(employee) {
+  if (!employee || typeof employee !== 'object') return null
+
+  const surname = String(employee.surname || '').trim()
+  const firstname = String(employee.firstname || '').trim()
+  const middlename = String(employee.middlename || '').trim()
+  const controlNo = String(employee.control_no || '').trim()
+  const currentOffice = String(employee.office || '').trim()
+  const hrisOffice = String(employee.hris_office || employee.office || '').trim()
+  const designation = String(employee.designation || '').trim()
+  const fullName = [surname, firstname, middlename].filter(Boolean).join(', ').replace(', ,', ',')
+
+  return {
+    ...employee,
+    label: fullName || controlNo,
+    full_name: fullName || controlNo,
+    control_no: controlNo,
+    surname,
+    firstname,
+    middlename,
+    designation,
+    office: currentOffice,
+    hris_office: hrisOffice,
+    office_acronym: toOfficeAcronym(currentOffice || hrisOffice),
+  }
+}
+
+function applySelectedEmployeeToForm(employee) {
+  if (!employee) {
+    employeeForm.value = createDefaultEmployeeForm()
+    return
+  }
+
+  employeeForm.value = {
+    control_no: employee.control_no || '',
+    surname: employee.surname || '',
+    firstname: employee.firstname || '',
+    middlename: employee.middlename || '',
+    status: employee.status || '',
+    designation: employee.designation || '',
+    rate_mon: employee.rate_mon ?? null,
+    office: employee.office || '',
+    hris_office: employee.hris_office || employee.office || '',
+  }
+}
+
+async function fetchEmployeePickerOptions(searchTerm = '', force = false) {
+  if (!adminDepartmentId.value) return
+  if (!force && employeePickerLoading.value) return
+
+  const requestId = ++employeePickerRequestId
+  employeePickerLoading.value = true
+
+  try {
+    const { data } = await api.get('/admin/employee-options', {
+      params: {
+        search: String(searchTerm || '').trim(),
+        limit: 20,
+      },
+    })
+
+    if (requestId !== employeePickerRequestId) return
+
+    employeePickerOptions.value = Array.isArray(data?.employees)
+      ? data.employees.map((employee) => toEmployeePickerOption(employee)).filter(Boolean)
+      : []
+  } catch (err) {
+    if (requestId !== employeePickerRequestId) return
+    employeePickerOptions.value = []
+    const msg = resolveApiErrorMessage(err, 'Unable to load employees right now.')
+    $q.notify({
+      type: 'negative',
+      message: msg,
+      position: 'top',
+      caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
+    })
+  } finally {
+    if (requestId === employeePickerRequestId) {
+      employeePickerLoading.value = false
+    }
+  }
+}
+
+function filterEmployeeOptions(value, update) {
+  update(async () => {
+    await fetchEmployeePickerOptions(value, true)
+  })
+}
+
+function handleSelectedEmployeeOption(option) {
+  applySelectedEmployeeToForm(option)
+}
+
+function clearSelectedEmployeeOption() {
+  selectedEmployeeOption.value = null
+  applySelectedEmployeeToForm(null)
+}
+
+function handleEmployeePickerPopupShow() {
+  if (employeePickerOptions.value.length > 0) return
+  fetchEmployeePickerOptions('', true)
+}
+
 function buildEmployeePayload() {
-  const payload = {
-    surname: String(employeeForm.value.surname || '').trim(),
-    firstname: String(employeeForm.value.firstname || '').trim(),
-    middlename: toNullableString(employeeForm.value.middlename),
-    status: String(employeeForm.value.status || '').trim().toUpperCase(),
-    designation: toNullableString(employeeForm.value.designation),
-    rate_mon: toNullableNumber(employeeForm.value.rate_mon),
+  return {
+    control_no: String(employeeForm.value.control_no || '').trim(),
   }
-
-  if (!isEditMode.value) {
-    payload.control_no = String(employeeForm.value.control_no || '').trim()
-  }
-
-  return payload
 }
 
 function buildDepartmentHeadPayload() {
@@ -1068,14 +1222,12 @@ async function saveEmployee() {
   submitting.value = true
   try {
     const payload = buildEmployeePayload()
-
-    if (isEditMode.value) {
-      await api.put(`/admin/employees/${encodeURIComponent(employeeForm.value.control_no)}`, payload)
-      $q.notify({ type: 'positive', message: 'Employee updated successfully.' })
-    } else {
-      await api.post('/admin/employees', payload)
-      $q.notify({ type: 'positive', message: 'Employee added successfully.' })
-    }
+    const { data } = await api.post('/admin/employees', payload)
+    $q.notify({
+      type: 'positive',
+      message: data?.message || 'Employee added successfully.',
+      position: 'top',
+    })
 
     showFormDialog.value = false
     invalidateEmployeeCollectionCache()
@@ -1128,15 +1280,24 @@ function confirmDelete(employee) {
     return
   }
 
+  if (!isDepartmentReassigned(employee)) {
+    $q.notify({
+      type: 'info',
+      message: 'Original HRIS employees cannot be removed here. Only LMS-assigned employees can be removed from this department.',
+      position: 'top',
+    })
+    return
+  }
+
   const name = `${employee.firstname || ''} ${employee.surname || ''}`.trim() || employee.control_no
   $q.dialog({
-    title: 'Delete Employee',
-    message: `Delete ${name}? This action cannot be undone.`,
+    title: 'Remove Employee',
+    message: `Remove ${name} from this department? The employee's main HRIS office will stay unchanged.`,
     cancel: true,
     persistent: true,
     ok: {
       color: 'negative',
-      label: 'Delete',
+      label: 'Remove',
       noCaps: true,
     },
     cancelProps: {
@@ -1148,11 +1309,11 @@ function confirmDelete(employee) {
   }).onOk(async () => {
     try {
       await api.delete(`/admin/employees/${encodeURIComponent(employee.control_no)}`)
-      $q.notify({ type: 'positive', message: 'Employee deleted successfully.' })
+      $q.notify({ type: 'positive', message: 'Employee removed from this department successfully.', position: 'top' })
       invalidateEmployeeCollectionCache()
       await fetchEmployees(1)
     } catch (err) {
-      const msg = resolveApiErrorMessage(err, 'Unable to delete employee right now.')
+      const msg = resolveApiErrorMessage(err, 'Unable to remove employee from this department right now.')
       $q.notify({ type: 'negative', message: msg, position: 'top' })
     }
   })

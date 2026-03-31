@@ -105,6 +105,15 @@ function handleDisapprove() {
 }
 async function printApplication() {
   if (!application.value) return
+  const pdfWindow = window.open('', '_blank')
+  if (pdfWindow) {
+    try {
+      pdfWindow.document.title = 'Preparing PDF...'
+      pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+    } catch {
+      // Ignore interim window rendering issues.
+    }
+  }
 
   let printableApplication = application.value
   const targetApplicationId = String(application.value?.id ?? '').trim()
@@ -139,7 +148,12 @@ async function printApplication() {
     }
   }
 
-  await generateLeaveFormPdf(printableApplication)
+  try {
+    await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
+  } catch (error) {
+    if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+    throw error
+  }
 }
 </script>
 

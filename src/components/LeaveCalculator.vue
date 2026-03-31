@@ -107,7 +107,7 @@ const calculation = ref(null)
 const leaveTypeOptions = [
   { label: `Vacation Leave (${credits.value.vacationLeave} days)`, value: 'vacationLeave' },
   { label: `Sick Leave (${credits.value.sickLeave} days)`, value: 'sickLeave' },
-  { label: `MCO6 Leave (${credits.value.mco6Leave} days)`, value: 'mco6Leave' },
+  { label: `Special Privilege Leave(MC06) (${credits.value.mco6Leave} days)`, value: 'mco6Leave' },
   { label: `Wellness Leave (${credits.value.wellnessLeave} days)`, value: 'wellnessLeave' },
 ]
 

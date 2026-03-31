@@ -1490,14 +1490,13 @@ const REQUIRED_LEAVE_BALANCE_TYPES = [
   'Sick Leave',
   'CTO Leave',
   'Mandatory / Forced Leave',
-  'MCO6 Leave',
+  'Special Privilege Leave',
   'Wellness Leave',
 ]
 
 const EVENT_BASED_LEAVE_BALANCE_TYPES = [
   'Maternity Leave',
   'Paternity Leave',
-  'Special Privilege Leave',
   'Solo Parent Leave',
   'Study Leave',
   '10-Day VAWC Leave',
@@ -1521,7 +1520,7 @@ function prettifyLeaveBalanceLabel(value) {
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave')
     return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-  if (lower === 'mco6' || lower === 'mco6 leave') return 'MCO6 Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
   if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
@@ -1539,7 +1538,7 @@ function toLeaveBalanceAcronym(value) {
   const lower = label.toLowerCase()
   if (lower === 'cto leave') return 'CTO'
   if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'mco6 leave') return 'MCO6'
+  if (lower === 'special privilege leave') return 'SPL'
   if (lower === 'sick leave') return 'SL'
   if (lower === 'vacation leave') return 'VL'
   if (lower === 'wellness leave') return 'WL'
@@ -2736,6 +2735,15 @@ function confirmPendingAction() {
 
 async function printApplication(app) {
   if (!canPrintApplication(app)) return
+  const pdfWindow = window.open('', '_blank')
+  if (pdfWindow) {
+    try {
+      pdfWindow.document.title = 'Preparing PDF...'
+      pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+    } catch {
+      // Ignore interim window rendering issues.
+    }
+  }
   const targetApplicationId = String(
     app?.id ?? app?.application_id ?? app?.leave_application_id ?? '',
   ).trim()
@@ -2792,9 +2800,14 @@ async function printApplication(app) {
       }
     }
 
-    await generateLeaveFormPdf(printableApplication)
+    await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
   } catch {
-    await generateLeaveFormPdf(app)
+    try {
+      await generateLeaveFormPdf(app, { targetWindow: pdfWindow })
+    } catch (error) {
+      if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+      throw error
+    }
   }
 }
 
