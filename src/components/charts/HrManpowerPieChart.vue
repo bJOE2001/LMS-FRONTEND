@@ -14,7 +14,7 @@
         </div>
       </div>
 
-      <div class="manpower-chart-wrapper chart-loading-host">
+      <div ref="chartRoot" class="manpower-chart-wrapper chart-loading-host">
         <q-no-ssr>
           <VueApexCharts
             type="pie"
@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 
 const props = defineProps({
@@ -58,6 +58,31 @@ const props = defineProps({
     }),
   },
 })
+
+const chartRoot = ref(null)
+let chartTitleCleanupObserver = null
+
+function removeNativeChartTitleTooltip() {
+  if (!chartRoot.value) return
+  chartRoot.value
+    .querySelectorAll('[title]')
+    .forEach((node) => {
+      if (String(node.getAttribute('title') || '').trim().toLowerCase() === 'chart') {
+        node.removeAttribute('title')
+      }
+    })
+  chartRoot.value
+    .querySelectorAll('title')
+    .forEach((node) => {
+      if (String(node.textContent || '').trim().toLowerCase() === 'chart') {
+        node.remove()
+      }
+    })
+}
+
+function syncNativeChartTitleCleanup() {
+  nextTick(removeNativeChartTitleTooltip)
+}
 
 const safeActiveEmployeeCount = computed(() => Math.max(Number(props.activeEmployeeCount || 0), 0))
 
@@ -154,6 +179,29 @@ const manpowerChartOptions = computed(() => ({
     text: 'No current manpower data available.',
   },
 }))
+
+onMounted(() => {
+  syncNativeChartTitleCleanup()
+
+  if (chartRoot.value) {
+    chartTitleCleanupObserver = new MutationObserver(syncNativeChartTitleCleanup)
+    chartTitleCleanupObserver.observe(chartRoot.value, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['title'],
+    })
+  }
+})
+
+watch([manpowerChartSeries, manpowerChartOptions, () => props.loading], syncNativeChartTitleCleanup, {
+  deep: true,
+})
+
+onBeforeUnmount(() => {
+  chartTitleCleanupObserver?.disconnect()
+  chartTitleCleanupObserver = null
+})
 </script>
 
 <style scoped>
