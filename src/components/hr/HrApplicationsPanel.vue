@@ -4145,7 +4145,7 @@ function getConfirmActionTone(type) {
 
 function getConfirmActionIcon(type) {
   if (type === 'approve') return 'check_circle'
-  if (type === 'cancel') return 'warning'
+  if (type === 'cancel') return 'remove_circle'
   return 'cancel'
 }
 
@@ -4665,7 +4665,7 @@ async function confirmRecall() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 0;
+  border-radius: 16px;
   font-weight: 700;
 }
 
@@ -4835,7 +4835,7 @@ async function confirmRecall() {
 .hr-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 0;
+  border-radius: 16px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -4879,7 +4879,7 @@ async function confirmRecall() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 0;
+  border-radius: 16px;
   font-weight: 700;
 }
 
@@ -5399,7 +5399,7 @@ async function confirmRecall() {
 
   .hr-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 0;
+    border-radius: 16px;
   }
 
   .hr-action-dialog-card--compact .hr-action-dialog-card__button {
