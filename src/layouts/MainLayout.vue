@@ -107,6 +107,10 @@
                 <q-item-section avatar><q-icon name="apartment" /></q-item-section>
                 <q-item-section>Office Library</q-item-section>
               </q-item>
+              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/work-schedules">
+                <q-item-section avatar><q-icon name="schedule" /></q-item-section>
+                <q-item-section>Work Schedules</q-item-section>
+              </q-item>
               <q-item clickable to="/settings">
                 <q-item-section avatar><q-icon name="settings" /></q-item-section>
                 <q-item-section>Settings</q-item-section>
