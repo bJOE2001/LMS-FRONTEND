@@ -2131,7 +2131,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getEditRequestBadgeLabel(app) {
-    const status = getAdminLatestUpdateRequestStatus(app)
+    const status = getAdminEditRequestBadgeStatus(app)
     if (status === 'PENDING') return 'Edit Request Pending'
     if (status === 'APPROVED') return 'Edit Request Approved'
     if (status === 'REJECTED') return 'Edit Request Rejected'
@@ -2139,11 +2139,33 @@ export function useAdminApplicationsPage() {
   }
 
   function getEditRequestBadgeColor(app) {
-    const status = getAdminLatestUpdateRequestStatus(app)
+    const status = getAdminEditRequestBadgeStatus(app)
     if (status === 'PENDING') return 'deep-purple-7'
     if (status === 'APPROVED') return 'positive'
     if (status === 'REJECTED') return 'negative'
     return 'grey-7'
+  }
+
+  function getAdminEditRequestBadgeStatus(app) {
+    const explicitStatus = getAdminLatestUpdateRequestStatus(app)
+    if (explicitStatus === 'APPROVED' || explicitStatus === 'REJECTED') {
+      return explicitStatus
+    }
+
+    if (!hasAdminEditRequestSignal(app)) {
+      return explicitStatus
+    }
+
+    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    if (rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED') {
+      return 'APPROVED'
+    }
+
+    if (rawStatus === 'REJECTED') {
+      return 'REJECTED'
+    }
+
+    return 'PENDING'
   }
 
   function canPrintApplication(app) {
@@ -2210,8 +2232,240 @@ export function useAdminApplicationsPage() {
     if (isAdminEditUpdateRequest(app)) return true
     if (getPendingUpdatePayload(app)) return true
 
+    const explicitSignals = [
+      app?.latest_update_requested_at,
+      app?.latestUpdateRequestedAt,
+      app?.raw?.latest_update_requested_at,
+      app?.raw?.latestUpdateRequestedAt,
+      app?.latest_update_request_reason,
+      app?.latestUpdateRequestReason,
+      app?.raw?.latest_update_request_reason,
+      app?.raw?.latestUpdateRequestReason,
+      app?.latest_update_reviewed_at,
+      app?.latestUpdateReviewedAt,
+      app?.raw?.latest_update_reviewed_at,
+      app?.raw?.latestUpdateReviewedAt,
+      app?.latest_update_reviewed_by,
+      app?.latestUpdateReviewedBy,
+      app?.raw?.latest_update_reviewed_by,
+      app?.raw?.latestUpdateReviewedBy,
+      app?.latest_update_request_payload,
+      app?.latestUpdateRequestPayload,
+      app?.raw?.latest_update_request_payload,
+      app?.raw?.latestUpdateRequestPayload,
+    ]
+
+    const hasExplicitSignal = explicitSignals.some((value) => {
+      if (value === undefined || value === null) return false
+      if (typeof value === 'object') return true
+      return String(value).trim() !== ''
+    })
+    if (hasExplicitSignal) return true
+
     const remarksSignal = normalizeSearchText(app?.remarks || '')
     return remarksSignal.includes('edit request') || remarksSignal.includes('request update')
+  }
+
+  function hasApplicationEditRequest(app) {
+    if (!app || typeof app !== 'object') return false
+    if (isCocApplication(app)) return false
+    return hasAdminEditRequestSignal(app)
+  }
+
+  function getApplicationEditRequestStatusLabel(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+
+    const status = getAdminLatestUpdateRequestStatus(app)
+    if (status === 'APPROVED') return 'Approved'
+    if (status === 'REJECTED') return 'Rejected'
+    return 'Pending'
+  }
+
+  function getApplicationEditRequestRequestedAt(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+
+    const requestedAt =
+      app?.latest_update_requested_at ||
+      app?.latestUpdateRequestedAt ||
+      app?.raw?.latest_update_requested_at ||
+      app?.raw?.latestUpdateRequestedAt ||
+      app?.updated_at ||
+      app?.updatedAt ||
+      null
+
+    return formatDateTime(requestedAt) || 'N/A'
+  }
+
+  function getApplicationEditRequestRequestedBy(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+    return String(app?.employeeName || resolveFiledByActor(app) || 'N/A').trim() || 'N/A'
+  }
+
+  function getApplicationEditRequestReason(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+
+    const pendingPayload = getPendingUpdatePayload(app)
+    const reason = String(
+      app?.latest_update_request_reason ??
+        app?.latestUpdateRequestReason ??
+        app?.pending_update_reason ??
+        app?.pendingUpdateReason ??
+        app?.raw?.latest_update_request_reason ??
+        app?.raw?.latestUpdateRequestReason ??
+        pendingPayload?.edit_reason ??
+        pendingPayload?.update_reason ??
+        pendingPayload?.reason_purpose ??
+        pendingPayload?.reason ??
+        pendingPayload?.remarks ??
+        '',
+    ).trim()
+
+    return reason || 'N/A'
+  }
+
+  function formatDateSetSummary(dateValues = []) {
+    const normalizedDateSet = [
+      ...new Set(
+        (Array.isArray(dateValues) ? dateValues : [])
+          .map((value) => toIsoDateString(value))
+          .filter(Boolean),
+      ),
+    ]
+    if (!normalizedDateSet.length) return 'N/A'
+
+    const groupedLines = formatGroupedInclusiveDateLines(normalizedDateSet)
+    if (groupedLines.length) return groupedLines.join(', ')
+
+    return normalizedDateSet.map((dateValue) => formatDate(dateValue)).join(', ')
+  }
+
+  function resolveDurationFromCandidates(candidates = []) {
+    for (const candidate of candidates) {
+      const numericValue = Number(candidate)
+      if (Number.isFinite(numericValue) && numericValue > 0) return numericValue
+    }
+
+    return 0
+  }
+
+  function resolveDateSummaryFromCandidateValue(candidate) {
+    if (!candidate) return ''
+
+    if (Array.isArray(candidate) || typeof candidate === 'string') {
+      const dateSet = normalizeIsoDateList(parseSelectedDatesValue(candidate))
+      return dateSet.length ? formatDateSetSummary(dateSet) : ''
+    }
+
+    if (candidate && typeof candidate === 'object') {
+      const dateSet = resolveDateSetFromSource(candidate)
+      if (dateSet.length) return formatDateSetSummary(dateSet)
+    }
+
+    return ''
+  }
+
+  function getApplicationEditRequestFromDates(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+
+    const pendingPayload = getPendingUpdatePayload(app)
+    const originalDateCandidates = [
+      pendingPayload?.current_selected_dates,
+      pendingPayload?.currentSelectedDates,
+      pendingPayload?.original_selected_dates,
+      pendingPayload?.originalSelectedDates,
+      pendingPayload?.previous_selected_dates,
+      pendingPayload?.previousSelectedDates,
+      pendingPayload?.before_selected_dates,
+      pendingPayload?.beforeSelectedDates,
+      pendingPayload?.current,
+      pendingPayload?.original,
+      pendingPayload?.previous,
+      pendingPayload?.before,
+      pendingPayload?.current_values,
+      pendingPayload?.original_values,
+      pendingPayload?.previous_values,
+      pendingPayload?.before_values,
+    ]
+
+    for (const candidate of originalDateCandidates) {
+      const summary = resolveDateSummaryFromCandidateValue(candidate)
+      if (summary) return summary
+    }
+
+    return formatDateSetSummary(resolveDateSetFromSource(app))
+  }
+
+  function getApplicationEditRequestToDates(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+    const pendingPayload = getPendingUpdatePayload(app)
+    return formatDateSetSummary(resolveDateSetFromSource(pendingPayload))
+  }
+
+  function getApplicationEditRequestCurrentDuration(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+
+    const pendingPayload = getPendingUpdatePayload(app)
+    const originalDurationValue = resolveDurationFromCandidates([
+      pendingPayload?.current_total_days,
+      pendingPayload?.currentTotalDays,
+      pendingPayload?.original_total_days,
+      pendingPayload?.originalTotalDays,
+      pendingPayload?.previous_total_days,
+      pendingPayload?.previousTotalDays,
+      pendingPayload?.before_total_days,
+      pendingPayload?.beforeTotalDays,
+      pendingPayload?.current?.total_days,
+      pendingPayload?.original?.total_days,
+      pendingPayload?.previous?.total_days,
+      pendingPayload?.before?.total_days,
+    ])
+
+    if (originalDurationValue > 0) return formatDurationDisplay(originalDurationValue, 'day')
+
+    return getApplicationDurationDisplay(app) || 'N/A'
+  }
+
+  function getApplicationEditRequestRequestedDuration(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+
+    const pendingPayload = getPendingUpdatePayload(app)
+    if (!pendingPayload || typeof pendingPayload !== 'object') return 'N/A'
+
+    const requestedDurationValue = resolveDurationFromCandidates([
+      pendingPayload?.total_days,
+      pendingPayload?.totalDays,
+      pendingPayload?.duration_value,
+      pendingPayload?.days,
+      pendingPayload?.requested_total_days,
+      pendingPayload?.requestedTotalDays,
+      pendingPayload?.display_total_days,
+      pendingPayload?.displayTotalDays,
+    ])
+
+    if (requestedDurationValue > 0) return formatDurationDisplay(requestedDurationValue, 'day')
+
+    const requestedDateSet = resolveDateSetFromSource(pendingPayload)
+    if (requestedDateSet.length) return formatDurationDisplay(requestedDateSet.length, 'day')
+
+    return 'N/A'
+  }
+
+  function isApplicationEditRequestHrApproved(app) {
+    return hasApplicationEditRequest(app) && getAdminLatestUpdateRequestStatus(app) === 'APPROVED'
+  }
+
+  function getApplicationEditRequestFinalInclusiveDates(app) {
+    if (!isApplicationEditRequestHrApproved(app)) return 'N/A'
+    return formatDateSetSummary(resolveDateSetFromSource(app))
+  }
+
+  function getApplicationEditRequestFinalDuration(app) {
+    if (!isApplicationEditRequestHrApproved(app)) return 'N/A'
+    return getApplicationDurationDisplay(app) || 'N/A'
+  }
+
+  function shouldShowPendingDateComparisonInDetails(app) {
+    return hasPendingDateUpdate(app) && !hasApplicationEditRequest(app)
   }
 
   function resolveAdminEditRequestSubmittedMeta(app) {
@@ -2439,6 +2693,14 @@ export function useAdminApplicationsPage() {
 
     if (rawStatus === 'PENDING_ADMIN') {
       if (hasEditRequest) {
+        entries.push({
+          title: 'Admin Review Completed',
+          subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
+          description: 'Application was reviewed and forwarded to HR.',
+          icon: 'check_circle',
+          color: 'positive',
+          actor: resolveDepartmentAdminActor(app),
+        })
         if (preEditHrApprovalEntry) {
           entries.push(preEditHrApprovalEntry)
         }
@@ -2484,7 +2746,7 @@ export function useAdminApplicationsPage() {
 
       if (resolveDepartmentAdminActionDateValue(app)) {
         entries.push({
-          title: 'Department Admin Review Completed',
+          title: 'Admin Review Completed',
           subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
           description: 'Application was reviewed and forwarded to HR.',
           icon: 'check_circle',
@@ -2514,7 +2776,7 @@ export function useAdminApplicationsPage() {
     }
 
     entries.push({
-      title: 'Department Admin Review Completed',
+      title: 'Admin Review Completed',
       subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
       description: 'Application was reviewed and forwarded to HR.',
       icon: 'check_circle',
@@ -3032,18 +3294,7 @@ export function useAdminApplicationsPage() {
     showCalendarPreviewDialog.value = true
   }
 
-  function openDetails(app) {
-    selectedApp.value = app
-    showTimelineDialog.value = false
-    showDetailsDialog.value = true
-  }
-
-  async function openTimeline(app) {
-    const baseApplication = resolveApp(app) || app
-    selectedApp.value = baseApplication
-    showDetailsDialog.value = false
-    showTimelineDialog.value = true
-
+  async function hydrateSelectedApplicationForDialog(baseApplication, dialogType = 'details') {
     const id = baseApplication?.id ?? baseApplication?.application_id ?? baseApplication?.leave_application_id
     if (!id) return
 
@@ -3056,13 +3307,15 @@ export function useAdminApplicationsPage() {
       const detailedApplication = extractSingleApplicationFromPayload(response?.data)
       if (!detailedApplication || typeof detailedApplication !== 'object') return
 
-      // Keep row-specific overrides (e.g. recalled companion rows) while enriching timeline metadata.
       const mergedApplication = {
         ...detailedApplication,
         ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
       }
 
-      if (!showTimelineDialog.value) return
+      const activeDialogOpen = dialogType === 'timeline'
+        ? showTimelineDialog.value
+        : showDetailsDialog.value
+      if (!activeDialogOpen) return
 
       const selectedId = String(
         selectedApp.value?.id ??
@@ -3076,6 +3329,24 @@ export function useAdminApplicationsPage() {
     } catch {
       // Keep existing row payload when detail endpoint fails.
     }
+  }
+
+  function openDetails(app) {
+    const baseApplication = resolveApp(app) || app
+    selectedApp.value = baseApplication
+    showTimelineDialog.value = false
+    showDetailsDialog.value = true
+
+    void hydrateSelectedApplicationForDialog(baseApplication, 'details')
+  }
+
+  async function openTimeline(app) {
+    const baseApplication = resolveApp(app) || app
+    selectedApp.value = baseApplication
+    showDetailsDialog.value = false
+    showTimelineDialog.value = true
+
+    await hydrateSelectedApplicationForDialog(baseApplication, 'timeline')
   }
 
   function hasMobileApplicationActions(app) {
@@ -3367,10 +3638,9 @@ export function useAdminApplicationsPage() {
     printApplication(actionResultApp.value)
   }
 
-  async function printRequestChangesActionResult() {
-    if (!canPrintRequestChangesActionResult.value) return
+  async function resolvePrintableLeaveApplicationForRequestChanges(target) {
+    let printableApplication = resolveApp(target) || target
 
-    let printableApplication = actionResultApp.value
     const targetApplicationId = String(
       printableApplication?.id ??
       printableApplication?.application_id ??
@@ -3378,21 +3648,35 @@ export function useAdminApplicationsPage() {
       '',
     ).trim()
 
-    if (targetApplicationId) {
-      try {
-        const response = await api.get(`/admin/leave-applications/${targetApplicationId}`)
-        const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+    if (!targetApplicationId) return printableApplication
 
-        if (detailedApplication && typeof detailedApplication === 'object') {
-          printableApplication = {
-            ...printableApplication,
-            ...detailedApplication,
-          }
+    try {
+      const response = await api.get(`/admin/leave-applications/${targetApplicationId}`)
+      const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+
+      if (detailedApplication && typeof detailedApplication === 'object') {
+        printableApplication = {
+          ...printableApplication,
+          ...detailedApplication,
         }
-      } catch {
-        // Ignore detail endpoint failures and print with the best available data.
       }
+    } catch {
+      // Ignore detail endpoint failures and print with the best available data.
     }
+
+    return printableApplication
+  }
+
+  function canPrintRequestChangesApplication(app) {
+    const target = resolveApp(app) || app
+    return hasApplicationEditRequest(target)
+  }
+
+  async function printRequestChangesApplication(app) {
+    const target = resolveApp(app) || app
+    if (!canPrintRequestChangesApplication(target)) return
+
+    const printableApplication = await resolvePrintableLeaveApplicationForRequestChanges(target)
 
     try {
       await generateRequestChangesApprovedLeavePdf(printableApplication)
@@ -3400,6 +3684,11 @@ export function useAdminApplicationsPage() {
       const message = resolveApiErrorMessage(err, 'Unable to print the request-change form right now.')
       $q.notify({ type: 'negative', message, position: 'top' })
     }
+  }
+
+  async function printRequestChangesActionResult() {
+    if (!canPrintRequestChangesActionResult.value) return
+    await printRequestChangesApplication(actionResultApp.value)
   }
 
   async function handleApprove(target) {
@@ -3553,6 +3842,19 @@ export function useAdminApplicationsPage() {
     getApplicationStatusLabel,
     getEditRequestBadgeLabel,
     getEditRequestBadgeColor,
+    hasApplicationEditRequest,
+    getApplicationEditRequestStatusLabel,
+    getApplicationEditRequestRequestedAt,
+    getApplicationEditRequestRequestedBy,
+    getApplicationEditRequestReason,
+    getApplicationEditRequestFromDates,
+    getApplicationEditRequestToDates,
+    getApplicationEditRequestCurrentDuration,
+    getApplicationEditRequestRequestedDuration,
+    getApplicationEditRequestFinalInclusiveDates,
+    getApplicationEditRequestFinalDuration,
+    isApplicationEditRequestHrApproved,
+    shouldShowPendingDateComparisonInDetails,
     openDetails,
     openCalendarPreview,
     onCalendarPreviewNavigation,
@@ -3575,6 +3877,8 @@ export function useAdminApplicationsPage() {
     getActionResultLabel,
     getActionResultVerb,
     printActionResult,
+    canPrintRequestChangesApplication,
+    printRequestChangesApplication,
     formatApplicationLeaveTypeLabel,
     printRequestChangesActionResult,
   }

@@ -374,6 +374,84 @@
           </div>
         </q-card-section>
         <q-card-section class="q-gutter-y-sm admin-application-details-content">
+          <div
+            v-if="hasApplicationEditRequest(selectedApp)"
+            class="row items-center justify-between q-col-gutter-sm"
+          >
+            <div class="col-auto">
+              <q-badge
+                v-if="isApplicationEditRequestHrApproved(selectedApp)"
+                rounded
+                color="positive"
+                text-color="white"
+                label="Updated Application Details"
+                class="text-weight-medium"
+              />
+            </div>
+            <div class="col-auto">
+              <q-btn
+                v-if="canPrintRequestChangesApplication(selectedApp)"
+                unelevated
+                no-caps
+                color="teal-7"
+                icon="description"
+                label="Print Form"
+                @click="printRequestChangesApplication(selectedApp)"
+              />
+            </div>
+          </div>
+
+          <div
+            v-if="hasApplicationEditRequest(selectedApp) && !isApplicationEditRequestHrApproved(selectedApp)"
+            class="admin-application-requested-changes-section"
+          >
+            <div class="row items-center justify-between q-gutter-sm">
+              <div class="admin-application-details-label">Requested Changes</div>
+            </div>
+            <div class="admin-application-requested-changes-grid">
+              <div class="admin-application-requested-changes-item">
+                <div class="admin-application-requested-changes-title">Inclusive Dates</div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Current:</span>
+                  <span class="admin-application-requested-changes-value">{{
+                    getApplicationEditRequestFromDates(selectedApp)
+                  }}</span>
+                </div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Requested:</span>
+                  <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">{{
+                    getApplicationEditRequestToDates(selectedApp)
+                  }}</span>
+                </div>
+              </div>
+
+              <div class="admin-application-requested-changes-item">
+                <div class="admin-application-requested-changes-title">Duration</div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Current:</span>
+                  <span class="admin-application-requested-changes-value">{{
+                    getApplicationEditRequestCurrentDuration(selectedApp)
+                  }}</span>
+                </div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Requested:</span>
+                  <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">{{
+                    getApplicationEditRequestRequestedDuration(selectedApp)
+                  }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="row items-center q-col-gutter-md q-mt-sm">
+              <div class="col-12 col-md-8 admin-application-requested-changes-meta">
+                <div><strong>Status:</strong> {{ getApplicationEditRequestStatusLabel(selectedApp) }}</div>
+                <div><strong>Requested At:</strong> {{ getApplicationEditRequestRequestedAt(selectedApp) }}</div>
+                <div><strong>Requested By:</strong> {{ getApplicationEditRequestRequestedBy(selectedApp) }}</div>
+                <div><strong>Reason:</strong> {{ getApplicationEditRequestReason(selectedApp) }}</div>
+              </div>
+            </div>
+          </div>
+
           <div class="admin-application-details-grid">
             <div class="admin-application-details-item">
               <div class="admin-application-details-label">Employee</div>
@@ -430,7 +508,7 @@
                 </div>
               </div>
               <div
-                v-else-if="hasPendingDateUpdate(selectedApp)"
+                v-else-if="shouldShowPendingDateComparisonInDetails(selectedApp)"
                 :class="[
                   'text-weight-medium',
                   'admin-application-duration-columns',
@@ -565,6 +643,14 @@
             color="blue-grey-7"
             label="Print"
             @click="printApplication(selectedApp)"
+          />
+          <q-btn
+            v-if="canPrintRequestChangesApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="teal-7"
+            label="Print Form"
+            @click="printRequestChangesApplication(selectedApp)"
           />
           <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
             <q-btn
@@ -792,7 +878,7 @@
             unelevated
             color="teal-7"
             icon="description"
-            label="Print Request Form"
+            label="Print Form"
             :disable="!actionResultApp"
             @click="printRequestChangesActionResult"
           />
@@ -869,6 +955,17 @@ const {
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
   getEditRequestBadgeColor,
+  hasApplicationEditRequest,
+  getApplicationEditRequestStatusLabel,
+  getApplicationEditRequestRequestedAt,
+  getApplicationEditRequestRequestedBy,
+  getApplicationEditRequestReason,
+  getApplicationEditRequestFromDates,
+  getApplicationEditRequestToDates,
+  getApplicationEditRequestCurrentDuration,
+  getApplicationEditRequestRequestedDuration,
+  isApplicationEditRequestHrApproved,
+  shouldShowPendingDateComparisonInDetails,
   openDetails,
   openCalendarPreview,
   onCalendarPreviewNavigation,
@@ -890,6 +987,8 @@ const {
   getActionResultLabel,
   getActionResultVerb,
   printActionResult,
+  canPrintRequestChangesApplication,
+  printRequestChangesApplication,
   formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
 } = useAdminApplicationsPage()
@@ -1303,6 +1402,71 @@ function shouldScrollInclusiveDates(app) {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #829ab1;
+}
+
+.admin-application-requested-changes-section {
+  border: 1px solid #d9e8f2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(236, 247, 255, 0.55);
+}
+
+.admin-application-requested-changes-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.admin-application-requested-changes-item {
+  border: 1px dashed #b5cee2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.admin-application-requested-changes-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #4b6b85;
+  margin-bottom: 6px;
+}
+
+.admin-application-requested-changes-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.admin-application-requested-changes-key {
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-application-requested-changes-value {
+  color: #1f2937;
+  font-size: 0.78rem;
+}
+
+.admin-application-requested-changes-value--requested {
+  color: #4c1d95;
+}
+
+.admin-application-requested-changes-value--final {
+  color: #166534;
+  font-weight: 600;
+}
+
+.admin-application-requested-changes-meta {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #374151;
 }
 
 .admin-application-details-lines {
@@ -1755,6 +1919,11 @@ function shouldScrollInclusiveDates(app) {
   .admin-application-details-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+
+  .admin-application-requested-changes-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .admin-application-details-lines {
