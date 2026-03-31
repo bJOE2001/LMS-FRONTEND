@@ -8,7 +8,7 @@
         </div>
       </div>
 
-      <div class="trend-chart-wrapper chart-loading-host">
+      <div ref="chartRoot" class="trend-chart-wrapper chart-loading-host">
         <q-no-ssr>
           <VueApexCharts
             type="area"
@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import VueApexCharts from 'vue3-apexcharts'
 
@@ -48,6 +48,31 @@ const props = defineProps({
     default: () => new Date().getFullYear(),
   },
 })
+
+const chartRoot = ref(null)
+let chartTitleCleanupObserver = null
+
+function removeNativeChartTitleTooltip() {
+  if (!chartRoot.value) return
+  chartRoot.value
+    .querySelectorAll('[title]')
+    .forEach((node) => {
+      if (String(node.getAttribute('title') || '').trim().toLowerCase() === 'chart') {
+        node.removeAttribute('title')
+      }
+    })
+  chartRoot.value
+    .querySelectorAll('title')
+    .forEach((node) => {
+      if (String(node.textContent || '').trim().toLowerCase() === 'chart') {
+        node.remove()
+      }
+    })
+}
+
+function syncNativeChartTitleCleanup() {
+  nextTick(removeNativeChartTitleTooltip)
+}
 
 const $q = useQuasar()
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -184,6 +209,29 @@ const trendChartOptions = computed(() => ({
     },
   },
 }))
+
+onMounted(() => {
+  syncNativeChartTitleCleanup()
+
+  if (chartRoot.value) {
+    chartTitleCleanupObserver = new MutationObserver(syncNativeChartTitleCleanup)
+    chartTitleCleanupObserver.observe(chartRoot.value, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['title'],
+    })
+  }
+})
+
+watch([trendChartSeries, trendChartOptions, () => props.loading], syncNativeChartTitleCleanup, {
+  deep: true,
+})
+
+onBeforeUnmount(() => {
+  chartTitleCleanupObserver?.disconnect()
+  chartTitleCleanupObserver = null
+})
 </script>
 
 <style scoped>

@@ -724,7 +724,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const statusLabel = String(app.status || '').toUpperCase()
 
     // Determine which leave type checkbox to tick
-    const isVacation = lt.includes('vacation')
+    const isMonetization = app?.is_monetization === true || lt.includes('monetization')
+    const isVacation = lt.includes('vacation') && !isMonetization
     const isMandatory = lt.includes('mandatory') || lt.includes('forced')
     const isSick = lt.includes('sick')
     const isWellness = lt.includes('wellness')
@@ -739,9 +740,14 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const isSLBW = lt.includes('special leave benefit')
     const isCalamity = lt.includes('calamity') || lt.includes('emergency')
     const isAdoption = lt.includes('adoption')
-    const isOther = !(isVacation || isMandatory || isSick || isWellness || isCTO || isMaternity || isPaternity || isSpecPriv || isSoloParent || isStudy || isVAWC || isRehab || isSLBW || isCalamity || isAdoption)
+    const isOtherBase = !(isVacation || isMandatory || isSick || isWellness || isCTO || isMaternity || isPaternity || isSpecPriv || isSoloParent || isStudy || isVAWC || isRehab || isSLBW || isCalamity || isAdoption)
+    const isOther = isOtherBase || isMonetization
+    const otherLeaveLabel = isMonetization
+        ? 'Monetization Leave'
+        : (isOtherBase ? (app.leaveType || '') : '')
 
     const isCommutationRequested = String(app.commutation || '').toLowerCase().trim() === 'requested'
+    const isCommutationRequestedForPrint = isMonetization || isCommutationRequested
     const isForApproval = rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || statusLabel === 'APPROVED' || statusLabel === 'PENDING HR'
     const isForDisapproval = rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED' || statusLabel === 'REJECTED' || statusLabel === 'DISAPPROVED'
     const disapprovalReason = isForDisapproval
@@ -933,7 +939,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                     checkboxRow(isCalamity, 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)'),
                                     checkboxRow(isAdoption, 'Adoption Leave (R.A. No. 8552)'),
                                     { text: ' ', fontSize: 4 },
-                                    checkboxRow(isOther, `Others: ${isOther ? (app.leaveType || '') : '_______________'}`, { marginVertical: 1, marginBottom: 4 }),
+                                    checkboxRow(isOther, `Others: ${isOther ? (otherLeaveLabel || '_______________') : '_______________'}`, { marginVertical: 1, marginBottom: 4 }),
                                 ],
                                 border: [true, false, true, true],
                             },
@@ -943,7 +949,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                 stack: [
                                     { text: '6.B  DETAILS OF LEAVE', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
                                     { text: '   In case of Vacation/Special Privilege Leave(MC06):', fontSize: 7, italics: true, margin: [4, 0] },
-                                    checkboxRow(isVacation, 'Within the Philippines', { marginLeft: 8 }),
+                                    checkboxRow(isVacation && !isMonetization, 'Within the Philippines', { marginLeft: 8 }),
                                     checkboxRow(false, 'Abroad (Specify) _______________', { marginLeft: 8 }),
                                     { text: ' ', fontSize: 4 },
                                     { text: '   In case of Sick Leave:', fontSize: 7, italics: true, margin: [4, 1] },
@@ -958,7 +964,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                     checkboxRow(false, 'BAR/Board Examination Review', { marginLeft: 8 }),
                                     { text: ' ', fontSize: 4 },
                                     { text: '   Other purpose:', fontSize: 7, italics: true, margin: [4, 1] },
-                                    checkboxRow(false, 'Monetization Leave', { marginLeft: 8 }),
+                                    checkboxRow(isMonetization, 'Monetization Leave', { marginLeft: 8 }),
                                     checkboxRow(false, 'Terminal Leave', { marginLeft: 8, marginVertical: 1, marginBottom: 4 }),
                                 ],
                                 border: [false, false, true, true],
@@ -987,8 +993,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                             {
                                 stack: [
                                     { text: '6.D  COMMUTATION', bold: true, fontSize: 8, margin: [4, 4, 0, 2] },
-                                    checkboxRow(!isCommutationRequested, 'Not Requested'),
-                                    checkboxRow(isCommutationRequested, 'Requested'),
+                                    checkboxRow(!isCommutationRequestedForPrint, 'Not Requested'),
+                                    checkboxRow(isCommutationRequestedForPrint, 'Requested'),
                                     { text: ' ', fontSize: 6 },
                                     { text: '________________________________________', fontSize: 8, alignment: 'center', margin: [0, 4, 0, 0] },
                                     { text: '(Signature of Applicant)', fontSize: 7, italics: true, alignment: 'center', margin: [0, 1, 0, 4] },

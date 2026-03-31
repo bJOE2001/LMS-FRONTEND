@@ -20,7 +20,7 @@
         </div>
       </div>
 
-      <div class="trend-chart-wrapper chart-loading-host">
+      <div ref="chartRoot" class="trend-chart-wrapper chart-loading-host">
         <q-no-ssr>
           <VueApexCharts
             type="line"
@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import VueApexCharts from 'vue3-apexcharts'
 
@@ -66,6 +66,30 @@ const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 const leaveTypeFilter = ref('All')
 const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
+const chartRoot = ref(null)
+let chartTitleCleanupObserver = null
+
+function removeNativeChartTitleTooltip() {
+  if (!chartRoot.value) return
+  chartRoot.value
+    .querySelectorAll('[title]')
+    .forEach((node) => {
+      if (String(node.getAttribute('title') || '').trim().toLowerCase() === 'chart') {
+        node.removeAttribute('title')
+      }
+    })
+  chartRoot.value
+    .querySelectorAll('title')
+    .forEach((node) => {
+      if (String(node.textContent || '').trim().toLowerCase() === 'chart') {
+        node.remove()
+      }
+    })
+}
+
+function syncNativeChartTitleCleanup() {
+  nextTick(removeNativeChartTitleTooltip)
+}
 
 function getApplicationDate(application) {
   return (
@@ -266,6 +290,29 @@ const leaveTypeTrendChartOptions = computed(() => ({
     text: 'No leave data for selected leave type.',
   },
 }))
+
+onMounted(() => {
+  syncNativeChartTitleCleanup()
+
+  if (chartRoot.value) {
+    chartTitleCleanupObserver = new MutationObserver(syncNativeChartTitleCleanup)
+    chartTitleCleanupObserver.observe(chartRoot.value, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['title'],
+    })
+  }
+})
+
+watch([leaveTypeTrendSeries, leaveTypeTrendChartOptions, () => props.loading], syncNativeChartTitleCleanup, {
+  deep: true,
+})
+
+onBeforeUnmount(() => {
+  chartTitleCleanupObserver?.disconnect()
+  chartTitleCleanupObserver = null
+})
 </script>
 
 <style scoped>
