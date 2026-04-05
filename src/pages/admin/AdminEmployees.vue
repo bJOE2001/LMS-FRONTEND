@@ -1067,6 +1067,7 @@ function toEmployeePickerOption(employee) {
   const controlNo = String(employee.control_no || '').trim()
   const currentOffice = String(employee.office || '').trim()
   const hrisOffice = String(employee.hris_office || employee.office || '').trim()
+  const officeAcronym = String(employee.officeAcronym || '').trim()
   const designation = String(employee.designation || '').trim()
   const fullName = [surname, firstname, middlename].filter(Boolean).join(', ').replace(', ,', ',')
 
@@ -1081,7 +1082,8 @@ function toEmployeePickerOption(employee) {
     designation,
     office: currentOffice,
     hris_office: hrisOffice,
-    office_acronym: toOfficeAcronym(currentOffice || hrisOffice),
+    officeAcronym: officeAcronym || toOfficeAcronym(currentOffice || hrisOffice),
+    office_acronym: officeAcronym || toOfficeAcronym(currentOffice || hrisOffice),
   }
 }
 

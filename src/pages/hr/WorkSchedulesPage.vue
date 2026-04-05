@@ -3,18 +3,8 @@
     <div class="page-header q-mb-md">
       <div>
         <div class="text-h4 text-weight-bold">Work Schedule & Leave Rules</div>
-        <div class="text-subtitle2 text-grey-7">
-          Set the default workday and leave-deduction rules, then override them for specific employees when needed.
-        </div>
       </div>
     </div>
-
-    <q-banner rounded class="bg-blue-1 text-blue-9 q-mb-md">
-      <template #avatar>
-        <q-icon name="schedule" color="primary" />
-      </template>
-      Changes here affect future leave deduction calculations inside LMS only. HRIS working hours are not modified.
-    </q-banner>
 
     <div class="row q-col-gutter-md">
       <div class="col-12 col-xl-5">
@@ -23,7 +13,7 @@
             <div>
               <div class="text-h6">Default Schedule</div>
               <div class="text-caption text-grey-7">
-                Used for everyone unless an employee override is active.
+                Used for everyone unless an employee override exists.
               </div>
             </div>
             <q-space />
@@ -59,7 +49,6 @@
                   dense
                   readonly
                   label="Whole Day Leave Deduction *"
-                  hint="Auto-calculated using an 8-hour standard workday."
                 />
               </div>
               <div class="col-12 col-sm-6">
@@ -69,26 +58,6 @@
                   dense
                   readonly
                   label="Half Day Leave Deduction *"
-                  hint="Auto-calculated using an 8-hour standard workday."
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  :model-value="defaultWorkingHoursLabel"
-                  outlined
-                  dense
-                  readonly
-                  label="Computed Working Hours / Day"
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="defaultScheduleForm.notes"
-                  outlined
-                  dense
-                  autogrow
-                  type="textarea"
-                  label="Notes"
                 />
               </div>
             </div>
@@ -102,8 +71,6 @@
               <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
               <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
               <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12"><q-skeleton height="72px" bordered /></div>
             </div>
           </q-card-section>
 
@@ -174,23 +141,19 @@
               <template #body-cell-employee="props">
                 <q-td :props="props">
                   <div class="text-weight-medium">{{ props.row.employee_name || 'Unknown employee' }}</div>
-                  <div class="text-caption text-grey-7">{{ props.row.employee_control_no }}</div>
                 </q-td>
               </template>
 
               <template #body-cell-office="props">
                 <q-td :props="props">
-                  <div>{{ props.row.office || 'N/A' }}</div>
+                  <div>{{ props.row.officeAcronym || formatOfficeAcronym(props.row.office) || 'N/A' }}</div>
                   <div class="text-caption text-grey-7">{{ props.row.designation || 'No designation' }}</div>
                 </q-td>
               </template>
 
               <template #body-cell-status="props">
                 <q-td :props="props">
-                  <q-chip dense square :color="props.row.is_active ? 'green-1' : 'grey-3'" :text-color="props.row.is_active ? 'green-9' : 'grey-8'">
-                    {{ props.row.is_active ? 'Active Override' : 'Inactive Override' }}
-                  </q-chip>
-                  <div class="text-caption text-grey-7 q-mt-xs">{{ props.row.status || 'No status' }}</div>
+                  <div>{{ props.row.status || 'No status' }}</div>
                 </q-td>
               </template>
 
@@ -246,7 +209,7 @@
 
         <q-card-section class="q-pt-md">
           <div class="row q-col-gutter-md">
-            <div class="col-12">
+            <div v-if="!editingOverrideId" class="col-12">
               <q-select
                 v-model="overrideForm.employee_control_no"
                 v-model:input-value="employeeSearch"
@@ -289,7 +252,7 @@
               <q-banner rounded class="bg-grey-1 text-grey-9">
                 <div class="text-weight-medium">{{ selectedOverrideEmployee.full_name || selectedOverrideEmployee.label }}</div>
                 <div class="text-caption">{{ selectedOverrideEmployee.designation || 'No designation' }}</div>
-                <div class="text-caption">{{ selectedOverrideEmployee.office || 'No office' }} • {{ selectedOverrideEmployee.status || 'No status' }}</div>
+                <div class="text-caption">{{ selectedOverrideEmployee.officeAcronym || formatOfficeAcronym(selectedOverrideEmployee.office) || selectedOverrideEmployee.office || 'No office' }} • {{ selectedOverrideEmployee.status || 'No status' }}</div>
               </q-banner>
             </div>
 
@@ -312,7 +275,6 @@
                 dense
                 readonly
                 label="Whole Day Leave Deduction *"
-                hint="Auto-calculated using an 8-hour standard workday."
               />
             </div>
             <div class="col-12 col-sm-6">
@@ -322,17 +284,7 @@
                 dense
                 readonly
                 label="Half Day Leave Deduction *"
-                hint="Auto-calculated using an 8-hour standard workday."
               />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-input :model-value="overrideWorkingHoursLabel" outlined dense readonly label="Computed Working Hours / Day" />
-            </div>
-            <div class="col-12 col-sm-6 flex items-center">
-              <q-toggle v-model="overrideForm.is_active" color="primary" label="Override is active" />
-            </div>
-            <div class="col-12">
-              <q-input v-model="overrideForm.notes" outlined dense autogrow type="textarea" label="Notes" />
             </div>
           </div>
         </q-card-section>
@@ -353,6 +305,17 @@ import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const STANDARD_WORKDAY_HOURS = 8
+const departmentStopWords = new Set([
+  'OF',
+  'THE',
+  'AND',
+  'NG',
+  'SA',
+  'OFFICE',
+  'CITY',
+  'OFFICER',
+  'DEPARTMENT',
+])
 
 const $q = useQuasar()
 
@@ -400,7 +363,6 @@ const filteredOverrides = computed(() => {
       row.office,
       row.designation,
       row.status,
-      row.notes,
     ]
       .filter(Boolean)
       .join(' ')
@@ -411,7 +373,6 @@ const filteredOverrides = computed(() => {
 })
 
 const defaultWorkingHoursLabel = computed(() => formatWorkingHoursLabel(calculateWorkingHours(defaultScheduleForm.value)))
-const overrideWorkingHoursLabel = computed(() => formatWorkingHoursLabel(calculateWorkingHours(overrideForm.value)))
 const defaultWholeDayDeduction = computed(() => calculateWholeDayDeduction(defaultScheduleForm.value))
 const defaultHalfDayDeduction = computed(() => calculateHalfDayDeduction(defaultScheduleForm.value))
 const overrideWholeDayDeduction = computed(() => calculateWholeDayDeduction(overrideForm.value))
@@ -434,7 +395,6 @@ function defaultSchedulePayload() {
     break_end_time: '13:00',
     whole_day_leave_deduction: 1,
     half_day_leave_deduction: 0.5,
-    notes: '',
   }
 }
 
@@ -447,8 +407,6 @@ function defaultOverridePayload() {
     break_end_time: '13:00',
     whole_day_leave_deduction: 1,
     half_day_leave_deduction: 0.5,
-    notes: '',
-    is_active: true,
   }
 }
 
@@ -458,7 +416,6 @@ function applyDefaultSchedule(schedule) {
     ...schedule,
     whole_day_leave_deduction: Number(schedule?.whole_day_leave_deduction ?? 1),
     half_day_leave_deduction: Number(schedule?.half_day_leave_deduction ?? 0.5),
-    notes: schedule?.notes || '',
   }
 
   defaultScheduleForm.value = { ...normalized }
@@ -476,8 +433,6 @@ function applyOverrideForm(schedule, employee = null) {
     employee_control_no: schedule?.employee_control_no || '',
     whole_day_leave_deduction: Number(schedule?.whole_day_leave_deduction ?? 1),
     half_day_leave_deduction: Number(schedule?.half_day_leave_deduction ?? 0.5),
-    notes: schedule?.notes || '',
-    is_active: schedule?.is_active !== false,
   }
   selectedOverrideEmployee.value = employee || null
 }
@@ -529,7 +484,6 @@ function openCreateOverrideDialog() {
   selectedOverrideEmployee.value = null
   applyOverrideForm(defaultScheduleSnapshot.value)
   overrideForm.value.employee_control_no = ''
-  overrideForm.value.is_active = true
   showOverrideDialog.value = true
 }
 
@@ -542,6 +496,7 @@ function openEditOverrideDialog(row) {
     full_name: row.employee_name,
     designation: row.designation,
     office: row.office,
+    officeAcronym: row.officeAcronym || row.hrisOfficeAcronym || null,
     status: row.status,
     label: row.employee_name,
   }
@@ -560,7 +515,6 @@ async function saveOverride() {
     const payload = {
       employee_control_no: overrideForm.value.employee_control_no,
       ...buildSchedulePayload(overrideForm.value),
-      is_active: overrideForm.value.is_active,
     }
 
     let data
@@ -678,7 +632,10 @@ async function fetchEmployeeOptions(searchTerm) {
       return {
         label: employee?.full_name || controlNo,
         value: controlNo,
-        caption: [employee?.designation, employee?.office].filter(Boolean).join(' • '),
+        caption: [
+          employee?.designation,
+          employee?.officeAcronym || formatOfficeAcronym(employee?.office),
+        ].filter(Boolean).join(' • '),
       }
     })
 
@@ -702,7 +659,6 @@ function buildSchedulePayload(form) {
     break_end_time: normalizeTime(form.break_end_time),
     whole_day_leave_deduction: wholeDayDeduction ?? 1,
     half_day_leave_deduction: halfDayDeduction ?? 0.5,
-    notes: String(form.notes || '').trim() || null,
   }
 }
 
@@ -753,6 +709,27 @@ function formatWorkingHoursLabel(value) {
   const numeric = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(numeric) || numeric <= 0) return 'Invalid schedule'
   return `${numeric.toFixed(2)} hour(s)`
+}
+
+function formatOfficeAcronym(value) {
+  const source = String(value || '').trim()
+  if (!source) return ''
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter(
+    (word) => !departmentStopWords.has(word) && !/^\d+$/.test(word),
+  )
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source.toUpperCase()
 }
 
 function formatScheduleSummary(row) {
