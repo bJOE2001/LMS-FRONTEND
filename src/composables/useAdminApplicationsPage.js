@@ -2688,7 +2688,7 @@ export function useAdminApplicationsPage() {
         color: 'positive',
         actor: resolveCancelledActor(app),
       })
-      return entries
+      return finalizeApplicationTimelineEntries(app, entries)
     }
 
     if (rawStatus === 'PENDING_ADMIN') {
@@ -2712,7 +2712,7 @@ export function useAdminApplicationsPage() {
           icon: 'radio_button_unchecked',
           color: 'grey-5',
         })
-        return entries
+        return finalizeApplicationTimelineEntries(app, entries)
       }
 
       entries.push({
@@ -2737,7 +2737,7 @@ export function useAdminApplicationsPage() {
         icon: 'radio_button_unchecked',
         color: 'grey-5',
       })
-      return entries
+      return finalizeApplicationTimelineEntries(app, entries)
     }
 
     if (rawStatus === 'REJECTED') {
@@ -2772,7 +2772,7 @@ export function useAdminApplicationsPage() {
         color: 'positive',
         actor: disapprovedBy,
       })
-      return entries
+      return finalizeApplicationTimelineEntries(app, entries)
     }
 
     entries.push({
@@ -2797,7 +2797,7 @@ export function useAdminApplicationsPage() {
           icon: 'radio_button_unchecked',
           color: 'grey-5',
         })
-        return entries
+        return finalizeApplicationTimelineEntries(app, entries)
       }
 
       entries.push({
@@ -2815,7 +2815,7 @@ export function useAdminApplicationsPage() {
         icon: 'radio_button_unchecked',
         color: 'grey-5',
       })
-      return entries
+      return finalizeApplicationTimelineEntries(app, entries)
     }
 
     if (rawStatus === 'APPROVED') {
@@ -2841,7 +2841,7 @@ export function useAdminApplicationsPage() {
           color: 'positive',
           actor: closedActor,
         })
-        return entries
+        return finalizeApplicationTimelineEntries(app, entries)
       }
 
       const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app)) || 'Completed'
@@ -2864,7 +2864,7 @@ export function useAdminApplicationsPage() {
         color: 'positive',
         actor: approvedBy,
       })
-      return entries
+      return finalizeApplicationTimelineEntries(app, entries)
     }
 
     if (rawStatus === 'RECALLED') {
@@ -2901,7 +2901,7 @@ export function useAdminApplicationsPage() {
         color: 'positive',
         actor: recalledBy,
       })
-      return entries
+      return finalizeApplicationTimelineEntries(app, entries)
     }
 
     entries.push({
@@ -2913,7 +2913,241 @@ export function useAdminApplicationsPage() {
     })
     entries.push(...editRequestEntries)
 
-    return entries
+    return finalizeApplicationTimelineEntries(app, entries)
+  }
+
+  function finalizeApplicationTimelineEntries(app, entries) {
+    if (!Array.isArray(entries) || !entries.length) return []
+    if (isCocApplication(app)) return entries
+
+    const existingReceivedEntry = entries.find((entry) =>
+      isTimelineEntryTitle(entry, 'Received Application'),
+    )
+    const existingReleasedEntry = entries.find((entry) =>
+      isTimelineEntryTitle(entry, 'Released Application'),
+    )
+    const existingClosedEntries = entries.filter((entry) =>
+      isTimelineEntryTitle(entry, 'Application Closed'),
+    )
+
+    if (!existingClosedEntries.length && !existingReceivedEntry && !existingReleasedEntry) {
+      return entries
+    }
+
+    const cleanedTimeline = entries.filter(
+      (entry) =>
+        !isTimelineEntryTitle(entry, 'Received Application') &&
+        !isTimelineEntryTitle(entry, 'Released Application') &&
+        !isTimelineEntryTitle(entry, 'Application Closed'),
+    )
+
+    const receivedEntry = buildReceivedTimelineEntry(app, existingReceivedEntry)
+    const receivedInsertIndex = getReceivedTimelineInsertionIndex(cleanedTimeline)
+    cleanedTimeline.splice(receivedInsertIndex, 0, receivedEntry)
+
+    const releasedEntry = buildReleasedTimelineEntry(app, existingReleasedEntry)
+    const finalizedEntries = [...cleanedTimeline, releasedEntry]
+
+    const closedEntry = buildClosedTimelineEntry(existingClosedEntries[0] || null, isApplicationReleased(app))
+    if (closedEntry) {
+      finalizedEntries.push(closedEntry)
+    }
+
+    return finalizedEntries
+  }
+
+  function normalizeTimelineEntryTitle(entry) {
+    return String(entry?.title || '')
+      .trim()
+      .toLowerCase()
+  }
+
+  function isTimelineEntryTitle(entry, title) {
+    return normalizeTimelineEntryTitle(entry) === String(title || '').trim().toLowerCase()
+  }
+
+  function isHrPhaseTimelineEntry(entry) {
+    const normalizedTitle = normalizeTimelineEntryTitle(entry)
+    return (
+      normalizedTitle.includes('pending hr review') ||
+      normalizedTitle.includes('approved by hr') ||
+      normalizedTitle.includes('application disapproved') ||
+      normalizedTitle.includes('recalled by hr') ||
+      normalizedTitle.includes('pending edit review (hr)') ||
+      normalizedTitle.includes('edit request approved') ||
+      normalizedTitle.includes('edit request rejected') ||
+      normalizedTitle.includes('current status')
+    )
+  }
+
+  function getReceivedTimelineInsertionIndex(entries) {
+    const adminCompletedIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Admin Review Completed'),
+    )
+    if (adminCompletedIndex >= 0) return adminCompletedIndex + 1
+
+    const adminPendingIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Department Admin Review Pending'),
+    )
+    if (adminPendingIndex >= 0) return adminPendingIndex + 1
+
+    const hrPhaseIndex = entries.findIndex((entry) => isHrPhaseTimelineEntry(entry))
+    if (hrPhaseIndex >= 0) return hrPhaseIndex
+
+    return entries.length
+  }
+
+  function buildReceivedTimelineEntry(app, existingEntry = null) {
+    if (!isApplicationReceivedByHr(app)) {
+      return {
+        title: 'Received Application',
+        subtitle: 'Upcoming',
+        description: 'HR will confirm receipt of the hard copy leave application form.',
+        icon: 'radio_button_unchecked',
+        color: 'grey-5',
+      }
+    }
+
+    const subtitle =
+      formatDateTime(resolveReceivedDateValue(app)) ||
+      String(existingEntry?.subtitle || '').trim() ||
+      'Completed'
+    const actor = resolveReceivedActor(app)
+
+    return {
+      title: 'Received Application',
+      subtitle,
+      description:
+        String(existingEntry?.description || '').trim() ||
+        'HR confirmed receipt of the hard copy leave application form.',
+      icon: String(existingEntry?.icon || '').trim() || 'inventory_2',
+      color: String(existingEntry?.color || '').trim() || 'positive',
+      actor: actor !== 'Unknown' ? actor : undefined,
+    }
+  }
+
+  function buildReleasedTimelineEntry(app, existingEntry = null) {
+    if (!isApplicationReleased(app)) {
+      return {
+        title: 'Released Application',
+        subtitle: 'Upcoming',
+        description: 'Physical leave document will be released before final closure.',
+        icon: 'radio_button_unchecked',
+        color: 'grey-5',
+      }
+    }
+
+    const subtitle =
+      formatDateTime(resolveReleasedDateValue(app)) ||
+      String(existingEntry?.subtitle || '').trim() ||
+      'Completed'
+    const actor = resolveReleasedActor(app)
+
+    return {
+      title: 'Released Application',
+      subtitle,
+      description:
+        String(existingEntry?.description || '').trim() ||
+        'Physical leave document has been released.',
+      icon: String(existingEntry?.icon || '').trim() || 'outbox',
+      color: String(existingEntry?.color || '').trim() || 'positive',
+      actor: actor !== 'Unknown' ? actor : undefined,
+    }
+  }
+
+  function getDefaultClosedTimelineEntry() {
+    return {
+      title: 'Application Closed',
+      subtitle: 'Upcoming',
+      description: 'Application workflow is complete.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+    }
+  }
+
+  function buildClosedTimelineEntry(existingEntry = null, isReleasedState = false) {
+    const baseEntry = existingEntry ? { ...existingEntry } : getDefaultClosedTimelineEntry()
+    if (isReleasedState) return baseEntry
+
+    return {
+      ...baseEntry,
+      subtitle: 'Upcoming',
+      description: 'Application will be closed after document release.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+      actor: undefined,
+    }
+  }
+
+  function resolveReceivedHistoryEntry(app) {
+    return findLatestStatusHistoryEntry(app, (entry) => {
+      const action = String(entry?.action || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_')
+      return action === 'HR_RECEIVED'
+    })
+  }
+
+  function resolveReleasedHistoryEntry(app) {
+    return findLatestStatusHistoryEntry(app, (entry) => {
+      const action = String(entry?.action || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_')
+      const stage = String(entry?.stage || '').trim().toLowerCase()
+      return action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
+    })
+  }
+
+  function resolveStatusHistoryActor(entry) {
+    return entry?.actor_name || entry?.action_by_name || entry?.action_by || null
+  }
+
+  function resolveStatusHistoryTimestamp(entry) {
+    return entry?.created_at || null
+  }
+
+  function resolveReceivedActor(app) {
+    const directActor = String(app?.received_by || app?.receivedBy || app?.hr_received_by || '').trim()
+    if (directActor) return directActor
+
+    const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
+    return historyActor || 'Unknown'
+  }
+
+  function resolveReleasedActor(app) {
+    const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
+    return historyActor || 'Unknown'
+  }
+
+  function resolveReceivedDateValue(app) {
+    return (
+      app?.received_at ||
+      app?.receivedAt ||
+      app?.hr_received_at ||
+      resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) ||
+      null
+    )
+  }
+
+  function resolveReleasedDateValue(app) {
+    return resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null
+  }
+
+  function isApplicationReceivedByHr(app) {
+    if (!app) return false
+    return Boolean(
+      app?.has_hr_received ||
+      app?.hasHrReceived ||
+      resolveReceivedHistoryEntry(app) ||
+      resolveReceivedDateValue(app),
+    )
+  }
+
+  function isApplicationReleased(app) {
+    if (!app) return false
+    return Boolean(resolveReleasedHistoryEntry(app) || resolveReleasedDateValue(app))
   }
 
   function getTimelineEntryTone(entry) {
@@ -2971,6 +3205,15 @@ export function useAdminApplicationsPage() {
   function getStatusHistoryEntries(app) {
     const entries = app?.statusHistory || app?.status_history
     return Array.isArray(entries) ? entries : []
+  }
+
+  function findLatestStatusHistoryEntry(app, matcher) {
+    const entries = getStatusHistoryEntries(app)
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const candidate = entries[index] || {}
+      if (matcher(candidate)) return candidate
+    }
+    return null
   }
 
   function findStatusHistoryEntry(app, matcher) {
