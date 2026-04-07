@@ -11,7 +11,7 @@
         <div class="col-12 col-md-auto">
           <q-btn-toggle
             v-model="selectedPeriod"
-            :options="periodOptions"
+            :options="periodToggleOptions"
             no-caps
             unelevated
             dense
@@ -19,6 +19,7 @@
             color="grey-3"
             text-color="grey-8"
             class="department-period-toggle"
+            :spread="isMobile"
           />
         </div>
       </div>
@@ -27,7 +28,61 @@
     <q-separator />
 
     <q-card-section class="q-pa-none">
+      <div v-if="isMobile" class="department-stats-mobile">
+        <div
+          v-if="isLoading || fetchErrorMessage || !departmentRows.length"
+          class="full-width row flex-center q-pa-md text-grey-7"
+        >
+          <template v-if="isLoading">
+            <q-spinner color="primary" size="24px" class="q-mr-sm" />
+            <span>Loading department statistics...</span>
+          </template>
+          <template v-else-if="fetchErrorMessage">
+            <q-icon name="error_outline" size="20px" class="q-mr-sm" />
+            <span>{{ fetchErrorMessage }}</span>
+          </template>
+          <template v-else>
+            <q-icon name="inbox" size="20px" class="q-mr-sm" />
+            <span>No department statistics available for this period.</span>
+          </template>
+        </div>
+
+        <div v-else class="department-mobile-list">
+          <q-card
+            v-for="row in departmentRows"
+            :key="row.department"
+            flat
+            bordered
+            class="department-mobile-item"
+          >
+            <q-card-section class="department-mobile-item__header">
+              <div class="department-mobile-item__name">{{ row.department }}</div>
+              <q-badge
+                color="primary"
+                text-color="primary"
+                class="department-mobile-item__total"
+                outline
+              >
+                Total: {{ row.total }}
+              </q-badge>
+            </q-card-section>
+            <q-separator />
+            <q-card-section class="department-mobile-item__stats">
+              <div
+                v-for="column in leaveTypeColumns"
+                :key="`${row.department}-${column.name}`"
+                class="department-mobile-stat"
+              >
+                <span class="department-mobile-stat__label">{{ column.mobileLabel }}</span>
+                <span class="department-mobile-stat__value">{{ row[column.name] }}</span>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
       <q-table
+        v-else
         :rows="departmentRows"
         :columns="tableColumns"
         row-key="department"
@@ -91,6 +146,7 @@ const props = defineProps({
 const $q = useQuasar()
 
 const tableMinWidth = '1460px'
+const isMobile = computed(() => $q.screen.lt.md)
 const selectedPeriod = ref('daily')
 const periodOptions = [
   { label: 'Daily', value: 'daily' },
@@ -98,16 +154,34 @@ const periodOptions = [
   { label: 'Monthly', value: 'monthly' },
   { label: 'Yearly', value: 'yearly' },
 ]
+const periodToggleOptions = computed(() => {
+  if (!$q.screen.xs) return periodOptions
+
+  return [
+    { label: 'Day', value: 'daily' },
+    { label: 'Week', value: 'weekly' },
+    { label: 'Month', value: 'monthly' },
+    { label: 'Year', value: 'yearly' },
+  ]
+})
 
 const leaveTypeColumns = [
-  { name: 'vacationLeave', label: 'Vacation Leave' },
-  { name: 'sickLeave', label: 'Sick Leave' },
-  { name: 'mandatoryForcedLeave', label: 'Mandatory / Forced Leave' },
-  { name: 'wellnessLeave', label: 'Wellness Leave' },
-  { name: 'maternityLeave', label: 'Maternity Leave' },
-  { name: 'paternityLeave', label: 'Paternity Leave' },
-  { name: 'specialPrivilegeLeave', label: 'Special Privilege Leave(MC06)' },
-  { name: 'soloParentLeave', label: 'Solo Parent Leave' },
+  { name: 'vacationLeave', label: 'Vacation Leave', mobileLabel: 'Vacation' },
+  { name: 'sickLeave', label: 'Sick Leave', mobileLabel: 'Sick' },
+  {
+    name: 'mandatoryForcedLeave',
+    label: 'Mandatory / Forced Leave',
+    mobileLabel: 'Mandatory',
+  },
+  { name: 'wellnessLeave', label: 'Wellness Leave', mobileLabel: 'Wellness' },
+  { name: 'maternityLeave', label: 'Maternity Leave', mobileLabel: 'Maternity' },
+  { name: 'paternityLeave', label: 'Paternity Leave', mobileLabel: 'Paternity' },
+  {
+    name: 'specialPrivilegeLeave',
+    label: 'Special Privilege Leave(MC06)',
+    mobileLabel: 'SPL (MC06)',
+  },
+  { name: 'soloParentLeave', label: 'Solo Parent Leave', mobileLabel: 'Solo Parent' },
 ]
 
 // Single backend mapping variable: update these keys to match your API exactly.
@@ -345,6 +419,77 @@ defineExpose({
   width: 100%;
 }
 
+.department-stats-mobile {
+  padding: 8px;
+}
+
+.department-mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.department-mobile-item {
+  border-radius: 12px;
+}
+
+.department-mobile-item__header {
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.department-mobile-item__name {
+  min-width: 0;
+  color: #223245;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.department-mobile-item__total {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.department-mobile-item__stats {
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.department-mobile-stat {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #e4ebf2;
+  border-radius: 8px;
+  background: #f8fbfe;
+  padding: 6px 8px;
+}
+
+.department-mobile-stat__label {
+  min-width: 0;
+  color: #6b7a89;
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.department-mobile-stat__value {
+  flex: 0 0 auto;
+  color: #223245;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .department-stats-table :deep(.q-table__middle) {
   overflow-x: auto;
 }
@@ -378,6 +523,22 @@ defineExpose({
 
 .department-stats-table :deep(.q-table tbody tr:hover td:last-child) {
   background: #e8f2ff;
+}
+
+@media (max-width: 767px) {
+  .department-period-toggle :deep(.q-btn) {
+    min-width: 0;
+  }
+
+  .department-period-toggle :deep(.q-btn .block) {
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 359px) {
+  .department-mobile-item__stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (min-width: 768px) {
