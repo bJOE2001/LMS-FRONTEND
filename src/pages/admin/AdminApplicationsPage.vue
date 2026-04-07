@@ -486,6 +486,58 @@
               <StatusBadge :status="selectedApp.displayStatus || getApplicationStatusLabel(selectedApp)" />
             </div>
 
+            <div
+              v-if="isCtoLeaveApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Available CTO Hours</div>
+              <div class="text-weight-medium">
+                {{ getCurrentCtoAvailableHoursDisplay(selectedApp) }}
+              </div>
+            </div>
+
+            <div
+              v-if="isCtoLeaveApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Required CTO Hours</div>
+              <div class="text-weight-medium">
+                {{ getApplicationCtoRequiredHoursDisplay(selectedApp) }}
+              </div>
+            </div>
+
+            <div
+              v-if="isCtoLeaveApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">CTO Deducted Hours</div>
+              <div class="text-weight-medium">
+                {{ getCtoDeductedHoursDisplay(selectedApp) }}
+              </div>
+            </div>
+
+            <div
+              v-if="isCocApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Certificate Number</div>
+              <div class="text-weight-medium">
+                {{ selectedApp.certificateNumber || selectedApp.certificate_number || 'N/A' }}
+              </div>
+            </div>
+
+            <div
+              v-if="isCocApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Issued Date</div>
+              <div class="text-weight-medium">
+                {{
+                  formatDate(selectedApp.certificateIssuedAt || selectedApp.certificate_issued_at) || 'N/A'
+                }}
+              </div>
+            </div>
+
             <div class="admin-application-details-item">
               <div class="admin-application-details-label">Duration</div>
               <div class="text-weight-medium">
@@ -944,6 +996,9 @@ const {
   handleApplicationRowClick,
   getLeaveBalanceTextItems,
   getCurrentLeaveBalanceDisplay,
+  getCurrentCtoAvailableHoursDisplay,
+  getApplicationCtoRequiredHoursDisplay,
+  getCtoDeductedHoursDisplay,
   getApplicationDurationDisplay,
   getApplicationInclusiveDateColumnLines,
   getApplicationInclusiveDateLines,
@@ -975,6 +1030,7 @@ const {
   syncCalendarPreviewDecorations,
   canPrintApplication,
   printApplication,
+  isCtoLeaveApplication,
   hasApplicationAttachment,
   viewApplicationAttachment,
   openActionConfirm,

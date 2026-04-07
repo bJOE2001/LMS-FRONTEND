@@ -77,7 +77,15 @@ function resolveMonthLabel(app) {
 }
 
 function resolveDateIssued(app) {
-  return app?.hr_action_at || app?.hrActionAt || ''
+  return (
+    app?.certificate_issued_at ||
+    app?.certificateIssuedAt ||
+    app?.date_issued ||
+    app?.dateIssued ||
+    app?.hr_action_at ||
+    app?.hrActionAt ||
+    ''
+  )
 }
 
 function resolveValidUntil(app, dateIssued) {

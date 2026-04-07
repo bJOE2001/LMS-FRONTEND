@@ -1110,12 +1110,29 @@ export function useAdminApplicationsPage() {
     })
   }
 
+  function getLeaveBalanceTooltipText(entry) {
+    const label = String(entry?.label || '').trim()
+    if (!label) return ''
+
+    if (getLeaveBalanceTypeKey(label) === getLeaveBalanceTypeKey('CTO Leave')) {
+      const resolvedHours =
+        roundCtoHours(entry?.balance_hours ?? entry?.balanceHours) ??
+        resolveCtoHoursFromDays(entry?.value)
+
+      if (resolvedHours !== null) {
+        return `${label} • ${formatDayValue(resolvedHours)} hour(s)`
+      }
+    }
+
+    return label
+  }
+
   function getLeaveBalanceTextItems(app) {
     return getLeaveBalanceEntries(app).map((entry) => {
       const acronym = toLeaveBalanceAcronym(entry.label)
       return {
         label: `${acronym || entry.label}: ${entry.value}`,
-        tooltip: entry.label,
+        tooltip: getLeaveBalanceTooltipText(entry),
       }
     })
   }
@@ -1162,6 +1179,103 @@ export function useAdminApplicationsPage() {
 
     const displayValue = formatLeaveBalanceValue(numericValue)
     return `${displayValue} day(s)`
+  }
+
+  function isCtoLeaveApplication(app) {
+    if (!app || isCocApplication(app)) return false
+    return getLeaveBalanceTypeKey(app?.leaveType) === getLeaveBalanceTypeKey('CTO Leave')
+  }
+
+  function roundCtoHours(value) {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue) || numericValue < 0) return null
+    return Math.round(numericValue * 100) / 100
+  }
+
+  function resolveCtoHoursFromDays(value) {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue) || numericValue < 0) return null
+    return roundCtoHours(numericValue * 8)
+  }
+
+  function getApplicationCtoRequiredHoursValue(app) {
+    if (!isCtoLeaveApplication(app)) return null
+
+    const directCandidates = [
+      app?.cto_deducted_hours,
+      app?.ctoDeductedHours,
+      app?.required_cto_balance_hours,
+      app?.requiredCtoBalanceHours,
+    ]
+
+    for (const candidate of directCandidates) {
+      const resolvedHours = roundCtoHours(candidate)
+      if (resolvedHours !== null) return resolvedHours
+    }
+
+    const dayCandidates = [
+      app?.deductible_days,
+      app?.deductibleDays,
+      app?.requested_total_days,
+      app?.actual_total_days,
+      app?.display_total_days,
+      app?.days,
+      app?.total_days,
+    ]
+
+    for (const candidate of dayCandidates) {
+      const resolvedHours = resolveCtoHoursFromDays(candidate)
+      if (resolvedHours !== null) return resolvedHours
+    }
+
+    return null
+  }
+
+  function getApplicationCtoRequiredHoursDisplay(app) {
+    const requiredHours = getApplicationCtoRequiredHoursValue(app)
+    return requiredHours !== null ? `${formatDayValue(requiredHours)} hour(s)` : 'N/A'
+  }
+
+  function getCurrentCtoAvailableHoursValue(app) {
+    if (!isCtoLeaveApplication(app)) return null
+
+    const entry = resolveCurrentLeaveBalanceEntry(app)
+    const directHourCandidates = [
+      entry?.balance_hours,
+      entry?.balanceHours,
+      app?.available_balance_hours,
+      app?.availableBalanceHours,
+      app?.balance_hours,
+      app?.balanceHours,
+    ]
+
+    for (const candidate of directHourCandidates) {
+      const resolvedHours = roundCtoHours(candidate)
+      if (resolvedHours !== null) return resolvedHours
+    }
+
+    const directBalance = Number(entry?.value)
+    if (Number.isFinite(directBalance)) {
+      return resolveCtoHoursFromDays(directBalance)
+    }
+
+    return null
+  }
+
+  function getCurrentCtoAvailableHoursDisplay(app) {
+    const availableHours = getCurrentCtoAvailableHoursValue(app)
+    return availableHours !== null ? `${formatDayValue(availableHours)} hour(s)` : 'N/A'
+  }
+
+  function getCtoDeductedHoursDisplay(app) {
+    if (!isCtoLeaveApplication(app)) return 'N/A'
+
+    const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+    if (rawStatus !== 'APPROVED' && rawStatus !== 'RECALLED') {
+      return 'Pending approval'
+    }
+
+    return getApplicationCtoRequiredHoursDisplay(app)
   }
 
   function toIsoDateString(dateValue) {
@@ -4074,6 +4188,9 @@ export function useAdminApplicationsPage() {
     handleApplicationRowClick,
     getLeaveBalanceTextItems,
     getCurrentLeaveBalanceDisplay,
+    getCurrentCtoAvailableHoursDisplay,
+    getApplicationCtoRequiredHoursDisplay,
+    getCtoDeductedHoursDisplay,
     getApplicationDurationDisplay,
     getApplicationInclusiveDateColumnLines,
     getApplicationInclusiveDateLines,
@@ -4110,6 +4227,7 @@ export function useAdminApplicationsPage() {
     hasMobileApplicationActions,
     hasApplicationAttachment,
     viewApplicationAttachment,
+    isCtoLeaveApplication,
     openActionConfirm,
     getTimelineEntryTone,
     getTimelineEntryIcon,

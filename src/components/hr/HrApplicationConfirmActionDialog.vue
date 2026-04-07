@@ -40,6 +40,27 @@
             holidays, or scheduled days off.
           </q-banner>
 
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12 col-md-7">
+              <q-input
+                v-model="certificateNumber"
+                outlined
+                dense
+                label="Certificate Number *"
+                placeholder="Enter certificate number"
+              />
+            </div>
+            <div class="col-12 col-md-5">
+              <q-input
+                v-model="certificateIssuedAt"
+                outlined
+                dense
+                type="date"
+                label="Issued Date *"
+              />
+            </div>
+          </div>
+
           <div v-if="classificationLoading" class="row items-center justify-center q-py-lg text-grey-7">
             <q-spinner color="primary" size="24px" class="q-mr-sm" />
             <span>Loading overtime rows...</span>
@@ -164,6 +185,8 @@ const $q = useQuasar()
 const loading = ref(false)
 const classificationLoading = ref(false)
 const cocReviewRows = ref([])
+const certificateNumber = ref('')
+const certificateIssuedAt = ref('')
 
 const creditCategoryOptions = [
   { label: 'Regular (1.0)', value: 'REGULAR' },
@@ -259,17 +282,47 @@ const formatReviewMinutes = (value) => {
   return `${excessMinutes}m`
 }
 
+const toInputDate = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  const matchedDate = raw.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (matchedDate) return matchedDate[1]
+
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return ''
+
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const initializeCertificateFields = (application) => {
+  certificateNumber.value = String(
+    application?.certificateNumber ?? application?.certificate_number ?? '',
+  ).trim()
+  certificateIssuedAt.value =
+    toInputDate(application?.certificateIssuedAt ?? application?.certificate_issued_at) ||
+    toInputDate(new Date())
+}
+
 async function ensureCocReviewRows() {
   if (!isCocApproveFlow.value) {
     cocReviewRows.value = []
+    certificateNumber.value = ''
+    certificateIssuedAt.value = ''
     return
   }
 
   const applicationId = props.getApplicationId(props.application)
   if (!applicationId) {
     cocReviewRows.value = []
+    initializeCertificateFields(props.application)
     return
   }
+
+  initializeCertificateFields(props.application)
 
   const existingRows = normalizeReviewRows(props.application)
   if (existingRows.length) {
@@ -280,7 +333,9 @@ async function ensureCocReviewRows() {
   classificationLoading.value = true
   try {
     const response = await api.get(`/hr/coc-applications/${applicationId}`)
-    cocReviewRows.value = normalizeReviewRows(response?.data?.application)
+    const detailedApplication = response?.data?.application
+    cocReviewRows.value = normalizeReviewRows(detailedApplication)
+    initializeCertificateFields(detailedApplication)
   } catch {
     cocReviewRows.value = []
   } finally {
@@ -329,10 +384,30 @@ async function approveApplication() {
       return
     }
 
+    if (!String(certificateNumber.value || '').trim()) {
+      $q.notify({
+        type: 'negative',
+        message: 'Certificate number is required before approving this COC application.',
+        position: 'top',
+      })
+      return
+    }
+
+    if (!String(certificateIssuedAt.value || '').trim()) {
+      $q.notify({
+        type: 'negative',
+        message: 'Certificate issued date is required before approving this COC application.',
+        position: 'top',
+      })
+      return
+    }
+
     payload.rows = cocReviewRows.value.map((row) => ({
       line_no: Number(row.lineNo || 0),
       credit_category: String(row.creditCategory || '').trim().toUpperCase(),
     }))
+    payload.certificate_number = String(certificateNumber.value || '').trim()
+    payload.certificate_issued_at = String(certificateIssuedAt.value || '').trim()
   }
 
   loading.value = true

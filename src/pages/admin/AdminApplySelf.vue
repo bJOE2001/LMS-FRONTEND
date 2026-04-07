@@ -1483,6 +1483,14 @@ function getLeaveBalanceWarningForTotal(totalDays) {
     return ''
   }
 
+  if (isCtoType.value) {
+    if (pendingSelectedLeaveDays.value > 0) {
+      return `You already have ${formatDayCountValue(pendingSelectedLeaveDays.value)} day(s) of ${selectedLeaveTypeName.value} pending. CTO stays WP-only, so reduce the selected dates or wait for more valid CTO credits.`
+    }
+
+    return `Your ${selectedLeaveTypeName.value} balance is insufficient. CTO stays WP-only, so reduce the selected dates or wait for more valid CTO credits.`
+  }
+
   const withoutPayDays = Math.max(totalDays - availableSelectedLeaveBalance.value, 0)
   const withPayDays = Math.max(totalDays - withoutPayDays, 0)
 
@@ -1516,6 +1524,7 @@ function getSelectionLimitWarningForTotal(totalDays) {
 const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'Special Privilege Leave')
 const isMaternityLeave = computed(() => selectedLeaveTypeName.value === 'Maternity Leave')
 const isPaternityLeave = computed(() => selectedLeaveTypeName.value === 'Paternity Leave')
+const isCtoType = computed(() => selectedLeaveTypeName.value === 'CTO Leave')
 const isMonetization = computed(() => selectedLeaveTypeName.value === 'Monetization Leave')
 
 const showDetailsOfLeave = computed(() => {
@@ -2055,6 +2064,62 @@ function countWorkingDaysFromNextDay(lastAbsentDate, filedDate) {
   return count
 }
 
+function countWorkingDaysBeforeDate(filedDate, targetDate) {
+  if (!(filedDate instanceof Date) || Number.isNaN(filedDate.getTime())) return 0
+  if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) return 0
+  if (targetDate <= filedDate) return 0
+
+  let count = 0
+  const cursor = new Date(filedDate.getFullYear(), filedDate.getMonth(), filedDate.getDate())
+  cursor.setDate(cursor.getDate() + 1)
+
+  while (cursor < targetDate) {
+    const dayOfWeek = cursor.getDay()
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count += 1
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return count
+}
+
+function getNextWorkingDate(dateValue) {
+  const cursor = new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate())
+  do {
+    cursor.setDate(cursor.getDate() + 1)
+  } while (cursor.getDay() === 0 || cursor.getDay() === 6)
+
+  return cursor
+}
+
+function calculateMaxConsecutiveWorkingDateSpan(dateKeys) {
+  const parsedDates = (Array.isArray(dateKeys) ? dateKeys : [])
+    .map((dateKey) => parseIsoDateValue(dateKey))
+    .filter((dateValue) => dateValue instanceof Date && !Number.isNaN(dateValue.getTime()))
+    .sort((left, right) => left.getTime() - right.getTime())
+
+  if (!parsedDates.length) return 0
+
+  let maxStreak = 1
+  let currentStreak = 1
+
+  for (let index = 1; index < parsedDates.length; index += 1) {
+    const expectedNextDate = getNextWorkingDate(parsedDates[index - 1])
+    if (parsedDates[index].getTime() === expectedNextDate.getTime()) {
+      currentStreak += 1
+    } else {
+      currentStreak = 1
+    }
+
+    if (currentStreak > maxStreak) {
+      maxStreak = currentStreak
+    }
+  }
+
+  return maxStreak
+}
+
 function resolveSickLeaveDisplayPayMode() {
   const sortedDates = [...sortedSelectedDates.value]
   if (!sortedDates.length) return 'with_pay'
@@ -2086,6 +2151,15 @@ function applySickLeaveDisplayPayStatusPolicy() {
   const sortedDates = [...sortedSelectedDates.value]
   sortedDates.forEach((date) => {
     selectedDatePayStatuses.value[date] = 'without_pay'
+  })
+}
+
+function applyCtoDisplayPayStatusPolicy() {
+  if (isMonetization.value || !isCtoType.value) return
+
+  const sortedDates = [...sortedSelectedDates.value]
+  sortedDates.forEach((date) => {
+    selectedDatePayStatuses.value[date] = 'with_pay'
   })
 }
 
@@ -2193,6 +2267,7 @@ function selectedDateDurationLabel(date) {
 function toggleSelectedDateDuration(date) {
   selectedDateDurations.value[date] =
     selectedDateDurations.value[date] === 'half_day' ? 'whole_day' : 'half_day'
+  applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
 }
 
@@ -2201,6 +2276,12 @@ function selectedDatePayStatusLabel(date) {
 }
 
 function toggleSelectedDatePayStatus(date) {
+  if (isCtoType.value) {
+    applyCtoDisplayPayStatusPolicy()
+    $q.notify({ type: 'info', message: 'CTO applications stay WP-only. Use half day or whole day blocks instead.' })
+    return
+  }
+
   if (
     isSickType.value &&
     !isMonetization.value &&
@@ -2333,6 +2414,7 @@ watch(selectedDates, (dates) => {
 
   syncSelectedDateDurations(dates)
   syncSelectedDatePayStatuses(dates)
+  applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
 
   if (dates.length === 0) {
@@ -2352,8 +2434,9 @@ watch(selectedDates, (dates) => {
 }, { deep: true })
 
 watch(
-  [sortedSelectedDates, selectedDateTotalDays, isSickType, isMonetization],
+  [sortedSelectedDates, selectedDateTotalDays, isSickType, isCtoType, isMonetization],
   () => {
+    applyCtoDisplayPayStatusPolicy()
     applySickLeaveDisplayPayStatusPolicy()
   },
   { immediate: true },
@@ -2463,6 +2546,37 @@ async function onSubmit() {
     const selectedAttachmentFile = resolveSingleFile(form.value.attachmentFile)
     const selectedIllness = String(form.value.sickSpecify || '').trim()
 
+    if (isCtoType.value) {
+      if (payStatusBreakdown.withoutPayDates.length > 0) {
+        $q.notify({ type: 'negative', message: 'CTO applications must stay WP-only.' })
+        loading.value = false
+        return
+      }
+
+      const firstAvailmentDate = parseIsoDateValue(sortedSelectedDatesPayload[0])
+      const nowDate = new Date()
+      const filedDate = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate())
+      const workingDaysBeforeAvailment = countWorkingDaysBeforeDate(filedDate, firstAvailmentDate)
+      if (workingDaysBeforeAvailment < 5) {
+        $q.notify({
+          type: 'negative',
+          message: 'CTO applications must be submitted at least 5 working days before the first availment date.',
+        })
+        loading.value = false
+        return
+      }
+
+      const maxConsecutiveWorkingDays = calculateMaxConsecutiveWorkingDateSpan(sortedSelectedDatesPayload)
+      if (maxConsecutiveWorkingDays > 5) {
+        $q.notify({
+          type: 'negative',
+          message: 'CTO may only be availed for up to 5 consecutive working days per application.',
+        })
+        loading.value = false
+        return
+      }
+    }
+
     if (isSickType.value) {
       if (!String(form.value.sickDetail || '').trim()) {
         $q.notify({ type: 'negative', message: 'Please select In Hospital or Out Patient for Sick Leave.' })
@@ -2529,7 +2643,7 @@ async function onSubmit() {
       selected_date_pay_statuses: buildSelectedDatePayStatusesPayload(sortedSelectedDatesPayload),
       selected_date_pay_status_codes: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
       selected_date_pay_status: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
-      pay_mode: resolveSelectedDatePayMode(sortedSelectedDatesPayload),
+      pay_mode: isCtoType.value ? 'WP' : resolveSelectedDatePayMode(sortedSelectedDatesPayload),
       commutation: form.value.commutation,
       attachment_submitted: Boolean(selectedAttachmentFile),
       details: {

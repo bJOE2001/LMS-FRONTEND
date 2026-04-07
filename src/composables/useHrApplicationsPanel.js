@@ -41,6 +41,7 @@ const EMPLOYMENT_TYPE_FILTER_LABELS = {
   regular: 'Regular',
   casual: 'Casual',
 }
+const ctoStandardDayHours = 8
 
 function getActualRequestedDayCount(app) {
   const explicitCandidates = [
@@ -1033,6 +1034,107 @@ function getCurrentLeaveBalanceClass(app) {
   const requiredDays = Number(app?.days)
   if (balance === null || !Number.isFinite(requiredDays) || requiredDays <= 0) return 'text-green-8'
   return balance < requiredDays ? 'text-negative' : 'text-green-8'
+}
+
+function isCtoLeaveApplication(app) {
+  if (!app || isCocApplication(app)) return false
+
+  const normalizedLabel = normalizeLeaveBalanceLookupKey(
+    getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || '',
+  )
+
+  return normalizedLabel === normalizeLeaveBalanceLookupKey('CTO Leave')
+}
+
+function roundCtoHours(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue < 0) return null
+  return Math.round(numericValue * 100) / 100
+}
+
+function resolveCtoHoursFromDays(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue < 0) return null
+  return roundCtoHours(numericValue * ctoStandardDayHours)
+}
+
+function getApplicationCtoRequiredHoursValue(app) {
+  if (!isCtoLeaveApplication(app)) return null
+
+  const directCandidates = [
+    app?.cto_deducted_hours,
+    app?.ctoDeductedHours,
+    app?.required_cto_balance_hours,
+    app?.requiredCtoBalanceHours,
+  ]
+
+  for (const candidate of directCandidates) {
+    const resolvedHours = roundCtoHours(candidate)
+    if (resolvedHours !== null) return resolvedHours
+  }
+
+  const dayCandidates = [
+    app?.deductible_days,
+    app?.deductibleDays,
+    app?.requested_total_days,
+    app?.actual_total_days,
+    app?.display_total_days,
+    app?.days,
+    app?.total_days,
+  ]
+
+  for (const candidate of dayCandidates) {
+    const resolvedHours = resolveCtoHoursFromDays(candidate)
+    if (resolvedHours !== null) return resolvedHours
+  }
+
+  return null
+}
+
+function getApplicationCtoRequiredHoursDisplay(app) {
+  const requiredHours = getApplicationCtoRequiredHoursValue(app)
+  return requiredHours !== null ? `${formatDayValue(requiredHours)} hour(s)` : 'N/A'
+}
+
+function getCurrentCtoAvailableHoursValue(app) {
+  if (!isCtoLeaveApplication(app)) return null
+
+  const entry =
+    findLeaveBalanceEntry(app, getCurrentLeaveTypeId(app), getCurrentLeaveTypeLabel(app)) ||
+    findLeaveBalanceEntry(app, null, 'CTO Leave')
+
+  const directHourCandidates = [
+    entry?.balanceHours,
+    entry?.balance_hours,
+    app?.available_balance_hours,
+    app?.availableBalanceHours,
+    app?.balance_hours,
+    app?.balanceHours,
+  ]
+
+  for (const candidate of directHourCandidates) {
+    const resolvedHours = roundCtoHours(candidate)
+    if (resolvedHours !== null) return resolvedHours
+  }
+
+  const balanceValue = getCurrentLeaveBalanceValue(app)
+  return resolveCtoHoursFromDays(balanceValue)
+}
+
+function getCurrentCtoAvailableHoursDisplay(app) {
+  const availableHours = getCurrentCtoAvailableHoursValue(app)
+  return availableHours !== null ? `${formatDayValue(availableHours)} hour(s)` : 'N/A'
+}
+
+function getCtoDeductedHoursDisplay(app) {
+  if (!isCtoLeaveApplication(app)) return 'N/A'
+
+  const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+  if (rawStatus !== 'APPROVED' && rawStatus !== 'RECALLED') {
+    return 'Pending approval'
+  }
+
+  return getApplicationCtoRequiredHoursDisplay(app)
 }
 
 function getPendingUpdateInclusiveDateLines(app) {
@@ -3446,6 +3548,11 @@ async function handleDialogMutationSuccess(payload = {}) {
     getApplicationStatusLabel,
     getApplicationStatusPriority,
     getApplicationType,
+    getApplicationCtoRequiredHoursDisplay,
+    getApplicationCtoRequiredHoursValue,
+    getCtoDeductedHoursDisplay,
+    getCurrentCtoAvailableHoursDisplay,
+    getCurrentCtoAvailableHoursValue,
     getCurrentLeaveBalanceClass,
     getCurrentLeaveBalanceDisplay,
     getCurrentLeaveBalanceValue,
@@ -3498,6 +3605,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     hasMobileApplicationActions,
     hasPendingDateUpdate,
     hasPendingDurationUpdate,
+    isCtoLeaveApplication,
     hasPendingLeaveTypeUpdate,
     hasPendingReasonUpdate,
     isApplicationReceivedByHr,
