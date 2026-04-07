@@ -1,5 +1,5 @@
 <template>
-  <q-card flat bordered class="rounded-borders">
+  <q-card v-bind="attrs" flat bordered class="rounded-borders">
     <q-card-section>
       <div class="q-mb-sm">
         <q-select
@@ -199,8 +199,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, useAttrs } from 'vue'
 import { api } from 'src/boot/axios'
+
+defineOptions({
+  inheritAttrs: false,
+})
+
+const attrs = useAttrs()
 
 const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PRIORITY_LEAVE_TYPES = [

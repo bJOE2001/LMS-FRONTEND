@@ -8,7 +8,7 @@ import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 
 export function useHrApplicationsPanel() {
 
-const $q = useQuasar()
+const q = useQuasar()
 const route = useRoute()
 const router = useRouter()
 
@@ -1346,7 +1346,7 @@ const mobileApplicationColumnWidths = {
   },
 }
 const applicationTableColumns = computed(() => {
-  if (!$q.screen.lt.sm) return columns
+  if (!q.screen.lt.sm) return columns
 
   return ['employee', 'status', 'office', 'leaveType']
     .map((name) => {
@@ -1454,7 +1454,7 @@ async function fetchApplications() {
     })
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load applications right now.')
-    $q.notify({
+    q.notify({
       type: 'negative',
       message: msg,
       position: 'top',
@@ -3056,7 +3056,7 @@ async function viewApplicationAttachment(app = selectedApp.value) {
   const id = getApplicationId(target)
 
   if (!id) {
-    $q.notify({
+    q.notify({
       type: 'negative',
       message: 'Unable to identify this leave application attachment.',
       position: 'top',
@@ -3080,7 +3080,7 @@ async function viewApplicationAttachment(app = selectedApp.value) {
         parsedMessage = ''
       }
 
-      $q.notify({
+      q.notify({
         type: 'negative',
         message: parsedMessage || fallbackMessage,
         position: 'top',
@@ -3108,7 +3108,7 @@ async function viewApplicationAttachment(app = selectedApp.value) {
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
   } catch (err) {
     const message = resolveApiErrorMessage(err, 'Unable to open the attachment right now.')
-    $q.notify({ type: 'negative', message, position: 'top' })
+    q.notify({ type: 'negative', message, position: 'top' })
   }
 }
 
@@ -3239,7 +3239,7 @@ async function markApplicationReceived(target = selectedApp.value) {
 
   const id = getApplicationId(application)
   if (!id) {
-    $q.notify({
+    q.notify({
       type: 'negative',
       message: 'Unable to identify this leave application.',
       position: 'top',
@@ -3274,14 +3274,14 @@ async function markApplicationReceived(target = selectedApp.value) {
       applyLeaveApplicationUpdate(mergedApplication)
     }
 
-    $q.notify({
+    q.notify({
       type: 'positive',
       message: responseMessage || 'Application marked as received by HR.',
       position: 'top',
     })
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to mark this application as received right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
+    q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     receiveLoading.value = false
   }
@@ -3293,7 +3293,7 @@ async function markApplicationReleased(target = selectedApp.value) {
 
   const id = getApplicationId(application)
   if (!id) {
-    $q.notify({
+    q.notify({
       type: 'negative',
       message: 'Unable to identify this leave application.',
       position: 'top',
@@ -3328,14 +3328,14 @@ async function markApplicationReleased(target = selectedApp.value) {
       applyLeaveApplicationUpdate(mergedApplication)
     }
 
-    $q.notify({
+    q.notify({
       type: 'positive',
       message: responseMessage || 'Application marked as released by HR.',
       position: 'top',
     })
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to mark this application as released right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
+    q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     releaseLoading.value = false
   }
@@ -3390,7 +3390,6 @@ async function handleDialogMutationSuccess(payload = {}) {
 }
 
   return {
-    $q,
     DEPARTMENT_STOP_WORDS,
     EMPLOYMENT_TYPE_FILTER_LABELS,
     applicationTableColumns,
