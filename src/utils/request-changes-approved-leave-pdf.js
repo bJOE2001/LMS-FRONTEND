@@ -9,6 +9,40 @@ const VALIDATED_BY_TITLE = 'Supervising Administrative Officer'
 const NOTED_BY_NAME = 'JANLYLENE A. PALERMO, MM'
 const NOTED_BY_TITLE = 'City Human Resource Mgt. Officer'
 
+
+const ACTION_TYPE_UPDATE = 'REQUEST_UPDATE'
+const ACTION_TYPE_CANCEL = 'REQUEST_CANCEL'
+
+function normalizeLeaveRequestActionTypeToken(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+  if (!normalized) return ''
+
+  if (
+    normalized === ACTION_TYPE_CANCEL ||
+    normalized === 'CANCEL_REQUEST' ||
+    normalized === 'REQUEST_CANCELLATION' ||
+    normalized === 'CANCELLATION_REQUEST' ||
+    normalized === 'LEAVE_CANCELLATION_REQUEST'
+  ) {
+    return ACTION_TYPE_CANCEL
+  }
+
+  if (
+    normalized === ACTION_TYPE_UPDATE ||
+    normalized === 'UPDATE_REQUEST' ||
+    normalized === 'EDIT_REQUEST' ||
+    normalized === 'REQUEST_EDIT'
+  ) {
+    return ACTION_TYPE_UPDATE
+  }
+
+  return ''
+}
+
 function normalizeText(value) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -251,8 +285,42 @@ function resolveRequestFormData(app) {
       payload?.reason_purpose ||
       payload?.update_reason ||
       payload?.edit_reason ||
+      payload?.cancel_reason ||
+      payload?.cancelReason ||
       payload?.remarks,
   )
+
+  const resolvedActionTypeCandidates = [
+    app?.pending_update_action_type,
+    app?.pendingUpdateActionType,
+    app?.latest_update_request_action_type,
+    app?.latestUpdateRequestActionType,
+    app?.raw?.pending_update_action_type,
+    app?.raw?.pendingUpdateActionType,
+    app?.raw?.latest_update_request_action_type,
+    app?.raw?.latestUpdateRequestActionType,
+    payload?.action_type,
+    payload?.actionType,
+    payload?.request_action_type,
+    payload?.requestActionType,
+  ]
+
+  let actionType = ''
+  for (const candidate of resolvedActionTypeCandidates) {
+    const normalized = normalizeLeaveRequestActionTypeToken(candidate)
+    if (!normalized) continue
+    actionType = normalized
+    break
+  }
+
+  if (!actionType) {
+    const remarksToken = normalizeText(app?.remarks || source?.remarks || '').toLowerCase()
+    if (remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')) {
+      actionType = ACTION_TYPE_CANCEL
+    }
+  }
+
+  if (!actionType) actionType = ACTION_TYPE_UPDATE
 
   const approvedBy = normalizeText(resolveDepartmentHeadName(app) || resolveDepartmentHeadName(source))
 
@@ -263,6 +331,7 @@ function resolveRequestFormData(app) {
     toValue,
     reason,
     approvedBy,
+    actionType,
   }
 }
 
@@ -395,7 +464,37 @@ function signerBlock(label, name, title) {
   }
 }
 
-export async function generateRequestChangesApprovedLeavePdf(app = {}) {
+function openPdfDocument(pdfDocument, options = {}) {
+  const targetWindow =
+    options?.targetWindow && !options.targetWindow.closed
+      ? options.targetWindow
+      : null
+  const fileName = String(options?.fileName || 'request-changes-approved-leave.pdf').trim()
+    || 'request-changes-approved-leave.pdf'
+
+  return pdfDocument.getBlob().then((blob) => {
+    const objectUrl = URL.createObjectURL(blob)
+
+    if (targetWindow) {
+      targetWindow.location.replace(objectUrl)
+    } else {
+      const opened = window.open(objectUrl, '_blank')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = fileName
+        anchor.rel = 'noopener noreferrer'
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      }
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  })
+}
+
+export async function generateRequestChangesApprovedLeavePdf(app = {}, options = {}) {
   let logoBase64 = null
   try {
     logoBase64 = await toBase64('/images/CityOfTagumLogo.png')
@@ -420,8 +519,9 @@ export async function generateRequestChangesApprovedLeavePdf(app = {}) {
       },
       shortFieldRow('DATE OF REQUEST', formatDate(formData.requestDate)),
       shortFieldRow('NAME OF EMPLOYEE', formData.employeeName),
-      changesLabelRow(),
-      fromToRow(formData.fromValue, formData.toValue),
+      ...(formData.actionType === ACTION_TYPE_CANCEL
+        ? [shortFieldRow('CHANGES', 'Cancel Leave')]
+        : [changesLabelRow(), fromToRow(formData.fromValue, formData.toValue)]),
       shortFieldRow('REASON/S', formData.reason),
       shortFieldRow('SIGNATURE OF EMPLOYEE', ''),
       shortFieldRow('APPROVED BY', formData.approvedBy),
@@ -457,5 +557,6 @@ export async function generateRequestChangesApprovedLeavePdf(app = {}) {
     },
   }
 
-  pdfMake.createPdf(docDefinition).open()
+  const pdfDocument = pdfMake.createPdf(docDefinition)
+  return openPdfDocument(pdfDocument, options)
 }

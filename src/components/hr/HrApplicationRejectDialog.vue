@@ -72,6 +72,10 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
+  getLeaveRequestActionType: {
+    type: Function,
+    default: () => '',
+  },
   getApplicationId: {
     type: Function,
     default: (application) => application?.id ?? '',
@@ -128,6 +132,8 @@ async function handleSubmit() {
     const application = props.application
     const isCoc = props.isCocApplication(application)
     const isEditRequest = props.isPendingEditRequest(application)
+    const isCancellationRequest =
+      String(props.getLeaveRequestActionType(application) || '').toUpperCase() === 'REQUEST_CANCEL'
     const endpoint = isCoc
       ? `/hr/coc-applications/${id}/reject`
       : `/hr/leave-applications/${id}/reject`
@@ -138,7 +144,9 @@ async function handleSubmit() {
       message: isCoc
         ? 'COC application rejected with remarks'
         : isEditRequest
-          ? 'Edit request rejected. Original approved application remains unchanged.'
+          ? isCancellationRequest
+            ? 'Cancellation request rejected. The approved leave application remains active.'
+            : 'Edit request rejected. Original approved application remains unchanged.'
           : 'Leave application rejected with remarks',
       position: 'top',
     })

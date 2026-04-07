@@ -29,7 +29,7 @@
             :series="leaveTypeTrendSeries"
           />
         </q-no-ssr>
-        <q-inner-loading :showing="loading" class="chart-loading">
+        <q-inner-loading :showing="loading" :class="['chart-loading', { 'chart-loading--dark': isDark }]">
           <q-spinner color="primary" size="34px" />
         </q-inner-loading>
       </div>
@@ -62,6 +62,10 @@ const props = defineProps({
 })
 
 const $q = useQuasar()
+const isDark = computed(() => $q.dark.isActive)
+const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
+const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
+const chartMarkerFillColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 const leaveTypeFilter = ref('All')
@@ -245,6 +249,10 @@ const leaveTypeTrendChartOptions = computed(() => ({
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
     fontFamily: 'inherit',
+    foreColor: chartAxisColor.value,
+  },
+  theme: {
+    mode: isDark.value ? 'dark' : 'light',
   },
   colors: leaveTypeChartPalette,
   dataLabels: { enabled: false },
@@ -254,10 +262,11 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
   markers: {
     size: 3,
+    colors: [chartMarkerFillColor.value],
     hover: { sizeOffset: 2 },
   },
   grid: {
-    borderColor: '#e0e0e0',
+    borderColor: chartGridColor.value,
     strokeDashArray: 4,
     xaxis: { lines: { show: false } },
   },
@@ -265,14 +274,14 @@ const leaveTypeTrendChartOptions = computed(() => ({
     categories: monthLabels,
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
+    labels: { style: { colors: chartAxisColor.value } },
   },
   yaxis: {
     min: 0,
     forceNiceScale: true,
     tickAmount: 4,
     labels: {
-      style: { colors: '#6b7280' },
+      style: { colors: chartAxisColor.value },
       formatter: (value) => String(Math.round(value)),
     },
   },
@@ -288,6 +297,7 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
   noData: {
     text: 'No leave data for selected leave type.',
+    style: { color: chartAxisColor.value },
   },
 }))
 
@@ -328,6 +338,10 @@ onBeforeUnmount(() => {
 
 .chart-loading {
   background: rgba(255, 255, 255, 0.72);
+}
+
+.chart-loading--dark {
+  background: rgba(16, 22, 30, 0.72);
 }
 
 @media (max-width: 1199px) {

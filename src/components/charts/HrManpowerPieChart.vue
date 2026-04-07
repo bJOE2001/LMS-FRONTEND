@@ -23,7 +23,7 @@
             :series="manpowerChartSeries"
           />
         </q-no-ssr>
-        <q-inner-loading :showing="loading" class="chart-loading">
+        <q-inner-loading :showing="loading" :class="['chart-loading', { 'chart-loading--dark': isDark }]">
           <q-spinner color="primary" size="34px" />
         </q-inner-loading>
       </div>
@@ -33,6 +33,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import VueApexCharts from 'vue3-apexcharts'
 
 const props = defineProps({
@@ -61,6 +62,10 @@ const props = defineProps({
 
 const chartRoot = ref(null)
 let chartTitleCleanupObserver = null
+const $q = useQuasar()
+const isDark = computed(() => $q.dark.isActive)
+const chartTextColor = computed(() => (isDark.value ? '#d7e2ef' : '#526170'))
+const chartStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 
 function removeNativeChartTitleTooltip() {
   if (!chartRoot.value) return
@@ -106,22 +111,32 @@ const manpowerChartOptions = computed(() => ({
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
     fontFamily: 'inherit',
+    foreColor: chartTextColor.value,
+  },
+  theme: {
+    mode: isDark.value ? 'dark' : 'light',
   },
   labels: ['Available', 'On Leave'],
   colors: ['#2e7d32', '#fb8c00'],
   dataLabels: {
     enabled: true,
     formatter: (value) => `${Number(value).toFixed(1)}%`,
+    style: {
+      colors: ['#ffffff'],
+    },
   },
   stroke: {
     width: 1,
-    colors: ['#ffffff'],
+    colors: [chartStrokeColor.value],
   },
   legend: {
     show: true,
     position: 'right',
     horizontalAlign: 'left',
     fontSize: '14px',
+    labels: {
+      colors: chartTextColor.value,
+    },
     markers: {
       width: 12,
       height: 12,
@@ -177,6 +192,9 @@ const manpowerChartOptions = computed(() => ({
   },
   noData: {
     text: 'No current manpower data available.',
+    style: {
+      color: chartTextColor.value,
+    },
   },
 }))
 
@@ -231,6 +249,10 @@ onBeforeUnmount(() => {
 
 .chart-loading {
   background: rgba(255, 255, 255, 0.72);
+}
+
+.chart-loading--dark {
+  background: rgba(16, 22, 30, 0.72);
 }
 
 .manpower-chart-wrapper :deep(.q-no-ssr),

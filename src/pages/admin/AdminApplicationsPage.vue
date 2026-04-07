@@ -13,37 +13,12 @@
       />
     </div>
 
-    <q-dialog
+    <AdminApplyLeaveDialog
       v-model="showApplyLeaveDialog"
-      persistent
-      class="apply-leave-dialog"
-      transition-show="scale"
-      transition-hide="scale"
-    >
-      <q-card class="apply-leave-dialog-card">
-        <q-bar class="apply-leave-dialog-header bg-primary text-white">
-          <div class="text-h6 text-weight-bold">Leave Application</div>
-          <q-space />
-          <q-btn
-            flat
-            round
-            icon="close"
-            color="white"
-            size="md"
-            class="apply-leave-dialog-close"
-            @click="closeApplyLeaveDialog"
-          />
-        </q-bar>
-        <q-card-section class="q-pa-none apply-leave-dialog-body">
-          <AdminApplySelf
-            in-dialog
-            :existing-applications="leaveApplicationRows"
-            @cancel="closeApplyLeaveDialog"
-            @submitted="handleApplyLeaveSubmitted"
-          />
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+      :existing-applications="leaveApplicationRows"
+      @cancel="closeApplyLeaveDialog"
+      @submitted="handleApplyLeaveSubmitted"
+    />
 
     <q-card flat bordered class="rounded-borders">
       <q-card-section>
@@ -247,76 +222,15 @@
       </q-table>
     </q-card>
 
-    <q-dialog v-model="showTimelineDialog" persistent position="standard">
-      <q-card
-        v-if="selectedApp"
-        class="application-timeline-card"
-        style="width: 560px; max-width: 94vw"
-      >
-        <q-card-section class="row items-start no-wrap application-timeline-header">
-          <div class="application-timeline-header-copy">
-            <div class="text-h6 application-timeline-header-title">Application Timeline</div>
-            <div class="application-timeline-header-caption">
-              Track this application through department and HR review
-            </div>
-          </div>
-          <q-space />
-          <q-btn flat dense round icon="close" color="grey-8" v-close-popup />
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="application-timeline-content">
-          <div v-if="hasApplicationAttachment(selectedApp)" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
-            <q-btn
-              flat
-              dense
-              no-caps
-              icon="attach_file"
-              color="primary"
-              label="View Attachment"
-              @click="viewApplicationAttachment(selectedApp)"
-            />
-          </div>
-
-          <div class="application-timeline-panel">
-            <div
-              v-for="(entry, index) in selectedAppTimeline"
-              :key="`${entry.title}-${index}`"
-              class="application-timeline-item"
-            >
-              <div class="application-timeline-marker-column">
-                <div
-                  class="application-timeline-marker"
-                  :class="`application-timeline-marker--${getTimelineEntryTone(entry)}`"
-                >
-                  <q-icon :name="getTimelineEntryIcon(entry)" size="16px" />
-                </div>
-                <div
-                  v-if="index < selectedAppTimeline.length - 1"
-                  class="application-timeline-line"
-                  :class="`application-timeline-line--${getTimelineEntryTone(entry)}`"
-                />
-              </div>
-
-              <div class="application-timeline-body">
-                <div v-if="entry.subtitle" class="application-timeline-meta">
-                  {{ entry.subtitle }}
-                </div>
-                <div class="application-timeline-title">
-                  {{ entry.title }}
-                </div>
-                <div v-if="entry.actor" class="application-timeline-actor">
-                  Action by: {{ entry.actor }}
-                </div>
-                <div v-else-if="entry.description" class="application-timeline-actor">
-                  {{ entry.description }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+    <AdminApplicationTimelineDialog
+      v-model="showTimelineDialog"
+      :selected-app="selectedApp"
+      :timeline-entries="selectedAppTimeline"
+      :has-application-attachment="hasApplicationAttachment"
+      :view-application-attachment="viewApplicationAttachment"
+      :get-timeline-entry-tone="getTimelineEntryTone"
+      :get-timeline-entry-icon="getTimelineEntryIcon"
+    />
 
     <q-dialog
       v-model="showDetailsDialog"
@@ -384,7 +298,7 @@
                 rounded
                 color="positive"
                 text-color="white"
-                label="Updated Application Details"
+                :label="getApplicationEditRequestApprovedBadgeLabel(selectedApp)"
                 class="text-weight-medium"
               />
             </div>
@@ -406,9 +320,12 @@
             class="admin-application-requested-changes-section"
           >
             <div class="row items-center justify-between q-gutter-sm">
-              <div class="admin-application-details-label">Requested Changes</div>
+              <div class="admin-application-details-label">{{ getApplicationEditRequestSectionTitle(selectedApp) }}</div>
             </div>
-            <div class="admin-application-requested-changes-grid">
+            <div
+              v-if="shouldShowApplicationEditRequestDateComparison(selectedApp)"
+              class="admin-application-requested-changes-grid"
+            >
               <div class="admin-application-requested-changes-item">
                 <div class="admin-application-requested-changes-title">Inclusive Dates</div>
                 <div class="admin-application-requested-changes-line">
@@ -441,10 +358,19 @@
                 </div>
               </div>
             </div>
+            <div v-else class="admin-application-requested-changes-grid">
+              <div class="admin-application-requested-changes-item">
+                <div class="admin-application-requested-changes-title">Changes</div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Requested:</span>
+                  <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">Cancel Leave</span>
+                </div>
+              </div>
+            </div>
 
             <div class="row items-center q-col-gutter-md q-mt-sm">
               <div class="col-12 col-md-8 admin-application-requested-changes-meta">
-                <div><strong>Status:</strong> {{ getApplicationEditRequestStatusLabel(selectedApp) }}</div>
+                <div><strong>{{ getApplicationEditRequestStatusFieldLabel(selectedApp) }}:</strong> {{ getApplicationEditRequestStatusLabel(selectedApp) }}</div>
                 <div><strong>Requested At:</strong> {{ getApplicationEditRequestRequestedAt(selectedApp) }}</div>
                 <div><strong>Requested By:</strong> {{ getApplicationEditRequestRequestedBy(selectedApp) }}</div>
                 <div><strong>Reason:</strong> {{ getApplicationEditRequestReason(selectedApp) }}</div>
@@ -688,218 +614,64 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showCalendarPreviewDialog" @show="syncCalendarPreviewDecorations">
-      <q-card class="application-calendar-card">
-        <q-card-section class="row items-start no-wrap application-calendar-header">
-          <div class="application-calendar-header-copy">
-            <div class="text-h6 application-calendar-caption">{{ calendarPreviewEmployeeName }}</div>
-          </div>
-          <q-space />
-          <q-btn flat dense round icon="close" color="grey-8" v-close-popup />
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="application-calendar-body">
-          <div class="application-calendar-legend">
-            <div class="application-calendar-legend-item">
-              <span
-                class="application-calendar-legend-swatch application-calendar-legend-swatch--pending"
-              />
-              <span>Pending ({{ calendarPreviewStateCounts.pending }})</span>
-            </div>
-            <div class="application-calendar-legend-item">
-              <span
-                class="application-calendar-legend-swatch application-calendar-legend-swatch--approved"
-              />
-              <span>Approved ({{ calendarPreviewStateCounts.approved }})</span>
-            </div>
-          </div>
+    <AdminApplicationCalendarDialog
+      v-model="showCalendarPreviewDialog"
+      v-model:calendar-preview-model="calendarPreviewModel"
+      :calendar-preview-key="calendarPreviewKey"
+      :set-calendar-preview-ref="setCalendarPreviewRefElement"
+      :calendar-preview-year-month="calendarPreviewYearMonth"
+      :calendar-preview-employee-name="calendarPreviewEmployeeName"
+      :calendar-preview-state-counts="calendarPreviewStateCounts"
+      :calendar-preview-date-warning="calendarPreviewDateWarning"
+      :calendar-preview-warning-style="calendarPreviewWarningStyle"
+      :calendar-preview-warning-state="calendarPreviewWarningState"
+      :on-show="syncCalendarPreviewDecorations"
+      :on-navigation="onCalendarPreviewNavigation"
+      :on-calendar-model-change="handleCalendarPreviewModelUpdate"
+      :on-surface-pointer-down="handleCalendarPreviewSurfacePointerDown"
+      :on-surface-click="handleCalendarPreviewSurfaceClick"
+    />
 
-          <div
-            ref="calendarPreviewRef"
-            class="leave-date-calendar application-calendar-surface"
-            @pointerdown.capture="handleCalendarPreviewSurfacePointerDown"
-            @click.capture="handleCalendarPreviewSurfaceClick"
-          >
-            <q-date
-              :key="calendarPreviewKey"
-              v-model="calendarPreviewModel"
-              multiple
-              mask="YYYY-MM-DD"
-              color="primary"
-              :default-year-month="calendarPreviewYearMonth"
-              @navigation="onCalendarPreviewNavigation"
-              @update:model-value="handleCalendarPreviewModelUpdate"
-            />
+    <AdminApplicationConfirmActionDialog
+      v-model="showConfirmActionDialog"
+      :confirm-action-type="confirmActionType"
+      :get-confirm-action-title="getConfirmActionTitle"
+      :get-confirm-action-message="getConfirmActionMessage"
+      :on-confirm="confirmPendingAction"
+    />
 
-            <div
-              v-if="calendarPreviewDateWarning && calendarPreviewWarningStyle.left"
-              :class="[
-                'leave-date-warning-popover',
-                `leave-date-warning-popover--${calendarPreviewWarningState}`,
-              ]"
-              :style="calendarPreviewWarningStyle"
-            >
-              <span>{{ calendarPreviewDateWarning }}</span>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+    <AdminApplicationDisapproveDialog
+      v-model="showDisapproveDialog"
+      :rejection-mode="rejectionMode"
+      :rejection-dialog-title="rejectionDialogTitle"
+      :rejection-dialog-label="rejectionDialogLabel"
+      v-model:remarks="remarks"
+      :action-loading="actionLoading"
+      :on-confirm="confirmDisapprove"
+    />
 
-    <q-dialog v-model="showConfirmActionDialog" persistent>
-      <q-card
-        class="admin-action-dialog-card admin-action-dialog-card--compact"
-        :class="
-          confirmActionType === 'approve'
-            ? 'admin-action-dialog-card--approve'
-            : confirmActionType === 'cancel'
-              ? 'admin-action-dialog-card--cancel'
-            : 'admin-action-dialog-card--reject'
-        "
-      >
-        <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
-          <q-avatar
-            size="64px"
-            class="admin-action-dialog-card__avatar"
-            :class="`admin-action-dialog-card__avatar--${getAdminConfirmActionTone(confirmActionType)}`"
-          >
-            <q-icon :name="getAdminConfirmActionIcon(confirmActionType)" size="32px" />
-          </q-avatar>
-          <div class="admin-action-dialog-card__title">
-            {{ getConfirmActionTitle(confirmActionType) }}
-          </div>
-          <div class="admin-action-dialog-card__message">
-            {{ getConfirmActionMessage(confirmActionType) }}
-          </div>
-        </q-card-section>
-        <q-card-actions class="admin-action-dialog-card__actions admin-action-dialog-card__actions--compact">
-          <q-btn
-            flat
-            no-caps
-            label="Cancel"
-            color="grey-7"
-            class="admin-action-dialog-card__button admin-action-dialog-card__button--cancel"
-            v-close-popup
-          />
-          <q-btn
-            unelevated
-            no-caps
-            label="Confirm"
-            :icon="getAdminConfirmActionIcon(confirmActionType)"
-            :color="
-              confirmActionType === 'approve'
-                ? 'green-7'
-                : confirmActionType === 'cancel'
-                  ? 'warning'
-                  : 'negative'
-            "
-            class="admin-action-dialog-card__button"
-            @click="confirmPendingAction"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showDisapproveDialog" persistent>
-      <q-card
-        class="admin-action-dialog-card admin-action-dialog-card--compact"
-        :class="rejectionMode === 'cancel' ? 'admin-action-dialog-card--cancel' : 'admin-action-dialog-card--reject'"
-      >
-        <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
-          <q-avatar
-            size="64px"
-            class="admin-action-dialog-card__avatar"
-            :class="`admin-action-dialog-card__avatar--${getAdminRejectTone(rejectionMode)}`"
-          >
-            <q-icon :name="getAdminRejectIcon(rejectionMode)" size="32px" />
-          </q-avatar>
-          <div class="admin-action-dialog-card__title">{{ rejectionDialogTitle }}</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none admin-action-dialog-card__content--compact">
-          <q-input
-            v-model="remarks"
-            type="textarea"
-            :label="rejectionDialogLabel"
-            rows="4"
-            outlined
-          />
-        </q-card-section>
-        <q-card-actions class="admin-action-dialog-card__actions admin-action-dialog-card__actions--compact">
-          <q-btn flat no-caps label="Cancel" color="grey-7" class="admin-action-dialog-card__button" v-close-popup />
-          <q-btn
-            unelevated
-            no-caps
-            :color="rejectionMode === 'cancel' ? 'warning' : 'negative'"
-            :icon="getAdminRejectIcon(rejectionMode)"
-            :label="rejectionMode === 'cancel' ? 'Confirm Cancel' : 'Submit'"
-            class="admin-action-dialog-card__button"
-            :loading="actionLoading"
-            @click="confirmDisapprove"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showActionResultDialog" persistent>
-      <q-card style="min-width: 420px; max-width: 520px">
-        <q-card-section class="row items-center">
-          <q-icon
-            :name="actionResultType === 'approved' ? 'check_circle' : 'cancel'"
-            :color="
-              actionResultType === 'approved'
-                ? 'green-7'
-                : actionResultType === 'cancelled'
-                  ? 'warning'
-                  : 'negative'
-            "
-            size="28px"
-            class="q-mr-sm"
-          />
-          <div class="text-h6">Application {{ getActionResultLabel(actionResultType) }}</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <div class="text-body2 text-grey-8">
-            <template v-if="actionResultType === 'approved' && actionResultIsEditRequestApproval">
-              The request update has been approved. You can print the leave form and request-change
-              form now.
-            </template>
-            <template v-else>
-              The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
-              finalized form now.
-            </template>
-          </div>
-          <div v-if="actionResultApp" class="text-caption text-grey-7 q-mt-sm">
-            {{ actionResultApp.employeeName }} - {{ actionResultApp.leaveType }}
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn
-            v-if="canPrintRequestChangesActionResult"
-            unelevated
-            color="teal-7"
-            icon="description"
-            label="Print Form"
-            :disable="!actionResultApp"
-            @click="printRequestChangesActionResult"
-          />
-          <q-btn
-            unelevated
-            color="primary"
-            icon="print"
-            label="Print PDF"
-            :disable="!actionResultApp"
-            @click="printActionResult"
-          />
-          <q-btn flat label="Close" color="grey-7" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <AdminApplicationActionResultDialog
+      v-model="showActionResultDialog"
+      :action-result-type="actionResultType"
+      :action-result-app="actionResultApp"
+      :action-result-is-edit-request-approval="actionResultIsEditRequestApproval"
+      :can-print-request-changes-action-result="canPrintRequestChangesActionResult"
+      :get-action-result-label="getActionResultLabel"
+      :get-action-result-verb="getActionResultVerb"
+      :on-print-request-changes="printRequestChangesActionResult"
+      :on-print="printActionResult"
+    />
   </q-page>
 </template>
 
 <script setup>
-import AdminApplySelf from 'pages/admin/AdminApplySelf.vue'
 import StatusBadge from 'components/StatusBadge.vue'
+import AdminApplyLeaveDialog from 'src/components/admin/AdminApplyLeaveDialog.vue'
+import AdminApplicationTimelineDialog from 'src/components/admin/AdminApplicationTimelineDialog.vue'
+import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
+import AdminApplicationConfirmActionDialog from 'src/components/admin/AdminApplicationConfirmActionDialog.vue'
+import AdminApplicationDisapproveDialog from 'src/components/admin/AdminApplicationDisapproveDialog.vue'
+import AdminApplicationActionResultDialog from 'src/components/admin/AdminApplicationActionResultDialog.vue'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
 
 const {
@@ -932,6 +704,7 @@ const {
   rejectionDialogTitle,
   rejectionDialogLabel,
   confirmActionType,
+  rejectionMode,
   remarks,
   actionResultType,
   actionResultApp,
@@ -957,6 +730,10 @@ const {
   getEditRequestBadgeColor,
   hasApplicationEditRequest,
   getApplicationEditRequestStatusLabel,
+  getApplicationEditRequestStatusFieldLabel,
+  getApplicationEditRequestApprovedBadgeLabel,
+  getApplicationEditRequestSectionTitle,
+  shouldShowApplicationEditRequestDateComparison,
   getApplicationEditRequestRequestedAt,
   getApplicationEditRequestRequestedBy,
   getApplicationEditRequestReason,
@@ -993,26 +770,6 @@ const {
   printRequestChangesActionResult,
 } = useAdminApplicationsPage()
 
-function getAdminConfirmActionTone(type) {
-  if (type === 'approve') return 'approve'
-  if (type === 'cancel') return 'cancel'
-  return 'reject'
-}
-
-function getAdminConfirmActionIcon(type) {
-  if (type === 'approve') return 'check_circle'
-  if (type === 'cancel') return 'remove_circle'
-  return 'cancel'
-}
-
-function getAdminRejectTone(mode) {
-  return mode === 'cancel' ? 'cancel' : 'reject'
-}
-
-function getAdminRejectIcon(mode) {
-  return mode === 'cancel' ? 'remove_circle' : 'cancel'
-}
-
 function getApplicationDetailsLeaveTypeLabel(app) {
   if (!app) return 'N/A'
   const leaveType = String(formatApplicationLeaveTypeLabel(app?.leaveType) || '').trim()
@@ -1046,41 +803,13 @@ function shouldScrollInclusiveDates(app) {
 
   return getApplicationInclusiveDateLines(app).length >= 5
 }
+
+function setCalendarPreviewRefElement(element) {
+  calendarPreviewRef.value = element
+}
 </script>
 
 <style scoped>
-.apply-leave-dialog-card {
-  width: min(1280px, 96vw);
-  max-width: none;
-  max-height: calc(100vh - 24px);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.apply-leave-dialog-header {
-  min-height: 56px;
-  padding: 0 10px 0 14px;
-  position: sticky;
-  top: 0;
-  z-index: 3;
-}
-.apply-leave-dialog-close {
-  width: 38px;
-  height: 38px;
-}
-.apply-leave-dialog :deep(.q-dialog__inner--minimized) {
-  padding: 12px;
-}
-.apply-leave-dialog :deep(.q-dialog__inner--minimized > div) {
-  max-width: none !important;
-}
-.apply-leave-dialog-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-}
 .pending-actions-cell {
   width: 228px;
   padding-right: 8px;
@@ -1125,100 +854,6 @@ function shouldScrollInclusiveDates(app) {
 }
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
-}
-.admin-action-dialog-card {
-  width: min(560px, calc(100vw - 24px));
-  max-width: calc(100vw - 24px);
-  border-radius: 24px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
-}
-.admin-action-dialog-card--compact {
-  width: min(420px, calc(100vw - 24px));
-  min-width: 340px;
-  max-width: 420px;
-  border-radius: 20px;
-}
-.admin-action-dialog-card--approve {
-  border-color: #b7ddc1;
-}
-.admin-action-dialog-card--cancel {
-  border-color: #f0d08a;
-}
-.admin-action-dialog-card--reject {
-  border-color: #e6b8b8;
-}
-.admin-action-dialog-card__top {
-  padding: 12px 12px 0;
-}
-.admin-action-dialog-card__content {
-  padding: 8px 28px 12px;
-}
-.admin-action-dialog-card__content--compact {
-  padding: 22px 26px 12px;
-}
-.admin-action-dialog-card__title {
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 500;
-  color: #111827;
-}
-.admin-action-dialog-card--compact .admin-action-dialog-card__title {
-  margin-top: 14px;
-  font-size: 2rem;
-  line-height: 1.1;
-}
-.admin-action-dialog-card__message {
-  margin-top: 20px;
-  font-size: 1.15rem;
-  line-height: 1.45;
-  color: #6b7280;
-}
-.admin-action-dialog-card--compact .admin-action-dialog-card__message {
-  margin-top: 14px;
-  font-size: 1.02rem;
-}
-.admin-action-dialog-card__avatar {
-  color: #ffffff;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
-}
-.admin-action-dialog-card__avatar--approve {
-  background: #2e7d32;
-}
-.admin-action-dialog-card__avatar--cancel {
-  background: #f59e0b;
-}
-.admin-action-dialog-card__avatar--reject {
-  background: #c62828;
-}
-.admin-action-dialog-card__actions {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 16px;
-  padding: 0 28px 28px;
-}
-.admin-action-dialog-card__actions--compact {
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 22px 20px;
-}
-.admin-action-dialog-card__button {
-  flex: 1 1 0;
-  min-height: 56px;
-  border-radius: 16px;
-  font-size: 1rem;
-  font-weight: 700;
-}
-.admin-action-dialog-card--compact .admin-action-dialog-card__button {
-  flex: 0 0 auto;
-  min-height: 44px;
-  min-width: 140px;
-  border-radius: 16px;
-}
-.admin-action-dialog-card__button--cancel {
-  background: transparent;
-  border-color: transparent;
-  color: #6b7280;
 }
 .leave-balance-cell-column {
   padding-left: 4px !important;
@@ -1512,362 +1147,6 @@ function shouldScrollInclusiveDates(app) {
   background: #fff;
 }
 
-.application-timeline-card {
-  border-radius: 12px;
-  overflow: hidden;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
-}
-.application-timeline-header {
-  padding: 12px 14px 10px;
-  background: #fff;
-}
-.application-timeline-header-copy {
-  min-width: 0;
-}
-.application-timeline-header-title {
-  color: #111827;
-  font-weight: 700;
-}
-.application-timeline-header-caption {
-  margin-top: 2px;
-  font-size: 0.78rem;
-  color: #6b7280;
-}
-.application-timeline-content {
-  padding: 14px;
-  background: #fff;
-  overflow-y: auto;
-}
-.application-timeline-actions {
-  padding: 0 14px 14px;
-  gap: 8px;
-  border-top: 1px solid #e5e7eb;
-  background: #fff;
-}
-.application-timeline-panel {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #f7f8fb 0%, #f4f5f8 100%);
-  padding: 10px 12px;
-}
-.application-timeline-item {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 12px;
-}
-.application-timeline-item + .application-timeline-item {
-  margin-top: 2px;
-}
-.application-timeline-marker-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.application-timeline-marker {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  flex-shrink: 0;
-}
-.application-timeline-marker--positive {
-  background: #22c55e;
-}
-.application-timeline-marker--warning {
-  background: #f59e0b;
-}
-.application-timeline-marker--negative {
-  background: #ef4444;
-}
-.application-timeline-marker--neutral {
-  background: #cbd5e1;
-  color: #475569;
-}
-.application-timeline-line {
-  width: 2px;
-  flex: 1 1 auto;
-  min-height: 42px;
-  margin-top: 4px;
-  border-radius: 999px;
-}
-.application-timeline-line--positive {
-  background: #22c55e;
-}
-.application-timeline-line--warning {
-  background: #f59e0b;
-}
-.application-timeline-line--negative {
-  background: #ef4444;
-}
-.application-timeline-line--neutral {
-  background: #cbd5e1;
-}
-.application-timeline-body {
-  padding-bottom: 18px;
-}
-.application-timeline-meta {
-  font-size: 0.64rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-.application-timeline-title {
-  margin-top: 2px;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #111827;
-  line-height: 1.3;
-}
-.application-timeline-actor {
-  margin-top: 4px;
-  font-size: 0.78rem;
-  color: #64748b;
-  line-height: 1.45;
-}
-.application-calendar-card {
-  width: min(840px, 96vw);
-  max-width: 96vw;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
-}
-.application-calendar-header {
-  padding: 12px 14px 10px;
-  background: #fff;
-}
-.application-calendar-header-copy {
-  min-width: 0;
-}
-.application-calendar-title {
-  color: #111827;
-  font-weight: 700;
-}
-.application-calendar-caption {
-  color: #374151;
-  font-weight: 700;
-}
-.application-calendar-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #fff;
-}
-.application-calendar-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-}
-.application-calendar-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  color: #4b5563;
-}
-.application-calendar-legend-swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-}
-.application-calendar-legend-swatch--pending {
-  background: #ffe29a;
-  border-color: rgba(214, 154, 0, 0.85);
-}
-.application-calendar-legend-swatch--approved {
-  background: #a8dcae;
-  border-color: rgba(46, 125, 50, 0.85);
-}
-.application-calendar-surface {
-  position: relative;
-  display: flex;
-  justify-content: stretch;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
-  overflow: visible;
-}
-.application-calendar-actions {
-  padding: 0 14px 14px;
-  background: #fff;
-}
-.leave-date-calendar {
-  position: relative;
-}
-.leave-date-warning-popover {
-  position: absolute;
-  z-index: 20;
-  display: inline-flex;
-  align-items: flex-start;
-  padding: 8px 10px;
-  border: 1px solid;
-  border-radius: 12px;
-  background: var(--leave-date-warning-bg, #fff1c9);
-  border-color: var(--leave-date-warning-border, rgba(225, 192, 106, 0.8));
-  color: var(--leave-date-warning-text, #9a6700);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1.35;
-}
-.leave-date-warning-popover::after {
-  content: '';
-  position: absolute;
-  left: var(--leave-date-warning-arrow-left, 24px);
-  bottom: -7px;
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-  border-right: 1px solid var(--leave-date-warning-border, rgba(225, 192, 106, 0.8));
-  border-bottom: 1px solid var(--leave-date-warning-border, rgba(225, 192, 106, 0.8));
-  background: var(--leave-date-warning-bg, #fff1c9);
-}
-.leave-date-warning-popover--pending {
-  --leave-date-warning-bg: #ffe9b3;
-  --leave-date-warning-border: rgba(214, 154, 0, 0.85);
-  --leave-date-warning-text: #8a5700;
-}
-.leave-date-warning-popover--approved {
-  --leave-date-warning-bg: #d0ebd4;
-  --leave-date-warning-border: rgba(46, 125, 50, 0.85);
-  --leave-date-warning-text: #20642b;
-}
-.leave-date-calendar :deep(.leave-date-calendar__day--locked) {
-  opacity: 1 !important;
-}
-.leave-date-calendar :deep(.leave-date-calendar__day--locked > div),
-.leave-date-calendar :deep(.leave-date-calendar__day--locked .q-btn) {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: #2b2f33 !important;
-  opacity: 1 !important;
-  border-radius: 999px !important;
-}
-.leave-date-calendar :deep(.leave-date-calendar__day--locked .q-btn__content) {
-  color: #2b2f33 !important;
-  font-weight: 700;
-}
-.leave-date-calendar :deep(.leave-date-calendar__day--locked-pending > div),
-.leave-date-calendar :deep(.leave-date-calendar__day--locked-pending .q-btn) {
-  background: #ffe29a;
-}
-.leave-date-calendar :deep(.leave-date-calendar__day--locked-approved > div),
-.leave-date-calendar :deep(.leave-date-calendar__day--locked-approved .q-btn) {
-  background: #a8dcae;
-}
-.application-calendar-surface :deep(.q-date) {
-  box-shadow: none;
-  width: 100%;
-  max-width: none;
-  font-size: 1rem;
-}
-.application-calendar-surface :deep(.q-date__header) {
-  display: none;
-}
-.application-calendar-surface :deep(.q-date--portrait-standard .q-date__content) {
-  height: 100%;
-}
-.application-calendar-surface :deep(.q-date__content) {
-  width: 100%;
-}
-.application-calendar-surface :deep(.q-date__navigation) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr) auto auto auto;
-  align-items: center;
-  column-gap: 8px;
-  height: auto;
-  min-height: 48px;
-  margin-bottom: 10px;
-}
-.application-calendar-surface :deep(.q-date__navigation > div) {
-  width: auto;
-  min-width: 0;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(1)) {
-  grid-column: 2;
-  justify-content: center;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(2)) {
-  grid-column: 3;
-  justify-content: center;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(3)) {
-  grid-column: 4;
-  justify-content: center;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(4)) {
-  grid-column: 6;
-  justify-content: center;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(5)) {
-  grid-column: 7;
-  justify-content: center;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(6)) {
-  grid-column: 8;
-  justify-content: center;
-}
-.application-calendar-surface :deep(.q-date__navigation .q-btn) {
-  min-height: 0;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(2) .q-btn),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(5) .q-btn) {
-  padding: 2px 8px;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(2) .q-btn) {
-  min-width: clamp(240px, 34vw, 340px);
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(2) .q-btn__content),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(5) .q-btn__content) {
-  font-size: 1.24rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(1) .q-btn),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(3) .q-btn),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(4) .q-btn),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(6) .q-btn) {
-  width: 34px;
-  height: 34px;
-}
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(1) .q-icon),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(3) .q-icon),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(4) .q-icon),
-.application-calendar-surface :deep(.q-date__navigation > div:nth-child(6) .q-icon) {
-  font-size: 1.4rem;
-}
-.application-calendar-surface :deep(.q-date__view) {
-  min-height: 360px;
-  padding: 12px 20px 14px;
-  overflow: visible;
-}
-.application-calendar-surface :deep(.q-date__calendar-days-container) {
-  min-height: 280px;
-  overflow: visible;
-}
-.application-calendar-surface :deep(.q-date__calendar-item) {
-  height: 40px;
-  overflow: visible;
-}
-.application-calendar-surface :deep(.q-date__calendar-item > div),
-.application-calendar-surface :deep(.q-date__calendar-item .q-btn) {
-  min-width: 32px;
-  height: 32px;
-  border-radius: 999px !important;
-}
-
 @media (max-width: 599px) {
   .admin-application-details-dialog :deep(.q-dialog__inner--minimized) {
     padding: 10px 10px 14px;
@@ -1953,61 +1232,6 @@ function shouldScrollInclusiveDates(app) {
     min-width: 0;
   }
 
-  .admin-action-dialog-card {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-    border-radius: 20px;
-  }
-
-  .admin-action-dialog-card--compact {
-    min-width: 0;
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-  }
-
-  .admin-action-dialog-card__content {
-    padding: 4px 20px 10px;
-  }
-
-  .admin-action-dialog-card__title {
-    font-size: 1.55rem;
-  }
-
-  .admin-action-dialog-card__message {
-    margin-top: 14px;
-    font-size: 1rem;
-  }
-
-  .admin-action-dialog-card__actions {
-    gap: 12px;
-    padding: 0 20px 20px;
-  }
-
-  .admin-action-dialog-card__button {
-    min-height: 50px;
-    border-radius: 16px;
-  }
-
-  .admin-action-dialog-card--compact .admin-action-dialog-card__button {
-    min-width: 0;
-    flex: 1 1 0;
-  }
-
-  .apply-leave-dialog-card {
-    width: min(100vw, 100vw);
-    max-height: calc(100vh - 8px);
-    border-radius: 10px;
-  }
-
-  .apply-leave-dialog :deep(.q-dialog__inner--minimized) {
-    padding: 4px;
-  }
-
-  .apply-leave-dialog-header {
-    min-height: 52px;
-    padding: 0 8px 0 10px;
-  }
-
   .applications-page-header {
     align-items: flex-start;
     row-gap: 14px;
@@ -2050,93 +1274,5 @@ function shouldScrollInclusiveDates(app) {
     width: 100%;
   }
 
-  .application-timeline-content {
-    padding: 12px;
-  }
-
-  .application-timeline-actions {
-    padding: 0 12px 12px;
-    justify-content: stretch;
-  }
-
-  .application-timeline-actions .q-btn {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .application-timeline-panel {
-    padding: 10px;
-  }
-
-  .application-timeline-item {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .application-timeline-marker {
-    width: 24px;
-    height: 24px;
-  }
-
-  .application-calendar-body {
-    padding: 12px;
-  }
-
-  .application-calendar-surface {
-    padding: 10px;
-  }
-
-  .application-calendar-surface :deep(.q-date) {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .application-calendar-surface :deep(.q-date__navigation) {
-    column-gap: 4px;
-    min-height: 42px;
-  }
-
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(2) .q-btn__content),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(5) .q-btn__content) {
-    font-size: 1.08rem;
-  }
-
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(2) .q-btn) {
-    min-width: min(180px, 46vw);
-  }
-
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(1) .q-btn),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(3) .q-btn),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(4) .q-btn),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(6) .q-btn) {
-    width: 30px;
-    height: 30px;
-  }
-
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(1) .q-icon),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(3) .q-icon),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(4) .q-icon),
-  .application-calendar-surface :deep(.q-date__navigation > div:nth-child(6) .q-icon) {
-    font-size: 1.2rem;
-  }
-
-  .application-calendar-surface :deep(.q-date__view) {
-    min-height: 250px;
-    padding: 8px 10px 10px;
-  }
-
-  .application-calendar-surface :deep(.q-date__calendar-item) {
-    height: 30px;
-  }
-
-  .application-calendar-surface :deep(.q-date__calendar-item > div),
-  .application-calendar-surface :deep(.q-date__calendar-item .q-btn) {
-    min-width: 28px;
-    min-height: 28px;
-  }
-
-  .leave-date-warning-popover {
-    font-size: 0.82rem;
-  }
 }
 </style>

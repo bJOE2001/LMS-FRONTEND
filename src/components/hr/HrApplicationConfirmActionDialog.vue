@@ -153,6 +153,10 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
+  getLeaveRequestActionType: {
+    type: Function,
+    default: () => '',
+  },
   getApplicationId: {
     type: Function,
     default: (application) => application?.id ?? '',
@@ -185,20 +189,32 @@ const actionTitle = computed(() => {
   return 'Disapprove'
 })
 
+const isCancellationRequest = computed(
+  () => String(props.getLeaveRequestActionType(props.application) || '').toUpperCase() === 'REQUEST_CANCEL',
+)
+
 const actionMessage = computed(() => {
   if (props.confirmActionType === 'approve') {
-    return props.isEditRequest
-      ? 'This will approve the edit request and apply the requested changes.'
-      : 'This will finalize the approval of this application.'
+    if (props.isEditRequest) {
+      return isCancellationRequest.value
+        ? 'This will approve the cancellation request and continue the cancellation workflow.'
+        : 'This will approve the edit request and apply the requested changes.'
+    }
+
+    return 'This will finalize the approval of this application.'
   }
 
   if (props.confirmActionType === 'cancel') {
     return 'This will cancel this application.'
   }
 
-  return props.isEditRequest
-    ? 'You will continue to the disapproval form for this edit request.'
-    : 'You will continue to the disapproval form.'
+  if (props.isEditRequest) {
+    return isCancellationRequest.value
+      ? 'You will continue to the disapproval form for this cancellation request.'
+      : 'You will continue to the disapproval form for this edit request.'
+  }
+
+  return 'You will continue to the disapproval form.'
 })
 
 const actionTone = computed(() => {

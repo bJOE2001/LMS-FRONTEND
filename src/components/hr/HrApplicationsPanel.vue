@@ -243,6 +243,7 @@
     :get-current-leave-type-label="getCurrentLeaveTypeLabel"
     :get-requested-leave-type-label="getRequestedLeaveTypeLabel"
     :get-edit-request-status-label="getEditRequestStatusLabel"
+    :get-edit-request-status-field-label="getEditRequestStatusFieldLabel"
     :get-edit-request-badge-color="getEditRequestBadgeColor"
     :get-application-duration-display="getApplicationDurationDisplay"
     :has-pending-duration-update="hasPendingDurationUpdate"
@@ -278,6 +279,7 @@
     :is-edit-request="isPendingEditRequest(resolveApplication(confirmActionTarget))"
     :is-coc-application="isCocApplication"
     :is-pending-edit-request="isPendingEditRequest"
+    :get-leave-request-action-type="getLeaveRequestActionType"
     :get-application-id="getApplicationId"
     @request-reject="handleConfirmRequestReject"
     @approved="handleDialogMutationSuccess"
@@ -296,6 +298,7 @@
     :application="rejectTargetApp"
     :is-coc-application="isCocApplication"
     :is-pending-edit-request="isPendingEditRequest"
+    :get-leave-request-action-type="getLeaveRequestActionType"
     :get-application-id="getApplicationId"
     @rejected="handleDialogMutationSuccess"
   />
