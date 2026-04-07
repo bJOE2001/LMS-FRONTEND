@@ -187,7 +187,7 @@
 
     <div class="row q-col-gutter-sm q-mt-sm">
       <div class="col-12 dashboard-panel-col">
-        <DepartmentStatistics class="compact-panel full-width" />
+        <DepartmentStatistics class="compact-panel full-width department-stats-panel" />
       </div>
     </div>
   </q-page>
@@ -872,6 +872,11 @@ onMounted(fetchDashboard)
 
   .stat-mini-value {
     font-size: 0.58rem;
+  }
+
+  .department-stats-panel {
+    width: 100%;
+    min-width: 0;
   }
 }
 </style>

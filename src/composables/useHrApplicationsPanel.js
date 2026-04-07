@@ -42,6 +42,9 @@ const EMPLOYMENT_TYPE_FILTER_LABELS = {
   casual: 'Casual',
 }
 
+const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
+const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+
 function getActualRequestedDayCount(app) {
   const explicitCandidates = [
     app?.actual_total_days,
@@ -230,8 +233,12 @@ function normalizeBackendApplicationShape(application, index = 0) {
     selected_date_coverage: application?.selected_date_coverage ?? null,
     pending_update: application?.pending_update ?? null,
     pending_update_reason: application?.pending_update_reason ?? '',
+    pending_update_action_type:
+      application?.pending_update_action_type ?? application?.pendingUpdateActionType ?? null,
     has_pending_update_request: isTruthyBackendFlag(application?.has_pending_update_request),
     latest_update_request_status: application?.latest_update_request_status ?? '',
+    latest_update_request_action_type:
+      application?.latest_update_request_action_type ?? application?.latestUpdateRequestActionType ?? null,
     latest_update_request_payload: application?.latest_update_request_payload ?? null,
     latest_update_requested_at: application?.latest_update_requested_at ?? null,
     latest_update_reviewed_at: application?.latest_update_reviewed_at ?? null,
@@ -324,7 +331,8 @@ function mergeStatus(app) {
 function isEditUpdateRequest(app) {
   if (!app || typeof app !== 'object') return false
   if (isTruthyBackendFlag(app?.has_pending_update_request)) return true
-  return Boolean(app?.pending_update)
+  if (getLeaveRequestActionType(app)) return true
+  return Boolean(app?.pending_update || app?.latest_update_request_payload)
 }
 
 function normalizeUpdateRequestStatus(value) {
@@ -339,6 +347,136 @@ function normalizeUpdateRequestStatus(value) {
   return ''
 }
 
+function normalizeLeaveRequestActionTypeToken(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+  if (!normalized) return ''
+
+  if (
+    normalized === REQUEST_ACTION_CANCEL ||
+    normalized === 'CANCEL_REQUEST' ||
+    normalized === 'REQUEST_CANCELLATION' ||
+    normalized === 'CANCELLATION_REQUEST' ||
+    normalized === 'LEAVE_CANCELLATION_REQUEST'
+  ) {
+    return REQUEST_ACTION_CANCEL
+  }
+
+  if (
+    normalized === REQUEST_ACTION_UPDATE ||
+    normalized === 'UPDATE_REQUEST' ||
+    normalized === 'EDIT_REQUEST' ||
+    normalized === 'REQUEST_EDIT'
+  ) {
+    return REQUEST_ACTION_UPDATE
+  }
+
+  return ''
+}
+
+function resolveLeaveRequestActionTypeFromPayload(payload) {
+  if (!payload || typeof payload !== 'object') return ''
+
+  const candidates = [
+    payload?.action_type,
+    payload?.actionType,
+    payload?.request_action_type,
+    payload?.requestActionType,
+    payload?.type,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeLeaveRequestActionTypeToken(candidate)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
+function resolveLeaveRequestActionTypeFromStatusHistory(app) {
+  return getStatusHistoryEntries(app).reduce((resolved, entry = {}) => {
+    if (resolved) return resolved
+
+    const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+    const stageToken = normalizeStatusHistoryToken(entry?.stage)
+    const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
+
+    if (
+      actionToken.includes('REQUEST_CANCEL') ||
+      stageToken.includes('cancel request') ||
+      stageToken.includes('cancellation request') ||
+      remarksToken.includes('cancel request') ||
+      remarksToken.includes('cancellation request')
+    ) {
+      return REQUEST_ACTION_CANCEL
+    }
+
+    if (
+      actionToken.includes('REQUEST_UPDATE') ||
+      actionToken.includes('EDIT_REQUEST') ||
+      stageToken.includes('edit request') ||
+      stageToken.includes('request update') ||
+      remarksToken.includes('edit request') ||
+      remarksToken.includes('request update')
+    ) {
+      return REQUEST_ACTION_UPDATE
+    }
+
+    return ''
+  }, '')
+}
+
+function getLeaveRequestActionType(app) {
+  if (!app || typeof app !== 'object') return ''
+
+  const explicitCandidates = [
+    app?.pending_update_action_type,
+    app?.pendingUpdateActionType,
+    app?.latest_update_request_action_type,
+    app?.latestUpdateRequestActionType,
+    app?.raw?.pending_update_action_type,
+    app?.raw?.pendingUpdateActionType,
+    app?.raw?.latest_update_request_action_type,
+    app?.raw?.latestUpdateRequestActionType,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const normalized = normalizeLeaveRequestActionTypeToken(candidate)
+    if (normalized) return normalized
+  }
+
+  const payload = getPendingUpdatePayload(app)
+  const payloadType = resolveLeaveRequestActionTypeFromPayload(payload)
+  if (payloadType) return payloadType
+
+  const workflowRemarks = normalizeStatusHistoryToken(app?.remarks || '')
+  if (workflowRemarks.includes('cancel request') || workflowRemarks.includes('cancellation request')) {
+    return REQUEST_ACTION_CANCEL
+  }
+  if (workflowRemarks.includes('edit request') || workflowRemarks.includes('request update')) {
+    return REQUEST_ACTION_UPDATE
+  }
+
+  return resolveLeaveRequestActionTypeFromStatusHistory(app)
+}
+
+function isCancellationRequestAction(app) {
+  return getLeaveRequestActionType(app) === REQUEST_ACTION_CANCEL
+}
+
+function getEditRequestLabelPrefix(app) {
+  return isCancellationRequestAction(app) ? 'Cancel Request' : 'Edit Request'
+}
+
+function getEditRequestStatusFieldLabel(app) {
+  return isCancellationRequestAction(app)
+    ? 'Cancellation Request Status'
+    : 'Edit Request Status'
+}
+
 function shouldExposeEditRequestStatusToHr(app, status) {
   if (status !== 'PENDING') return true
 
@@ -349,13 +487,24 @@ function shouldExposeEditRequestStatusToHr(app, status) {
 
   return Boolean(
     isEditUpdateRequest(app) ||
+      getLeaveRequestActionType(app) ||
       getPendingUpdatePayload(app) ||
       app?.latest_update_requested_at,
   )
 }
 
 function getLatestUpdateRequestStatus(app) {
-  const explicitStatus = normalizeUpdateRequestStatus(app?.latest_update_request_status ?? '')
+  const explicitStatus = normalizeUpdateRequestStatus(
+    app?.latest_update_request_status ??
+      app?.latestUpdateRequestStatus ??
+      app?.latest_update_status ??
+      app?.latestUpdateStatus ??
+      app?.raw?.latest_update_request_status ??
+      app?.raw?.latestUpdateRequestStatus ??
+      app?.raw?.latest_update_status ??
+      app?.raw?.latestUpdateStatus ??
+      '',
+  )
   if (explicitStatus && shouldExposeEditRequestStatusToHr(app, explicitStatus)) {
     return explicitStatus
   }
@@ -370,9 +519,10 @@ function getLatestUpdateRequestStatus(app) {
 
 function getEditRequestBadgeLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
-  if (status === 'PENDING') return 'Edit Request Pending'
-  if (status === 'APPROVED') return 'Edit Request Approved'
-  if (status === 'REJECTED') return 'Edit Request Rejected'
+  const labelPrefix = getEditRequestLabelPrefix(app)
+  if (status === 'PENDING') return labelPrefix + ' Pending'
+  if (status === 'APPROVED') return labelPrefix + ' Approved'
+  if (status === 'REJECTED') return labelPrefix + ' Rejected'
   return ''
 }
 
@@ -820,7 +970,33 @@ function hasPendingLeaveTypeUpdate(app) {
 }
 
 function getPendingUpdateReason(app) {
-  return String(app?.pending_update_reason || '').trim()
+  const pendingPayload = getPendingUpdatePayload(app)
+
+  const candidates = [
+    app?.pending_update_reason,
+    app?.pendingUpdateReason,
+    app?.latest_update_request_reason,
+    app?.latestUpdateRequestReason,
+    app?.raw?.pending_update_reason,
+    app?.raw?.pendingUpdateReason,
+    app?.raw?.latest_update_request_reason,
+    app?.raw?.latestUpdateRequestReason,
+    pendingPayload?.reason,
+    pendingPayload?.reason_purpose,
+    pendingPayload?.update_reason,
+    pendingPayload?.edit_reason,
+    pendingPayload?.cancel_reason,
+    pendingPayload?.cancelReason,
+    pendingPayload?.remarks,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim()
+    if (!normalized) continue
+    return normalized
+  }
+
+  return ''
 }
 
 function getDetailsRemarksRows(app) {
@@ -829,7 +1005,10 @@ function getDetailsRemarksRows(app) {
   const rows = []
   const pendingUpdateReason = getPendingUpdateReason(app)
   if (pendingUpdateReason) {
-    rows.push({ label: 'Update Request', text: pendingUpdateReason })
+    rows.push({
+      label: isCancellationRequestAction(app) ? 'Cancellation Request' : 'Update Request',
+      text: pendingUpdateReason,
+    })
   }
 
   const workflowRemarks = formatWorkflowRemarksDisplay(
@@ -846,11 +1025,19 @@ function formatWorkflowRemarksDisplay(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
 
+  const cancelRequestMatch = raw.match(/^(?:cancel(?:lation)? request(?:ed)? via erms|cancellation requested via erms)\s*:?\s*(.*)$/i)
+  if (cancelRequestMatch) {
+    const trailingReason = String(cancelRequestMatch[1] || '').trim()
+    return trailingReason
+      ? 'Cancellation request submitted by employee. Reason: ' + trailingReason
+      : 'Cancellation request submitted by employee.'
+  }
+
   const editRequestMatch = raw.match(/^edit requested via erms\s*:?\s*(.*)$/i)
   if (editRequestMatch) {
     const trailingReason = String(editRequestMatch[1] || '').trim()
     return trailingReason
-      ? `Edit request submitted by employee. Reason: ${trailingReason}`
+      ? 'Edit request submitted by employee. Reason: ' + trailingReason
       : 'Edit request submitted by employee.'
   }
 
@@ -1586,6 +1773,45 @@ function parseDateTimeValue(value) {
   return new Date('')
 }
 
+function toComparableTimestamp(value) {
+  const parsedDate = parseDateTimeValue(value)
+  const timestamp = parsedDate.getTime()
+  return Number.isNaN(timestamp) ? Number.NaN : timestamp
+}
+
+function isTimestampOnOrAfter(value, reference) {
+  if (!value) return false
+  if (!reference) return true
+
+  const valueTimestamp = toComparableTimestamp(value)
+  const referenceTimestamp = toComparableTimestamp(reference)
+  if (Number.isNaN(valueTimestamp) || Number.isNaN(referenceTimestamp)) return false
+  return valueTimestamp >= referenceTimestamp
+}
+
+function pickLatestTimestampValue(...values) {
+  let latestValue = null
+  let latestTimestamp = Number.NEGATIVE_INFINITY
+  let firstNonEmptyValue = null
+
+  values.forEach((value) => {
+    if (value === null || value === undefined) return
+    const normalized = String(value).trim()
+    if (!normalized) return
+
+    if (!firstNonEmptyValue) firstNonEmptyValue = value
+
+    const timestamp = toComparableTimestamp(value)
+    if (Number.isNaN(timestamp)) return
+    if (timestamp <= latestTimestamp) return
+
+    latestTimestamp = timestamp
+    latestValue = value
+  })
+
+  return latestValue ?? firstNonEmptyValue
+}
+
 function hasExplicitTimeComponent(value) {
   return /\d{1,2}:\d{2}/.test(String(value || ''))
 }
@@ -1752,11 +1978,19 @@ function findLatestStatusHistoryEntry(app, matcher) {
 function hasEditRequestSignal(app) {
   if (!app || typeof app !== 'object') return false
   if (getLatestUpdateRequestStatus(app)) return true
+  if (getLeaveRequestActionType(app)) return true
   if (isEditUpdateRequest(app)) return true
   if (getPendingUpdatePayload(app)) return true
 
   const remarksSignal = normalizeStatusHistoryToken(app?.remarks || '')
-  if (remarksSignal.includes('edit request') || remarksSignal.includes('request update')) return true
+  if (
+    remarksSignal.includes('edit request') ||
+    remarksSignal.includes('request update') ||
+    remarksSignal.includes('cancel request') ||
+    remarksSignal.includes('cancellation request')
+  ) {
+    return true
+  }
 
   return getStatusHistoryEntries(app).some((entry) => {
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
@@ -1766,44 +2000,87 @@ function hasEditRequestSignal(app) {
     return (
       actionToken.includes('EDIT') ||
       actionToken.includes('UPDATE_REQUEST') ||
+      actionToken.includes('REQUEST_CANCEL') ||
+      actionToken.includes('CANCELLATION_REQUEST') ||
       stageToken.includes('edit request') ||
+      stageToken.includes('request update') ||
+      stageToken.includes('cancel request') ||
+      stageToken.includes('cancellation request') ||
       historyRemarksToken.includes('edit request') ||
-      historyRemarksToken.includes('request update')
+      historyRemarksToken.includes('request update') ||
+      historyRemarksToken.includes('cancel request') ||
+      historyRemarksToken.includes('cancellation request')
     )
   })
 }
 
 function resolveEditRequestSubmittedHistoryEntry(app) {
+  const requestActionType = getLeaveRequestActionType(app)
+
   return findLatestStatusHistoryEntry(app, (entry) => {
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
+    const updateSubmittedActions = [
+      'REQUEST_UPDATE',
+      'UPDATE_REQUESTED',
+      'EDIT_REQUEST_SUBMITTED',
+      'REQUESTED_UPDATE',
+      'EDIT_REQUESTED',
+    ]
+    const cancelSubmittedActions = [
+      'REQUEST_CANCEL',
+      'CANCEL_REQUESTED',
+      'CANCELLATION_REQUEST_SUBMITTED',
+      'REQUESTED_CANCELLATION',
+      'REQUEST_CANCELLATION',
+    ]
+
+    if (requestActionType === REQUEST_ACTION_CANCEL && cancelSubmittedActions.includes(actionToken)) {
+      return true
+    }
+
+    if (requestActionType !== REQUEST_ACTION_CANCEL && updateSubmittedActions.includes(actionToken)) {
+      return true
+    }
+
     if (
-      ['REQUEST_UPDATE', 'UPDATE_REQUESTED', 'EDIT_REQUEST_SUBMITTED', 'REQUESTED_UPDATE', 'EDIT_REQUESTED']
-        .includes(actionToken)
+      stageToken.includes('edit request submitted') ||
+      stageToken.includes('edit requested') ||
+      stageToken.includes('cancel request submitted') ||
+      stageToken.includes('cancellation request submitted') ||
+      stageToken.includes('cancellation requested')
     ) {
       return true
     }
 
-    if (stageToken.includes('edit request submitted') || stageToken.includes('edit requested')) {
-      return true
+    const hasUpdateKeyword =
+      remarksToken.includes('edit request') || remarksToken.includes('request update')
+    const hasCancelKeyword =
+      remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')
+
+    if (requestActionType === REQUEST_ACTION_CANCEL && !hasCancelKeyword) {
+      return false
     }
 
-    if (remarksToken.includes('edit request') || remarksToken.includes('request update')) {
-      return (
-        actionToken === '' ||
-        actionToken.includes('REQUEST') ||
-        actionToken.includes('SUBMIT') ||
-        actionToken.includes('EDIT')
-      )
+    if (requestActionType !== REQUEST_ACTION_CANCEL && !hasUpdateKeyword && !hasCancelKeyword) {
+      return false
     }
 
-    return false
+    return (
+      actionToken === '' ||
+      actionToken.includes('REQUEST') ||
+      actionToken.includes('SUBMIT') ||
+      actionToken.includes('EDIT') ||
+      actionToken.includes('CANCEL')
+    )
   })
 }
 
 function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
+  const requestActionType = getLeaveRequestActionType(app)
+
   return findLatestStatusHistoryEntry(app, (entry) => {
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
@@ -1811,22 +2088,37 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
 
     const targetDecision = String(decision || '').toUpperCase()
     const explicitApprovedSignal =
-      ['EDIT_REQUEST_APPROVED', 'UPDATE_REQUEST_APPROVED'].includes(actionToken) ||
-      stageToken.includes('edit request approved')
+      ['EDIT_REQUEST_APPROVED', 'UPDATE_REQUEST_APPROVED', 'CANCELLATION_REQUEST_APPROVED', 'CANCEL_REQUEST_APPROVED']
+        .includes(actionToken) ||
+      stageToken.includes('edit request approved') ||
+      stageToken.includes('cancellation request approved') ||
+      stageToken.includes('cancel request approved')
     const explicitRejectedSignal =
-      ['EDIT_REQUEST_REJECTED', 'UPDATE_REQUEST_REJECTED'].includes(actionToken) ||
-      stageToken.includes('edit request rejected')
+      ['EDIT_REQUEST_REJECTED', 'UPDATE_REQUEST_REJECTED', 'CANCELLATION_REQUEST_REJECTED', 'CANCEL_REQUEST_REJECTED']
+        .includes(actionToken) ||
+      stageToken.includes('edit request rejected') ||
+      stageToken.includes('cancellation request rejected') ||
+      stageToken.includes('cancel request rejected')
+
     if (targetDecision === 'APPROVED' && explicitApprovedSignal) return true
     if (targetDecision === 'REJECTED' && explicitRejectedSignal) return true
 
     const expectedHrAction = targetDecision === 'REJECTED' ? 'HR_REJECTED' : 'HR_APPROVED'
     if (actionToken !== expectedHrAction) return false
 
-    return (
-      actionToken.includes('EDIT_REQUEST') ||
+    const updateRequestSignal =
       stageToken.includes('edit request') ||
-      remarksToken.includes('edit request')
-    )
+      stageToken.includes('request update') ||
+      remarksToken.includes('edit request') ||
+      remarksToken.includes('request update')
+    const cancelRequestSignal =
+      stageToken.includes('cancel request') ||
+      stageToken.includes('cancellation request') ||
+      remarksToken.includes('cancel request') ||
+      remarksToken.includes('cancellation request')
+
+    if (requestActionType === REQUEST_ACTION_CANCEL) return cancelRequestSignal
+    return updateRequestSignal || cancelRequestSignal
   })
 }
 
@@ -1929,19 +2221,60 @@ function getPreEditHrApprovalTimelineEntry(app) {
   const approvedBy = resolveHrActor(app)
   if (!approvedAt && approvedBy === 'Unknown') return null
 
+  const requestLabel = isCancellationRequestAction(app) ? 'cancellation request' : 'edit request'
+
   return {
     title: 'Approved by HR',
     subtitle: approvedAt || 'Completed',
-    description: 'Application was approved before the edit request.',
+    description: 'Application was approved before the ' + requestLabel + '.',
     icon: 'task_alt',
     color: 'positive',
     actor: approvedBy,
   }
 }
 
+function getEditRequestTimelineTerminology(app) {
+  const isCancelRequest = isCancellationRequestAction(app)
+
+  return {
+    submittedTitle: isCancelRequest ? 'Cancellation Request Submitted' : 'Edit Request Submitted',
+    pendingAdminTitle: isCancelRequest
+      ? 'Pending Cancellation Review (Admin)'
+      : 'Pending Edit Review (Admin)',
+    adminApprovedTitle: isCancelRequest
+      ? 'Cancellation Request Approved by Admin'
+      : 'Edit Request Approved by Admin',
+    approvedTitle: isCancelRequest ? 'Cancellation Request Approved' : 'Edit Request Approved',
+    rejectedTitle: isCancelRequest ? 'Cancellation Request Rejected' : 'Edit Request Rejected',
+    pendingHrTitle: isCancelRequest
+      ? 'Pending Cancellation Review (HR)'
+      : 'Pending Edit Review (HR)',
+    submittedFallback: isCancelRequest
+      ? 'Employee requested cancellation for this approved application.'
+      : 'Employee requested edits to this application.',
+    pendingAdminDescription: isCancelRequest
+      ? 'Waiting for department admin review of the cancellation request.'
+      : 'Waiting for department admin review of the edit request.',
+    adminApprovedDescription: isCancelRequest
+      ? 'Department admin completed the cancellation-request review.'
+      : 'Department admin completed the edit-request review.',
+    approvedDescription: isCancelRequest
+      ? 'Requested cancellation was reviewed and approved.'
+      : 'Requested edits were reviewed and approved.',
+    rejectedDescription: isCancelRequest
+      ? 'Requested cancellation was reviewed and rejected.'
+      : 'Requested edits were reviewed and rejected.',
+    pendingHrDescription: isCancelRequest
+      ? 'Waiting for HR final review of the cancellation request.'
+      : 'Waiting for HR final review of the edit request.',
+    submittedIcon: isCancelRequest ? 'event_busy' : 'edit_note',
+  }
+}
+
 function getEditRequestTimelineEntries(app) {
   if (!hasEditRequestSignal(app)) return []
 
+  const terminology = getEditRequestTimelineTerminology(app)
   const entries = []
   const submittedMeta = resolveEditRequestSubmittedMeta(app)
   const latestUpdateStatus = getLatestUpdateRequestStatus(app)
@@ -1957,29 +2290,29 @@ function getEditRequestTimelineEntries(app) {
   const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
 
   entries.push({
-    title: 'Edit Request Submitted',
+    title: terminology.submittedTitle,
     subtitle: formatDateTime(submittedMeta.submittedAt) || 'Submitted',
     description: submittedMeta.submittedReason
-      ? `Reason: ${submittedMeta.submittedReason}`
-      : 'Employee requested edits to this application.',
-    icon: 'edit_note',
+      ? 'Reason: ' + submittedMeta.submittedReason
+      : terminology.submittedFallback,
+    icon: terminology.submittedIcon,
     color: 'positive',
     actor: submittedMeta.submittedBy,
   })
 
   if (isAdminReviewPending) {
     entries.push({
-      title: 'Pending Edit Review (Admin)',
+      title: terminology.pendingAdminTitle,
       subtitle: 'Current stage',
-      description: 'Waiting for department admin review of the edit request.',
+      description: terminology.pendingAdminDescription,
       icon: 'pending_actions',
       color: 'warning',
     })
   } else {
     entries.push({
-      title: 'Edit Request Approved by Admin',
+      title: terminology.adminApprovedTitle,
       subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
-      description: 'Department admin completed the edit-request review.',
+      description: terminology.adminApprovedDescription,
       icon: 'check_circle',
       color: 'positive',
       actor: resolveDepartmentAdminActor(app),
@@ -1988,33 +2321,33 @@ function getEditRequestTimelineEntries(app) {
 
   if (approvalMeta) {
     entries.push({
-      title: 'Edit Request Approved',
+      title: terminology.approvedTitle,
       subtitle: formatDateTime(approvalMeta.reviewedAt) || 'Reviewed',
-      description: 'Requested edits were reviewed and approved.',
+      description: terminology.approvedDescription,
       icon: 'task_alt',
       color: 'positive',
       actor: approvalMeta.reviewedBy,
     })
   } else if (rejectionMeta) {
     entries.push({
-      title: 'Edit Request Rejected',
+      title: terminology.rejectedTitle,
       subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-      description: rejectionMeta.reviewRemarks || 'Requested edits were reviewed and rejected.',
+      description: rejectionMeta.reviewRemarks || terminology.rejectedDescription,
       icon: 'cancel',
       color: 'negative',
       actor: rejectionMeta.reviewedBy,
     })
   } else if (isHrReviewPending) {
     entries.push({
-      title: 'Pending Edit Review (HR)',
+      title: terminology.pendingHrTitle,
       subtitle: 'Current stage',
-      description: 'Waiting for HR final review of the edit request.',
+      description: terminology.pendingHrDescription,
       icon: 'pending_actions',
       color: 'warning',
     })
   } else {
     entries.push({
-      title: 'Pending Edit Review (HR)',
+      title: terminology.pendingHrTitle,
       subtitle: 'Upcoming',
       description: 'This stage starts after department admin review.',
       icon: 'radio_button_unchecked',
@@ -2078,24 +2411,36 @@ function resolveReceivedActor(app) {
 }
 
 function resolveReceivedDateValue(app) {
-  return (
+  return pickLatestTimestampValue(
     app?.received_at ||
-    app?.receivedAt ||
-    app?.hr_received_at ||
-    resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) ||
-    null
+      null,
+    app?.receivedAt || null,
+    app?.hr_received_at || null,
+    resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
+  )
+}
+
+function resolveCurrentUpdateRequestCycleStartValue(app) {
+  if (!hasEditRequestSignal(app)) return null
+  const submittedMeta = resolveEditRequestSubmittedMeta(app)
+  return pickFirstDefinedValue(
+    app?.latest_update_requested_at,
+    submittedMeta?.submittedAt,
   )
 }
 
 function isApplicationReceivedByHr(app) {
   if (!app) return false
 
-  return Boolean(
-    app?.has_hr_received ||
-    app?.hasHrReceived ||
-    resolveReceivedHistoryEntry(app) ||
-    resolveReceivedDateValue(app),
-  )
+  const receivedAt = resolveReceivedDateValue(app)
+  const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+
+  if (cycleStart) {
+    if (!receivedAt) return false
+    if (!isTimestampOnOrAfter(receivedAt, cycleStart)) return false
+  }
+
+  return Boolean(app?.has_hr_received || app?.hasHrReceived || resolveReceivedHistoryEntry(app) || receivedAt)
 }
 
 function canReceiveApplication(app) {
@@ -2156,38 +2501,64 @@ function resolveReleasedActor(app) {
 }
 
 function resolveReleasedDateValue(app) {
-  return (
+  return pickLatestTimestampValue(
     app?.released_at ||
-    app?.releasedAt ||
-    app?.hr_released_at ||
-    resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) ||
-    null
+      null,
+    app?.releasedAt || null,
+    app?.hr_released_at || null,
+    resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
   )
 }
 
 function isApplicationReleased(app) {
   if (!app) return false
 
-  return Boolean(
-    app?.has_hr_released ||
-    app?.hasHrReleased ||
-    resolveReleasedHistoryEntry(app) ||
-    resolveReleasedDateValue(app),
-  )
+  const releasedAt = resolveReleasedDateValue(app)
+  const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+
+  if (cycleStart) {
+    if (!releasedAt) return false
+    if (!isTimestampOnOrAfter(releasedAt, cycleStart)) return false
+  }
+
+  return Boolean(app?.has_hr_released || app?.hasHrReleased || resolveReleasedHistoryEntry(app) || releasedAt)
 }
 
 function canReleaseApplication(app) {
   if (!app || isCocApplication(app)) return false
   if (isApplicationReleased(app)) return false
-  if (isCancelledByUser(app)) return false
-  if (!isApplicationReceivedByHr(app)) return false
 
   const rawStatus = getApplicationRawStatusKey(app)
-  if (rawStatus === 'PENDING_ADMIN') {
-    return hasEditRequestSignal(app)
-  }
+  const isCancellationRequestApproved =
+    isCancellationRequestAction(app) &&
+    getLatestUpdateRequestStatus(app) === 'APPROVED' &&
+    rawStatus === 'REJECTED'
 
-  return true
+  if (isCancelledByUser(app) && !isCancellationRequestApproved) return false
+
+  if (rawStatus === 'APPROVED') return true
+  if (isCancellationRequestApproved) return isApplicationReceivedByHr(app)
+  return false
+}
+
+function shouldUseUpdateReceiveEndpoint(app) {
+  if (!app || isCocApplication(app)) return false
+  if (getApplicationRawStatusKey(app) !== 'PENDING_HR') return false
+  if (getLatestUpdateRequestStatus(app) !== 'PENDING') return false
+  return Boolean(resolveCurrentUpdateRequestCycleStartValue(app))
+}
+
+function shouldUseUpdateReleaseEndpoint(app) {
+  if (!app || isCocApplication(app)) return false
+  if (getLatestUpdateRequestStatus(app) !== 'APPROVED') return false
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  const allowsRelease =
+    rawStatus === 'APPROVED' ||
+    (isCancellationRequestAction(app) && rawStatus === 'REJECTED')
+
+  if (!allowsRelease) return false
+  return Boolean(resolveCurrentUpdateRequestCycleStartValue(app))
 }
 
 function getReleasedByHrSummary(app) {
@@ -2377,6 +2748,8 @@ function buildApplicationTimeline(app) {
   if (rawStatus === 'REJECTED') {
     const disapprovedAt = formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed'
     const disapprovedBy = resolveDisapprovalActor(app)
+    const isApprovedCancellationRequest =
+      isCancellationRequestAction(app) && getLatestUpdateRequestStatus(app) === 'APPROVED'
 
     if (resolveDepartmentAdminActionDateValue(app)) {
       entries.push({
@@ -2393,10 +2766,12 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: 'Application Disapproved',
+      title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Disapproved',
       subtitle: disapprovedAt,
-      description: formatRecentRemarks(app) || 'Application was disapproved.',
-      icon: 'cancel',
+      description: isApprovedCancellationRequest
+        ? formatRecentRemarks(app) || 'Application was cancelled through the approved cancellation request.'
+        : formatRecentRemarks(app) || 'Application was disapproved.',
+      icon: isApprovedCancellationRequest ? 'event_busy' : 'cancel',
       color: 'negative',
       actor: disapprovedBy,
     })
@@ -2467,9 +2842,10 @@ function buildApplicationTimeline(app) {
 
       const lastCompletedEditEntry = [...editRequestEntries]
         .reverse()
-        .find(
-          (entry) => entry?.title === 'Edit Request Approved' || entry?.title === 'Edit Request Rejected',
-        )
+        .find((entry) => {
+          const title = String(entry?.title || '').toLowerCase()
+          return title.includes('request approved') || title.includes('request rejected')
+        })
       const closedSubtitle = lastCompletedEditEntry?.subtitle || preEditHrApprovalEntry?.subtitle || 'Completed'
       const closedActor = lastCompletedEditEntry?.actor || preEditHrApprovalEntry?.actor || resolveHrActor(app)
 
@@ -3249,7 +3625,13 @@ async function markApplicationReceived(target = selectedApp.value) {
 
   receiveLoading.value = true
   try {
-    const response = await api.post(`/hr/leave-applications/${id}/receive`)
+    const useUpdateReceiveEndpoint = shouldUseUpdateReceiveEndpoint(application)
+    const isCancellationRequest = isCancellationRequestAction(application)
+
+    const receiveEndpoint = useUpdateReceiveEndpoint
+      ? '/hr/leave-applications/' + id + '/update-receive'
+      : '/hr/leave-applications/' + id + '/receive'
+    const response = await api.post(receiveEndpoint)
     const responseMessage = String(response?.data?.message || '').trim()
     const updatedApplication = normalizeBackendApplicationShape(
       extractSingleApplicationFromPayload(response?.data),
@@ -3276,11 +3658,27 @@ async function markApplicationReceived(target = selectedApp.value) {
 
     q.notify({
       type: 'positive',
-      message: responseMessage || 'Application marked as received by HR.',
+      message: responseMessage || (
+        useUpdateReceiveEndpoint
+          ? isCancellationRequest
+            ? 'Cancellation form receipt confirmed.'
+            : 'Updated hard-copy receipt confirmed.'
+          : 'Application marked as received by HR.'
+      ),
       position: 'top',
     })
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to mark this application as received right now.')
+    const useUpdateReceiveEndpoint = shouldUseUpdateReceiveEndpoint(application)
+    const isCancellationRequest = isCancellationRequestAction(application)
+
+    const msg = resolveApiErrorMessage(
+      err,
+      useUpdateReceiveEndpoint
+        ? isCancellationRequest
+          ? 'Unable to mark this cancellation form as received right now.'
+          : 'Unable to mark this updated application as received right now.'
+        : 'Unable to mark this application as received right now.',
+    )
     q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     receiveLoading.value = false
@@ -3303,7 +3701,13 @@ async function markApplicationReleased(target = selectedApp.value) {
 
   releaseLoading.value = true
   try {
-    const response = await api.post(`/hr/leave-applications/${id}/release`)
+    const useUpdateReleaseEndpoint = shouldUseUpdateReleaseEndpoint(application)
+    const isCancellationRequest = isCancellationRequestAction(application)
+
+    const releaseEndpoint = useUpdateReleaseEndpoint
+      ? '/hr/leave-applications/' + id + '/update-release'
+      : '/hr/leave-applications/' + id + '/release'
+    const response = await api.post(releaseEndpoint)
     const responseMessage = String(response?.data?.message || '').trim()
     const updatedApplication = normalizeBackendApplicationShape(
       extractSingleApplicationFromPayload(response?.data),
@@ -3330,11 +3734,27 @@ async function markApplicationReleased(target = selectedApp.value) {
 
     q.notify({
       type: 'positive',
-      message: responseMessage || 'Application marked as released by HR.',
+      message: responseMessage || (
+        useUpdateReleaseEndpoint
+          ? isCancellationRequest
+            ? 'Cancellation form release confirmed.'
+            : 'Updated hard-copy release confirmed.'
+          : 'Application marked as released by HR.'
+      ),
       position: 'top',
     })
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to mark this application as released right now.')
+    const useUpdateReleaseEndpoint = shouldUseUpdateReleaseEndpoint(application)
+    const isCancellationRequest = isCancellationRequestAction(application)
+
+    const msg = resolveApiErrorMessage(
+      err,
+      useUpdateReleaseEndpoint
+        ? isCancellationRequest
+          ? 'Unable to mark this cancellation form as released right now.'
+          : 'Unable to mark this updated application as released right now.'
+        : 'Unable to mark this application as released right now.',
+    )
     q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     releaseLoading.value = false
@@ -3342,8 +3762,33 @@ async function markApplicationReleased(target = selectedApp.value) {
 }
 
 function openActionConfirm(type, target) {
-  confirmActionType.value = type
-  confirmActionTarget.value = resolveApplication(target) || target || null
+  const resolvedType = String(type || '').trim().toLowerCase()
+  const application = resolveApplication(target) || target || null
+  if (!application) return
+
+  const isApproveAction = resolvedType === 'approve'
+  const needsReceiveBeforeApprove =
+    isApproveAction &&
+    !isCocApplication(application) &&
+    getApplicationRawStatusKey(application) === 'PENDING_HR' &&
+    !isApplicationReceivedByHr(application)
+
+  if (needsReceiveBeforeApprove) {
+    q.dialog({
+      title: 'Receive Required',
+      message: 'This application needs to be received by HR first before approving.',
+      ok: {
+        label: 'OK',
+        color: 'primary',
+        unelevated: true,
+      },
+      persistent: true,
+    })
+    return
+  }
+
+  confirmActionType.value = resolvedType || 'approve'
+  confirmActionTarget.value = application
   showConfirmActionDialog.value = true
 }
 
@@ -3458,6 +3903,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getDetailsRemarksRows,
     getEditRequestBadgeColor,
     getEditRequestBadgeLabel,
+    getEditRequestStatusFieldLabel,
     getEditRequestStatusLabel,
     getEditRequestTimelineEntries,
     getEmployeeBalanceLookupKey,
@@ -3504,6 +3950,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     isApplicationReleased,
     isCancelledByUser,
     isCocApplication,
+    isCancellationRequestAction,
     isEditUpdateRequest,
     isPendingEditRequest,
     isRecallableLeaveApplication,
@@ -3525,6 +3972,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     normalizeIsoDateList,
     normalizeLeaveBalanceEntries,
     normalizeLeaveBalanceLookupKey,
+    normalizeLeaveRequestActionTypeToken,
     normalizePayStatusCode,
     normalizeReasonForCompare,
     normalizeSearchText,
@@ -3555,6 +4003,8 @@ async function handleDialogMutationSuccess(payload = {}) {
     resolveCancelledDateValue,
     resolveDateSetFromSource,
     resolveDepartmentAdminActionDateValue,
+    resolveLeaveRequestActionTypeFromPayload,
+    resolveLeaveRequestActionTypeFromStatusHistory,
     resolveDepartmentAdminActor,
     resolveDepartmentAdminHistoryEntry,
     resolveDisapprovalActor,
@@ -3586,6 +4036,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     selectedApp,
     shouldExposeEditRequestStatusToHr,
     showApplicationEditAction,
+    getLeaveRequestActionType,
     showConfirmActionDialog,
     showDetailsDialog,
     showEditDialog,
