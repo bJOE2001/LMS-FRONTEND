@@ -1186,6 +1186,30 @@ function extractApplicationsFromPayload(payload) {
   return []
 }
 
+function extractSingleApplicationFromPayload(payload) {
+  if (!payload) return null
+  if (Array.isArray(payload)) return payload.length ? payload[0] : null
+
+  const candidates = [
+    payload?.application,
+    payload?.coc_application,
+    payload?.leave_application,
+    payload?.cocApplication,
+    payload?.leaveApplication,
+    payload?.item,
+    payload?.row,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (Array.isArray(candidate)) return candidate.length ? candidate[0] : null
+    if (candidate && typeof candidate === 'object') return candidate
+  }
+
+  return payload && typeof payload === 'object' ? payload : null
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -1419,6 +1443,15 @@ function getApplicationCompletenessScore(application) {
     application?.selected_dates,
     application?.startDate,
     application?.endDate,
+    application?.details,
+    application?.application_details,
+    application?.vacation_detail,
+    application?.vacation_specify,
+    application?.sick_detail,
+    application?.sick_specify,
+    application?.women_specify,
+    application?.study_detail,
+    application?.other_purpose,
   ]
 
   return candidates.filter((value) => {
@@ -2749,9 +2782,11 @@ async function printApplication(app) {
   ).trim()
 
   try {
-    const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
+    const [dashboardResponse, leaveApplicationResponse] = await Promise.all([
       api.get('/admin/dashboard'),
-      api.get('/admin/leave-applications').catch(() => null),
+      targetApplicationId !== ''
+        ? api.get(`/admin/leave-applications/${targetApplicationId}`).catch(() => null)
+        : Promise.resolve(null),
     ])
     const data = dashboardResponse?.data
     const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
@@ -2783,14 +2818,8 @@ async function printApplication(app) {
     )
     let printableApplication = updated || app
 
-    if (targetApplicationId !== '' && leaveApplicationsResponse?.data) {
-      const detailedApplications = extractApplicationsFromPayload(leaveApplicationsResponse.data)
-      const detailedApplication = detailedApplications.find((item) => {
-        const itemId = String(
-          item?.id ?? item?.application_id ?? item?.leave_application_id ?? '',
-        ).trim()
-        return itemId !== '' && itemId === targetApplicationId
-      })
+    if (targetApplicationId !== '' && leaveApplicationResponse?.data) {
+      const detailedApplication = extractSingleApplicationFromPayload(leaveApplicationResponse.data)
 
       if (detailedApplication && typeof detailedApplication === 'object') {
         printableApplication = {

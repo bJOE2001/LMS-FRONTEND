@@ -121,6 +121,7 @@ export function useAdminApplicationsPage() {
   const loading = ref(true)
   const actionLoading = ref(false)
   const applicationRows = ref([])
+  const localSubmittedApplicationOverrides = ref([])
   const statusSearch = ref('')
   const applicationsPagination = ref({
     page: 1,
@@ -321,7 +322,10 @@ export function useAdminApplicationsPage() {
     showApplyLeaveDialog.value = false
   }
 
-  async function handleApplyLeaveSubmitted() {
+  async function handleApplyLeaveSubmitted(submittedApplication = null) {
+    if (submittedApplication && typeof submittedApplication === 'object') {
+      upsertLocalSubmittedApplicationOverride(submittedApplication)
+    }
     closeApplyLeaveDialog()
     await fetchApplications()
   }
@@ -339,6 +343,7 @@ export function useAdminApplicationsPage() {
         extractApplicationsFromPayload(dashboardResponse?.data),
         extractApplicationsFromPayload(leaveApplicationsResponse?.data),
         extractApplicationsFromPayload(cocApplicationsResponse?.data),
+        localSubmittedApplicationOverrides.value,
       )
 
       applicationRows.value = expandApplicationsForDisplay(
@@ -718,6 +723,15 @@ export function useAdminApplicationsPage() {
       application?.start_date,
       application?.endDate,
       application?.end_date,
+      application?.details,
+      application?.application_details,
+      application?.vacation_detail,
+      application?.vacation_specify,
+      application?.sick_detail,
+      application?.sick_specify,
+      application?.women_specify,
+      application?.study_detail,
+      application?.other_purpose,
     ]
 
     return candidates.filter((value) => {
@@ -799,6 +813,34 @@ export function useAdminApplicationsPage() {
     })
 
     return Array.from(mergedApplications.values())
+  }
+
+  function upsertLocalSubmittedApplicationOverride(application) {
+    if (!application || typeof application !== 'object') return
+
+    const normalizedApplication = {
+      ...application,
+      application_type: getApplicationType(application),
+    }
+    const overrideKey = getApplicationMergeKey(
+      normalizedApplication,
+      localSubmittedApplicationOverrides.value.length,
+    )
+    const existingIndex = localSubmittedApplicationOverrides.value.findIndex(
+      (item, index) => getApplicationMergeKey(item, index) === overrideKey,
+    )
+
+    if (existingIndex === -1) {
+      localSubmittedApplicationOverrides.value = [
+        normalizedApplication,
+        ...localSubmittedApplicationOverrides.value,
+      ]
+      return
+    }
+
+    localSubmittedApplicationOverrides.value = localSubmittedApplicationOverrides.value.map((item, index) =>
+      index === existingIndex ? mergeApplicationRecords(item, normalizedApplication) : item,
+    )
   }
 
   function isAdminEditUpdateRequest(app) {
@@ -3551,8 +3593,8 @@ export function useAdminApplicationsPage() {
       if (!detailedApplication || typeof detailedApplication !== 'object') return
 
       const mergedApplication = {
-        ...detailedApplication,
         ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
+        ...detailedApplication,
       }
 
       const activeDialogOpen = dialogType === 'timeline'
@@ -3735,7 +3777,11 @@ export function useAdminApplicationsPage() {
     try {
       const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
         api.get('/admin/dashboard'),
-        cocApplication ? Promise.resolve(null) : api.get('/admin/leave-applications').catch(() => null),
+        cocApplication
+          ? Promise.resolve(null)
+          : targetApplicationId !== ''
+            ? api.get(`/admin/leave-applications/${targetApplicationId}`).catch(() => null)
+            : Promise.resolve(null),
       ])
 
       const dashboardPayload = dashboardResponse?.data
@@ -3746,16 +3792,7 @@ export function useAdminApplicationsPage() {
       let printableApplication = updated || app
 
       if (!cocApplication && targetApplicationId !== '' && leaveApplicationsResponse?.data) {
-        const detailedLeaveApplications = extractApplicationsFromPayload(leaveApplicationsResponse.data)
-        const detailedLeaveApplication = detailedLeaveApplications.find((item) => {
-          const itemId = String(
-            item?.id ??
-            item?.application_id ??
-            item?.leave_application_id ??
-            '',
-          ).trim()
-          return itemId !== '' && itemId === targetApplicationId
-        })
+        const detailedLeaveApplication = extractSingleApplicationFromPayload(leaveApplicationsResponse.data)
 
         if (detailedLeaveApplication && typeof detailedLeaveApplication === 'object') {
           printableApplication = {
