@@ -64,6 +64,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import VueApexCharts from 'vue3-apexcharts'
 
 const props = defineProps({
@@ -78,6 +79,11 @@ const props = defineProps({
 })
 
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const $q = useQuasar()
+const isDark = computed(() => $q.dark.isActive)
+const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
+const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
+const chartMarkerFillColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const currentYear = new Date().getFullYear()
 const trendYearLabel = computed(() => {
   const parsed = Number(props.analytics?.trend_year)
@@ -193,6 +199,10 @@ const trendChartOptions = computed(() => ({
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
     fontFamily: 'inherit',
+    foreColor: chartAxisColor.value,
+  },
+  theme: {
+    mode: isDark.value ? 'dark' : 'light',
   },
   colors: ['#1e88e5'],
   dataLabels: { enabled: false },
@@ -203,7 +213,7 @@ const trendChartOptions = computed(() => ({
   markers: {
     size: 4,
     strokeWidth: 2,
-    colors: ['#ffffff'],
+    colors: [chartMarkerFillColor.value],
     strokeColors: '#1e88e5',
     hover: { sizeOffset: 2 },
   },
@@ -217,7 +227,7 @@ const trendChartOptions = computed(() => ({
     },
   },
   grid: {
-    borderColor: '#e0e0e0',
+    borderColor: chartGridColor.value,
     strokeDashArray: 4,
     xaxis: { lines: { show: false } },
   },
@@ -225,14 +235,14 @@ const trendChartOptions = computed(() => ({
     categories: monthLabels,
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
+    labels: { style: { colors: chartAxisColor.value } },
   },
   yaxis: {
     min: 0,
     forceNiceScale: true,
     tickAmount: 4,
     labels: {
-      style: { colors: '#6b7280' },
+      style: { colors: chartAxisColor.value },
       formatter: (value) => String(Math.round(value)),
     },
   },
@@ -332,6 +342,10 @@ const leaveTypeTrendChartOptions = computed(() => ({
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
     fontFamily: 'inherit',
+    foreColor: chartAxisColor.value,
+  },
+  theme: {
+    mode: isDark.value ? 'dark' : 'light',
   },
   colors: leaveTypeChartPalette,
   dataLabels: { enabled: false },
@@ -341,10 +355,11 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
   markers: {
     size: 3,
+    colors: [chartMarkerFillColor.value],
     hover: { sizeOffset: 2 },
   },
   grid: {
-    borderColor: '#e0e0e0',
+    borderColor: chartGridColor.value,
     strokeDashArray: 4,
     xaxis: { lines: { show: false } },
   },
@@ -352,14 +367,14 @@ const leaveTypeTrendChartOptions = computed(() => ({
     categories: monthLabels,
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
+    labels: { style: { colors: chartAxisColor.value } },
   },
   yaxis: {
     min: 0,
     forceNiceScale: true,
     tickAmount: 4,
     labels: {
-      style: { colors: '#6b7280' },
+      style: { colors: chartAxisColor.value },
       formatter: (value) => String(Math.round(value)),
     },
   },
@@ -377,6 +392,7 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
   noData: {
     text: 'No leave data for selected leave type.',
+    style: { color: chartAxisColor.value },
   },
 }))
 </script>

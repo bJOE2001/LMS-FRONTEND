@@ -91,6 +91,30 @@ const application = computed(() => leaveStore.getApplicationById(route.params.id
 const showDisapprove = ref(false)
 const remarks = ref('')
 
+function extractSingleApplicationFromPayload(payload) {
+  if (!payload) return null
+  if (Array.isArray(payload)) return payload.length ? payload[0] : null
+
+  const candidates = [
+    payload?.application,
+    payload?.coc_application,
+    payload?.leave_application,
+    payload?.cocApplication,
+    payload?.leaveApplication,
+    payload?.item,
+    payload?.row,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (Array.isArray(candidate)) return candidate.length ? candidate[0] : null
+    if (candidate && typeof candidate === 'object') return candidate
+  }
+
+  return payload && typeof payload === 'object' ? payload : null
+}
+
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 }
@@ -120,22 +144,8 @@ async function printApplication() {
 
   if (targetApplicationId !== '') {
     try {
-      const { data } = await api.get('/admin/leave-applications')
-      const applications = Array.isArray(data?.applications)
-        ? data.applications
-        : Array.isArray(data?.data)
-          ? data.data
-          : []
-
-      const detailedApplication = applications.find((item) => {
-        const itemId = String(
-          item?.id ??
-          item?.application_id ??
-          item?.leave_application_id ??
-          '',
-        ).trim()
-        return itemId !== '' && itemId === targetApplicationId
-      })
+      const { data } = await api.get(`/admin/leave-applications/${targetApplicationId}`)
+      const detailedApplication = extractSingleApplicationFromPayload(data)
 
       if (detailedApplication && typeof detailedApplication === 'object') {
         printableApplication = {

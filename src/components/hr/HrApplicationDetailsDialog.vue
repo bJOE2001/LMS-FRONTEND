@@ -105,7 +105,7 @@
                 <StatusBadge :status="application.displayStatus" />
               </div>
               <div v-if="getEditRequestStatusLabel(application)" class="hr-application-status-pair__item">
-                <div class="text-caption text-grey-7">Edit Request Status</div>
+                <div class="text-caption text-grey-7">{{ getEditRequestStatusFieldLabel(application) }}</div>
                 <q-badge
                   :color="getEditRequestBadgeColor(application)"
                   text-color="white"
@@ -515,6 +515,10 @@ const props = defineProps({
   getEditRequestStatusLabel: {
     type: Function,
     default: () => '',
+  },
+  getEditRequestStatusFieldLabel: {
+    type: Function,
+    default: () => 'Edit Request Status',
   },
   getEditRequestBadgeColor: {
     type: Function,

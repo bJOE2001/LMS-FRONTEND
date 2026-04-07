@@ -7,6 +7,7 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from './department-head-signature'
+import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
 
 // pdfmake v0.3.x font initialization
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -30,13 +31,199 @@ function checkboxRow(checked, label, opts = {}) {
             { type: 'line', x1: 3.2, y1: 6.2, x2: 6.5, y2: 1.2, lineWidth: 1 },
         )
     }
+    const labelNode =
+        typeof label === 'string' || Array.isArray(label)
+            ? { text: label, fontSize: fs, margin: [4, 0, 0, 0], width: '*' }
+            : { ...label, width: label?.width ?? '*' }
+
     return {
         columns: [
             { canvas: canvasItems, width: 12 },
-            { text: label, fontSize: fs, margin: [4, 0, 0, 0], width: '*' },
+            labelNode,
         ],
         margin: [left, vertical, 0, bottom],
     }
+}
+
+function parseObjectCandidate(value) {
+    if (!value) return null
+    if (typeof value === 'string') {
+        const trimmedValue = value.trim()
+        if (!trimmedValue) return null
+        try {
+            const parsedValue = JSON.parse(trimmedValue)
+            return parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue)
+                ? parsedValue
+                : null
+        } catch {
+            return null
+        }
+    }
+    return typeof value === 'object' && !Array.isArray(value) ? value : null
+}
+
+function normalizeDetailKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '')
+}
+
+function collectDetailValueEntries(source, targetMap, path = []) {
+    if (!source) return
+
+    if (typeof source === 'string') {
+        const parsedValue = parseObjectCandidate(source)
+        if (parsedValue) collectDetailValueEntries(parsedValue, targetMap, path)
+        return
+    }
+
+    if (Array.isArray(source)) {
+        source.forEach((entry) => {
+            if (entry && typeof entry === 'object') {
+                const entryKeyRaw =
+                    entry.key ??
+                    entry.name ??
+                    entry.field ??
+                    entry.id ??
+                    entry.slug ??
+                    entry.label
+                const entryKey = normalizeDetailKey(entryKeyRaw)
+                const entryValue =
+                    entry.value ??
+                    entry.answer ??
+                    entry.text ??
+                    entry.selected ??
+                    entry.data
+
+                if (entryKey && entryValue != null && !targetMap.has(entryKey)) {
+                    const normalizedValue =
+                        typeof entryValue === 'string' ? entryValue.trim() : entryValue
+                    if (normalizedValue !== '') {
+                        targetMap.set(entryKey, normalizedValue)
+                        const parentPathKey = normalizeDetailKey([...path, entryKeyRaw].join('_'))
+                        if (parentPathKey && !targetMap.has(parentPathKey)) {
+                            targetMap.set(parentPathKey, normalizedValue)
+                        }
+                    }
+                }
+            }
+
+            collectDetailValueEntries(entry, targetMap, path)
+        })
+        return
+    }
+
+    if (typeof source !== 'object') return
+
+    Object.entries(source).forEach(([key, value]) => {
+        const normalizedKey = normalizeDetailKey(key)
+        const normalizedPathKey = normalizeDetailKey([...path, key].join('_'))
+        const normalizedTailPathKey = normalizeDetailKey([...path.slice(-2), key].join('_'))
+
+        if (normalizedKey && value != null && typeof value !== 'object' && !Array.isArray(value) && !targetMap.has(normalizedKey)) {
+            const normalizedValue = typeof value === 'string' ? value.trim() : value
+            if (normalizedValue !== '') {
+                targetMap.set(normalizedKey, normalizedValue)
+                if (normalizedPathKey && !targetMap.has(normalizedPathKey)) {
+                    targetMap.set(normalizedPathKey, normalizedValue)
+                }
+                if (normalizedTailPathKey && !targetMap.has(normalizedTailPathKey)) {
+                    targetMap.set(normalizedTailPathKey, normalizedValue)
+                }
+            }
+        }
+
+        collectDetailValueEntries(value, targetMap, [...path, key])
+    })
+}
+
+function getApplicationDetailValue(app, ...keys) {
+    const raw = app?.raw && typeof app.raw === 'object' ? app.raw : null
+    const details = parseObjectCandidate(app?.details ?? app?.application_details ?? app?.applicationDetails)
+    const rawDetails = parseObjectCandidate(raw?.details ?? raw?.application_details ?? raw?.applicationDetails)
+    const sources = [app, raw, details, rawDetails].filter(Boolean)
+    const detailValueMap = new Map()
+
+    sources.forEach((source) => collectDetailValueEntries(source, detailValueMap))
+
+    for (const key of keys) {
+        const normalizedKey = normalizeDetailKey(key)
+        if (!normalizedKey) continue
+
+        if (detailValueMap.has(normalizedKey)) {
+            return detailValueMap.get(normalizedKey)
+        }
+
+        for (const [mapKey, mapValue] of detailValueMap.entries()) {
+            if (mapKey.endsWith(normalizedKey) || normalizedKey.endsWith(mapKey)) {
+                return mapValue
+            }
+        }
+    }
+
+    return ''
+}
+
+function buildSpecifiedDetailLabel(label, value, opts = {}) {
+    const fs = opts.fontSize ?? 7
+    const textValue = String(value || '').trim()
+    const baseUnderline = opts.emptyLine ?? '_______________'
+    const underlineLength = Math.max(baseUnderline.length, textValue.length + 2)
+    const underline = opts.underlineText ?? '_'.repeat(underlineLength)
+    const labelWidth = opts.labelWidth ?? 'auto'
+    const fieldWidth = opts.fieldWidth ?? Math.round(underline.length * (fs * 0.62))
+    const textTopOffset = opts.textTopOffset ?? (fs + 2)
+    const textBottomOffset = opts.textBottomOffset ?? Math.max(fs - 2, 0)
+
+    return {
+        columns: [
+            { text: label, fontSize: fs, margin: [4, 0, 4, 0], width: labelWidth },
+            {
+                width: fieldWidth,
+                stack: [
+                    { text: underline, fontSize: fs, lineHeight: 1, margin: [0, 0, 0, 0] },
+                    ...(textValue
+                        ? [{
+                            text: textValue,
+                            fontSize: fs,
+                            lineHeight: 1,
+                            noWrap: true,
+                            margin: [0, -textTopOffset, 0, -textBottomOffset],
+                        }]
+                        : []),
+                ],
+            },
+        ],
+    }
+}
+
+function normalizeSickDetailValue(value) {
+    const normalizedValue = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+
+    if (!normalizedValue) return ''
+    if (normalizedValue.includes('hospital')) return 'In Hospital'
+    if (normalizedValue.includes('out patient') || normalizedValue.includes('outpatient')) return 'Out Patient'
+    return ''
+}
+
+function normalizeVacationDetailValue(value) {
+    const normalizedValue = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+
+    if (!normalizedValue) return ''
+    if (normalizedValue.includes('abroad')) return 'Abroad'
+    if (normalizedValue.includes('within') && normalizedValue.includes('philippines')) {
+        return 'Within the Philippines'
+    }
+    return ''
 }
 
 function fmtDate(dateStr) {
@@ -715,7 +902,7 @@ function openPdfDocument(pdfDocument, options = {}) {
 
 // ─── main builder ──────────────────────────────────────────────────────────
 export async function generateLeaveFormPdf(sourceApp, options = {}) {
-    const app = await enrichAppWithDepartmentHead(sourceApp)
+    const app = await enrichAppWithDepartmentHead(mergeLocalLeaveApplicationDetails(sourceApp))
     const office = normalizeOfficeDepartment(app.office || '')
     const officeFontSize = getOfficeDepartmentFontSize(office)
     const resolvedLeaveType = resolvePrintableLeaveType(app)
@@ -767,6 +954,38 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const b = 0.5 // border width
     const name = parseName(app)
     const departmentHeadSignature = getDepartmentHeadSignature(app)
+    const vacationDetail = String(
+        getApplicationDetailValue(app, 'vacation_detail', 'vacationDetail', 'vacation_type'),
+    ).trim()
+    const vacationSpecify = String(
+        getApplicationDetailValue(app, 'vacation_specify', 'vacationSpecify', 'destination', 'location'),
+    ).trim()
+    const sickDetail = String(
+        getApplicationDetailValue(app, 'sick_detail', 'sickDetail', 'sick_leave_detail', 'sick_leave_type', 'illness_type'),
+    ).trim()
+    const sickSpecify = String(
+        getApplicationDetailValue(app, 'sick_specify', 'sickSpecify', 'specified_illness', 'specify_illness', 'illness', 'illness_name'),
+    ).trim()
+    const womenSpecify = String(
+        getApplicationDetailValue(app, 'women_specify', 'womenSpecify', 'specified_illness', 'specify_illness'),
+    ).trim()
+    const studyDetail = String(
+        getApplicationDetailValue(app, 'study_detail', 'studyDetail', 'study_leave_detail'),
+    ).trim()
+    const otherPurpose = String(
+        getApplicationDetailValue(app, 'other_purpose', 'otherPurpose', 'purpose'),
+    ).trim()
+    const normalizedVacationDetail = normalizeVacationDetailValue(vacationDetail)
+    const normalizedSickDetail = normalizeSickDetailValue(sickDetail)
+    const resolvedSickSpecify = sickSpecify || (isSick ? String(app.reason || '').trim() : '')
+    const showWithinPhilippines = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
+    const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
+    const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
+    const showOutPatient = isSick && (normalizedSickDetail === 'Out Patient' || (!normalizedSickDetail && Boolean(resolvedSickSpecify)))
+    const showMastersDegree = isStudy && studyDetail === 'Masters Degree'
+    const showBarReview = isStudy && studyDetail === 'BAR Review'
+    const showMonetizationPurpose = isMonetization || otherPurpose === 'Monetization'
+    const showTerminalPurpose = otherPurpose === 'Terminal Leave'
 
     const docDefinition = {
         pageSize: 'A4',
@@ -949,23 +1168,53 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                 stack: [
                                     { text: '6.B  DETAILS OF LEAVE', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
                                     { text: '   In case of Vacation/Special Privilege Leave(MC06):', fontSize: 7, italics: true, margin: [4, 0] },
-                                    checkboxRow(isVacation && !isMonetization, 'Within the Philippines', { marginLeft: 8 }),
-                                    checkboxRow(false, 'Abroad (Specify) _______________', { marginLeft: 8 }),
+                                    checkboxRow(
+                                        showWithinPhilippines,
+                                        buildSpecifiedDetailLabel('Within the Philippines', showWithinPhilippines ? vacationSpecify : '', {
+                                            emptyLine: '___________________',
+                                        }),
+                                        { marginLeft: 8 },
+                                    ),
+                                    checkboxRow(
+                                        showAbroad,
+                                        buildSpecifiedDetailLabel('Abroad (Specify)', showAbroad ? vacationSpecify : '', {
+                                            emptyLine: '______________________',
+                                        }),
+                                        { marginLeft: 8 },
+                                    ),
                                     { text: ' ', fontSize: 4 },
                                     { text: '   In case of Sick Leave:', fontSize: 7, italics: true, margin: [4, 1] },
-                                    checkboxRow(false, 'In Hospital (Specify Illness) _______________', { marginLeft: 8 }),
-                                    checkboxRow(isSick, `Out Patient (Specify Illness) ${isSick && app.reason ? app.reason : '_______________'}`, { marginLeft: 8 }),
+                                    checkboxRow(
+                                        showInHospital,
+                                        buildSpecifiedDetailLabel('In Hospital (Specify Illness)', showInHospital ? resolvedSickSpecify : '', {
+                                            emptyLine: '_______________',
+                                        }),
+                                        { marginLeft: 8 },
+                                    ),
+                                    checkboxRow(
+                                        showOutPatient,
+                                        buildSpecifiedDetailLabel('Out Patient (Specify Illness)', showOutPatient ? resolvedSickSpecify : '', {
+                                            emptyLine: '_______________',
+                                        }),
+                                        { marginLeft: 8 },
+                                    ),
                                     { text: ' ', fontSize: 4 },
                                     { text: '   In case of Special Leave Benefits for Women:', fontSize: 7, italics: true, margin: [4, 1] },
-                                    { text: '      (Specify Illness) _______________', fontSize: 7, margin: [8, 1] },
+                                    {
+                                        ...buildSpecifiedDetailLabel('(Specify Illness)', womenSpecify, {
+                                            fontSize: 7,
+                                            emptyLine: '___________________________',
+                                        }),
+                                        margin: [8, 1, 0, 0],
+                                    },
                                     { text: ' ', fontSize: 4 },
                                     { text: '   In case of Study Leave:', fontSize: 7, italics: true, margin: [4, 1] },
-                                    checkboxRow(false, "Completion of Master's Degree", { marginLeft: 8 }),
-                                    checkboxRow(false, 'BAR/Board Examination Review', { marginLeft: 8 }),
+                                    checkboxRow(showMastersDegree, "Completion of Master's Degree", { marginLeft: 8 }),
+                                    checkboxRow(showBarReview, 'BAR/Board Examination Review', { marginLeft: 8 }),
                                     { text: ' ', fontSize: 4 },
                                     { text: '   Other purpose:', fontSize: 7, italics: true, margin: [4, 1] },
-                                    checkboxRow(isMonetization, 'Monetization Leave', { marginLeft: 8 }),
-                                    checkboxRow(false, 'Terminal Leave', { marginLeft: 8, marginVertical: 1, marginBottom: 4 }),
+                                    checkboxRow(showMonetizationPurpose, 'Monetization Leave', { marginLeft: 8 }),
+                                    checkboxRow(showTerminalPurpose, 'Terminal Leave', { marginLeft: 8, marginVertical: 1, marginBottom: 4 }),
                                 ],
                                 border: [false, false, true, true],
                             },

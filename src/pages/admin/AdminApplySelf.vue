@@ -577,6 +577,7 @@ import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { saveLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 import {
   enumerateInclusiveDates,
   getApplicationBlockingDates,
@@ -2482,7 +2483,88 @@ function handleCancel() {
   navigateToDashboard()
 }
 
-function handleSubmitSuccess(isMonetizationSubmission = false) {
+function extractSubmittedApplicationFromResponse(payload) {
+  if (!payload || typeof payload !== 'object') return null
+
+  const candidates = [
+    payload.application,
+    payload.leave_application,
+    payload.leaveApplication,
+    payload.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+function buildSubmittedApplicationOverride(backendApplication, isMonetizationSubmission = false) {
+  const leaveDetailsPayload = {
+    vacation_detail: form.value.vacationDetail,
+    vacation_specify: form.value.vacationSpecify,
+    sick_detail: form.value.sickDetail,
+    sick_specify: resolvedSickIllness.value,
+    women_specify: form.value.womenSpecify,
+    study_detail: form.value.studyDetail,
+    other_purpose: form.value.otherPurpose,
+    leave_type_other: form.value.leaveTypeOther,
+  }
+
+  const employeeName = [
+    String(form.value.firstName || '').trim(),
+    String(form.value.lastName || '').trim(),
+  ].filter(Boolean).join(' ').trim()
+
+  return {
+    ...(backendApplication && typeof backendApplication === 'object' ? backendApplication : {}),
+    application_type: 'LEAVE',
+    leaveType:
+      backendApplication?.leaveType ??
+      backendApplication?.leave_type_name ??
+      selectedLeaveTypeName.value,
+    leave_type_name:
+      backendApplication?.leave_type_name ??
+      backendApplication?.leaveType ??
+      selectedLeaveTypeName.value,
+    employeeName:
+      backendApplication?.employeeName ??
+      backendApplication?.employee_name ??
+      employeeName,
+    employee_control_no:
+      backendApplication?.employee_control_no ??
+      authStore.user?.control_no ??
+      authStore.user?.employee_control_no ??
+      null,
+    startDate: backendApplication?.startDate ?? backendApplication?.start_date ?? form.value.startDate,
+    endDate: backendApplication?.endDate ?? backendApplication?.end_date ?? form.value.endDate,
+    days: backendApplication?.days ?? backendApplication?.total_days ?? selectedDateTotalDays.value,
+    total_days: backendApplication?.total_days ?? selectedDateTotalDays.value,
+    selected_dates: backendApplication?.selected_dates ?? [...selectedDates.value],
+    reason: backendApplication?.reason ?? (String(form.value.reason || '').trim() || null),
+    commutation: backendApplication?.commutation ?? form.value.commutation,
+    is_monetization:
+      backendApplication?.is_monetization ??
+      isMonetizationSubmission,
+    dateFiled:
+      backendApplication?.dateFiled ??
+      backendApplication?.date_filed ??
+      backendApplication?.filed_at ??
+      new Date().toISOString(),
+    details: {
+      ...(backendApplication?.details && typeof backendApplication.details === 'object'
+        ? backendApplication.details
+        : {}),
+      ...leaveDetailsPayload,
+    },
+    ...leaveDetailsPayload,
+  }
+}
+
+function handleSubmitSuccess(isMonetizationSubmission = false, submittedApplication = null) {
   const message = isMonetizationSubmission
     ? 'Monetization request submitted successfully and is now pending HR review.'
     : 'Leave application submitted successfully and is now pending HR review.'
@@ -2490,7 +2572,7 @@ function handleSubmitSuccess(isMonetizationSubmission = false) {
   $q.notify({ type: 'positive', message })
 
   if (props.inDialog) {
-    emit('submitted')
+    emit('submitted', submittedApplication)
     return
   }
   navigateToDashboard()
@@ -2498,21 +2580,26 @@ function handleSubmitSuccess(isMonetizationSubmission = false) {
 
 async function onSubmit() {
   // Monetization submission
-  if (isMonetization.value) {
+    if (isMonetization.value) {
     if (!monetization.value.leaveTypeId || monetizationSubmitDisabled.value) {
       $q.notify({ type: 'negative', message: 'Please complete all monetization fields.' })
       return
     }
     loading.value = true
     try {
-      await api.post('/admin/leave-applications/self', {
+      const response = await api.post('/admin/leave-applications/self', {
         is_monetization: true,
         leave_type_id: monetization.value.leaveTypeId,
         total_days: monetization.value.daysToMonetize,
         reason: String(form.value.reason || '').trim() || null,
         salary: parseSalary(form.value.salary) || null,
       })
-      handleSubmitSuccess(true)
+      const submittedApplication = buildSubmittedApplicationOverride(
+        extractSubmittedApplicationFromResponse(response?.data),
+        true,
+      )
+      saveLocalLeaveApplicationDetails(submittedApplication)
+      handleSubmitSuccess(true, submittedApplication)
     } catch (err) {
       const msg = resolveApiErrorMessage(err, 'Unable to submit your monetization request right now.')
       $q.notify({ type: 'negative', message: msg })
@@ -2622,6 +2709,17 @@ async function onSubmit() {
       }
     }
 
+    const leaveDetailsPayload = {
+      vacation_detail: form.value.vacationDetail,
+      vacation_specify: form.value.vacationSpecify,
+      sick_detail: form.value.sickDetail,
+      sick_specify: resolvedSickIllness.value,
+      women_specify: form.value.womenSpecify,
+      study_detail: form.value.studyDetail,
+      other_purpose: form.value.otherPurpose,
+      leave_type_other: form.value.leaveTypeOther,
+    }
+
     const payload = {
       leave_type_id: form.value.leaveTypeId,
       start_date: form.value.startDate,
@@ -2646,16 +2744,15 @@ async function onSubmit() {
       pay_mode: isCtoType.value ? 'WP' : resolveSelectedDatePayMode(sortedSelectedDatesPayload),
       commutation: form.value.commutation,
       attachment_submitted: Boolean(selectedAttachmentFile),
-      details: {
-        vacation_detail: form.value.vacationDetail,
-        vacation_specify: form.value.vacationSpecify,
-        sick_detail: form.value.sickDetail,
-        sick_specify: resolvedSickIllness.value,
-        women_specify: form.value.womenSpecify,
-        study_detail: form.value.studyDetail,
-        other_purpose: form.value.otherPurpose,
-        leave_type_other: form.value.leaveTypeOther,
-      }
+      vacation_detail: leaveDetailsPayload.vacation_detail,
+      vacation_specify: leaveDetailsPayload.vacation_specify,
+      sick_detail: leaveDetailsPayload.sick_detail,
+      sick_specify: leaveDetailsPayload.sick_specify,
+      women_specify: leaveDetailsPayload.women_specify,
+      study_detail: leaveDetailsPayload.study_detail,
+      other_purpose: leaveDetailsPayload.other_purpose,
+      leave_type_other: leaveDetailsPayload.leave_type_other,
+      details: leaveDetailsPayload,
     }
     if (selectedAttachmentFile) {
       payload.attachment = selectedAttachmentFile
@@ -2667,8 +2764,13 @@ async function onSubmit() {
       ? { headers: { 'Content-Type': 'multipart/form-data' } }
       : undefined
 
-    await api.post('/admin/leave-applications/self', requestPayload, requestConfig)
-    handleSubmitSuccess(false)
+    const response = await api.post('/admin/leave-applications/self', requestPayload, requestConfig)
+    const submittedApplication = buildSubmittedApplicationOverride(
+      extractSubmittedApplicationFromResponse(response?.data),
+      false,
+    )
+    saveLocalLeaveApplicationDetails(submittedApplication)
+    handleSubmitSuccess(false, submittedApplication)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to submit your leave application right now.')
     $q.notify({ type: 'negative', message: msg })

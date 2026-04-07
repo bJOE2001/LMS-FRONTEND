@@ -17,7 +17,7 @@
             :series="trendChartSeries"
           />
         </q-no-ssr>
-        <q-inner-loading :showing="loading" class="chart-loading">
+        <q-inner-loading :showing="loading" :class="['chart-loading', { 'chart-loading--dark': isDark }]">
           <q-spinner color="primary" size="34px" />
         </q-inner-loading>
       </div>
@@ -75,6 +75,10 @@ function syncNativeChartTitleCleanup() {
 }
 
 const $q = useQuasar()
+const isDark = computed(() => $q.dark.isActive)
+const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
+const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
+const chartMarkerFillColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
 
@@ -159,6 +163,10 @@ const trendChartOptions = computed(() => ({
     zoom: { enabled: false },
     animations: { easing: 'easeinout', speed: 450 },
     fontFamily: 'inherit',
+    foreColor: chartAxisColor.value,
+  },
+  theme: {
+    mode: isDark.value ? 'dark' : 'light',
   },
   colors: ['#1e88e5'],
   dataLabels: { enabled: false },
@@ -169,7 +177,7 @@ const trendChartOptions = computed(() => ({
   markers: {
     size: 4,
     strokeWidth: 2,
-    colors: ['#ffffff'],
+    colors: [chartMarkerFillColor.value],
     strokeColors: '#1e88e5',
     hover: { sizeOffset: 2 },
   },
@@ -183,7 +191,7 @@ const trendChartOptions = computed(() => ({
     },
   },
   grid: {
-    borderColor: '#e0e0e0',
+    borderColor: chartGridColor.value,
     strokeDashArray: 4,
     xaxis: { lines: { show: false } },
   },
@@ -191,14 +199,14 @@ const trendChartOptions = computed(() => ({
     categories: monthLabels,
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#6b7280' } },
+    labels: { style: { colors: chartAxisColor.value } },
   },
   yaxis: {
     min: 0,
     forceNiceScale: true,
     tickAmount: 4,
     labels: {
-      style: { colors: '#6b7280' },
+      style: { colors: chartAxisColor.value },
       formatter: (value) => String(Math.round(value)),
     },
   },
@@ -207,6 +215,10 @@ const trendChartOptions = computed(() => ({
     y: {
       formatter: (value) => `${Math.round(value)} leaves`,
     },
+  },
+  noData: {
+    text: 'No leave trend data available.',
+    style: { color: chartAxisColor.value },
   },
 }))
 
@@ -247,6 +259,10 @@ onBeforeUnmount(() => {
 
 .chart-loading {
   background: rgba(255, 255, 255, 0.72);
+}
+
+.chart-loading--dark {
+  background: rgba(16, 22, 30, 0.72);
 }
 
 @media (max-width: 1199px) {
