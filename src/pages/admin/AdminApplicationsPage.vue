@@ -257,7 +257,14 @@
                   {{ selectedApp.employee_control_no || 'No Control No.' }}
                 </q-badge>
                 <q-badge
-                  v-if="!['Pending HR', 'Pending Admin'].includes(getApplicationStatusLabel(selectedApp))"
+                  v-if="
+                    ![
+                      'Pending HR',
+                      'Pending HR Receive',
+                      'Pending HR Review',
+                      'Pending Admin',
+                    ].includes(getApplicationStatusLabel(selectedApp))
+                  "
                   rounded
                   :color="getApplicationStatusColor(selectedApp)"
                   text-color="white"
