@@ -2088,6 +2088,9 @@ function getApplicationStatusColor(app) {
 }
 
 function resolveFiledByActor(app) {
+  if (isCocApplication(app)) {
+    return app?.employee_name || 'Unknown'
+  }
   return app?.filed_by || 'Unknown'
 }
 
@@ -2639,6 +2642,11 @@ function resolveReceivedActor(app) {
   const directActor = String(app?.received_by || '').trim()
   if (directActor) return directActor
 
+  if (isCocApplication(app)) {
+    const cocActor = String(app?.admin_action_by || '').trim()
+    if (cocActor) return cocActor
+  }
+
   const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
   return historyActor || 'Unknown'
 }
@@ -2647,6 +2655,7 @@ function resolveReceivedDateValue(app) {
   return pickLatestTimestampValue(
     app?.received_at ||
       null,
+    isCocApplication(app) ? app?.admin_action_at : null,
     resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
   )
 }
@@ -2662,6 +2671,14 @@ function resolveCurrentUpdateRequestCycleStartValue(app) {
 
 function isApplicationReceivedByHr(app) {
   if (!app) return false
+
+  if (isCocApplication(app)) {
+    const rawStatus = getApplicationRawStatusKey(app)
+    if (rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || rawStatus === 'REJECTED') {
+      return true
+    }
+    return Boolean(resolveReceivedDateValue(app))
+  }
 
   const hasExplicitReceivedFlag = hasOwnProperty(app, 'has_hr_received')
   const explicitReceivedFlagValue = isTruthyBackendFlag(app?.has_hr_received)
@@ -2696,6 +2713,7 @@ function getReceivedByHrSummary(app) {
   }
   if (receivedAt) return `Received on ${receivedAt}`
   if (receivedBy && receivedBy !== 'Unknown') return `Received by ${receivedBy}`
+  if (isCocApplication(app)) return 'COC application already acknowledged by HR.'
   return 'Application already received by HR.'
 }
 
@@ -2704,11 +2722,14 @@ function getReceivedApplicationTimelineEntry(app) {
 
   const receivedAt = formatDateTime(resolveReceivedDateValue(app)) || 'Completed'
   const receivedBy = resolveReceivedActor(app)
+  const description = isCocApplication(app)
+    ? 'HR acknowledged this COC application for review.'
+    : 'HR confirmed receipt of the hard copy leave application form.'
 
   return {
     title: 'Received Application',
     subtitle: receivedAt,
-    description: 'HR confirmed receipt of the hard copy leave application form.',
+    description,
     icon: 'inventory_2',
     color: 'positive',
     actor: receivedBy,
@@ -2730,6 +2751,11 @@ function resolveReleasedActor(app) {
   const directActor = String(app?.released_by || '').trim()
   if (directActor) return directActor
 
+  if (isCocApplication(app)) {
+    const cocActor = String(app?.hr_action_by || app?.processed_by || '').trim()
+    if (cocActor) return cocActor
+  }
+
   const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
   return historyActor || 'Unknown'
 }
@@ -2738,12 +2764,25 @@ function resolveReleasedDateValue(app) {
   return pickLatestTimestampValue(
     app?.released_at ||
       null,
+    isCocApplication(app)
+      ? (
+          app?.hr_action_at ||
+          app?.reviewed_at ||
+          null
+        )
+      : null,
     resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
   )
 }
 
 function isApplicationReleased(app) {
   if (!app) return false
+
+  if (isCocApplication(app)) {
+    const rawStatus = getApplicationRawStatusKey(app)
+    if (rawStatus === 'APPROVED' || rawStatus === 'REJECTED') return true
+    return Boolean(resolveReleasedDateValue(app))
+  }
 
   const releasedAt = resolveReleasedDateValue(app)
   const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
