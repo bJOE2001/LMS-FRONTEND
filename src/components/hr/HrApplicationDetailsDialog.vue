@@ -141,17 +141,25 @@
             </div>
           </div>
           <div v-if="isCocApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Certificate Number</div>
-            <div class="text-weight-medium">
-              {{ application.certificateNumber || application.certificate_number || 'N/A' }}
-            </div>
-          </div>
-          <div v-if="isCocApplication(application)" class="hr-application-details-item">
             <div class="text-caption text-grey-7">Issued Date</div>
             <div class="text-weight-medium">
               {{
                 formatDate(application.certificateIssuedAt || application.certificate_issued_at) || 'N/A'
               }}
+            </div>
+          </div>
+          <div v-if="isCocApplication(application)" class="hr-application-details-item">
+            <div class="text-caption text-grey-7">Nature of Overtime</div>
+            <div>
+              <template v-if="getCocNatureOfOvertimeLines(application).length">
+                <div
+                  v-for="(line, index) in getCocNatureOfOvertimeLines(application)"
+                  :key="`hr-coc-nature-${index}`"
+                >
+                  {{ line }}
+                </div>
+              </template>
+              <template v-else>N/A</template>
             </div>
           </div>
           <div class="hr-application-details-item">
@@ -543,6 +551,10 @@ const props = defineProps({
   hasPendingReasonUpdate: {
     type: Function,
     default: () => false,
+  },
+  getCocNatureOfOvertimeLines: {
+    type: Function,
+    default: () => [],
   },
   getCurrentReasonDisplay: {
     type: Function,

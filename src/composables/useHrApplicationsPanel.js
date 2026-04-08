@@ -750,7 +750,7 @@ function calculateCocCreditableMinutes(minutesValue, breakMinutesValue = 0) {
   const netMinutes = Math.max(0, Math.round(rawMinutes) - breakMinutes)
   const wholeHoursMinutes = Math.floor(netMinutes / 60) * 60
   const excessMinutes = netMinutes % 60
-  return wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0)
+  return Math.min(ctoStandardDayHours * 60, wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0))
 }
 
 function getCocBaseCreditableDisplay(app) {
@@ -1553,6 +1553,17 @@ function normalizeReasonForCompare(value) {
 function getCurrentReasonDisplay(app) {
   const currentReason = normalizeReasonForCompare(app?.reason)
   return currentReason || 'N/A'
+}
+
+function getCocNatureOfOvertimeLines(app) {
+  if (!isCocApplication(app)) return []
+
+  const rows = Array.isArray(app?.rows) ? app.rows : []
+  const lines = rows
+    .map((row) => String(row?.nature_of_overtime ?? row?.natureOfOvertime ?? '').trim())
+    .filter(Boolean)
+
+  return [...new Set(lines)]
 }
 
 function getRequestedReasonDisplay(app) {
@@ -4237,6 +4248,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getCurrentLeaveBalanceValue,
     getCurrentLeaveTypeId,
     getCurrentLeaveTypeLabel,
+    getCocNatureOfOvertimeLines,
     getCurrentReasonDisplay,
     getDateCoverageLabel,
     getDateSearchValues,

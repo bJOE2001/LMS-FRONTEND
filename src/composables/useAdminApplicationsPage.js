@@ -43,6 +43,7 @@ const EVENT_BASED_LEAVE_BALANCE_TYPES = [
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+const ctoStandardDayHours = 8
 
 function getActualRequestedDayCount(app) {
   const explicitCandidates = [
@@ -443,7 +444,7 @@ export function useAdminApplicationsPage() {
     const netMinutes = Math.max(0, Math.round(rawMinutes) - breakMinutes)
     const wholeHoursMinutes = Math.floor(netMinutes / 60) * 60
     const excessMinutes = netMinutes % 60
-    return wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0)
+    return Math.min(ctoStandardDayHours * 60, wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0))
   }
 
   function getCocBaseCreditableDisplay(app) {

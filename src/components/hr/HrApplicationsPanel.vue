@@ -253,6 +253,7 @@
     :get-requested-duration-display="getRequestedDurationDisplay"
     :is-coc-application="isCocApplication"
     :has-pending-reason-update="hasPendingReasonUpdate"
+    :get-coc-nature-of-overtime-lines="getCocNatureOfOvertimeLines"
     :get-current-reason-display="getCurrentReasonDisplay"
     :get-requested-reason-display="getRequestedReasonDisplay"
     :has-pending-date-update="hasPendingDateUpdate"

@@ -445,16 +445,6 @@
               v-if="isCocApplication(selectedApp)"
               class="admin-application-details-item"
             >
-              <div class="admin-application-details-label">Certificate Number</div>
-              <div class="text-weight-medium">
-                {{ selectedApp.certificateNumber || selectedApp.certificate_number || 'N/A' }}
-              </div>
-            </div>
-
-            <div
-              v-if="isCocApplication(selectedApp)"
-              class="admin-application-details-item"
-            >
               <div class="admin-application-details-label">Issued Date</div>
               <div class="text-weight-medium">
                 {{
@@ -595,8 +585,21 @@
             </div>
 
             <div class="admin-application-details-item admin-application-details-item--reason">
-              <div class="admin-application-details-label">Reason</div>
-              <div>{{ getApplicationDetailsReason(selectedApp) }}</div>
+              <div class="admin-application-details-label">
+                {{ isCocApplication(selectedApp) ? 'Nature of Overtime' : 'Reason' }}
+              </div>
+              <div v-if="isCocApplication(selectedApp)">
+                <template v-if="getCocNatureOfOvertimeLines(selectedApp).length">
+                  <div
+                    v-for="(line, index) in getCocNatureOfOvertimeLines(selectedApp)"
+                    :key="`admin-coc-nature-${index}`"
+                  >
+                    {{ line }}
+                  </div>
+                </template>
+                <template v-else>N/A</template>
+              </div>
+              <div v-else>{{ getApplicationDetailsReason(selectedApp) }}</div>
             </div>
 
             <div
@@ -849,6 +852,17 @@ function getApplicationDetailsLeaveTypeLabel(app) {
 function getApplicationDetailsReason(app) {
   const reason = String(app?.reason || '').trim()
   return reason || 'N/A'
+}
+
+function getCocNatureOfOvertimeLines(app) {
+  if (!isCocApplication(app)) return []
+
+  const rows = Array.isArray(app?.rows) ? app.rows : []
+  const lines = rows
+    .map((row) => String(row?.nature_of_overtime ?? row?.natureOfOvertime ?? '').trim())
+    .filter(Boolean)
+
+  return [...new Set(lines)]
 }
 
 function getApplicationDetailsRemarks(app) {

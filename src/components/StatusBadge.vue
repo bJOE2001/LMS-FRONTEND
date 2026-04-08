@@ -21,6 +21,7 @@ const color = computed(() => {
   const normalized = String(props.status || '').trim().toUpperCase()
   if (!normalized) return 'grey'
 
+  if (normalized.includes('PENDING') && normalized.includes('LATE')) return 'orange-8'
   if (normalized.includes('PENDING ADMIN')) return 'warning'
   if (normalized.includes('PENDING HR')) return 'blue-6'
   if (normalized.includes('PENDING')) return 'warning'
