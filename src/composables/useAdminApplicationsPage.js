@@ -2588,8 +2588,25 @@ export function useAdminApplicationsPage() {
       .map((token) => normalizeSearchToken(token))
   }
 
+  function getCocReleaseStageStatus(app) {
+    if (!app) return ''
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus !== 'APPROVED') return ''
+
+    if (isApplicationReleased(app)) {
+      return isCocApplication(app) ? 'Released' : 'Approved'
+    }
+    if (isApplicationReceivedByHr(app)) return 'Pending Release'
+    return 'Pending Receive'
+  }
+
   function getApplicationStatusLabel(app) {
     if (isCancelledByUser(app)) return 'Cancelled'
+
+    const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+    if (cocReleaseStageStatus) return cocReleaseStageStatus
+
     const rawStatus = getApplicationRawStatus(app)
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
     if (
@@ -2610,6 +2627,12 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusColor(app) {
     if (isCancelledByUser(app)) return 'grey-7'
+
+    const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+    if (cocReleaseStageStatus === 'Released') return 'positive'
+    if (cocReleaseStageStatus === 'Pending Release') return 'indigo-6'
+    if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
+
     const rawStatus = getApplicationRawStatus(app)
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
     if (
@@ -3456,7 +3479,7 @@ export function useAdminApplicationsPage() {
     const cycleReleasedEntry = buildReleasedTimelineEntry(app, existingReleasedEntry)
 
     const receivedInsertEntry = historicalReceivedEntry || cycleReceivedEntry
-    const receivedInsertIndex = getReceivedTimelineInsertionIndex(cleanedTimeline)
+    const receivedInsertIndex = getReceivedTimelineInsertionIndex(app, cleanedTimeline)
     cleanedTimeline.splice(receivedInsertIndex, 0, receivedInsertEntry)
 
     const finalizedEntries = [...cleanedTimeline]
@@ -3558,7 +3581,21 @@ export function useAdminApplicationsPage() {
     )
   }
 
-  function getReceivedTimelineInsertionIndex(entries) {
+  function getReceivedTimelineInsertionIndex(app, entries) {
+    if (isCocApplication(app)) {
+      const pendingHrReviewIndex = entries.findIndex((entry) =>
+        isTimelineEntryTitle(entry, 'Pending HR Review') ||
+        isTimelineEntryTitle(entry, 'Pending Edit Review (HR)') ||
+        isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)'),
+      )
+      if (pendingHrReviewIndex >= 0) return pendingHrReviewIndex + 1
+
+      const approvedByHrIndex = entries.findIndex((entry) =>
+        isTimelineEntryTitle(entry, 'Approved by HR'),
+      )
+      if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
+    }
+
     const adminCompletedIndex = entries.findIndex((entry) =>
       isTimelineEntryTitle(entry, 'Admin Review Completed'),
     )
@@ -3655,20 +3692,24 @@ export function useAdminApplicationsPage() {
     const entryTitle = getReceivedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
     const isCoc = isCocApplication(app)
+    const rawStatus = getApplicationRawStatus(app)
+    const isCocAwaitingReceive = isCoc && rawStatus === 'APPROVED'
 
     if (!isApplicationReceivedByHr(app)) {
       return {
         title: entryTitle,
-        subtitle: 'Upcoming',
-        description: isCoc
-          ? 'HR will acknowledge this COC application for review.'
+        subtitle: isCocAwaitingReceive ? 'Current stage' : 'Upcoming',
+        description: isCocAwaitingReceive
+          ? 'Waiting for HR to acknowledge this COC application.'
+          : isCoc
+            ? 'HR will acknowledge this COC application for review.'
           : cycleDocumentLabel
             ? cycleDocumentLabel === 'Cancellation Form'
               ? 'HR will confirm receipt of the cancellation form.'
               : 'HR will confirm receipt of the updated hard copy leave application form.'
             : 'HR will confirm receipt of the hard copy leave application form.',
-        icon: 'radio_button_unchecked',
-        color: 'grey-5',
+        icon: isCocAwaitingReceive ? 'pending_actions' : 'radio_button_unchecked',
+        color: isCocAwaitingReceive ? 'warning' : 'grey-5',
       }
     }
 
@@ -3700,20 +3741,23 @@ export function useAdminApplicationsPage() {
     const entryTitle = getReleasedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
     const isCoc = isCocApplication(app)
+    const isCocAwaitingRelease = isCoc && isApplicationReceivedByHr(app)
 
     if (!isApplicationReleased(app)) {
       return {
         title: entryTitle,
-        subtitle: 'Upcoming',
-        description: isCoc
-          ? 'COC application release will follow final HR action.'
+        subtitle: isCocAwaitingRelease ? 'Current stage' : 'Upcoming',
+        description: isCocAwaitingRelease
+          ? 'Waiting for HR to release this COC application.'
+          : isCoc
+            ? 'COC application release will follow final HR action.'
           : cycleDocumentLabel
             ? cycleDocumentLabel === 'Cancellation Form'
               ? 'Cancellation form will be released before final closure.'
               : 'Updated leave document will be released before final closure.'
             : 'Physical leave document will be released before final closure.',
-        icon: 'radio_button_unchecked',
-        color: 'grey-5',
+        icon: isCocAwaitingRelease ? 'pending_actions' : 'radio_button_unchecked',
+        color: isCocAwaitingRelease ? 'warning' : 'grey-5',
       }
     }
 
@@ -3830,11 +3874,6 @@ export function useAdminApplicationsPage() {
     const directActor = String(app?.received_by || '').trim()
     if (directActor) return directActor
 
-    if (isCocApplication(app)) {
-      const cocActor = String(app?.admin_action_by || '').trim()
-      if (cocActor) return cocActor
-    }
-
     const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
     return historyActor || 'Unknown'
   }
@@ -3842,11 +3881,6 @@ export function useAdminApplicationsPage() {
   function resolveReleasedActor(app) {
     const directActor = String(app?.released_by || '').trim()
     if (directActor) return directActor
-
-    if (isCocApplication(app)) {
-      const cocActor = String(app?.hr_action_by || app?.processed_by || '').trim()
-      if (cocActor) return cocActor
-    }
 
     const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
     return historyActor || 'Unknown'
@@ -3961,7 +3995,6 @@ export function useAdminApplicationsPage() {
     return pickLatestTimestampValue(
       app?.received_at ||
         null,
-      isCocApplication(app) ? app?.admin_action_at : null,
       app?.hr_received_at || null,
       resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
     )
@@ -3971,13 +4004,6 @@ export function useAdminApplicationsPage() {
     return pickLatestTimestampValue(
       app?.released_at ||
         null,
-      isCocApplication(app)
-        ? (
-            app?.hr_action_at ||
-            app?.reviewed_at ||
-            null
-          )
-        : null,
       app?.hr_released_at || null,
       resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
     )
@@ -3985,14 +4011,6 @@ export function useAdminApplicationsPage() {
 
   function isApplicationReceivedByHr(app) {
     if (!app) return false
-
-    if (isCocApplication(app)) {
-      const rawStatus = getApplicationRawStatus(app)
-      if (rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || rawStatus === 'REJECTED') {
-        return true
-      }
-      return Boolean(resolveReceivedDateValue(app))
-    }
 
     const receivedAt = resolveReceivedDateValue(app)
     const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
@@ -4008,12 +4026,6 @@ export function useAdminApplicationsPage() {
   function isApplicationReleased(app) {
     if (!app) return false
 
-    if (isCocApplication(app)) {
-      const rawStatus = getApplicationRawStatus(app)
-      if (rawStatus === 'APPROVED' || rawStatus === 'REJECTED') return true
-      return Boolean(resolveReleasedDateValue(app))
-    }
-
     const releasedAt = resolveReleasedDateValue(app)
     const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
 
@@ -4022,7 +4034,7 @@ export function useAdminApplicationsPage() {
       if (!isTimestampOnOrAfter(releasedAt, cycleStart)) return false
     }
 
-    return Boolean(resolveReleasedHistoryEntry(app) || releasedAt)
+    return Boolean(app?.has_hr_released || resolveReleasedHistoryEntry(app) || releasedAt)
   }
 
   function getTimelineEntryTone(entry) {
@@ -4193,6 +4205,12 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationStatusPriority(app) {
+    const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+    if (cocReleaseStageStatus === 'Pending Receive' || cocReleaseStageStatus === 'Pending Release') {
+      return 1
+    }
+    if (cocReleaseStageStatus === 'Released') return 2
+
     const groupedRawStatus = getApplicationGroupedRawStatus(app)
     if (groupedRawStatus === 'PENDING_ADMIN') return 0
     if (groupedRawStatus === 'PENDING_HR') return 1

@@ -234,9 +234,13 @@ function isTruthyBackendFlag(value) {
   return normalized === '1' || normalized === 'true' || normalized === 'yes'
 }
 
-function hasOwnProperty(source, key) {
-  if (!source || typeof source !== 'object') return false
-  return Object.prototype.hasOwnProperty.call(source, key)
+function normalizeOptionalBackendFlag(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue
+    if (typeof value === 'string' && value.trim() === '') continue
+    return isTruthyBackendFlag(value)
+  }
+  return null
 }
 
 function normalizeBackendApplicationShape(application, index = 0) {
@@ -286,6 +290,29 @@ function normalizeBackendApplicationShape(application, index = 0) {
   const normalizedRecallSelectedDates = Array.isArray(application?.recall_selected_dates)
     ? [...application.recall_selected_dates]
     : null
+  const normalizedHasPendingUpdateRequest = normalizeOptionalBackendFlag(
+    application?.has_pending_update_request,
+  )
+  const normalizedHasHrReceived = normalizeOptionalBackendFlag(
+    application?.has_hr_received,
+  )
+  const normalizedHasHrReleased = normalizeOptionalBackendFlag(
+    application?.has_hr_released,
+  )
+  const normalizedReceivedBy = pickFirstDefinedValue(
+    application?.received_by,
+  )
+  const normalizedReleasedBy = pickFirstDefinedValue(
+    application?.released_by,
+  )
+  const normalizedReceivedAt = pickFirstDefinedValue(
+    application?.received_at,
+    application?.hr_received_at,
+  )
+  const normalizedReleasedAt = pickFirstDefinedValue(
+    application?.released_at,
+    application?.hr_released_at,
+  )
 
   const normalized = {
     ...application,
@@ -325,7 +352,9 @@ function normalizeBackendApplicationShape(application, index = 0) {
     pending_update: application?.pending_update ?? null,
     pending_update_reason: application?.pending_update_reason ?? '',
     pending_update_action_type: application?.pending_update_action_type ?? null,
-    has_pending_update_request: isTruthyBackendFlag(application?.has_pending_update_request),
+    ...(normalizedHasPendingUpdateRequest === null
+      ? {}
+      : { has_pending_update_request: normalizedHasPendingUpdateRequest }),
     latest_update_request_status: application?.latest_update_request_status ?? '',
     latest_update_request_action_type: application?.latest_update_request_action_type ?? null,
     latest_update_request_payload: application?.latest_update_request_payload ?? null,
@@ -339,12 +368,12 @@ function normalizeBackendApplicationShape(application, index = 0) {
       ? Number(application.leaveBalance)
       : null,
     pay_mode: application?.pay_mode ?? null,
-    has_hr_received: isTruthyBackendFlag(application?.has_hr_received),
-    has_hr_released: isTruthyBackendFlag(application?.has_hr_released),
-    received_by: application?.received_by ?? null,
-    received_at: application?.received_at ?? null,
-    released_by: application?.released_by ?? null,
-    released_at: application?.released_at ?? null,
+    ...(normalizedHasHrReceived === null ? {} : { has_hr_received: normalizedHasHrReceived }),
+    ...(normalizedHasHrReleased === null ? {} : { has_hr_released: normalizedHasHrReleased }),
+    ...(normalizedReceivedBy === null ? {} : { received_by: normalizedReceivedBy }),
+    ...(normalizedReceivedAt === null ? {} : { received_at: normalizedReceivedAt }),
+    ...(normalizedReleasedBy === null ? {} : { released_by: normalizedReleasedBy }),
+    ...(normalizedReleasedAt === null ? {} : { released_at: normalizedReleasedAt }),
     attachment_reference: application?.attachment_reference ?? null,
     attachment_submitted: isTruthyBackendFlag(application?.attachment_submitted),
     office: application?.office ?? null,
@@ -384,7 +413,23 @@ function mergeApplications(...sources) {
   return Array.from(merged.values())
 }
 
+function getCocReleaseStageStatus(app) {
+  if (!app) return ''
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus !== 'APPROVED') return ''
+
+  if (isApplicationReleased(app)) {
+    return isCocApplication(app) ? 'Released' : 'Approved'
+  }
+  if (isApplicationReceivedByHr(app)) return 'Pending Release'
+  return 'Pending Receive'
+}
+
 function mergeStatus(app) {
+  const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+  if (cocReleaseStageStatus) return cocReleaseStageStatus
+
   const raw = getApplicationRawStatusKey(app)
   const status = String(app.status || '').toUpperCase()
   const normalizedStatus = status.replace(/[_-]+/g, ' ')
@@ -1612,6 +1657,9 @@ function getApplicationDurationLabel(app) {
 }
 
 function getApplicationStatusLabel(app) {
+  const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+  if (cocReleaseStageStatus) return cocReleaseStageStatus
+
   if (app?.displayStatus) return app.displayStatus
   if (app?.status) return app.status
   return mergeStatus(app)
@@ -1622,6 +1670,10 @@ function getApplicationGroupedRawStatusKey(app) {
 }
 
 function getApplicationStatusPriority(app) {
+  const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+  if (cocReleaseStageStatus === 'Pending Receive' || cocReleaseStageStatus === 'Pending Release') return 0
+  if (cocReleaseStageStatus === 'Released') return 1
+
   const groupedRawStatus = getApplicationGroupedRawStatusKey(app) || getApplicationRawStatusKey(app)
   if (groupedRawStatus === 'PENDING_ADMIN' && isPendingEditRequest(app)) return 1
   if (groupedRawStatus === 'PENDING_ADMIN' || groupedRawStatus === 'PENDING_HR') return 0
@@ -2088,6 +2140,11 @@ function getApplicationRawStatusKey(app) {
 }
 
 function getApplicationStatusColor(app) {
+  const cocReleaseStageStatus = getCocReleaseStageStatus(app)
+  if (cocReleaseStageStatus === 'Released') return 'positive'
+  if (cocReleaseStageStatus === 'Pending Release') return 'indigo-6'
+  if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
+
   const rawStatus = getApplicationRawStatusKey(app)
   if (isCancelledByUser(app)) return 'grey-7'
   if (rawStatus === 'PENDING_ADMIN') return 'warning'
@@ -2653,20 +2710,14 @@ function resolveReceivedActor(app) {
   const directActor = String(app?.received_by || '').trim()
   if (directActor) return directActor
 
-  if (isCocApplication(app)) {
-    const cocActor = String(app?.admin_action_by || '').trim()
-    if (cocActor) return cocActor
-  }
-
   const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
   return historyActor || 'Unknown'
 }
 
 function resolveReceivedDateValue(app) {
   return pickLatestTimestampValue(
-    app?.received_at ||
-      null,
-    isCocApplication(app) ? app?.admin_action_at : null,
+    app?.received_at || null,
+    app?.hr_received_at || null,
     resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
   )
 }
@@ -2683,34 +2734,24 @@ function resolveCurrentUpdateRequestCycleStartValue(app) {
 function isApplicationReceivedByHr(app) {
   if (!app) return false
 
-  if (isCocApplication(app)) {
-    const rawStatus = getApplicationRawStatusKey(app)
-    if (rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || rawStatus === 'REJECTED') {
-      return true
-    }
-    return Boolean(resolveReceivedDateValue(app))
-  }
-
-  const hasExplicitReceivedFlag = hasOwnProperty(app, 'has_hr_received')
-  const explicitReceivedFlagValue = isTruthyBackendFlag(app?.has_hr_received)
   const receivedAt = resolveReceivedDateValue(app)
   const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
 
   if (cycleStart) {
-    if (!receivedAt) return hasExplicitReceivedFlag ? explicitReceivedFlagValue : false
+    if (!receivedAt) return false
     if (!isTimestampOnOrAfter(receivedAt, cycleStart)) return false
   }
 
-  if (hasExplicitReceivedFlag) return explicitReceivedFlagValue
-  return Boolean(resolveReceivedHistoryEntry(app) || receivedAt)
+  return Boolean(app?.has_hr_received || resolveReceivedHistoryEntry(app) || receivedAt)
 }
 
 function canReceiveApplication(app) {
-  if (!app || isCocApplication(app)) return false
+  if (!app) return false
   if (isApplicationReceivedByHr(app)) return false
   if (isCancelledByUser(app)) return false
 
   const rawStatus = getApplicationRawStatusKey(app)
+  if (isCocApplication(app)) return rawStatus === 'APPROVED'
   return rawStatus === 'PENDING_HR'
 }
 
@@ -2762,38 +2803,20 @@ function resolveReleasedActor(app) {
   const directActor = String(app?.released_by || '').trim()
   if (directActor) return directActor
 
-  if (isCocApplication(app)) {
-    const cocActor = String(app?.hr_action_by || app?.processed_by || '').trim()
-    if (cocActor) return cocActor
-  }
-
   const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
   return historyActor || 'Unknown'
 }
 
 function resolveReleasedDateValue(app) {
   return pickLatestTimestampValue(
-    app?.released_at ||
-      null,
-    isCocApplication(app)
-      ? (
-          app?.hr_action_at ||
-          app?.reviewed_at ||
-          null
-        )
-      : null,
+    app?.released_at || null,
+    app?.hr_released_at || null,
     resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
   )
 }
 
 function isApplicationReleased(app) {
   if (!app) return false
-
-  if (isCocApplication(app)) {
-    const rawStatus = getApplicationRawStatusKey(app)
-    if (rawStatus === 'APPROVED' || rawStatus === 'REJECTED') return true
-    return Boolean(resolveReleasedDateValue(app))
-  }
 
   const releasedAt = resolveReleasedDateValue(app)
   const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
@@ -2807,10 +2830,15 @@ function isApplicationReleased(app) {
 }
 
 function canReleaseApplication(app) {
-  if (!app || isCocApplication(app)) return false
+  if (!app) return false
   if (isApplicationReleased(app)) return false
 
   const rawStatus = getApplicationRawStatusKey(app)
+  if (isCocApplication(app)) {
+    if (rawStatus !== 'APPROVED') return false
+    return isApplicationReceivedByHr(app)
+  }
+
   const isCancellationRequestApproved =
     isCancellationRequestAction(app) &&
     getLatestUpdateRequestStatus(app) === 'APPROVED' &&
@@ -3890,6 +3918,72 @@ function applyLeaveApplicationUpdate(updatedApplication) {
   })
 }
 
+function applyCocApplicationUpdate(updatedApplication) {
+  const normalizedUpdatedApplication = normalizeBackendApplicationShape(updatedApplication)
+  if (!normalizedUpdatedApplication || !isCocApplication(normalizedUpdatedApplication)) return
+
+  const updatedId = String(getApplicationId(normalizedUpdatedApplication) ?? '').trim()
+  if (!updatedId) return
+
+  const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+  if (
+    selectedId === updatedId &&
+    getApplicationType(selectedApp.value || {}) === 'COC'
+  ) {
+    const normalizedSelectedApplication = normalizeBackendApplicationShape({
+      ...(selectedApp.value && typeof selectedApp.value === 'object' ? selectedApp.value : {}),
+      ...normalizedUpdatedApplication,
+    }) || {
+      ...(selectedApp.value && typeof selectedApp.value === 'object' ? selectedApp.value : {}),
+      ...normalizedUpdatedApplication,
+    }
+
+    selectedApp.value = {
+      ...normalizedSelectedApplication,
+      application_type: getApplicationType(normalizedSelectedApplication),
+      application_uid:
+        selectedApp.value?.application_uid ||
+        normalizedSelectedApplication?.application_uid ||
+        getApplicationRowKey(normalizedSelectedApplication),
+      employeeName:
+        normalizedSelectedApplication?.employeeName || selectedApp.value?.employeeName || 'Unknown',
+      officeShort: toDepartmentCode(
+        normalizedSelectedApplication?.office || selectedApp.value?.office,
+      ),
+      displayStatus: mergeStatus(normalizedSelectedApplication),
+    }
+  }
+
+  applications.value = applications.value.map((row) => {
+    if (!row || typeof row !== 'object') return row
+    if (row?.application_row_variant === 'recalled') return row
+    if (getApplicationType(row) !== 'COC') return row
+
+    const rowId = String(getApplicationId(row) ?? '').trim()
+    if (rowId !== updatedId) return row
+
+    const mergedRow =
+      normalizeBackendApplicationShape({
+        ...row,
+        ...normalizedUpdatedApplication,
+      }) ||
+      ({
+        ...row,
+        ...normalizedUpdatedApplication,
+      })
+
+    return {
+      ...mergedRow,
+      application_type: getApplicationType(mergedRow),
+      application_uid:
+        row?.application_uid || mergedRow?.application_uid || getApplicationRowKey(mergedRow),
+      employeeName: mergedRow?.employeeName || row?.employeeName || 'Unknown',
+      officeShort: toDepartmentCode(mergedRow?.office || row?.office),
+      displayStatus: mergeStatus(mergedRow),
+    }
+  })
+}
+
 async function fetchLatestHrLeaveApplication(target = selectedApp.value) {
   const application = resolveApplication(target) || target
   if (!application || typeof application !== 'object' || isCocApplication(application)) {
@@ -3931,6 +4025,47 @@ async function fetchLatestHrLeaveApplication(target = selectedApp.value) {
 async function markApplicationReceived(target = selectedApp.value) {
   const application = resolveApplication(target) || target
   if (!canReceiveApplication(application)) return false
+
+  if (isCocApplication(application)) {
+    const resolvedId = String(getApplicationId(application) ?? '').trim()
+    if (!resolvedId) {
+      q.notify({
+        type: 'negative',
+        message: 'Unable to identify this COC application.',
+        position: 'top',
+      })
+      return false
+    }
+
+    receiveLoading.value = true
+    try {
+      const response = await api.post('/hr/coc-applications/' + resolvedId + '/receive')
+      const responseMessage = String(response?.data?.message || '').trim()
+      const updatedApplication = normalizeBackendApplicationShape(
+        extractSingleApplicationFromPayload(response?.data),
+      )
+
+      if (updatedApplication && typeof updatedApplication === 'object') {
+        applyCocApplicationUpdate(updatedApplication)
+      }
+
+      q.notify({
+        type: 'positive',
+        message: responseMessage || 'COC application marked as received by HR.',
+        position: 'top',
+      })
+      return true
+    } catch (err) {
+      const msg = resolveApiErrorMessage(
+        err,
+        'Unable to mark this COC application as received right now.',
+      )
+      q.notify({ type: 'negative', message: msg, position: 'top' })
+      return false
+    } finally {
+      receiveLoading.value = false
+    }
+  }
 
   const id = getApplicationId(application)
   if (!id) {
@@ -4009,6 +4144,47 @@ async function markApplicationReceived(target = selectedApp.value) {
 async function markApplicationReleased(target = selectedApp.value) {
   const application = resolveApplication(target) || target
   if (!canReleaseApplication(application)) return
+
+  if (isCocApplication(application)) {
+    const resolvedId = String(getApplicationId(application) ?? '').trim()
+    if (!resolvedId) {
+      q.notify({
+        type: 'negative',
+        message: 'Unable to identify this COC application.',
+        position: 'top',
+      })
+      return
+    }
+
+    releaseLoading.value = true
+    try {
+      const response = await api.post('/hr/coc-applications/' + resolvedId + '/release')
+      const responseMessage = String(response?.data?.message || '').trim()
+      const updatedApplication = normalizeBackendApplicationShape(
+        extractSingleApplicationFromPayload(response?.data),
+      )
+
+      if (updatedApplication && typeof updatedApplication === 'object') {
+        applyCocApplicationUpdate(updatedApplication)
+      }
+
+      q.notify({
+        type: 'positive',
+        message: responseMessage || 'COC application release confirmed.',
+        position: 'top',
+      })
+      return
+    } catch (err) {
+      const msg = resolveApiErrorMessage(
+        err,
+        'Unable to mark this COC application as released right now.',
+      )
+      q.notify({ type: 'negative', message: msg, position: 'top' })
+      return
+    } finally {
+      releaseLoading.value = false
+    }
+  }
 
   const id = getApplicationId(application)
   if (!id) {
@@ -4121,12 +4297,7 @@ async function openActionConfirm(type, target) {
       const didReceive = await markApplicationReceived(application)
       if (!didReceive) return
 
-      const refreshedApplication = await fetchLatestHrLeaveApplication(application)
-      if (!isApplicationReceivedByHr(refreshedApplication)) return
-
-      confirmActionType.value = 'approve'
-      confirmActionTarget.value = refreshedApplication
-      showConfirmActionDialog.value = true
+      await fetchLatestHrLeaveApplication(application)
     })
     return
   }
