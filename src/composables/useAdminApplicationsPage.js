@@ -581,7 +581,7 @@ export function useAdminApplicationsPage() {
 
   function createRecalledCompanionRow(app, index = 0) {
     if (!app || typeof app !== 'object' || isCocApplication(app)) return null
-    if (String(app?.rawStatus || '').toUpperCase() !== 'APPROVED') return null
+    if (String(app?.raw_status || '').toUpperCase() !== 'APPROVED') return null
 
     const recalledDateKeys = getStoredRecallDateKeys(app)
     if (!recalledDateKeys.length) return null
@@ -593,13 +593,11 @@ export function useAdminApplicationsPage() {
       ...app,
       application_uid: `${baseKey}:recalled`,
       application_row_variant: 'recalled',
-      group_raw_status: app?.rawStatus || 'APPROVED',
+      group_raw_status: app?.raw_status || 'APPROVED',
       status: 'Recalled',
-      rawStatus: 'RECALLED',
+      raw_status: 'RECALLED',
       selected_dates: recalledDateKeys,
-      selectedDates: recalledDateKeys,
       recall_selected_dates: recalledDateKeys,
-      recallSelectedDates: recalledDateKeys,
       actual_total_days: recalledDays,
       applied_total_days: recalledDays,
       requested_total_days: recalledDays,
@@ -648,11 +646,7 @@ export function useAdminApplicationsPage() {
     return (
       application?.employeeName ||
       application?.employee_name ||
-      application?.employee?.name ||
       application?.employee?.full_name ||
-      application?.employee?.employee_name ||
-      application?.name ||
-      application?.full_name ||
       [
         application?.employee?.firstname,
         application?.employee?.middlename,
@@ -669,15 +663,7 @@ export function useAdminApplicationsPage() {
   function getApplicationEmployeeLookupCandidates(application) {
     return [
       application?.employee_control_no,
-      application?.employeeControlNo,
-      application?.control_no,
-      application?.controlNo,
       application?.employee?.control_no,
-      application?.employee?.controlNo,
-      application?.employee?.employee_control_no,
-      application?.employee?.employeeControlNo,
-      application?.user?.control_no,
-      application?.user?.controlNo,
     ]
       .map((value) => normalizeLookupValue(value))
       .filter(Boolean)
@@ -720,32 +706,22 @@ export function useAdminApplicationsPage() {
     const candidates = [
       getApplicationEmployeeDisplayName(application),
       application?.employee_control_no,
-      application?.employeeControlNo,
       application?.leaveType,
-      application?.leave_type,
-      application?.leaveTypeName,
+      application?.leave_type_name,
       application?.dateFiled,
-      application?.date_filed,
+      application?.filed_at,
+      application?.created_at,
       application?.status,
-      application?.rawStatus,
+      application?.raw_status,
       application?.remarks,
-      application?.updated_at,
-      application?.updatedAt,
       application?.selected_dates,
-      application?.selectedDates,
+      application?.pending_update,
+      application?.latest_update_request_status,
+      application?.status_history,
       application?.startDate,
       application?.start_date,
       application?.endDate,
       application?.end_date,
-      application?.details,
-      application?.application_details,
-      application?.vacation_detail,
-      application?.vacation_specify,
-      application?.sick_detail,
-      application?.sick_specify,
-      application?.women_specify,
-      application?.study_detail,
-      application?.other_purpose,
     ]
 
     return candidates.filter((value) => {
@@ -757,16 +733,11 @@ export function useAdminApplicationsPage() {
   function getApplicationTimestampValue(application) {
     const candidates = [
       application?.updated_at,
-      application?.updatedAt,
-      application?.disapprovedAt,
-      application?.hrActionAt,
-      application?.adminActionAt,
-      application?.dateFiled,
-      application?.date_filed,
+      application?.disapproved_at,
+      application?.hr_action_at,
+      application?.admin_action_at,
       application?.filed_at,
-      application?.filedAt,
       application?.created_at,
-      application?.createdAt,
     ]
 
     for (const candidate of candidates) {
@@ -860,12 +831,7 @@ export function useAdminApplicationsPage() {
   function isAdminEditUpdateRequest(app) {
     if (!app || typeof app !== 'object') return false
 
-    const candidates = [
-      app?.has_pending_update_request,
-      app?.hasPendingUpdateRequest,
-      app?.raw?.has_pending_update_request,
-      app?.raw?.hasPendingUpdateRequest,
-    ]
+    const candidates = [app?.has_pending_update_request]
 
     if (
       candidates.some((value) => value === true || value === 'true' || value === 1 || value === '1')
@@ -875,12 +841,7 @@ export function useAdminApplicationsPage() {
 
     if (getAdminUpdateRequestActionType(app)) return true
 
-    return Boolean(
-      app?.pending_update ||
-        app?.pendingUpdate ||
-        app?.raw?.pending_update ||
-        app?.raw?.pendingUpdate,
-    )
+    return Boolean(app?.pending_update)
   }
 
   function normalizeAdminUpdateRequestStatus(value) {
@@ -930,10 +891,7 @@ export function useAdminApplicationsPage() {
 
     const candidates = [
       payload?.action_type,
-      payload?.actionType,
-      payload?.request_action_type,
-      payload?.requestActionType,
-      payload?.type,
+      payload?.request_kind,
     ]
 
     for (const candidate of candidates) {
@@ -949,13 +907,7 @@ export function useAdminApplicationsPage() {
 
     const explicitCandidates = [
       app?.pending_update_action_type,
-      app?.pendingUpdateActionType,
       app?.latest_update_request_action_type,
-      app?.latestUpdateRequestActionType,
-      app?.raw?.pending_update_action_type,
-      app?.raw?.pendingUpdateActionType,
-      app?.raw?.latest_update_request_action_type,
-      app?.raw?.latestUpdateRequestActionType,
     ]
 
     for (const candidate of explicitCandidates) {
@@ -991,50 +943,208 @@ export function useAdminApplicationsPage() {
   }
 
   function getAdminLatestUpdateRequestStatus(app) {
-
     const explicitStatus = normalizeAdminUpdateRequestStatus(
       app?.latest_update_request_status ??
-        app?.latestUpdateRequestStatus ??
-        app?.latest_update_status ??
-        app?.latestUpdateStatus ??
-        app?.raw?.latest_update_request_status ??
-        app?.raw?.latestUpdateRequestStatus ??
-        app?.raw?.latest_update_status ??
-        app?.raw?.latestUpdateStatus ??
         '',
     )
 
     if (explicitStatus) return explicitStatus
+
+    const historyDecisionStatus = resolveAdminUpdateRequestStatusFromHistory(app)
+    if (historyDecisionStatus) return historyDecisionStatus
+
     return isAdminEditUpdateRequest(app) ? 'PENDING' : ''
+  }
+
+  function normalizeAdminStatusHistoryToken(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+  }
+
+  function normalizeAdminStatusHistoryActionToken(value) {
+    return String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
+  }
+
+  function resolveAdminUpdateRequestStatusFromHistory(app) {
+    const entries = getStatusHistoryEntries(app)
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index] || {}
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+
+      if (
+        [
+          'EDIT_REQUEST_APPROVED',
+          'UPDATE_REQUEST_APPROVED',
+          'CANCELLATION_REQUEST_APPROVED',
+          'CANCEL_REQUEST_APPROVED',
+          'REQUEST_UPDATE_APPROVED',
+          'REQUEST_CANCEL_APPROVED',
+        ].includes(actionToken)
+      ) {
+        return 'APPROVED'
+      }
+
+      if (
+        [
+          'EDIT_REQUEST_REJECTED',
+          'UPDATE_REQUEST_REJECTED',
+          'CANCELLATION_REQUEST_REJECTED',
+          'CANCEL_REQUEST_REJECTED',
+          'REQUEST_UPDATE_REJECTED',
+          'REQUEST_CANCEL_REJECTED',
+        ].includes(actionToken)
+      ) {
+        return 'REJECTED'
+      }
+
+      if (
+        [
+          'REQUEST_UPDATE',
+          'UPDATE_REQUESTED',
+          'EDIT_REQUEST_SUBMITTED',
+          'REQUESTED_UPDATE',
+          'EDIT_REQUESTED',
+          'REQUEST_CANCEL',
+          'CANCEL_REQUESTED',
+          'CANCELLATION_REQUEST_SUBMITTED',
+          'REQUESTED_CANCELLATION',
+          'REQUEST_CANCELLATION',
+        ].includes(actionToken)
+      ) {
+        return 'PENDING'
+      }
+
+      if (
+        stageToken.includes('edit request approved') ||
+        stageToken.includes('cancellation request approved') ||
+        stageToken.includes('cancel request approved') ||
+        remarksToken.includes('edit request approved') ||
+        remarksToken.includes('cancellation request approved') ||
+        remarksToken.includes('cancel request approved')
+      ) {
+        return 'APPROVED'
+      }
+
+      if (
+        stageToken.includes('edit request rejected') ||
+        stageToken.includes('cancellation request rejected') ||
+        stageToken.includes('cancel request rejected') ||
+        remarksToken.includes('edit request rejected') ||
+        remarksToken.includes('cancellation request rejected') ||
+        remarksToken.includes('cancel request rejected')
+      ) {
+        return 'REJECTED'
+      }
+
+      if (
+        stageToken.includes('edit request submitted') ||
+        stageToken.includes('edit requested') ||
+        stageToken.includes('pending edit review') ||
+        stageToken.includes('cancellation request submitted') ||
+        stageToken.includes('cancel request submitted') ||
+        stageToken.includes('pending cancellation review') ||
+        remarksToken.includes('edit request') ||
+        remarksToken.includes('request update') ||
+        remarksToken.includes('cancellation request') ||
+        remarksToken.includes('cancel request')
+      ) {
+        return 'PENDING'
+      }
+    }
+
+    return ''
+  }
+
+  function assignBackendAliasIfMissing(target, canonicalKey, aliasKey) {
+    const canonicalValue = target?.[canonicalKey]
+    const hasCanonicalValue =
+      canonicalValue !== undefined &&
+      canonicalValue !== null &&
+      (!(typeof canonicalValue === 'string') || canonicalValue.trim() !== '')
+    if (hasCanonicalValue) return
+
+    const aliasValue = target?.[aliasKey]
+    const hasAliasValue =
+      aliasValue !== undefined &&
+      aliasValue !== null &&
+      (!(typeof aliasValue === 'string') || aliasValue.trim() !== '')
+    if (!hasAliasValue) return
+
+    target[canonicalKey] = aliasValue
+  }
+
+  function normalizeAdminWorkflowAliases(app) {
+    if (!app || typeof app !== 'object') return app
+
+    const normalized = { ...app }
+
+    assignBackendAliasIfMissing(normalized, 'raw_status', 'rawStatus')
+    assignBackendAliasIfMissing(normalized, 'employee_name', 'employeeName')
+    assignBackendAliasIfMissing(normalized, 'filed_at', 'filedAt')
+    assignBackendAliasIfMissing(normalized, 'filed_at', 'dateFiled')
+    assignBackendAliasIfMissing(normalized, 'created_at', 'createdAt')
+    assignBackendAliasIfMissing(normalized, 'filed_by', 'filedBy')
+    assignBackendAliasIfMissing(normalized, 'admin_action_by', 'adminActionBy')
+    assignBackendAliasIfMissing(normalized, 'hr_action_by', 'hrActionBy')
+    assignBackendAliasIfMissing(normalized, 'recall_action_by', 'recallActionBy')
+    assignBackendAliasIfMissing(normalized, 'disapproved_by', 'disapprovedBy')
+    assignBackendAliasIfMissing(normalized, 'cancelled_by', 'cancelledBy')
+    assignBackendAliasIfMissing(normalized, 'processed_by', 'processedBy')
+    assignBackendAliasIfMissing(normalized, 'reviewed_at', 'reviewedAt')
+    assignBackendAliasIfMissing(normalized, 'admin_action_at', 'adminActionAt')
+    assignBackendAliasIfMissing(normalized, 'hr_action_at', 'hrActionAt')
+    assignBackendAliasIfMissing(normalized, 'recall_action_at', 'recallActionAt')
+    assignBackendAliasIfMissing(normalized, 'disapproved_at', 'disapprovedAt')
+    assignBackendAliasIfMissing(normalized, 'cancelled_at', 'cancelledAt')
+    assignBackendAliasIfMissing(normalized, 'received_by', 'receivedBy')
+    assignBackendAliasIfMissing(normalized, 'released_by', 'releasedBy')
+    assignBackendAliasIfMissing(normalized, 'received_at', 'receivedAt')
+    assignBackendAliasIfMissing(normalized, 'released_at', 'releasedAt')
+    assignBackendAliasIfMissing(normalized, 'has_hr_received', 'hasHrReceived')
+    assignBackendAliasIfMissing(normalized, 'has_hr_released', 'hasHrReleased')
+
+    return normalized
+  }
+
+  function getApplicationRawStatus(app) {
+    return String(app?.raw_status || '').trim().toUpperCase()
+  }
+
+  function getApplicationGroupedRawStatus(app) {
+    const grouped = String(app?.group_raw_status || '').trim().toUpperCase()
+    if (grouped) return grouped
+    return getApplicationRawStatus(app)
   }
 
   function normalizeAdminApplicationForDisplay(app) {
     if (!app || typeof app !== 'object') return app
 
-    if (isCancelledByUser(app)) return app
+    const normalizedApp = normalizeAdminWorkflowAliases(app)
 
-    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
-    const rawStatus = String(
-      app?.rawStatus ??
-        app?.raw_status ??
-        app?.group_raw_status ??
-        app?.groupRawStatus ??
-        '',
-    ).toUpperCase()
+    if (isCancelledByUser(normalizedApp)) return normalizedApp
+
+    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(normalizedApp)
+    const rawStatus = getApplicationRawStatus(normalizedApp) || getApplicationGroupedRawStatus(normalizedApp)
 
     if (
       latestUpdateStatus === 'PENDING' &&
       (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
     ) {
       return {
-        ...app,
-        rawStatus: app?.rawStatus ?? app?.raw_status ?? rawStatus,
-        group_raw_status: app?.group_raw_status ?? app?.groupRawStatus ?? rawStatus,
+        ...normalizedApp,
+        raw_status: normalizedApp?.raw_status ?? rawStatus,
+        group_raw_status: normalizedApp?.group_raw_status ?? rawStatus,
         status: 'Approved',
       }
     }
 
-    return app
+    return normalizedApp
   }
 
   function prettifyLeaveBalanceLabel(value) {
@@ -1105,12 +1215,12 @@ export function useAdminApplicationsPage() {
   }
 
   function getEmployeeBalanceLookupKey(app) {
-    const explicitKey = app?.employee_control_no ?? app?.employeeControlNo ?? app?.control_no ?? app?.controlNo
+    const explicitKey = app?.employee_control_no ?? app?.employee?.control_no
     if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
       return String(explicitKey).trim().toLowerCase()
     }
 
-    const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employeeName]
+    const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employee_name]
       .map((value) =>
         String(value || '')
           .trim()
@@ -1424,7 +1534,7 @@ export function useAdminApplicationsPage() {
   function getCtoDeductedHoursDisplay(app) {
     if (!isCtoLeaveApplication(app)) return 'N/A'
 
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     if (rawStatus !== 'APPROVED' && rawStatus !== 'RECALLED') {
       return 'Pending approval'
     }
@@ -1554,10 +1664,7 @@ export function useAdminApplicationsPage() {
 
     const recalledDates = normalizeIsoDateList(
       parseSelectedDatesValue(
-        source?.recall_selected_dates ??
-          source?.recallSelectedDates ??
-          source?.raw?.recall_selected_dates ??
-          source?.raw?.recallSelectedDates,
+        source?.recall_selected_dates,
       ),
     )
 
@@ -1577,7 +1684,7 @@ export function useAdminApplicationsPage() {
     const recalledDateSet = new Set(getStoredRecallDateKeys(app))
     if (!recalledDateSet.size) return dateSet
 
-    const rawStatus = String(app?.rawStatus || '').toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     const isRecalledRow = app?.application_row_variant === 'recalled' || rawStatus === 'RECALLED'
 
     return isRecalledRow
@@ -1588,13 +1695,7 @@ export function useAdminApplicationsPage() {
   function getPendingUpdatePayload(app) {
     const candidates = [
       app?.pending_update,
-      app?.pendingUpdate,
-      app?.raw?.pending_update,
-      app?.raw?.pendingUpdate,
       app?.latest_update_request_payload,
-      app?.latestUpdateRequestPayload,
-      app?.raw?.latest_update_request_payload,
-      app?.raw?.latestUpdateRequestPayload,
     ]
 
     for (const candidate of candidates) {
@@ -1744,13 +1845,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveApplicationPayModeCode(app) {
-    const rawPayMode = String(
-      app?.pay_mode ??
-        app?.payMode ??
-        app?.raw?.pay_mode ??
-        app?.raw?.payMode ??
-        '',
-    ).trim()
+    const rawPayMode = String(app?.pay_mode ?? '').trim()
 
     return normalizePayStatusCode(rawPayMode) === 'WOP' ? 'WOP' : 'WP'
   }
@@ -1758,11 +1853,8 @@ export function useAdminApplicationsPage() {
   function resolveApplicationTotalDays(app) {
     const candidates = [
       app?.total_days,
-      app?.totalDays,
       app?.duration_value,
       app?.days,
-      app?.raw?.total_days,
-      app?.raw?.totalDays,
     ]
 
     for (const candidate of candidates) {
@@ -1782,10 +1874,7 @@ export function useAdminApplicationsPage() {
     if (!dateSet.length) return {}
 
     const rawCoverageMap = toSelectedDateCoverageMap(
-      app?.selected_date_coverage ??
-        app?.selectedDateCoverage ??
-        app?.raw?.selected_date_coverage ??
-        app?.raw?.selectedDateCoverage,
+      app?.selected_date_coverage,
     )
 
     const normalizedCoverageMap = {}
@@ -1849,10 +1938,7 @@ export function useAdminApplicationsPage() {
     if (!dateSet.length) return []
 
     const rawStatusMap = toSelectedDatePayStatusMap(
-      app?.selected_date_pay_status ??
-        app?.selectedDatePayStatus ??
-        app?.raw?.selected_date_pay_status ??
-        app?.raw?.selectedDatePayStatus,
+      app?.selected_date_pay_status,
     )
 
     const normalizedStatusMap = {}
@@ -1871,7 +1957,8 @@ export function useAdminApplicationsPage() {
     const fallbackStatus = resolveApplicationPayModeCode(app)
     const coverageWeights = getSelectedDateCoverageWeights(app)
     const recalledDateSet = new Set(getStoredRecallDateKeys(app))
-    const shouldMarkRecalledDates = app?.application_row_variant === 'recalled' || String(app?.rawStatus || '').toUpperCase() === 'RECALLED'
+    const shouldMarkRecalledDates =
+      app?.application_row_variant === 'recalled' || getApplicationRawStatus(app) === 'RECALLED'
 
     return dateSet.map((dateValue, index) => {
       const isoDate = toIsoDateString(dateValue)
@@ -1901,10 +1988,7 @@ export function useAdminApplicationsPage() {
     const dateSet = resolveDateSetFromSource(payload)
     if (!dateSet.length) return {}
 
-    const rawCoverageMap = toSelectedDateCoverageMap(
-      payload?.selected_date_coverage ??
-        payload?.selectedDateCoverage,
-    )
+    const rawCoverageMap = toSelectedDateCoverageMap(payload?.selected_date_coverage)
 
     const normalizedCoverageMap = {}
     Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
@@ -1922,7 +2006,6 @@ export function useAdminApplicationsPage() {
     const totalDays = (() => {
       const candidates = [
         payload?.total_days,
-        payload?.totalDays,
         payload?.duration_value,
         payload?.days,
       ]
@@ -1983,9 +2066,7 @@ export function useAdminApplicationsPage() {
     const dateSet = resolveDateSetFromSource(payload)
     if (!dateSet.length) return []
 
-    const rawStatusMap = toSelectedDatePayStatusMap(
-      payload?.selected_date_pay_status ?? payload?.selectedDatePayStatus,
-    )
+    const rawStatusMap = toSelectedDatePayStatusMap(payload?.selected_date_pay_status)
 
     const normalizedStatusMap = {}
     Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
@@ -2000,8 +2081,7 @@ export function useAdminApplicationsPage() {
       }
     })
 
-    const fallbackStatus =
-      normalizePayStatusCode(payload?.pay_mode ?? payload?.payMode) === 'WOP' ? 'WOP' : 'WP'
+    const fallbackStatus = normalizePayStatusCode(payload?.pay_mode) === 'WOP' ? 'WOP' : 'WP'
     const coverageWeights = getPendingUpdateDateCoverageWeights(app)
 
     return dateSet.map((dateValue, index) => {
@@ -2120,8 +2200,9 @@ export function useAdminApplicationsPage() {
   function getApplicationCalendarState(application) {
     if (!application) return ''
     if (isCancelledByUser(application)) return ''
-    if (application?.rawStatus === 'APPROVED') return 'approved'
-    if (application?.rawStatus === 'PENDING_ADMIN' || application?.rawStatus === 'PENDING_HR') {
+    const rawStatus = getApplicationRawStatus(application)
+    if (rawStatus === 'APPROVED') return 'approved'
+    if (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR') {
       return 'pending'
     }
     return ''
@@ -2392,7 +2473,7 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusLabel(app) {
     if (isCancelledByUser(app)) return 'Cancelled'
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
     if (
       latestUpdateStatus === 'PENDING' &&
@@ -2412,7 +2493,7 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusColor(app) {
     if (isCancelledByUser(app)) return 'grey-7'
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
     if (
       latestUpdateStatus === 'PENDING' &&
@@ -2431,6 +2512,8 @@ export function useAdminApplicationsPage() {
   function getEditRequestBadgeLabel(app) {
     const status = getAdminEditRequestBadgeStatus(app)
     const labelPrefix = getAdminEditRequestLabelPrefix(app)
+    if (status === 'PENDING_ADMIN') return labelPrefix + ' Pending Admin'
+    if (status === 'PENDING_HR') return labelPrefix + ' Pending HR'
     if (status === 'PENDING') return labelPrefix + ' Pending'
     if (status === 'APPROVED') return labelPrefix + ' Approved'
     if (status === 'REJECTED') return labelPrefix + ' Rejected'
@@ -2439,6 +2522,8 @@ export function useAdminApplicationsPage() {
 
   function getEditRequestBadgeColor(app) {
     const status = getAdminEditRequestBadgeStatus(app)
+    if (status === 'PENDING_ADMIN') return 'warning'
+    if (status === 'PENDING_HR') return 'blue-6'
     if (status === 'PENDING') return 'deep-purple-7'
     if (status === 'APPROVED') return 'positive'
     if (status === 'REJECTED') return 'negative'
@@ -2446,17 +2531,25 @@ export function useAdminApplicationsPage() {
   }
 
   function getAdminEditRequestBadgeStatus(app) {
+    if (!hasAdminEditRequestSignal(app)) {
+      return getAdminLatestUpdateRequestStatus(app)
+    }
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_ADMIN') return 'PENDING_ADMIN'
+    if (rawStatus === 'PENDING_HR') return 'PENDING_HR'
+
     const explicitStatus = getAdminLatestUpdateRequestStatus(app)
+
     if (explicitStatus === 'APPROVED' || explicitStatus === 'REJECTED') {
       return explicitStatus
     }
 
-    if (!hasAdminEditRequestSignal(app)) {
-      return explicitStatus
+    if (explicitStatus === 'PENDING') {
+      return 'PENDING'
     }
 
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
-    if (rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED') {
+    if (rawStatus === 'APPROVED') {
       return 'APPROVED'
     }
 
@@ -2495,18 +2588,18 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationSearchText(app) {
-    const dateTerms = getDateSearchValues(app?.dateFiled)
+    const dateTerms = getDateSearchValues(app?.filed_at || app?.created_at)
     const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
 
     const searchValues = [
       'application',
       app?.id,
-      app?.rawStatus,
+      getApplicationRawStatus(app),
       app?.status,
       getApplicationStatusLabel(app),
       isCancelledByUser(app) ? 'cancelled' : '',
       app?.leaveType,
-      app?.employeeName,
+      app?.employee_name,
       app?.firstname,
       app?.middlename,
       app?.surname,
@@ -2534,25 +2627,11 @@ export function useAdminApplicationsPage() {
 
     const explicitSignals = [
       app?.latest_update_requested_at,
-      app?.latestUpdateRequestedAt,
-      app?.raw?.latest_update_requested_at,
-      app?.raw?.latestUpdateRequestedAt,
       app?.latest_update_request_reason,
-      app?.latestUpdateRequestReason,
-      app?.raw?.latest_update_request_reason,
-      app?.raw?.latestUpdateRequestReason,
+      app?.pending_update_reason,
       app?.latest_update_reviewed_at,
-      app?.latestUpdateReviewedAt,
-      app?.raw?.latest_update_reviewed_at,
-      app?.raw?.latestUpdateReviewedAt,
-      app?.latest_update_reviewed_by,
-      app?.latestUpdateReviewedBy,
-      app?.raw?.latest_update_reviewed_by,
-      app?.raw?.latestUpdateReviewedBy,
       app?.latest_update_request_payload,
-      app?.latestUpdateRequestPayload,
-      app?.raw?.latest_update_request_payload,
-      app?.raw?.latestUpdateRequestPayload,
+      app?.pending_update_action_type,
     ]
 
     const hasExplicitSignal = explicitSignals.some((value) => {
@@ -2563,12 +2642,36 @@ export function useAdminApplicationsPage() {
     if (hasExplicitSignal) return true
 
     const remarksSignal = normalizeSearchText(app?.remarks || '')
-    return (
+    if (
       remarksSignal.includes('edit request') ||
       remarksSignal.includes('request update') ||
       remarksSignal.includes('cancel request') ||
       remarksSignal.includes('cancellation request')
-    )
+    ) {
+      return true
+    }
+
+    return getStatusHistoryEntries(app).some((entry) => {
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const historyRemarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+
+      return (
+        actionToken.includes('EDIT') ||
+        actionToken.includes('UPDATE_REQUEST') ||
+        actionToken.includes('REQUEST_UPDATE') ||
+        actionToken.includes('REQUEST_CANCEL') ||
+        actionToken.includes('CANCELLATION_REQUEST') ||
+        stageToken.includes('edit request') ||
+        stageToken.includes('request update') ||
+        stageToken.includes('cancel request') ||
+        stageToken.includes('cancellation request') ||
+        historyRemarksToken.includes('edit request') ||
+        historyRemarksToken.includes('request update') ||
+        historyRemarksToken.includes('cancel request') ||
+        historyRemarksToken.includes('cancellation request')
+      )
+    })
   }
 
   function hasApplicationEditRequest(app) {
@@ -2580,9 +2683,11 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestStatusLabel(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
-    const status = getAdminLatestUpdateRequestStatus(app)
+    const status = getAdminEditRequestBadgeStatus(app)
     if (status === 'APPROVED') return 'Approved'
     if (status === 'REJECTED') return 'Rejected'
+    if (status === 'PENDING_HR') return 'Pending HR Review'
+    if (status === 'PENDING_ADMIN') return 'Pending Admin Review'
     return 'Pending'
   }
 
@@ -2618,11 +2723,7 @@ export function useAdminApplicationsPage() {
 
     const requestedAt =
       app?.latest_update_requested_at ||
-      app?.latestUpdateRequestedAt ||
-      app?.raw?.latest_update_requested_at ||
-      app?.raw?.latestUpdateRequestedAt ||
       app?.updated_at ||
-      app?.updatedAt ||
       null
 
     return formatDateTime(requestedAt) || 'N/A'
@@ -2630,7 +2731,7 @@ export function useAdminApplicationsPage() {
 
   function getApplicationEditRequestRequestedBy(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
-    return String(app?.employeeName || resolveFiledByActor(app) || 'N/A').trim() || 'N/A'
+    return String(app?.employee_name || resolveFiledByActor(app) || 'N/A').trim() || 'N/A'
   }
 
   function getApplicationEditRequestReason(app) {
@@ -2639,18 +2740,9 @@ export function useAdminApplicationsPage() {
     const pendingPayload = getPendingUpdatePayload(app)
     const reason = String(
       app?.latest_update_request_reason ??
-        app?.latestUpdateRequestReason ??
         app?.pending_update_reason ??
-        app?.pendingUpdateReason ??
-        app?.raw?.latest_update_request_reason ??
-        app?.raw?.latestUpdateRequestReason ??
-        pendingPayload?.edit_reason ??
-        pendingPayload?.update_reason ??
         pendingPayload?.cancel_reason ??
-        pendingPayload?.cancelReason ??
-        pendingPayload?.reason_purpose ??
         pendingPayload?.reason ??
-        pendingPayload?.remarks ??
         '',
     ).trim()
 
@@ -2682,49 +2774,8 @@ export function useAdminApplicationsPage() {
     return 0
   }
 
-  function resolveDateSummaryFromCandidateValue(candidate) {
-    if (!candidate) return ''
-
-    if (Array.isArray(candidate) || typeof candidate === 'string') {
-      const dateSet = normalizeIsoDateList(parseSelectedDatesValue(candidate))
-      return dateSet.length ? formatDateSetSummary(dateSet) : ''
-    }
-
-    if (candidate && typeof candidate === 'object') {
-      const dateSet = resolveDateSetFromSource(candidate)
-      if (dateSet.length) return formatDateSetSummary(dateSet)
-    }
-
-    return ''
-  }
-
   function getApplicationEditRequestFromDates(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
-
-    const pendingPayload = getPendingUpdatePayload(app)
-    const originalDateCandidates = [
-      pendingPayload?.current_selected_dates,
-      pendingPayload?.currentSelectedDates,
-      pendingPayload?.original_selected_dates,
-      pendingPayload?.originalSelectedDates,
-      pendingPayload?.previous_selected_dates,
-      pendingPayload?.previousSelectedDates,
-      pendingPayload?.before_selected_dates,
-      pendingPayload?.beforeSelectedDates,
-      pendingPayload?.current,
-      pendingPayload?.original,
-      pendingPayload?.previous,
-      pendingPayload?.before,
-      pendingPayload?.current_values,
-      pendingPayload?.original_values,
-      pendingPayload?.previous_values,
-      pendingPayload?.before_values,
-    ]
-
-    for (const candidate of originalDateCandidates) {
-      const summary = resolveDateSummaryFromCandidateValue(candidate)
-      if (summary) return summary
-    }
 
     return formatDateSetSummary(resolveDateSetFromSource(app))
   }
@@ -2738,24 +2789,6 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestCurrentDuration(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
-    const pendingPayload = getPendingUpdatePayload(app)
-    const originalDurationValue = resolveDurationFromCandidates([
-      pendingPayload?.current_total_days,
-      pendingPayload?.currentTotalDays,
-      pendingPayload?.original_total_days,
-      pendingPayload?.originalTotalDays,
-      pendingPayload?.previous_total_days,
-      pendingPayload?.previousTotalDays,
-      pendingPayload?.before_total_days,
-      pendingPayload?.beforeTotalDays,
-      pendingPayload?.current?.total_days,
-      pendingPayload?.original?.total_days,
-      pendingPayload?.previous?.total_days,
-      pendingPayload?.before?.total_days,
-    ])
-
-    if (originalDurationValue > 0) return formatDurationDisplay(originalDurationValue, 'day')
-
     return getApplicationDurationDisplay(app) || 'N/A'
   }
 
@@ -2767,13 +2800,8 @@ export function useAdminApplicationsPage() {
 
     const requestedDurationValue = resolveDurationFromCandidates([
       pendingPayload?.total_days,
-      pendingPayload?.totalDays,
       pendingPayload?.duration_value,
       pendingPayload?.days,
-      pendingPayload?.requested_total_days,
-      pendingPayload?.requestedTotalDays,
-      pendingPayload?.display_total_days,
-      pendingPayload?.displayTotalDays,
     ])
 
     if (requestedDurationValue > 0) return formatDurationDisplay(requestedDurationValue, 'day')
@@ -2807,23 +2835,14 @@ export function useAdminApplicationsPage() {
 
     const submittedAt =
       app?.latest_update_requested_at ||
-      app?.latestUpdateRequestedAt ||
       app?.updated_at ||
-      app?.updatedAt ||
       null
-    const submittedBy = String(app?.employeeName || resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
+    const submittedBy = String(app?.employee_name || resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
     const submittedReason = String(
       app?.latest_update_request_reason ??
-        app?.latestUpdateRequestReason ??
         app?.pending_update_reason ??
-        app?.pendingUpdateReason ??
-        pendingPayload?.edit_reason ??
-        pendingPayload?.update_reason ??
         pendingPayload?.cancel_reason ??
-        pendingPayload?.cancelReason ??
-        pendingPayload?.reason_purpose ??
         pendingPayload?.reason ??
-        pendingPayload?.remarks ??
         '',
     ).trim()
 
@@ -2840,14 +2859,8 @@ export function useAdminApplicationsPage() {
 
     const reviewedAt =
       app?.latest_update_reviewed_at ||
-      app?.latestUpdateReviewedAt ||
       resolveFinalApprovalDateValue(app)
-    const reviewedBy = String(
-      app?.latest_update_reviewed_by ??
-        app?.latestUpdateReviewedBy ??
-        resolveHrActor(app) ??
-        'Unknown',
-    ).trim() || 'Unknown'
+    const reviewedBy = String(resolveHrActor(app) || 'Unknown').trim() || 'Unknown'
 
     return {
       reviewedAt,
@@ -2861,17 +2874,10 @@ export function useAdminApplicationsPage() {
 
     const reviewedAt =
       app?.latest_update_reviewed_at ||
-      app?.latestUpdateReviewedAt ||
       resolveDisapprovedDateValue(app)
-    const reviewedBy = String(
-      app?.latest_update_reviewed_by ??
-        app?.latestUpdateReviewedBy ??
-        resolveDisapprovalActor(app) ??
-        'Unknown',
-    ).trim() || 'Unknown'
+    const reviewedBy = String(resolveDisapprovalActor(app) || 'Unknown').trim() || 'Unknown'
     const reviewRemarks = String(
       app?.latest_update_review_remarks ??
-        app?.latestUpdateReviewRemarks ??
         app?.remarks ??
         '',
     ).trim()
@@ -2952,7 +2958,7 @@ export function useAdminApplicationsPage() {
       : rejectionMeta
         ? 'REJECTED'
         : latestUpdateStatus || 'PENDING'
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
     const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
 
@@ -3028,7 +3034,7 @@ export function useAdminApplicationsPage() {
   function buildApplicationTimeline(app) {
     if (!app) return []
 
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     const hasEditRequest = hasAdminEditRequestSignal(app)
     const preEditHrApprovalEntry = hasEditRequest ? getAdminPreEditHrApprovalTimelineEntry(app) : null
     const editRequestEntries = hasEditRequest ? getAdminEditRequestTimelineEntries(app) : []
@@ -3037,9 +3043,9 @@ export function useAdminApplicationsPage() {
         title: 'Application Filed',
         subtitle:
           formatDateTime(resolveFiledDateValue(app)) ||
-          formatDate(app.dateFiled) ||
+          formatDate(app.filed_at || app.created_at) ||
           'Date unavailable',
-        description: `${app.employeeName || 'Employee'} submitted this leave request.`,
+        description: `${app.employee_name || 'Employee'} submitted this leave request.`,
         icon: 'check_circle',
         color: 'positive',
         actor: resolveFiledByActor(app),
@@ -3495,7 +3501,7 @@ export function useAdminApplicationsPage() {
   function shouldDeferPendingHrReviewUntilReceive(app) {
     if (!app || isCocApplication(app) || isCancelledByUser(app)) return false
 
-    const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+    const rawStatus = getApplicationRawStatus(app)
     if (rawStatus !== 'PENDING_HR') return false
 
     return !isApplicationReceivedByHr(app)
@@ -3690,7 +3696,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveReceivedActor(app) {
-    const directActor = String(app?.received_by || app?.receivedBy || app?.hr_received_by || '').trim()
+    const directActor = String(app?.received_by || '').trim()
     if (directActor) return directActor
 
     const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
@@ -3698,7 +3704,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveReleasedActor(app) {
-    const directActor = String(app?.released_by || app?.releasedBy || app?.hr_released_by || '').trim()
+    const directActor = String(app?.released_by || '').trim()
     if (directActor) return directActor
 
     const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
@@ -3749,9 +3755,6 @@ export function useAdminApplicationsPage() {
     const submittedMeta = resolveAdminEditRequestSubmittedMeta(app)
     return (
       app?.latest_update_requested_at ||
-      app?.latestUpdateRequestedAt ||
-      app?.raw?.latest_update_requested_at ||
-      app?.raw?.latestUpdateRequestedAt ||
       submittedMeta?.submittedAt ||
       null
     )
@@ -3817,7 +3820,6 @@ export function useAdminApplicationsPage() {
     return pickLatestTimestampValue(
       app?.received_at ||
         null,
-      app?.receivedAt || null,
       app?.hr_received_at || null,
       resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
     )
@@ -3827,7 +3829,6 @@ export function useAdminApplicationsPage() {
     return pickLatestTimestampValue(
       app?.released_at ||
         null,
-      app?.releasedAt || null,
       app?.hr_released_at || null,
       resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
     )
@@ -3844,7 +3845,7 @@ export function useAdminApplicationsPage() {
       if (!isTimestampOnOrAfter(receivedAt, cycleStart)) return false
     }
 
-    return Boolean(app?.has_hr_received || app?.hasHrReceived || resolveReceivedHistoryEntry(app) || receivedAt)
+    return Boolean(app?.has_hr_received || resolveReceivedHistoryEntry(app) || receivedAt)
   }
 
   function isApplicationReleased(app) {
@@ -3880,41 +3881,35 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveFiledByActor(app) {
-    return app?.filedBy || app?.filed_by || app?.employeeName || app?.employee_name || 'Unknown'
+    return app?.filed_by || 'Unknown'
   }
 
   function resolveFiledDateValue(app) {
     return (
       app?.filed_at ||
-      app?.filedAt ||
       app?.created_at ||
-      app?.createdAt ||
-      app?.submitted_at ||
-      app?.submittedAt ||
-      app?.dateFiled ||
-      app?.date_filed ||
       null
     )
   }
 
   function resolveDepartmentAdminActor(app) {
-    return app?.adminActionBy || app?.admin_action_by || 'Unknown'
+    return app?.admin_action_by || 'Unknown'
   }
 
   function resolveDepartmentAdminActionDateValue(app) {
-    return app?.adminActionAt || app?.admin_action_at || null
+    return app?.admin_action_at || null
   }
 
   function resolveHrActor(app) {
-    return app?.hrActionBy || app?.hr_action_by || 'Unknown'
+    return app?.hr_action_by || 'Unknown'
   }
 
   function resolveFinalApprovalDateValue(app) {
-    return app?.hrActionAt || app?.hr_action_at || app?.reviewedAt || app?.reviewed_at || null
+    return app?.hr_action_at || app?.reviewed_at || null
   }
 
   function getStatusHistoryEntries(app) {
-    const entries = app?.statusHistory || app?.status_history
+    const entries = app?.status_history
     return Array.isArray(entries) ? entries : []
   }
 
@@ -3939,12 +3934,10 @@ export function useAdminApplicationsPage() {
     })
 
     return (
-      app?.recallActionBy ||
       app?.recall_action_by ||
       historyEntry?.actor_name ||
       historyEntry?.action_by_name ||
       historyEntry?.action_by ||
-      app?.hrActionBy ||
       app?.hr_action_by ||
       'Unknown'
     )
@@ -3958,10 +3951,8 @@ export function useAdminApplicationsPage() {
     })
 
     return (
-      app?.recallActionAt ||
       app?.recall_action_at ||
       historyEntry?.created_at ||
-      app?.reviewedAt ||
       app?.reviewed_at ||
       null
     )
@@ -3975,20 +3966,14 @@ export function useAdminApplicationsPage() {
 
   function resolveCancelledActor(app) {
     return (
-      app?.cancelledBy ||
       app?.cancelled_by ||
-      app?.employeeName ||
-      app?.employee_name ||
       'Unknown'
     )
   }
 
   function resolveCancelledDateValue(app) {
     return (
-      app?.cancelledAt ||
       app?.cancelled_at ||
-      app?.disapprovedAt ||
-      app?.disapproved_at ||
       null
     )
   }
@@ -3996,48 +3981,42 @@ export function useAdminApplicationsPage() {
   function resolveDisapprovalActor(app) {
     if (isCancelledByUser(app)) return resolveCancelledActor(app)
     return (
-      app?.disapprovedBy ||
       app?.disapproved_by ||
-      app?.hrActionBy ||
-      app?.hr_action_by ||
-      app?.adminActionBy ||
-      app?.admin_action_by ||
       'Unknown'
     )
   }
 
   function resolveDisapprovedDateValue(app) {
     return (
-      app?.disapprovedAt ||
       app?.disapproved_at ||
-      app?.hrActionAt ||
-      app?.hr_action_at ||
-      app?.adminActionAt ||
-      app?.admin_action_at ||
       null
     )
   }
 
   function resolveProcessedBy(app) {
-    if (app?.processedBy) return app.processedBy
+    if (app?.processed_by) return app.processed_by
     if (isCancelledByUser(app)) return resolveCancelledActor(app)
-    if (app?.rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
-    if (app?.rawStatus === 'APPROVED') return resolveHrActor(app)
-    if (app?.rawStatus === 'RECALLED') return resolveRecallActor(app)
-    if (app?.rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
+    if (rawStatus === 'APPROVED') return resolveHrActor(app)
+    if (rawStatus === 'RECALLED') return resolveRecallActor(app)
+    if (rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
     return 'N/A'
   }
 
   function resolveReviewedDateValue(app) {
-    if (app?.reviewedAt) return app.reviewedAt
-    if (isCancelledByUser(app)) return app?.cancelledAt || app?.disapprovedAt || null
-    if (app?.rawStatus === 'PENDING_HR') return app?.adminActionAt || null
-    if (app?.rawStatus === 'APPROVED') return app?.hrActionAt || app?.adminActionAt || null
-    if (app?.rawStatus === 'RECALLED') {
-      return resolveRecallDateValue(app) || app?.hrActionAt || app?.adminActionAt || null
+    const reviewedAt = app?.reviewed_at
+    if (reviewedAt) return reviewedAt
+    if (isCancelledByUser(app)) return app?.cancelled_at || app?.disapproved_at || null
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_HR') return app?.admin_action_at || null
+    if (rawStatus === 'APPROVED') return app?.hr_action_at || app?.admin_action_at || null
+    if (rawStatus === 'RECALLED') {
+      return resolveRecallDateValue(app) || app?.hr_action_at || app?.admin_action_at || null
     }
-    if (app?.rawStatus === 'REJECTED') {
-      return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
+    if (rawStatus === 'REJECTED') {
+      return app?.disapproved_at || app?.hr_action_at || app?.admin_action_at || null
     }
     return null
   }
@@ -4048,7 +4027,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationStatusPriority(app) {
-    const groupedRawStatus = String(app?.group_raw_status || app?.groupRawStatus || app?.rawStatus || '').toUpperCase()
+    const groupedRawStatus = getApplicationGroupedRawStatus(app)
     if (groupedRawStatus === 'PENDING_ADMIN') return 0
     if (groupedRawStatus === 'PENDING_HR') return 1
     if (groupedRawStatus === 'APPROVED') return 2
@@ -4079,12 +4058,7 @@ export function useAdminApplicationsPage() {
   function getApplicationRecencyTimestamp(app) {
     const candidateDates = [
       app?.created_at,
-      app?.createdAt,
-      app?.submitted_at,
-      app?.submittedAt,
       app?.filed_at,
-      app?.filedAt,
-      app?.dateFiled,
     ]
 
     for (const candidate of candidateDates) {
@@ -4241,12 +4215,16 @@ export function useAdminApplicationsPage() {
   }
 
   function openCalendarPreview(application) {
-    if (!application) return
+    const baseApplication = resolveApp(application) || application
+    if (!baseApplication) return
 
-    calendarPreviewApp.value = application
+    calendarPreviewApp.value = baseApplication
+    showTimelineDialog.value = false
+    showDetailsDialog.value = false
 
-    const previewDates = getApplicationCalendarPreviewDates(application)
-    const anchorDate = previewDates[0] || normalizeIsoDate(application?.dateFiled) || normalizeIsoDate(new Date())
+    const previewDates = getApplicationCalendarPreviewDates(baseApplication)
+    const anchorDate =
+      previewDates[0] || normalizeIsoDate(baseApplication?.filed_at || baseApplication?.created_at) || normalizeIsoDate(new Date())
 
     calendarPreviewModel.value = []
     clearCalendarPreviewWarning()
@@ -4287,7 +4265,7 @@ export function useAdminApplicationsPage() {
       ).trim()
       if (selectedId !== String(id).trim()) return
 
-      selectedApp.value = mergedApplication
+      selectedApp.value = normalizeAdminApplicationForDisplay(mergedApplication)
     } catch {
       // Keep existing row payload when detail endpoint fails.
     }
@@ -4295,7 +4273,9 @@ export function useAdminApplicationsPage() {
 
   function openDetails(app) {
     const baseApplication = resolveApp(app) || app
+    if (!baseApplication) return
     selectedApp.value = baseApplication
+    showCalendarPreviewDialog.value = false
     showTimelineDialog.value = false
     showDetailsDialog.value = true
 
@@ -4304,7 +4284,9 @@ export function useAdminApplicationsPage() {
 
   async function openTimeline(app) {
     const baseApplication = resolveApp(app) || app
+    if (!baseApplication) return
     selectedApp.value = baseApplication
+    showCalendarPreviewDialog.value = false
     showDetailsDialog.value = false
     showTimelineDialog.value = true
 
@@ -4312,34 +4294,19 @@ export function useAdminApplicationsPage() {
   }
 
   function hasMobileApplicationActions(app) {
-    return app?.rawStatus === 'PENDING_ADMIN' || app?.rawStatus === 'PENDING_HR'
+    const rawStatus = getApplicationRawStatus(app)
+    return rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR'
   }
 
   function resolveApplicationAttachmentReference(app) {
-    const directReference = String(
-      app?.attachment_reference ??
-      app?.attachmentReference ??
-      '',
-    ).trim()
-
-    if (directReference) return directReference
-
-    const rawReference = String(
-      app?.raw?.attachment_reference ??
-      app?.raw?.attachmentReference ??
-      '',
-    ).trim()
-
-    return rawReference || ''
+    return String(app?.attachment_reference ?? '').trim()
   }
 
   function hasApplicationAttachment(app) {
     if (!app || typeof app !== 'object') return false
     if (resolveApplicationAttachmentReference(app)) return true
 
-    const submittedFlag =
-      app?.attachment_submitted ??
-      app?.attachmentSubmitted
+    const submittedFlag = app?.attachment_submitted
     return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
   }
 
@@ -4401,12 +4368,28 @@ export function useAdminApplicationsPage() {
 
   function handleApplicationRowClick(_event, row) {
     if (!row) return
+    const eventTarget = _event?.target
+    if (
+      eventTarget &&
+      typeof eventTarget.closest === 'function' &&
+      eventTarget.closest(
+        'button, [role="button"], a, .q-btn, .q-field, .q-checkbox, .q-toggle, .q-radio, .q-date',
+      )
+    ) {
+      return
+    }
     openTimeline(row)
   }
 
   function openActionConfirm(type, target) {
+    const app = resolveApp(target) || target || null
+    if (!app) return
+
     confirmActionType.value = type
-    confirmActionTarget.value = target
+    confirmActionTarget.value = app
+    showCalendarPreviewDialog.value = false
+    showTimelineDialog.value = false
+    showDetailsDialog.value = false
     showConfirmActionDialog.value = true
   }
 
@@ -4414,6 +4397,15 @@ export function useAdminApplicationsPage() {
     const target = confirmActionTarget.value
     const type = confirmActionType.value
     showConfirmActionDialog.value = false
+
+    if (!target) {
+      $q.notify({
+        type: 'warning',
+        message: 'Please select an application before continuing.',
+        position: 'top',
+      })
+      return
+    }
 
     if (type === 'approve') {
       handleApprove(target)
@@ -4558,21 +4550,21 @@ export function useAdminApplicationsPage() {
     if (type === 'approved') {
       return {
         ...app,
-        rawStatus: 'PENDING_HR',
+        raw_status: 'PENDING_HR',
         status: 'Pending HR',
       }
     }
     if (type === 'cancelled') {
       return {
         ...app,
-        rawStatus: 'REJECTED',
+        raw_status: 'REJECTED',
         status: 'Cancelled',
         remarks: app.remarks || remarks.value,
       }
     }
     return {
       ...app,
-      rawStatus: 'REJECTED',
+      raw_status: 'REJECTED',
       status: 'Rejected',
       remarks: app.remarks || remarks.value,
     }
@@ -4852,6 +4844,7 @@ export function useAdminApplicationsPage() {
     hasMobileApplicationActions,
     hasApplicationAttachment,
     viewApplicationAttachment,
+    isCocApplication,
     isCtoLeaveApplication,
     openActionConfirm,
     getTimelineEntryTone,

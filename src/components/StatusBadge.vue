@@ -18,19 +18,18 @@ const props = defineProps({
 })
 
 const color = computed(() => {
-  const map = {
-    'Pending': 'warning',
-    'Pending Admin': 'warning',
-    'Pending HR': 'blue-6',
-    'Approved': 'positive',
-    'Recalled': 'blue-grey-7',
-    'Rejected': 'negative',
-    'Disapproved': 'negative',
-  }
-  return map[props.status] || 'grey'
+  const normalized = String(props.status || '').trim().toUpperCase()
+  if (!normalized) return 'grey'
+
+  if (normalized.includes('PENDING ADMIN')) return 'warning'
+  if (normalized.includes('PENDING HR')) return 'blue-6'
+  if (normalized.includes('PENDING')) return 'warning'
+  if (normalized.includes('APPROVED')) return 'positive'
+  if (normalized.includes('RECALLED')) return 'blue-grey-7'
+  if (normalized.includes('REJECTED') || normalized.includes('DISAPPROVED')) return 'negative'
+
+  return 'grey'
 })
 
-const textColor = computed(() => {
-  return ['Pending', 'Pending Admin'].includes(props.status) ? 'dark' : 'white'
-})
+const textColor = computed(() => 'white')
 </script>

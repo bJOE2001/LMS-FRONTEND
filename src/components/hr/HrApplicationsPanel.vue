@@ -133,15 +133,7 @@
       <template #body-cell-status="props">
         <q-td>
           <div class="status-cell-wrap">
-            <StatusBadge :status="props.row.displayStatus" />
-            <q-badge
-              v-if="getEditRequestBadgeLabel(props.row)"
-              :color="getEditRequestBadgeColor(props.row)"
-              text-color="white"
-              rounded
-              class="text-weight-medium q-pa-xs status-edit-request-badge"
-              :label="getEditRequestBadgeLabel(props.row)"
-            />
+            <StatusBadge :status="getFinalStatusForStatusColumn(props.row)" />
           </div>
         </q-td>
       </template>
@@ -343,7 +335,19 @@ export default defineComponent({
     HrApplicationRecallDialog,
   },
   setup() {
-    return useHrApplicationsPanel()
+    const panel = useHrApplicationsPanel()
+
+    function getFinalStatusForStatusColumn(app) {
+      const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
+      if (updateRequestBadgeLabel) return updateRequestBadgeLabel
+
+      return app?.displayStatus || panel.getApplicationStatusLabel(app)
+    }
+
+    return {
+      ...panel,
+      getFinalStatusForStatusColumn,
+    }
   },
 })
 </script>
@@ -385,10 +389,6 @@ export default defineComponent({
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-
-.status-edit-request-badge {
-  font-size: 11px;
 }
 
 .application-date-change-label {

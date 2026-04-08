@@ -108,15 +108,7 @@
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
             <div class="status-cell-wrap">
-              <StatusBadge :status="tableProps.row.displayStatus || getApplicationStatusLabel(tableProps.row)" />
-              <q-badge
-                v-if="getEditRequestBadgeLabel(tableProps.row)"
-                :color="getEditRequestBadgeColor(tableProps.row)"
-                text-color="white"
-                rounded
-                class="text-weight-medium q-pa-xs status-edit-request-badge"
-                :label="getEditRequestBadgeLabel(tableProps.row)"
-              />
+              <StatusBadge :status="getFinalStatusForStatusColumn(tableProps.row)" />
             </div>
           </q-td>
         </template>
@@ -782,7 +774,6 @@ const {
   getApplicationStatusColor,
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
-  getEditRequestBadgeColor,
   hasApplicationEditRequest,
   getApplicationEditRequestStatusLabel,
   getApplicationEditRequestStatusFieldLabel,
@@ -807,6 +798,7 @@ const {
   syncCalendarPreviewDecorations,
   canPrintApplication,
   printApplication,
+  isCocApplication,
   isCtoLeaveApplication,
   hasApplicationAttachment,
   viewApplicationAttachment,
@@ -825,6 +817,20 @@ const {
   formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
 } = useAdminApplicationsPage()
+
+function getFinalStatusForStatusColumn(app) {
+  const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
+  if (updateRequestBadgeLabel) {
+    return updateRequestBadgeLabel
+  }
+
+  if (hasApplicationEditRequest(app)) {
+    const editRequestStatusLabel = getApplicationEditRequestStatusLabel(app)
+    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') return editRequestStatusLabel
+  }
+
+  return app?.displayStatus || getApplicationStatusLabel(app)
+}
 
 function getApplicationDetailsLeaveTypeLabel(app) {
   if (!app) return 'N/A'
@@ -902,11 +908,6 @@ function setCalendarPreviewRefElement(element) {
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-}
-.status-edit-request-badge {
-  display: inline-flex;
-  white-space: nowrap;
-  font-size: 11px;
 }
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
