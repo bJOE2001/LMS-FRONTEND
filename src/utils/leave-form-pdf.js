@@ -226,6 +226,132 @@ function normalizeVacationDetailValue(value) {
     return ''
 }
 
+function firstNonEmptyDetailValue(app, ...groups) {
+    for (const keys of groups) {
+        const value = String(getApplicationDetailValue(app, ...keys) || '').trim()
+        if (value) return value
+    }
+    return ''
+}
+
+function resolveVacationDetailValue(app, fallbackValue = '') {
+    const normalizedExplicitValue = normalizeVacationDetailValue(fallbackValue)
+    if (normalizedExplicitValue) return normalizedExplicitValue
+
+    const normalizedDerivedValue = normalizeVacationDetailValue(
+        firstNonEmptyDetailValue(
+            app,
+            ['vacation_detail', 'vacationDetail', 'vacation_type', 'vacation_location_type', 'destination_type', 'location_type'],
+            ['abroad', 'abroad_specify', 'abroadspecify'],
+            ['within_the_philippines', 'withinphilippines', 'withinthephilippines', 'local'],
+        ),
+    )
+
+    if (normalizedDerivedValue) return normalizedDerivedValue
+
+    const abroadSpecifyValue = firstNonEmptyDetailValue(
+        app,
+        ['abroad_specify', 'abroadspecify', 'specify_destination', 'specifydestination', 'abroad_destination', 'abroad_location'],
+    )
+    if (abroadSpecifyValue) return 'Abroad'
+
+    const localSpecifyValue = firstNonEmptyDetailValue(
+        app,
+        ['within_the_philippines_specify', 'withinthephilippinesspecify', 'specify_location', 'specifylocation', 'local_destination', 'local_location'],
+    )
+    if (localSpecifyValue) return 'Within the Philippines'
+
+    return ''
+}
+
+function resolveVacationSpecifyValue(app, normalizedVacationDetail, fallbackValue = '') {
+    if (String(fallbackValue || '').trim()) return String(fallbackValue || '').trim()
+
+    if (normalizedVacationDetail === 'Abroad') {
+        return firstNonEmptyDetailValue(
+            app,
+            ['vacation_specify', 'vacationSpecify', 'abroad_specify', 'abroadspecify'],
+            ['specify_destination', 'specifydestination', 'abroad_destination', 'destination'],
+            ['abroad_location', 'location'],
+        )
+    }
+
+    if (normalizedVacationDetail === 'Within the Philippines') {
+        return firstNonEmptyDetailValue(
+            app,
+            ['vacation_specify', 'vacationSpecify', 'within_the_philippines_specify', 'withinthephilippinesspecify'],
+            ['specify_location', 'specifylocation', 'local_location', 'location'],
+            ['local_destination', 'destination'],
+        )
+    }
+
+    return firstNonEmptyDetailValue(
+        app,
+        ['vacation_specify', 'vacationSpecify'],
+        ['specify_destination', 'specifydestination', 'destination'],
+        ['specify_location', 'specifylocation', 'location'],
+    )
+}
+
+function resolveSickDetailValue(app, fallbackValue = '', fallbackSpecify = '') {
+    const normalizedExplicitValue = normalizeSickDetailValue(fallbackValue)
+    if (normalizedExplicitValue) return normalizedExplicitValue
+
+    const normalizedDerivedValue = normalizeSickDetailValue(
+        firstNonEmptyDetailValue(
+            app,
+            ['sick_detail', 'sickDetail', 'sick_leave_detail', 'sick_leave_type', 'illness_type', 'patient_type'],
+            ['in_hospital', 'inhospital', 'inhospitalspecifyillness', 'hospital_illness'],
+            ['out_patient', 'outpatient', 'outpatientspecifyillness', 'outpatient_illness'],
+        ),
+    )
+
+    if (normalizedDerivedValue) return normalizedDerivedValue
+
+    const hospitalSpecifyValue = firstNonEmptyDetailValue(
+        app,
+        ['in_hospital_specify_illness', 'inhospitalspecifyillness', 'hospital_illness', 'hospital_sickness'],
+    )
+    if (hospitalSpecifyValue) return 'In Hospital'
+
+    const outpatientSpecifyValue = firstNonEmptyDetailValue(
+        app,
+        ['out_patient_specify_illness', 'outpatientspecifyillness', 'outpatient_illness', 'outpatient_sickness'],
+    )
+    if (outpatientSpecifyValue || String(fallbackSpecify || '').trim()) return 'Out Patient'
+
+    return ''
+}
+
+function resolveSickSpecifyValue(app, normalizedSickDetail, fallbackValue = '') {
+    if (String(fallbackValue || '').trim()) return String(fallbackValue || '').trim()
+
+    if (normalizedSickDetail === 'In Hospital') {
+        return firstNonEmptyDetailValue(
+            app,
+            ['sick_specify', 'sickSpecify', 'in_hospital_specify_illness', 'inhospitalspecifyillness'],
+            ['hospital_illness', 'hospital_sickness'],
+            ['specified_illness', 'specify_illness', 'illness', 'illness_name', 'sickness', 'other_illness', 'diagnosis'],
+        )
+    }
+
+    if (normalizedSickDetail === 'Out Patient') {
+        return firstNonEmptyDetailValue(
+            app,
+            ['sick_specify', 'sickSpecify', 'out_patient_specify_illness', 'outpatientspecifyillness'],
+            ['outpatient_illness', 'outpatient_sickness'],
+            ['specified_illness', 'specify_illness', 'illness', 'illness_name', 'sickness', 'other_illness', 'diagnosis'],
+        )
+    }
+
+    return firstNonEmptyDetailValue(
+        app,
+        ['sick_specify', 'sickSpecify'],
+        ['specified_illness', 'specify_illness', 'illness', 'illness_name'],
+        ['sickness', 'other_illness', 'diagnosis'],
+    )
+}
+
 function fmtDate(dateStr) {
     if (!dateStr) return ''
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -954,18 +1080,25 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const b = 0.5 // border width
     const name = parseName(app)
     const departmentHeadSignature = getDepartmentHeadSignature(app)
-    const vacationDetail = String(
+    const vacationDetail = resolveVacationDetailValue(
+        app,
         getApplicationDetailValue(app, 'vacation_detail', 'vacationDetail', 'vacation_type'),
-    ).trim()
-    const vacationSpecify = String(
+    )
+    const vacationSpecify = resolveVacationSpecifyValue(
+        app,
+        vacationDetail,
         getApplicationDetailValue(app, 'vacation_specify', 'vacationSpecify', 'destination', 'location'),
-    ).trim()
-    const sickDetail = String(
+    )
+    const sickDetail = resolveSickDetailValue(
+        app,
         getApplicationDetailValue(app, 'sick_detail', 'sickDetail', 'sick_leave_detail', 'sick_leave_type', 'illness_type'),
-    ).trim()
-    const sickSpecify = String(
         getApplicationDetailValue(app, 'sick_specify', 'sickSpecify', 'specified_illness', 'specify_illness', 'illness', 'illness_name'),
-    ).trim()
+    )
+    const sickSpecify = resolveSickSpecifyValue(
+        app,
+        sickDetail,
+        getApplicationDetailValue(app, 'sick_specify', 'sickSpecify', 'specified_illness', 'specify_illness', 'illness', 'illness_name'),
+    )
     const womenSpecify = String(
         getApplicationDetailValue(app, 'women_specify', 'womenSpecify', 'specified_illness', 'specify_illness'),
     ).trim()
