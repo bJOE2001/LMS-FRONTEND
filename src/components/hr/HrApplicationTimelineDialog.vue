@@ -882,6 +882,20 @@ function isUpdateRequestTimelineEntry(entry) {
 }
 
 function getReceivedInsertionIndex(entries) {
+  if (isCocApplicationType.value) {
+    const pendingHrIndex = entries.findIndex((entry) =>
+      isEntryTitle(entry, 'Pending HR Review') ||
+      isEntryTitle(entry, 'Pending Edit Review (HR)') ||
+      isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
+    )
+    if (pendingHrIndex >= 0) return pendingHrIndex + 1
+
+    const approvedByHrIndex = entries.findIndex((entry) =>
+      isEntryTitle(entry, 'Approved by HR'),
+    )
+    if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
+  }
+
   const adminCompletedIndex = entries.findIndex((entry) =>
     isEntryTitle(entry, 'Admin Review Completed'),
   )
@@ -1046,18 +1060,27 @@ function buildReleasedTimelineEntry(existingEntry = null) {
   const isCoc = isCocApplicationType.value
 
   if (!isCompleted) {
+    const isCurrent = canReleaseState.value
     return {
       title: entryTitle,
-      subtitle: 'Upcoming',
-      description: isCoc
-        ? 'COC application release will follow final HR action.'
-        : isUpdateCycle
-          ? isCancellationCycle
-            ? 'The cancellation form will be released before final closure.'
-            : 'The updated physical document will be released before final closure.'
-          : 'The physical document will be released before final closure.',
-      icon: 'radio_button_unchecked',
-      color: 'grey-5',
+      subtitle: isCurrent ? 'Current stage' : 'Upcoming',
+      description: isCurrent
+        ? isCoc
+          ? 'Waiting for HR to release this COC application.'
+          : isUpdateCycle
+            ? isCancellationCycle
+              ? 'Waiting for HR to release the cancellation form.'
+              : 'Waiting for HR to release the updated physical leave document.'
+            : 'Waiting for HR to release the physical leave document.'
+        : isCoc
+          ? 'COC application release will follow final HR action.'
+          : isUpdateCycle
+            ? isCancellationCycle
+              ? 'The cancellation form will be released before final closure.'
+              : 'The updated physical document will be released before final closure.'
+            : 'The physical document will be released before final closure.',
+      icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
+      color: isCurrent ? 'warning' : 'grey-5',
     }
   }
 
