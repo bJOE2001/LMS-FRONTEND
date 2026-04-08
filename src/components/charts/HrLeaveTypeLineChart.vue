@@ -65,7 +65,7 @@ const $q = useQuasar()
 const isDark = computed(() => $q.dark.isActive)
 const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
 const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
-const chartMarkerFillColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
+const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 const leaveTypeFilter = ref('All')
@@ -262,7 +262,9 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
   markers: {
     size: 3,
-    colors: [chartMarkerFillColor.value],
+    strokeWidth: 2,
+    colors: leaveTypeChartPalette,
+    strokeColors: chartMarkerStrokeColor.value,
     hover: { sizeOffset: 2 },
   },
   grid: {

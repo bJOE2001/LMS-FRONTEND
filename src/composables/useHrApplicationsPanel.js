@@ -115,10 +115,10 @@ function getApplicationMergeKey(application, index) {
   if (!rowKey.includes(':index:')) return `id:${rowKey}`
 
   const employeeKey = String(application?.employee_control_no || '').trim()
-  const leaveTypeKey = String(application?.leaveType || '')
+  const leaveTypeKey = String(application?.leave_type_name || application?.leaveType || '')
     .trim()
     .toLowerCase()
-  const dateKey = String(application?.dateFiled || '').trim()
+  const dateKey = String(application?.date_filed || application?.dateFiled || '').trim()
 
   const fallback = [getApplicationType(application), employeeKey, leaveTypeKey, dateKey]
     .filter(Boolean)
@@ -129,7 +129,7 @@ function getApplicationMergeKey(application, index) {
 
 function createRecalledCompanionRow(app, index = 0) {
   if (!app || typeof app !== 'object' || isCocApplication(app)) return null
-  if (String(app?.rawStatus || '').toUpperCase() !== 'APPROVED') return null
+  if (getApplicationRawStatusKey(app) !== 'APPROVED') return null
 
   const recalledDateKeys = getStoredRecallDateKeys(app)
   if (!recalledDateKeys.length) return null
@@ -141,14 +141,12 @@ function createRecalledCompanionRow(app, index = 0) {
     ...app,
     application_uid: `${baseKey}:recalled`,
     application_row_variant: 'recalled',
-    group_raw_status: app?.rawStatus || 'APPROVED',
+    group_raw_status: app?.raw_status || 'APPROVED',
     status: 'Recalled',
-    rawStatus: 'RECALLED',
+    raw_status: 'RECALLED',
     displayStatus: 'Recalled',
     selected_dates: recalledDateKeys,
-    selectedDates: recalledDateKeys,
     recall_selected_dates: recalledDateKeys,
-    recallSelectedDates: recalledDateKeys,
     actual_total_days: recalledDays,
     requested_total_days: recalledDays,
     display_total_days: recalledDays,
@@ -177,31 +175,104 @@ function expandApplicationsForDisplay(applications) {
 }
 
 function extractApplicationsFromPayload(payload) {
-  if (payload && typeof payload === 'object' && Array.isArray(payload.applications)) {
-    return payload.applications
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload
+
+  const candidates = [
+    payload?.applications,
+    payload?.coc_applications,
+    payload?.leave_applications,
+    payload?.cocApplications,
+    payload?.leaveApplications,
+    payload?.rows,
+    payload?.items,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate
+    if (candidate && typeof candidate === 'object' && Array.isArray(candidate.data)) {
+      return candidate.data
+    }
   }
+
   return []
 }
 
 function extractSingleApplicationFromPayload(payload) {
-  if (!payload || typeof payload !== 'object') return null
-  if (payload.application && typeof payload.application === 'object') return payload.application
-  if (payload.id !== undefined && payload.id !== null) return payload
-  return null
+  if (!payload) return null
+
+  if (Array.isArray(payload)) {
+    return payload.length ? payload[0] : null
+  }
+
+  const candidates = [
+    payload?.application,
+    payload?.coc_application,
+    payload?.leave_application,
+    payload?.cocApplication,
+    payload?.leaveApplication,
+    payload?.item,
+    payload?.row,
+    payload?.data,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (Array.isArray(candidate)) return candidate.length ? candidate[0] : null
+    if (candidate && typeof candidate === 'object') return candidate
+  }
+
+  return payload && typeof payload === 'object' ? payload : null
 }
 
 function isTruthyBackendFlag(value) {
-  return value === true || value === 1 || value === '1' || value === 'true'
+  if (value === true || value === 1) return true
+  if (typeof value !== 'string') return false
+
+  const normalized = value.trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+function hasOwnProperty(source, key) {
+  if (!source || typeof source !== 'object') return false
+  return Object.prototype.hasOwnProperty.call(source, key)
 }
 
 function normalizeBackendApplicationShape(application, index = 0) {
   if (!application || typeof application !== 'object') return null
 
-  const normalizedLeaveType = String(application?.leaveType ?? '').trim()
+  const normalizedLeaveType = String(application?.leave_type_name ?? application?.leaveType ?? '').trim()
   const normalizedLeaveTypeName =
-    normalizedLeaveType || String(application?.leave_type_name ?? '').trim()
+    normalizedLeaveType || 'Unknown'
+  const normalizedEmployeeName =
+    String(application?.employee_name ?? application?.employeeName ?? '').trim() || 'Unknown'
+  const normalizedFiledAt = String(
+    application?.filed_at ??
+      application?.created_at ??
+      application?.date_filed ??
+      application?.dateFiled ??
+      '',
+  ).trim() || null
+  const normalizedCreatedAt = String(
+    application?.created_at ??
+      normalizedFiledAt ??
+      '',
+  ).trim() || null
+  const normalizedDateFiled = (() => {
+    const directValue = String(
+      application?.date_filed ??
+        application?.dateFiled ??
+        normalizedFiledAt ??
+        normalizedCreatedAt ??
+        '',
+    ).trim()
+    if (!directValue) return ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(directValue)) return directValue
+    return toIsoDateString(directValue) || directValue
+  })()
   const rawStatusKey = String(
-    application?.rawStatus ?? application?.raw_status ?? application?.status ?? '',
+    application?.raw_status ?? application?.rawStatus ?? application?.status ?? '',
   )
     .trim()
     .toUpperCase()
@@ -219,12 +290,31 @@ function normalizeBackendApplicationShape(application, index = 0) {
   const normalized = {
     ...application,
     application_type: normalizedApplicationType || 'LEAVE',
-    employeeName: String(application?.employeeName ?? application?.employee_name ?? '').trim() || 'Unknown',
+    employee_name: normalizedEmployeeName,
+    employeeName: normalizedEmployeeName,
+    filed_by: application?.filed_by ?? null,
+    admin_action_by: application?.admin_action_by ?? null,
+    hr_action_by: application?.hr_action_by ?? null,
+    recall_action_by: application?.recall_action_by ?? null,
+    disapproved_by: application?.disapproved_by ?? null,
+    cancelled_by: application?.cancelled_by ?? null,
+    processed_by: application?.processed_by ?? null,
+    reviewed_at: application?.reviewed_at ?? null,
+    admin_action_at: application?.admin_action_at ?? null,
+    hr_action_at: application?.hr_action_at ?? null,
+    recall_action_at: application?.recall_action_at ?? null,
+    disapproved_at: application?.disapproved_at ?? null,
+    cancelled_at: application?.cancelled_at ?? null,
+    leave_type_name: normalizedLeaveTypeName,
     leaveType: normalizedLeaveTypeName,
-    startDate: application?.startDate ?? null,
-    endDate: application?.endDate ?? null,
-    dateFiled: application?.dateFiled ?? '',
-    filed_at: application?.filed_at ?? application?.created_at ?? null,
+    start_date: application?.start_date ?? application?.startDate ?? null,
+    end_date: application?.end_date ?? application?.endDate ?? null,
+    startDate: application?.startDate ?? application?.start_date ?? null,
+    endDate: application?.endDate ?? application?.end_date ?? null,
+    date_filed: normalizedDateFiled,
+    dateFiled: normalizedDateFiled,
+    filed_at: normalizedFiledAt,
+    created_at: normalizedCreatedAt,
     rawStatus: rawStatusKey,
     raw_status: application?.raw_status ?? rawStatusKey,
     group_raw_status: String(application?.group_raw_status ?? '').trim().toUpperCase() || rawStatusKey,
@@ -234,13 +324,12 @@ function normalizeBackendApplicationShape(application, index = 0) {
     selected_date_coverage: application?.selected_date_coverage ?? null,
     pending_update: application?.pending_update ?? null,
     pending_update_reason: application?.pending_update_reason ?? '',
-    pending_update_action_type:
-      application?.pending_update_action_type ?? application?.pendingUpdateActionType ?? null,
+    pending_update_action_type: application?.pending_update_action_type ?? null,
     has_pending_update_request: isTruthyBackendFlag(application?.has_pending_update_request),
     latest_update_request_status: application?.latest_update_request_status ?? '',
-    latest_update_request_action_type:
-      application?.latest_update_request_action_type ?? application?.latestUpdateRequestActionType ?? null,
+    latest_update_request_action_type: application?.latest_update_request_action_type ?? null,
     latest_update_request_payload: application?.latest_update_request_payload ?? null,
+    latest_update_request_reason: application?.latest_update_request_reason ?? '',
     latest_update_requested_at: application?.latest_update_requested_at ?? null,
     latest_update_reviewed_at: application?.latest_update_reviewed_at ?? null,
     latest_update_review_remarks: application?.latest_update_review_remarks ?? '',
@@ -250,15 +339,15 @@ function normalizeBackendApplicationShape(application, index = 0) {
       ? Number(application.leaveBalance)
       : null,
     pay_mode: application?.pay_mode ?? null,
-    has_hr_received: isTruthyBackendFlag(application?.has_hr_received ?? application?.hasHrReceived),
-    has_hr_released: isTruthyBackendFlag(application?.has_hr_released ?? application?.hasHrReleased),
-    received_by: application?.received_by ?? application?.receivedBy ?? application?.hr_received_by ?? null,
-    received_at: application?.received_at ?? application?.receivedAt ?? application?.hr_received_at ?? null,
-    released_by: application?.released_by ?? application?.releasedBy ?? application?.hr_released_by ?? null,
-    released_at: application?.released_at ?? application?.releasedAt ?? application?.hr_released_at ?? null,
+    has_hr_received: isTruthyBackendFlag(application?.has_hr_received),
+    has_hr_released: isTruthyBackendFlag(application?.has_hr_released),
+    received_by: application?.received_by ?? null,
+    received_at: application?.received_at ?? null,
+    released_by: application?.released_by ?? null,
+    released_at: application?.released_at ?? null,
     attachment_reference: application?.attachment_reference ?? null,
     attachment_submitted: isTruthyBackendFlag(application?.attachment_submitted),
-    office: application?.office ?? application?.department ?? null,
+    office: application?.office ?? null,
   }
 
   normalized.application_uid =
@@ -296,7 +385,7 @@ function mergeApplications(...sources) {
 }
 
 function mergeStatus(app) {
-  const raw = String(app.rawStatus || '').toUpperCase()
+  const raw = getApplicationRawStatusKey(app)
   const status = String(app.status || '').toUpperCase()
   const normalizedStatus = status.replace(/[_-]+/g, ' ')
   const latestUpdateRequestStatus = getLatestUpdateRequestStatus(app)
@@ -383,10 +472,7 @@ function resolveLeaveRequestActionTypeFromPayload(payload) {
 
   const candidates = [
     payload?.action_type,
-    payload?.actionType,
-    payload?.request_action_type,
-    payload?.requestActionType,
-    payload?.type,
+    payload?.request_kind,
   ]
 
   for (const candidate of candidates) {
@@ -435,13 +521,7 @@ function getLeaveRequestActionType(app) {
 
   const explicitCandidates = [
     app?.pending_update_action_type,
-    app?.pendingUpdateActionType,
     app?.latest_update_request_action_type,
-    app?.latestUpdateRequestActionType,
-    app?.raw?.pending_update_action_type,
-    app?.raw?.pendingUpdateActionType,
-    app?.raw?.latest_update_request_action_type,
-    app?.raw?.latestUpdateRequestActionType,
   ]
 
   for (const candidate of explicitCandidates) {
@@ -496,15 +576,7 @@ function shouldExposeEditRequestStatusToHr(app, status) {
 
 function getLatestUpdateRequestStatus(app) {
   const explicitStatus = normalizeUpdateRequestStatus(
-    app?.latest_update_request_status ??
-      app?.latestUpdateRequestStatus ??
-      app?.latest_update_status ??
-      app?.latestUpdateStatus ??
-      app?.raw?.latest_update_request_status ??
-      app?.raw?.latestUpdateRequestStatus ??
-      app?.raw?.latest_update_status ??
-      app?.raw?.latestUpdateStatus ??
-      '',
+    app?.latest_update_request_status ?? '',
   )
   if (explicitStatus && shouldExposeEditRequestStatusToHr(app, explicitStatus)) {
     return explicitStatus
@@ -975,20 +1047,9 @@ function getPendingUpdateReason(app) {
 
   const candidates = [
     app?.pending_update_reason,
-    app?.pendingUpdateReason,
     app?.latest_update_request_reason,
-    app?.latestUpdateRequestReason,
-    app?.raw?.pending_update_reason,
-    app?.raw?.pendingUpdateReason,
-    app?.raw?.latest_update_request_reason,
-    app?.raw?.latestUpdateRequestReason,
-    pendingPayload?.reason,
-    pendingPayload?.reason_purpose,
-    pendingPayload?.update_reason,
-    pendingPayload?.edit_reason,
     pendingPayload?.cancel_reason,
-    pendingPayload?.cancelReason,
-    pendingPayload?.remarks,
+    pendingPayload?.reason,
   ]
 
   for (const candidate of candidates) {
@@ -1089,7 +1150,7 @@ function getEmployeeBalanceLookupKey(app) {
     return String(explicitKey).trim().toLowerCase()
   }
 
-  const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employeeName]
+  const nameKey = [app?.surname, app?.firstname, app?.middlename, app?.employee_name]
     .map((value) =>
       String(value || '')
         .trim()
@@ -1123,8 +1184,8 @@ function getRawLeaveBalanceEntriesFromApplication(app) {
 const latestLeaveBalanceEntriesByEmployee = computed(() => {
   const entriesByEmployee = new Map()
   const sortedApplications = [...(applications.value ?? [])].sort((a, b) => {
-    const dateA = Date.parse(a?.dateFiled || a?.filed_at || a?.created_at || '') || 0
-    const dateB = Date.parse(b?.dateFiled || b?.filed_at || b?.created_at || '') || 0
+    const dateA = Date.parse(a?.filed_at || a?.created_at || '') || 0
+    const dateB = Date.parse(b?.filed_at || b?.created_at || '') || 0
     if (dateA !== dateB) return dateB - dateA
 
     const idA = Number(a?.id) || 0
@@ -1196,12 +1257,7 @@ function getCurrentLeaveBalanceValue(app) {
     (isCocApplication(app) ? findLeaveBalanceEntry(app, null, 'CTO Leave') : null)
   if (entry && Number.isFinite(entry.balance)) return Number(entry.balance)
 
-  const directBalanceCandidates = [
-    app?.leaveBalance,
-    app?.balance,
-    app?.remaining_balance,
-    app?.available_balance,
-  ]
+  const directBalanceCandidates = [app?.leaveBalance]
 
   for (const candidate of directBalanceCandidates) {
     const directBalance = Number(candidate)
@@ -1248,12 +1304,7 @@ function resolveCtoHoursFromDays(value) {
 function getApplicationCtoRequiredHoursValue(app) {
   if (!isCtoLeaveApplication(app)) return null
 
-  const directCandidates = [
-    app?.cto_deducted_hours,
-    app?.ctoDeductedHours,
-    app?.required_cto_balance_hours,
-    app?.requiredCtoBalanceHours,
-  ]
+  const directCandidates = [app?.cto_deducted_hours]
 
   for (const candidate of directCandidates) {
     const resolvedHours = roundCtoHours(candidate)
@@ -1262,7 +1313,6 @@ function getApplicationCtoRequiredHoursValue(app) {
 
   const dayCandidates = [
     app?.deductible_days,
-    app?.deductibleDays,
     app?.requested_total_days,
     app?.actual_total_days,
     app?.display_total_days,
@@ -1286,24 +1336,6 @@ function getApplicationCtoRequiredHoursDisplay(app) {
 function getCurrentCtoAvailableHoursValue(app) {
   if (!isCtoLeaveApplication(app)) return null
 
-  const entry =
-    findLeaveBalanceEntry(app, getCurrentLeaveTypeId(app), getCurrentLeaveTypeLabel(app)) ||
-    findLeaveBalanceEntry(app, null, 'CTO Leave')
-
-  const directHourCandidates = [
-    entry?.balanceHours,
-    entry?.balance_hours,
-    app?.available_balance_hours,
-    app?.availableBalanceHours,
-    app?.balance_hours,
-    app?.balanceHours,
-  ]
-
-  for (const candidate of directHourCandidates) {
-    const resolvedHours = roundCtoHours(candidate)
-    if (resolvedHours !== null) return resolvedHours
-  }
-
   const balanceValue = getCurrentLeaveBalanceValue(app)
   return resolveCtoHoursFromDays(balanceValue)
 }
@@ -1316,7 +1348,7 @@ function getCurrentCtoAvailableHoursDisplay(app) {
 function getCtoDeductedHoursDisplay(app) {
   if (!isCtoLeaveApplication(app)) return 'N/A'
 
-  const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+  const rawStatus = getApplicationRawStatusKey(app)
   if (rawStatus !== 'APPROVED' && rawStatus !== 'RECALLED') {
     return 'Pending approval'
   }
@@ -1405,7 +1437,7 @@ function hasPendingDurationUpdate(app) {
 function getRequestedReasonValue(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return ''
-  return String(payload?.reason ?? payload?.reason_purpose ?? '').trim()
+  return String(payload?.reason ?? '').trim()
 }
 
 function normalizeReasonForCompare(value) {
@@ -1426,9 +1458,7 @@ function hasPendingReasonUpdate(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return false
 
-  const hasReasonField =
-    Object.prototype.hasOwnProperty.call(payload, 'reason') ||
-    Object.prototype.hasOwnProperty.call(payload, 'reason_purpose')
+  const hasReasonField = Object.prototype.hasOwnProperty.call(payload, 'reason')
   if (!hasReasonField) return false
 
   const currentReason = normalizeReasonForCompare(app?.reason)
@@ -1470,10 +1500,12 @@ function getApplicationStatusLabel(app) {
   return mergeStatus(app)
 }
 
+function getApplicationGroupedRawStatusKey(app) {
+  return getApplicationRawStatusKey({ raw_status: app?.group_raw_status || '' })
+}
+
 function getApplicationStatusPriority(app) {
-  const groupedRawStatus = String(
-    app?.group_raw_status || app?.rawStatus || app?.raw_status || '',
-  ).toUpperCase()
+  const groupedRawStatus = getApplicationGroupedRawStatusKey(app) || getApplicationRawStatusKey(app)
   if (groupedRawStatus === 'PENDING_ADMIN' && isPendingEditRequest(app)) return 1
   if (groupedRawStatus === 'PENDING_ADMIN' || groupedRawStatus === 'PENDING_HR') return 0
   if (groupedRawStatus === 'APPROVED') return 1
@@ -1492,8 +1524,8 @@ function compareApplicationsForTable(a, b) {
   const statusPriorityDiff = getApplicationStatusPriority(a) - getApplicationStatusPriority(b)
   if (statusPriorityDiff !== 0) return statusPriorityDiff
 
-  const dateA = Date.parse(a?.dateFiled || '') || 0
-  const dateB = Date.parse(b?.dateFiled || '') || 0
+  const dateA = Date.parse(a?.filed_at || a?.created_at || '') || 0
+  const dateB = Date.parse(b?.filed_at || b?.created_at || '') || 0
   if (dateA !== dateB) return dateB - dateA
 
   const idA = Number(a?.id) || 0
@@ -1533,17 +1565,17 @@ function getDateSearchValues(dateValue) {
 }
 
 function getApplicationSearchTokenSet(app) {
-  const dateTerms = getDateSearchValues(app?.dateFiled)
+  const dateTerms = getDateSearchValues(app?.filed_at || app?.created_at)
   const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
 
   const searchValues = [
     'application',
     app?.id,
-    app?.rawStatus,
+    getApplicationRawStatusKey(app),
     app?.status,
     getApplicationStatusLabel(app),
     app?.leaveType,
-    app?.employeeName,
+    app?.employee_name,
     app?.firstname,
     app?.middlename,
     app?.surname,
@@ -1950,15 +1982,13 @@ function getApplicationStatusColor(app) {
 }
 
 function resolveFiledByActor(app) {
-  return app?.filed_by || app?.employeeName || 'Unknown'
+  return app?.filed_by || 'Unknown'
 }
 
 function resolveFiledDateValue(app) {
   return (
     app?.filed_at ||
     app?.created_at ||
-    app?.submitted_at ||
-    app?.dateFiled ||
     null
   )
 }
@@ -2238,11 +2268,8 @@ function resolveEditRequestSubmittedMeta(app) {
     pickFirstDefinedValue(
       app?.latest_update_request_reason,
       getPendingUpdateReason(app),
-      pendingPayload?.edit_reason,
-      pendingPayload?.update_reason,
-      pendingPayload?.reason_purpose,
+      pendingPayload?.cancel_reason,
       pendingPayload?.reason,
-      pendingPayload?.remarks,
       submittedHistoryEntry?.remarks,
       '',
     ) || '',
@@ -2268,7 +2295,6 @@ function resolveEditRequestApprovalMeta(app) {
   )
   const reviewedBy = String(
     pickFirstDefinedValue(
-      app?.latest_update_reviewed_by,
       resolveStatusHistoryActor(decisionHistoryEntry),
       resolveHrActor(app),
       'Unknown',
@@ -2294,7 +2320,6 @@ function resolveEditRequestRejectionMeta(app) {
   )
   const reviewedBy = String(
     pickFirstDefinedValue(
-      app?.latest_update_reviewed_by,
       resolveStatusHistoryActor(decisionHistoryEntry),
       resolveDisapprovalActor(app),
       'Unknown',
@@ -2505,7 +2530,7 @@ function resolveReceivedHistoryEntry(app) {
 }
 
 function resolveReceivedActor(app) {
-  const directActor = String(app?.received_by || app?.receivedBy || app?.hr_received_by || '').trim()
+  const directActor = String(app?.received_by || '').trim()
   if (directActor) return directActor
 
   const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
@@ -2516,8 +2541,6 @@ function resolveReceivedDateValue(app) {
   return pickLatestTimestampValue(
     app?.received_at ||
       null,
-    app?.receivedAt || null,
-    app?.hr_received_at || null,
     resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
   )
 }
@@ -2534,15 +2557,18 @@ function resolveCurrentUpdateRequestCycleStartValue(app) {
 function isApplicationReceivedByHr(app) {
   if (!app) return false
 
+  const hasExplicitReceivedFlag = hasOwnProperty(app, 'has_hr_received')
+  const explicitReceivedFlagValue = isTruthyBackendFlag(app?.has_hr_received)
   const receivedAt = resolveReceivedDateValue(app)
   const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
 
   if (cycleStart) {
-    if (!receivedAt) return false
+    if (!receivedAt) return hasExplicitReceivedFlag ? explicitReceivedFlagValue : false
     if (!isTimestampOnOrAfter(receivedAt, cycleStart)) return false
   }
 
-  return Boolean(app?.has_hr_received || app?.hasHrReceived || resolveReceivedHistoryEntry(app) || receivedAt)
+  if (hasExplicitReceivedFlag) return explicitReceivedFlagValue
+  return Boolean(resolveReceivedHistoryEntry(app) || receivedAt)
 }
 
 function canReceiveApplication(app) {
@@ -2595,7 +2621,7 @@ function resolveReleasedHistoryEntry(app) {
 }
 
 function resolveReleasedActor(app) {
-  const directActor = String(app?.released_by || app?.releasedBy || app?.hr_released_by || '').trim()
+  const directActor = String(app?.released_by || '').trim()
   if (directActor) return directActor
 
   const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
@@ -2606,8 +2632,6 @@ function resolveReleasedDateValue(app) {
   return pickLatestTimestampValue(
     app?.released_at ||
       null,
-    app?.releasedAt || null,
-    app?.hr_released_at || null,
     resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
   )
 }
@@ -2623,7 +2647,7 @@ function isApplicationReleased(app) {
     if (!isTimestampOnOrAfter(releasedAt, cycleStart)) return false
   }
 
-  return Boolean(app?.has_hr_released || app?.hasHrReleased || resolveReleasedHistoryEntry(app) || releasedAt)
+  return Boolean(app?.has_hr_released || resolveReleasedHistoryEntry(app) || releasedAt)
 }
 
 function canReleaseApplication(app) {
@@ -2717,7 +2741,6 @@ function formatRecallRemarks(app) {
 function resolveCancelledActor(app) {
   return (
     app?.cancelled_by ||
-    app?.employeeName ||
     app?.employee_name ||
     'Unknown'
   )
@@ -2763,9 +2786,9 @@ function buildApplicationTimeline(app) {
       title: 'Application Filed',
       subtitle:
         formatDateTime(resolveFiledDateValue(app)) ||
-        formatDate(app?.dateFiled) ||
+        formatDate(app?.filed_at || app?.created_at) ||
         'Date unavailable',
-      description: `${app?.employeeName || 'Employee'} submitted this leave request.`,
+      description: `${app?.employee_name || 'Employee'} submitted this leave request.`,
       icon: 'check_circle',
       color: 'positive',
       actor: resolveFiledByActor(app),
@@ -3711,9 +3734,47 @@ function applyLeaveApplicationUpdate(updatedApplication) {
   })
 }
 
+async function fetchLatestHrLeaveApplication(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!application || typeof application !== 'object' || isCocApplication(application)) {
+    return application || null
+  }
+
+  const id = getApplicationId(application)
+  if (!id) return application
+
+  try {
+    const response = await api.get('/hr/leave-applications/' + id)
+    const detailedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+    if (!detailedApplication || typeof detailedApplication !== 'object') return application
+
+    const mergedApplication =
+      normalizeBackendApplicationShape({
+        ...application,
+        ...detailedApplication,
+      }) ||
+      ({
+        ...application,
+        ...detailedApplication,
+      })
+
+    const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+    if (selectedId === String(id).trim()) {
+      selectedApp.value = mergedApplication
+    }
+
+    applyLeaveApplicationUpdate(mergedApplication)
+    return mergedApplication
+  } catch {
+    return application
+  }
+}
+
 async function markApplicationReceived(target = selectedApp.value) {
   const application = resolveApplication(target) || target
-  if (!canReceiveApplication(application)) return
+  if (!canReceiveApplication(application)) return false
 
   const id = getApplicationId(application)
   if (!id) {
@@ -3722,7 +3783,7 @@ async function markApplicationReceived(target = selectedApp.value) {
       message: 'Unable to identify this leave application.',
       position: 'top',
     })
-    return
+    return false
   }
 
   receiveLoading.value = true
@@ -3769,6 +3830,7 @@ async function markApplicationReceived(target = selectedApp.value) {
       ),
       position: 'top',
     })
+    return true
   } catch (err) {
     const useUpdateReceiveEndpoint = shouldUseUpdateReceiveEndpoint(application)
     const isCancellationRequest = isCancellationRequestAction(application)
@@ -3782,6 +3844,7 @@ async function markApplicationReceived(target = selectedApp.value) {
         : 'Unable to mark this application as received right now.',
     )
     q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
   } finally {
     receiveLoading.value = false
   }
@@ -3863,12 +3926,20 @@ async function markApplicationReleased(target = selectedApp.value) {
   }
 }
 
-function openActionConfirm(type, target) {
+async function openActionConfirm(type, target) {
   const resolvedType = String(type || '').trim().toLowerCase()
-  const application = resolveApplication(target) || target || null
+  let application = resolveApplication(target) || target || null
   if (!application) return
 
   const isApproveAction = resolvedType === 'approve'
+  if (
+    isApproveAction &&
+    !isCocApplication(application) &&
+    getApplicationRawStatusKey(application) === 'PENDING_HR'
+  ) {
+    application = await fetchLatestHrLeaveApplication(application)
+  }
+
   const needsReceiveBeforeApprove =
     isApproveAction &&
     !isCocApplication(application) &&
@@ -3879,12 +3950,27 @@ function openActionConfirm(type, target) {
     q.dialog({
       title: 'Receive Required',
       message: 'This application needs to be received by HR first before approving.',
+      cancel: {
+        label: 'Cancel',
+        flat: true,
+        color: 'grey-7',
+      },
       ok: {
-        label: 'OK',
+        label: 'Receive',
         color: 'primary',
         unelevated: true,
       },
       persistent: true,
+    }).onOk(async () => {
+      const didReceive = await markApplicationReceived(application)
+      if (!didReceive) return
+
+      const refreshedApplication = await fetchLatestHrLeaveApplication(application)
+      if (!isApplicationReceivedByHr(refreshedApplication)) return
+
+      confirmActionType.value = 'approve'
+      confirmActionTarget.value = refreshedApplication
+      showConfirmActionDialog.value = true
     })
     return
   }
