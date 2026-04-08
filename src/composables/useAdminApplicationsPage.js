@@ -5030,7 +5030,6 @@ export function useAdminApplicationsPage() {
     hasMobileApplicationActions,
     hasApplicationAttachment,
     viewApplicationAttachment,
-    isCocApplication,
     isCtoLeaveApplication,
     openActionConfirm,
     getTimelineEntryTone,
