@@ -385,23 +385,22 @@ const releasedActionLabel = computed(() =>
     : 'Released',
 )
 
-const isPaperFlowApplication = computed(() => {
+const isCocApplicationType = computed(() => {
   const appType = String(props.application?.application_type || '')
     .trim()
     .toUpperCase()
-  if (appType) return appType !== 'COC'
+  if (appType) return appType === 'COC'
 
   const leaveTypeName = String(
     props.application?.leaveType || props.application?.leave_type_name || '',
   )
     .trim()
     .toLowerCase()
-  return leaveTypeName !== 'coc application' && leaveTypeName !== 'coc'
+  return leaveTypeName === 'coc application' || leaveTypeName === 'coc'
 })
 
 const timelineEntries = computed(() => {
   const baseTimeline = getBaseTimelineEntries()
-  if (!isPaperFlowApplication.value) return baseTimeline
 
   const existingReceivedApplicationEntry = baseTimeline.find((entry) =>
     isEntryTitle(entry, 'Received Application'),
@@ -948,17 +947,20 @@ function buildReceivedTimelineEntry(existingEntry = null) {
   const isCompleted = isReceivedState.value
   const isUpdateCycle = isUpdateRequestCycle.value
   const isCancellationCycle = isCancellationRequestCycle.value
+  const isCoc = isCocApplicationType.value
 
   if (!isCompleted) {
     if (canReceiveState.value) {
       return {
         title: entryTitle,
         subtitle: 'Current stage',
-        description: isUpdateCycle
-          ? isCancellationCycle
-            ? 'Waiting for HR to confirm receipt of the cancellation form.'
-            : 'Waiting for HR to confirm receipt of the updated hard copy leave application form.'
-          : 'Waiting for HR to confirm receipt of the hard copy leave application form.',
+        description: isCoc
+          ? 'Waiting for HR to acknowledge this COC application.'
+          : isUpdateCycle
+            ? isCancellationCycle
+              ? 'Waiting for HR to confirm receipt of the cancellation form.'
+              : 'Waiting for HR to confirm receipt of the updated hard copy leave application form.'
+            : 'Waiting for HR to confirm receipt of the hard copy leave application form.',
         icon: 'pending_actions',
         color: 'warning',
       }
@@ -967,11 +969,13 @@ function buildReceivedTimelineEntry(existingEntry = null) {
     return {
       title: entryTitle,
       subtitle: 'Upcoming',
-      description: isUpdateCycle
-        ? isCancellationCycle
-          ? 'HR will confirm receipt of the cancellation form.'
-          : 'HR will confirm receipt of the updated hard copy leave application form.'
-        : 'HR will confirm receipt of the hard copy leave application form.',
+      description: isCoc
+        ? 'HR will acknowledge this COC application for review.'
+        : isUpdateCycle
+          ? isCancellationCycle
+            ? 'HR will confirm receipt of the cancellation form.'
+            : 'HR will confirm receipt of the updated hard copy leave application form.'
+          : 'HR will confirm receipt of the hard copy leave application form.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     }
@@ -992,11 +996,13 @@ function buildReceivedTimelineEntry(existingEntry = null) {
     subtitle,
     description:
       String(existingEntry?.description || '').trim() ||
-      (isUpdateCycle
-        ? isCancellationCycle
-          ? 'HR confirmed receipt of the cancellation form.'
-          : 'HR confirmed receipt of the updated hard copy leave application form.'
-        : 'HR confirmed receipt of the hard copy leave application form.'),
+      (isCoc
+        ? 'HR acknowledged this COC application for review.'
+        : isUpdateCycle
+          ? isCancellationCycle
+            ? 'HR confirmed receipt of the cancellation form.'
+            : 'HR confirmed receipt of the updated hard copy leave application form.'
+          : 'HR confirmed receipt of the hard copy leave application form.'),
     icon: String(existingEntry?.icon || '').trim() || 'inventory_2',
     color: String(existingEntry?.color || '').trim() || 'positive',
     actor: actor || undefined,
@@ -1037,16 +1043,19 @@ function buildReleasedTimelineEntry(existingEntry = null) {
   const isCompleted = isReleasedState.value
   const isUpdateCycle = isUpdateRequestCycle.value
   const isCancellationCycle = isCancellationRequestCycle.value
+  const isCoc = isCocApplicationType.value
 
   if (!isCompleted) {
     return {
       title: entryTitle,
       subtitle: 'Upcoming',
-      description: isUpdateCycle
-        ? isCancellationCycle
-          ? 'The cancellation form will be released before final closure.'
-          : 'The updated physical document will be released before final closure.'
-        : 'The physical document will be released before final closure.',
+      description: isCoc
+        ? 'COC application release will follow final HR action.'
+        : isUpdateCycle
+          ? isCancellationCycle
+            ? 'The cancellation form will be released before final closure.'
+            : 'The updated physical document will be released before final closure.'
+          : 'The physical document will be released before final closure.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     }
@@ -1067,11 +1076,13 @@ function buildReleasedTimelineEntry(existingEntry = null) {
     subtitle,
     description:
       String(existingEntry?.description || '').trim() ||
-      (isUpdateCycle
-        ? isCancellationCycle
-          ? 'Cancellation form has been released.'
-          : 'Updated physical leave document has been released.'
-        : 'Physical leave document has been released.'),
+      (isCoc
+        ? 'COC application has been finalized and released.'
+        : isUpdateCycle
+          ? isCancellationCycle
+            ? 'Cancellation form has been released.'
+            : 'Updated physical leave document has been released.'
+          : 'Physical leave document has been released.'),
     icon: String(existingEntry?.icon || '').trim() || 'outbox',
     color: String(existingEntry?.color || '').trim() || 'positive',
     actor: actor || undefined,

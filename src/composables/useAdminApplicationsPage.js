@@ -3304,7 +3304,6 @@ export function useAdminApplicationsPage() {
 
   function finalizeApplicationTimelineEntries(app, entries) {
     if (!Array.isArray(entries) || !entries.length) return []
-    if (isCocApplication(app)) return entries
 
     const existingReceivedEntry = entries.find((entry) => isReceivedTimelineEntryTitle(entry))
     const existingReleasedEntry = entries.find((entry) => isReleasedTimelineEntryTitle(entry))
@@ -3533,16 +3532,19 @@ export function useAdminApplicationsPage() {
   function buildReceivedTimelineEntry(app, existingEntry = null) {
     const entryTitle = getReceivedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
+    const isCoc = isCocApplication(app)
 
     if (!isApplicationReceivedByHr(app)) {
       return {
         title: entryTitle,
         subtitle: 'Upcoming',
-        description: cycleDocumentLabel
-          ? cycleDocumentLabel === 'Cancellation Form'
-            ? 'HR will confirm receipt of the cancellation form.'
-            : 'HR will confirm receipt of the updated hard copy leave application form.'
-          : 'HR will confirm receipt of the hard copy leave application form.',
+        description: isCoc
+          ? 'HR will acknowledge this COC application for review.'
+          : cycleDocumentLabel
+            ? cycleDocumentLabel === 'Cancellation Form'
+              ? 'HR will confirm receipt of the cancellation form.'
+              : 'HR will confirm receipt of the updated hard copy leave application form.'
+            : 'HR will confirm receipt of the hard copy leave application form.',
         icon: 'radio_button_unchecked',
         color: 'grey-5',
       }
@@ -3559,11 +3561,13 @@ export function useAdminApplicationsPage() {
       subtitle,
       description:
         String(existingEntry?.description || '').trim() ||
-        (cycleDocumentLabel
-          ? cycleDocumentLabel === 'Cancellation Form'
-            ? 'HR confirmed receipt of the cancellation form.'
-            : 'HR confirmed receipt of the updated hard copy leave application form.'
-          : 'HR confirmed receipt of the hard copy leave application form.'),
+        (isCoc
+          ? 'HR acknowledged this COC application for review.'
+          : cycleDocumentLabel
+            ? cycleDocumentLabel === 'Cancellation Form'
+              ? 'HR confirmed receipt of the cancellation form.'
+              : 'HR confirmed receipt of the updated hard copy leave application form.'
+            : 'HR confirmed receipt of the hard copy leave application form.'),
       icon: String(existingEntry?.icon || '').trim() || 'inventory_2',
       color: String(existingEntry?.color || '').trim() || 'positive',
       actor: actor !== 'Unknown' ? actor : undefined,
@@ -3573,16 +3577,19 @@ export function useAdminApplicationsPage() {
   function buildReleasedTimelineEntry(app, existingEntry = null) {
     const entryTitle = getReleasedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
+    const isCoc = isCocApplication(app)
 
     if (!isApplicationReleased(app)) {
       return {
         title: entryTitle,
         subtitle: 'Upcoming',
-        description: cycleDocumentLabel
-          ? cycleDocumentLabel === 'Cancellation Form'
-            ? 'Cancellation form will be released before final closure.'
-            : 'Updated leave document will be released before final closure.'
-          : 'Physical leave document will be released before final closure.',
+        description: isCoc
+          ? 'COC application release will follow final HR action.'
+          : cycleDocumentLabel
+            ? cycleDocumentLabel === 'Cancellation Form'
+              ? 'Cancellation form will be released before final closure.'
+              : 'Updated leave document will be released before final closure.'
+            : 'Physical leave document will be released before final closure.',
         icon: 'radio_button_unchecked',
         color: 'grey-5',
       }
@@ -3599,11 +3606,13 @@ export function useAdminApplicationsPage() {
       subtitle,
       description:
         String(existingEntry?.description || '').trim() ||
-        (cycleDocumentLabel
-          ? cycleDocumentLabel === 'Cancellation Form'
-            ? 'Cancellation form has been released.'
-            : 'Updated leave document has been released.'
-          : 'Physical leave document has been released.'),
+        (isCoc
+          ? 'COC application has been finalized and released.'
+          : cycleDocumentLabel
+            ? cycleDocumentLabel === 'Cancellation Form'
+              ? 'Cancellation form has been released.'
+              : 'Updated leave document has been released.'
+            : 'Physical leave document has been released.'),
       icon: String(existingEntry?.icon || '').trim() || 'outbox',
       color: String(existingEntry?.color || '').trim() || 'positive',
       actor: actor !== 'Unknown' ? actor : undefined,
@@ -3699,6 +3708,11 @@ export function useAdminApplicationsPage() {
     const directActor = String(app?.received_by || '').trim()
     if (directActor) return directActor
 
+    if (isCocApplication(app)) {
+      const cocActor = String(app?.admin_action_by || '').trim()
+      if (cocActor) return cocActor
+    }
+
     const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
     return historyActor || 'Unknown'
   }
@@ -3706,6 +3720,11 @@ export function useAdminApplicationsPage() {
   function resolveReleasedActor(app) {
     const directActor = String(app?.released_by || '').trim()
     if (directActor) return directActor
+
+    if (isCocApplication(app)) {
+      const cocActor = String(app?.hr_action_by || app?.processed_by || '').trim()
+      if (cocActor) return cocActor
+    }
 
     const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
     return historyActor || 'Unknown'
@@ -3820,6 +3839,7 @@ export function useAdminApplicationsPage() {
     return pickLatestTimestampValue(
       app?.received_at ||
         null,
+      isCocApplication(app) ? app?.admin_action_at : null,
       app?.hr_received_at || null,
       resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
     )
@@ -3829,6 +3849,13 @@ export function useAdminApplicationsPage() {
     return pickLatestTimestampValue(
       app?.released_at ||
         null,
+      isCocApplication(app)
+        ? (
+            app?.hr_action_at ||
+            app?.reviewed_at ||
+            null
+          )
+        : null,
       app?.hr_released_at || null,
       resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
     )
@@ -3836,6 +3863,14 @@ export function useAdminApplicationsPage() {
 
   function isApplicationReceivedByHr(app) {
     if (!app) return false
+
+    if (isCocApplication(app)) {
+      const rawStatus = getApplicationRawStatus(app)
+      if (rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || rawStatus === 'REJECTED') {
+        return true
+      }
+      return Boolean(resolveReceivedDateValue(app))
+    }
 
     const receivedAt = resolveReceivedDateValue(app)
     const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
@@ -3850,6 +3885,12 @@ export function useAdminApplicationsPage() {
 
   function isApplicationReleased(app) {
     if (!app) return false
+
+    if (isCocApplication(app)) {
+      const rawStatus = getApplicationRawStatus(app)
+      if (rawStatus === 'APPROVED' || rawStatus === 'REJECTED') return true
+      return Boolean(resolveReleasedDateValue(app))
+    }
 
     const releasedAt = resolveReleasedDateValue(app)
     const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
@@ -3881,6 +3922,9 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveFiledByActor(app) {
+    if (isCocApplication(app)) {
+      return app?.employee_name || 'Unknown'
+    }
     return app?.filed_by || 'Unknown'
   }
 
