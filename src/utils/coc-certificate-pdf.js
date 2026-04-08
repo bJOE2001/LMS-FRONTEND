@@ -65,6 +65,21 @@ function resolveEmployeeName(app) {
 }
 
 function resolveTotalHours(app) {
+  const creditedHours = toFiniteNumber(app?.credited_hours || app?.creditedHours)
+  if (creditedHours !== null && creditedHours >= 0) return creditedHours
+
+  const rows = Array.isArray(app?.rows) ? app.rows : []
+  if (rows.length) {
+    const totalCreditedHours = rows.reduce((total, row) => {
+      const rowCreditedHours = toFiniteNumber(row?.credited_hours || row?.creditedHours)
+      return total + (rowCreditedHours !== null && rowCreditedHours >= 0 ? rowCreditedHours : 0)
+    }, 0)
+
+    if (totalCreditedHours > 0) {
+      return Number(totalCreditedHours.toFixed(2))
+    }
+  }
+
   const totalMinutes = toFiniteNumber(app?.total_no_of_coc_applied_minutes)
   if (totalMinutes !== null) return totalMinutes / 60
   return 0

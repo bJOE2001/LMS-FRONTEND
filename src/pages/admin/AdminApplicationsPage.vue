@@ -105,6 +105,13 @@
             }}</span>
           </q-td>
         </template>
+        <template #body-cell-days="tableProps">
+          <q-td>
+            <span class="text-weight-medium text-grey-9">
+              {{ getApplicationDurationDisplay(tableProps.row) }}
+            </span>
+          </q-td>
+        </template>
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
             <div class="status-cell-wrap">

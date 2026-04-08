@@ -77,12 +77,15 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useLeaveStore } from 'stores/leave-store'
 import StatusBadge from 'components/StatusBadge.vue'
 import { generateLeaveFormPdf } from 'src/composables/useLeaveFormPdf'
+import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
 import { api } from 'src/boot/axios'
 
+const $q = useQuasar()
 const route = useRoute()
 const router = useRouter()
 const leaveStore = useLeaveStore()
@@ -118,6 +121,15 @@ function extractSingleApplicationFromPayload(payload) {
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 }
+
+function isCocApplicationRecord(record) {
+  const applicationType = String(record?.application_type ?? record?.applicationType ?? '').trim().toUpperCase()
+  if (applicationType === 'COC') return true
+
+  const leaveType = String(record?.leaveType ?? record?.leave_type_name ?? '').trim().toLowerCase()
+  return leaveType === 'coc application' || leaveType === 'coc'
+}
+
 function handleApprove() {
   leaveStore.updateApplicationStatus(application.value.id, 'Approved')
   router.push('/admin/dashboard')
@@ -129,6 +141,9 @@ function handleDisapprove() {
 }
 async function printApplication() {
   if (!application.value) return
+  const cocApplication = isCocApplicationRecord(application.value)
+  const cocPrintBlockedMessage =
+    'COC form can be printed only after HR review and Regular/Special classification.'
   const pdfWindow = window.open('', '_blank')
   if (pdfWindow) {
     try {
@@ -144,7 +159,11 @@ async function printApplication() {
 
   if (targetApplicationId !== '') {
     try {
-      const { data } = await api.get(`/admin/leave-applications/${targetApplicationId}`)
+      const { data } = await api.get(
+        cocApplication
+          ? `/admin/coc-applications/${targetApplicationId}`
+          : `/admin/leave-applications/${targetApplicationId}`,
+      )
       const detailedApplication = extractSingleApplicationFromPayload(data)
 
       if (detailedApplication && typeof detailedApplication === 'object') {
@@ -159,9 +178,28 @@ async function printApplication() {
   }
 
   try {
+    if (cocApplication) {
+      if (!isReviewedCocApplicationPrintable(printableApplication)) {
+        if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+        $q.notify({ type: 'warning', message: cocPrintBlockedMessage, position: 'top' })
+        return
+      }
+
+      await generateCocApplicationPdf(printableApplication, { targetWindow: pdfWindow })
+      return
+    }
+
     await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
   } catch (error) {
     if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+    if (cocApplication) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : cocPrintBlockedMessage
+      $q.notify({ type: 'warning', message, position: 'top' })
+      return
+    }
+
     throw error
   }
 }

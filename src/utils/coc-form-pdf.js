@@ -124,6 +124,14 @@ function formatMinutesAsHoursAndMinutes(totalMinutes) {
   return `${hours}h ${String(minutes).padStart(2, '0')}m`
 }
 
+function formatHoursAsHoursAndMinutes(hours) {
+  const numericHours = Number(hours)
+  if (!Number.isFinite(numericHours)) return ''
+
+  const totalMinutes = Math.max(0, Math.round(numericHours * 60))
+  return formatMinutesAsHoursAndMinutes(totalMinutes)
+}
+
 function openPdfDocument(pdfDocument, options = {}) {
   const targetWindow = options?.targetWindow && !options.targetWindow.closed
     ? options.targetWindow
@@ -251,27 +259,6 @@ function resolveEntryMinutes(entry, fromTimeValue, toTimeValue) {
   return Math.max(0, difference)
 }
 
-function resolveEntryRunningTotalMinutes(entry) {
-  const explicitRunningCandidates = [
-    entry?.total_no_of_hours_and_minutes,
-    entry?.totalNoOfHoursAndMinutes,
-    entry?.running_total_minutes,
-    entry?.runningTotalMinutes,
-    entry?.cumulative_minutes,
-    entry?.cumulativeMinutes,
-  ]
-
-  for (const candidate of explicitRunningCandidates) {
-    const numericValue = toFiniteNumber(candidate)
-    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
-
-    const parsedDuration = parseDurationTextToMinutes(candidate)
-    if (parsedDuration !== null) return parsedDuration
-  }
-
-  return null
-}
-
 function resolveTotalMinutesFromApplication(app, fallbackMinutes = null) {
   const explicitTotalCandidates = [
     app?.total_no_of_coc_applied_minutes,
@@ -300,6 +287,107 @@ function resolveTotalMinutesFromApplication(app, fallbackMinutes = null) {
   return null
 }
 
+function resolveEntryBreakMinutes(entry, rawMinutes) {
+  const explicitCandidates = [
+    entry?.break_minutes,
+    entry?.breakMinutes,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
+  }
+
+  if (!Number.isFinite(rawMinutes)) return 0
+  return rawMinutes >= 240 ? 60 : 0
+}
+
+function resolveEntryCreditCategory(entry) {
+  const normalized = normalizeReviewedCocCreditCategory(
+    entry?.credit_category ?? entry?.creditCategory,
+  )
+
+  if (normalized === 'REGULAR') return 'Regular'
+  if (normalized === 'SPECIAL') return 'Special'
+  return ''
+}
+
+function resolveEntryCreditMultiplier(entry) {
+  const explicitCandidates = [
+    entry?.credit_multiplier,
+    entry?.creditMultiplier,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return numericValue
+  }
+
+  return resolveEntryCreditCategory(entry) === 'Special' ? 1.5 : 1.0
+}
+
+function calculateCreditableMinutes(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0
+
+  const safeMinutes = Math.max(0, Math.round(minutes))
+  const wholeHoursMinutes = Math.floor(safeMinutes / 60) * 60
+  const excessMinutes = safeMinutes % 60
+  const creditableExcessMinutes = excessMinutes >= 20 ? excessMinutes : 0
+
+  return wholeHoursMinutes + creditableExcessMinutes
+}
+
+function resolveEntryCreditableMinutes(entry, netMinutes) {
+  const explicitCandidates = [
+    entry?.creditable_minutes,
+    entry?.creditableMinutes,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, Math.round(numericValue))
+  }
+
+  return calculateCreditableMinutes(netMinutes)
+}
+
+function resolveEntryCreditedHours(entry, creditableMinutes, creditMultiplier) {
+  const explicitCandidates = [
+    entry?.credited_hours,
+    entry?.creditedHours,
+  ]
+
+  for (const candidate of explicitCandidates) {
+    const numericValue = toFiniteNumber(candidate)
+    if (numericValue !== null) return Math.max(0, numericValue)
+  }
+
+  return Math.round(((creditableMinutes / 60) * creditMultiplier) * 100) / 100
+}
+
+function normalizeReviewedCocCreditCategory(value) {
+  const normalized = String(value || '').trim().toUpperCase()
+  return normalized === 'REGULAR' || normalized === 'SPECIAL' ? normalized : ''
+}
+
+export function hasReviewedCocRows(app) {
+  const rows = extractCocEntries(app)
+  if (!rows.length) return false
+
+  return rows.every((row) =>
+    normalizeReviewedCocCreditCategory(row?.credit_category ?? row?.creditCategory),
+  )
+}
+
+export function isReviewedCocApplicationPrintable(app) {
+  const normalizedStatus = String(app?.rawStatus ?? app?.raw_status ?? app?.status ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+
+  return normalizedStatus === 'APPROVED' && hasReviewedCocRows(app)
+}
+
 function mapCocRows(app) {
   const sourceEntries = extractCocEntries(app)
 
@@ -309,7 +397,15 @@ function mapCocRows(app) {
       const rawDate = resolveEntryDate(entry)
       const fromTimeValue = resolveEntryFromTime(entry)
       const toTimeValue = resolveEntryToTime(entry)
-      const minutes = resolveEntryMinutes(entry, fromTimeValue, toTimeValue)
+      const rawMinutes = resolveEntryMinutes(entry, fromTimeValue, toTimeValue)
+      const breakMinutes = resolveEntryBreakMinutes(entry, rawMinutes)
+      const netMinutes = Number.isFinite(rawMinutes)
+        ? Math.max(0, rawMinutes - breakMinutes)
+        : null
+      const creditCategoryText = resolveEntryCreditCategory(entry)
+      const creditMultiplier = resolveEntryCreditMultiplier(entry)
+      const creditableMinutes = resolveEntryCreditableMinutes(entry, netMinutes)
+      const creditedHours = resolveEntryCreditedHours(entry, creditableMinutes, creditMultiplier)
 
       return {
         rawDate,
@@ -317,8 +413,12 @@ function mapCocRows(app) {
         natureText: resolveEntryNature(entry),
         fromText: formatTimeForDisplay(fromTimeValue),
         toText: formatTimeForDisplay(toTimeValue),
-        minutes,
-        runningTotalMinutes: resolveEntryRunningTotalMinutes(entry),
+        rawMinutes,
+        breakMinutes,
+        netMinutes,
+        creditCategoryText,
+        creditableMinutes,
+        creditedHours,
       }
     })
     .filter(
@@ -327,7 +427,7 @@ function mapCocRows(app) {
         row.natureText ||
         row.fromText ||
         row.toText ||
-        Number.isFinite(row.minutes),
+        Number.isFinite(row.rawMinutes),
     )
 
   const fallbackDate =
@@ -347,35 +447,56 @@ function mapCocRows(app) {
       natureText: '',
       fromText: '',
       toText: '',
-      minutes: Number.isFinite(fallbackTotalMinutes) ? fallbackTotalMinutes : null,
-      runningTotalMinutes: null,
+      rawMinutes: Number.isFinite(fallbackTotalMinutes) ? fallbackTotalMinutes : null,
+      breakMinutes: 0,
+      netMinutes: Number.isFinite(fallbackTotalMinutes) ? fallbackTotalMinutes : null,
+      creditCategoryText: '',
+      creditableMinutes: Number.isFinite(fallbackTotalMinutes) ? fallbackTotalMinutes : null,
+      creditedHours: 0,
     })
   }
 
-  let runningMinutes = 0
-  const rowsWithRunningTotals = mappedRows.map((row) => {
-    let runningTotalText = ''
+  const rowsWithComputedDisplay = mappedRows.map((row) => ({
+    ...row,
+    rawOvertimeText: Number.isFinite(row.rawMinutes)
+      ? formatMinutesAsHoursAndMinutes(row.rawMinutes)
+      : '',
+    breakText: row.breakMinutes > 0
+      ? formatMinutesAsHoursAndMinutes(row.breakMinutes)
+      : '-',
+    creditedText: Number.isFinite(row.creditedHours)
+      ? formatHoursAsHoursAndMinutes(row.creditedHours)
+      : '',
+  }))
 
-    if (Number.isFinite(row.runningTotalMinutes)) {
-      runningMinutes = row.runningTotalMinutes
-      runningTotalText = formatMinutesAsHoursAndMinutes(runningMinutes)
-    } else if (Number.isFinite(row.minutes)) {
-      runningMinutes += row.minutes
-      runningTotalText = formatMinutesAsHoursAndMinutes(runningMinutes)
+  const computedTotalMinutes = rowsWithComputedDisplay.reduce(
+    (total, row) => total + (Number.isFinite(row.rawMinutes) ? row.rawMinutes : 0),
+    0,
+  )
+  const computedTotalCreditedHours = rowsWithComputedDisplay.reduce(
+    (total, row) => total + (Number.isFinite(row.creditedHours) ? row.creditedHours : 0),
+    0,
+  )
+
+  let runningCreditedHours = 0
+  const rowsWithRunningCreditedTotals = rowsWithComputedDisplay.map((row) => {
+    if (Number.isFinite(row.creditedHours)) {
+      runningCreditedHours += row.creditedHours
     }
 
     return {
       ...row,
-      durationText: Number.isFinite(row.minutes)
-        ? formatMinutesAsHoursAndMinutes(row.minutes)
+      runningCreditedText: Number.isFinite(row.creditedHours)
+        ? formatHoursAsHoursAndMinutes(runningCreditedHours)
         : '',
-      runningTotalText,
     }
   })
 
   return {
-    rows: rowsWithRunningTotals,
-    computedTotalMinutes: runningMinutes > 0 ? runningMinutes : null,
+    rows: rowsWithRunningCreditedTotals,
+    computedTotalMinutes: computedTotalMinutes > 0 ? computedTotalMinutes : null,
+    computedTotalCreditedHours:
+      computedTotalCreditedHours > 0 ? Math.round(computedTotalCreditedHours * 100) / 100 : null,
   }
 }
 
@@ -523,6 +644,9 @@ function createRightAlignedSignatureBlock(name, caption, options = {}) {
 
 export async function generateCocApplicationPdf(app, options = {}) {
   if (!app) return
+  if (!isReviewedCocApplicationPrintable(app)) {
+    throw new Error('COC form can be printed only after HR review and Regular/Special classification.')
+  }
 
 //  // ===== RAW APP DATA =====
 //   // Employee
@@ -646,12 +770,11 @@ export async function generateCocApplicationPdf(app, options = {}) {
   const employeePosition = resolveEmployeePosition(printableApp)
   const employeeDepartment = resolveEmployeeDepartment(printableApp)
 
-  const { rows: overtimeRows, computedTotalMinutes } = mapCocRows(printableApp)
-
-  const totalAppliedMinutes = resolveTotalMinutesFromApplication(printableApp, computedTotalMinutes)
-  const totalAppliedText = Number.isFinite(totalAppliedMinutes)
-    ? formatMinutesAsHoursAndMinutes(totalAppliedMinutes)
-    : ''
+  const { rows: overtimeRows, computedTotalCreditedHours } = mapCocRows(printableApp)
+  const totalCreditedHours = toFiniteNumber(printableApp?.credited_hours ?? printableApp?.creditedHours)
+  const totalCreditedText = formatHoursAsHoursAndMinutes(
+    totalCreditedHours !== null ? totalCreditedHours : computedTotalCreditedHours,
+  )
   const monthLabel = resolveForMonthLabel(printableApp, overtimeRows)
 
   const visibleRows = overtimeRows.slice(0, COC_VISIBLE_ROW_COUNT)
@@ -715,8 +838,8 @@ export async function generateCocApplicationPdf(app, options = {}) {
       { text: row.natureText || ' ', style: 'tableValueLeft' },
       { text: row.fromText || ' ', style: 'tableValueCenter' },
       { text: row.toText || ' ', style: 'tableValueCenter' },
-      { text: row.durationText || ' ', style: 'tableValueCenter' },
-      { text: row.runningTotalText || ' ', style: 'tableValueCenter' },
+      { text: row.creditedText || ' ', style: 'tableValueCenter' },
+      { text: row.runningCreditedText || ' ', style: 'tableValueCenter' },
     ]),
     [
       {
@@ -729,7 +852,7 @@ export async function generateCocApplicationPdf(app, options = {}) {
       {},
       {},
       {},
-      { text: totalAppliedText || ' ', style: 'tableTotalValue' },
+      { text: totalCreditedText || ' ', style: 'tableTotalValue' },
     ],
   ]
 

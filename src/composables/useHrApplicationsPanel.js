@@ -657,6 +657,113 @@ function formatDurationDisplay(value, unit) {
   return `${displayValue} ${numericValue === 1 ? 'day' : 'days'}`
 }
 
+function formatHoursAndMinutesDisplay(hoursValue) {
+  const numericValue = Number(hoursValue)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return '0h 00m'
+
+  const totalMinutes = Math.max(0, Math.round(numericValue * 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`
+}
+
+function calculateCocCreditableMinutes(minutesValue, breakMinutesValue = 0) {
+  const rawMinutes = Number(minutesValue)
+  if (!Number.isFinite(rawMinutes) || rawMinutes <= 0) return 0
+
+  const breakMinutes = Number.isFinite(Number(breakMinutesValue))
+    ? Math.max(0, Math.round(Number(breakMinutesValue)))
+    : 0
+
+  const netMinutes = Math.max(0, Math.round(rawMinutes) - breakMinutes)
+  const wholeHoursMinutes = Math.floor(netMinutes / 60) * 60
+  const excessMinutes = netMinutes % 60
+  return wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0)
+}
+
+function getCocBaseCreditableDisplay(app) {
+  if (!isCocApplication(app)) return getApplicationDurationDisplay(app)
+
+  const rows = Array.isArray(app?.rows) ? app.rows : []
+  if (rows.length) {
+    const totalCreditableMinutes = rows.reduce((total, row) => {
+      const explicitCreditableMinutes = Number(
+        row?.creditable_minutes ?? row?.creditableMinutes,
+      )
+
+      if (Number.isFinite(explicitCreditableMinutes) && explicitCreditableMinutes >= 0) {
+        return total + Math.round(explicitCreditableMinutes)
+      }
+
+      const rawMinutes = Number(
+        row?.no_of_hours_and_minutes ??
+        row?.minutes ??
+        row?.total_no_of_coc_applied_minutes ??
+        row?.totalNoOfCocAppliedMinutes,
+      )
+      const breakMinutes = Number(row?.break_minutes ?? row?.breakMinutes ?? 0)
+
+      return total + calculateCocCreditableMinutes(rawMinutes, breakMinutes)
+    }, 0)
+
+    return formatHoursAndMinutesDisplay(totalCreditableMinutes / 60)
+  }
+
+  const rawMinutes = Number(
+    app?.total_no_of_coc_applied_minutes ??
+    app?.totalNoOfCocAppliedMinutes ??
+    app?.total_minutes ??
+    app?.totalMinutes,
+  )
+
+  if (Number.isFinite(rawMinutes) && rawMinutes >= 0) {
+    const breakMinutes = rawMinutes >= 240 ? 60 : 0
+    return formatHoursAndMinutesDisplay(
+      calculateCocCreditableMinutes(rawMinutes, breakMinutes) / 60,
+    )
+  }
+
+  return '0h 00m'
+}
+
+function getCocRawOvertimeDisplay(app) {
+  if (!isCocApplication(app)) return getApplicationDurationDisplay(app)
+
+  const rawMinutes = Number(
+    app?.total_no_of_coc_applied_minutes ??
+    app?.totalNoOfCocAppliedMinutes ??
+    app?.total_minutes ??
+    app?.totalMinutes,
+  )
+
+  if (Number.isFinite(rawMinutes) && rawMinutes >= 0) {
+    return formatHoursAndMinutesDisplay(rawMinutes / 60)
+  }
+
+  const rawHours = Number(app?.days ?? app?.total_days)
+  if (Number.isFinite(rawHours) && rawHours >= 0) {
+    return formatHoursAndMinutesDisplay(rawHours)
+  }
+
+  return '0h 00m'
+}
+
+function getCocCreditedHoursDisplay(app) {
+  if (!isCocApplication(app)) return ''
+
+  const creditedHours = Number(app?.credited_hours ?? app?.creditedHours)
+  if (Number.isFinite(creditedHours) && creditedHours >= 0) {
+    return formatHoursAndMinutesDisplay(creditedHours)
+  }
+
+  const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '').trim().toUpperCase()
+  if (rawStatus === 'PENDING_HR' || rawStatus === 'PENDING_ADMIN') {
+    return 'Pending HR classification'
+  }
+
+  return 'N/A'
+}
+
 function getDateSubsetTotalDays(app, dateKeys = []) {
   const normalizedDateKeys = [
     ...new Set(
@@ -679,6 +786,15 @@ function getDateSubsetTotalDays(app, dateKeys = []) {
 function getApplicationDurationDisplay(app) {
   if (!app) return '0 days'
 
+  if (isCocApplication(app)) {
+    const creditedDisplay = getCocCreditedHoursDisplay(app)
+    if (creditedDisplay && creditedDisplay !== 'Pending HR classification' && creditedDisplay !== 'N/A') {
+      return creditedDisplay
+    }
+
+    return getCocBaseCreditableDisplay(app)
+  }
+
   if (!isCocApplication(app) && !app?.is_monetization) {
     const storedRecallDateKeys = getStoredRecallDateKeys(app)
     const shouldUseVisibleDuration =
@@ -699,16 +815,6 @@ function getApplicationDurationDisplay(app) {
   const explicitValue = Number(app?.duration_value)
   if (explicitUnit && Number.isFinite(explicitValue)) {
     return formatDurationDisplay(explicitValue, explicitUnit)
-  }
-
-  if (isCocApplication(app)) {
-    const hourValue = Number(app?.days ?? app?.total_days)
-    if (Number.isFinite(hourValue)) return formatDurationDisplay(hourValue, 'hour')
-
-    const minutes = Number(app?.total_no_of_coc_applied_minutes)
-    if (Number.isFinite(minutes)) return formatDurationDisplay(minutes / 60, 'hour')
-
-    return '0 h'
   }
 
   const actualDayValue = getActualRequestedDayCount(app)
@@ -3978,6 +4084,9 @@ async function handleDialogMutationSuccess(payload = {}) {
     getActualRequestedDayCount,
     getApplicationDurationDisplay,
     getApplicationDurationLabel,
+    getCocBaseCreditableDisplay,
+    getCocRawOvertimeDisplay,
+    getCocCreditedHoursDisplay,
     getApplicationEmploymentTypeKey,
     getApplicationExplicitId,
     getApplicationId,

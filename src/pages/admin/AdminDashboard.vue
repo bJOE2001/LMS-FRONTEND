@@ -751,6 +751,7 @@ import { api } from 'src/boot/axios'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
+import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
@@ -2137,6 +2138,11 @@ function isEditUpdateRequest(app) {
 }
 
 function canPrintApplication(app) {
+  if (isCocApplication(app)) {
+    const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '').trim().toUpperCase()
+    return rawStatus === 'APPROVED' || getApplicationStatusLabel(app) === 'Approved'
+  }
+
   return getApplicationStatusLabel(app) !== 'Pending Admin'
 }
 
@@ -2768,6 +2774,9 @@ function confirmPendingAction() {
 
 async function printApplication(app) {
   if (!canPrintApplication(app)) return
+  const cocApplication = isCocApplication(app)
+  const cocPrintBlockedMessage =
+    'COC form can be printed only after HR review and Regular/Special classification.'
   const pdfWindow = window.open('', '_blank')
   if (pdfWindow) {
     try {
@@ -2782,10 +2791,16 @@ async function printApplication(app) {
   ).trim()
 
   try {
-    const [dashboardResponse, leaveApplicationResponse] = await Promise.all([
+    const [dashboardResponse, applicationResponse] = await Promise.all([
       api.get('/admin/dashboard'),
       targetApplicationId !== ''
-        ? api.get(`/admin/leave-applications/${targetApplicationId}`).catch(() => null)
+        ? api
+            .get(
+              cocApplication
+                ? `/admin/coc-applications/${targetApplicationId}`
+                : `/admin/leave-applications/${targetApplicationId}`,
+            )
+            .catch(() => null)
         : Promise.resolve(null),
     ])
     const data = dashboardResponse?.data
@@ -2818,8 +2833,8 @@ async function printApplication(app) {
     )
     let printableApplication = updated || app
 
-    if (targetApplicationId !== '' && leaveApplicationResponse?.data) {
-      const detailedApplication = extractSingleApplicationFromPayload(leaveApplicationResponse.data)
+    if (targetApplicationId !== '' && applicationResponse?.data) {
+      const detailedApplication = extractSingleApplicationFromPayload(applicationResponse.data)
 
       if (detailedApplication && typeof detailedApplication === 'object') {
         printableApplication = {
@@ -2829,13 +2844,33 @@ async function printApplication(app) {
       }
     }
 
+    if (cocApplication) {
+      if (!isReviewedCocApplicationPrintable(printableApplication)) {
+        if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+        $q.notify({ type: 'warning', message: cocPrintBlockedMessage, position: 'top' })
+        return
+      }
+
+      await generateCocApplicationPdf(printableApplication, { targetWindow: pdfWindow })
+      return
+    }
+
     await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
-  } catch {
+  } catch (error) {
+    if (cocApplication) {
+      if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
+      const message = error instanceof Error && error.message
+        ? error.message
+        : cocPrintBlockedMessage
+      $q.notify({ type: 'warning', message, position: 'top' })
+      return
+    }
+
     try {
       await generateLeaveFormPdf(app, { targetWindow: pdfWindow })
-    } catch (error) {
+    } catch (fallbackError) {
       if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
-      throw error
+      throw fallbackError
     }
   }
 }
