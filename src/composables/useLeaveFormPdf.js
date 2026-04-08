@@ -1,6 +1,9 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from 'src/utils/department-head-signature'
+import {
+  enrichAppWithDepartmentHead,
+  getDepartmentHeadSignature,
+} from 'src/utils/department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 
 // Register fonts for pdfmake 0.3.x
@@ -52,23 +55,12 @@ function collectDetailValueEntries(source, targetMap, path = []) {
     source.forEach((entry) => {
       if (entry && typeof entry === 'object') {
         const entryKeyRaw =
-          entry.key ??
-          entry.name ??
-          entry.field ??
-          entry.id ??
-          entry.slug ??
-          entry.label
+          entry.key ?? entry.name ?? entry.field ?? entry.id ?? entry.slug ?? entry.label
         const entryKey = normalizeDetailKey(entryKeyRaw)
-        const entryValue =
-          entry.value ??
-          entry.answer ??
-          entry.text ??
-          entry.selected ??
-          entry.data
+        const entryValue = entry.value ?? entry.answer ?? entry.text ?? entry.selected ?? entry.data
 
         if (entryKey && entryValue != null && !targetMap.has(entryKey)) {
-          const normalizedValue =
-            typeof entryValue === 'string' ? entryValue.trim() : entryValue
+          const normalizedValue = typeof entryValue === 'string' ? entryValue.trim() : entryValue
           if (normalizedValue !== '') {
             targetMap.set(entryKey, normalizedValue)
             const parentPathKey = normalizeDetailKey([...path, entryKeyRaw].join('_'))
@@ -91,7 +83,13 @@ function collectDetailValueEntries(source, targetMap, path = []) {
     const normalizedPathKey = normalizeDetailKey([...path, key].join('_'))
     const normalizedTailPathKey = normalizeDetailKey([...path.slice(-2), key].join('_'))
 
-    if (normalizedKey && value != null && typeof value !== 'object' && !Array.isArray(value) && !targetMap.has(normalizedKey)) {
+    if (
+      normalizedKey &&
+      value != null &&
+      typeof value !== 'object' &&
+      !Array.isArray(value) &&
+      !targetMap.has(normalizedKey)
+    ) {
       const normalizedValue = typeof value === 'string' ? value.trim() : value
       if (normalizedValue !== '') {
         targetMap.set(normalizedKey, normalizedValue)
@@ -110,8 +108,12 @@ function collectDetailValueEntries(source, targetMap, path = []) {
 
 function getApplicationDetailValue(app, ...keys) {
   const raw = app?.raw && typeof app.raw === 'object' ? app.raw : null
-  const details = parseObjectCandidate(app?.details ?? app?.application_details ?? app?.applicationDetails)
-  const rawDetails = parseObjectCandidate(raw?.details ?? raw?.application_details ?? raw?.applicationDetails)
+  const details = parseObjectCandidate(
+    app?.details ?? app?.application_details ?? app?.applicationDetails,
+  )
+  const rawDetails = parseObjectCandidate(
+    raw?.details ?? raw?.application_details ?? raw?.applicationDetails,
+  )
   const sources = [app, raw, details, rawDetails].filter(Boolean)
   const detailValueMap = new Map()
 
@@ -143,7 +145,7 @@ function buildSpecifiedDetailLabel(label, value, opts = {}) {
   const underline = opts.underlineText ?? '_'.repeat(underlineLength)
   const labelWidth = opts.labelWidth ?? 'auto'
   const fieldWidth = opts.fieldWidth ?? Math.round(underline.length * (fs * 0.62))
-  const textTopOffset = opts.textTopOffset ?? (fs + 2)
+  const textTopOffset = opts.textTopOffset ?? fs + 2
   const textBottomOffset = opts.textBottomOffset ?? Math.max(fs - 2, 0)
 
   return {
@@ -154,13 +156,15 @@ function buildSpecifiedDetailLabel(label, value, opts = {}) {
         stack: [
           { text: underline, fontSize: fs, lineHeight: 1, margin: [0, 0, 0, 0] },
           ...(textValue
-            ? [{
-              text: textValue,
-              fontSize: fs,
-              lineHeight: 1,
-              noWrap: true,
-              margin: [0, -textTopOffset, 0, -textBottomOffset],
-            }]
+            ? [
+                {
+                  text: textValue,
+                  fontSize: fs,
+                  lineHeight: 1,
+                  noWrap: true,
+                  margin: [0, -textTopOffset, 0, -textBottomOffset],
+                },
+              ]
             : []),
         ],
       },
@@ -177,7 +181,8 @@ function normalizeSickDetailValue(value) {
 
   if (!normalizedValue) return ''
   if (normalizedValue.includes('hospital')) return 'In Hospital'
-  if (normalizedValue.includes('out patient') || normalizedValue.includes('outpatient')) return 'Out Patient'
+  if (normalizedValue.includes('out patient') || normalizedValue.includes('outpatient'))
+    return 'Out Patient'
   return ''
 }
 
@@ -194,6 +199,179 @@ function normalizeVacationDetailValue(value) {
     return 'Within the Philippines'
   }
   return ''
+}
+
+function firstNonEmptyDetailValue(app, ...groups) {
+  for (const keys of groups) {
+    const value = String(getApplicationDetailValue(app, ...keys) || '').trim()
+    if (value) return value
+  }
+  return ''
+}
+
+function resolveVacationDetailValue(app, fallbackValue = '') {
+  const normalizedExplicitValue = normalizeVacationDetailValue(fallbackValue)
+  if (normalizedExplicitValue) return normalizedExplicitValue
+
+  const normalizedDerivedValue = normalizeVacationDetailValue(
+    firstNonEmptyDetailValue(
+      app,
+      [
+        'vacation_detail',
+        'vacationDetail',
+        'vacation_type',
+        'vacation_location_type',
+        'destination_type',
+        'location_type',
+      ],
+      ['abroad', 'abroad_specify', 'abroadspecify'],
+      ['within_the_philippines', 'withinphilippines', 'withinthephilippines', 'local'],
+    ),
+  )
+
+  if (normalizedDerivedValue) return normalizedDerivedValue
+
+  const abroadSpecifyValue = firstNonEmptyDetailValue(app, [
+    'abroad_specify',
+    'abroadspecify',
+    'specify_destination',
+    'specifydestination',
+    'abroad_destination',
+    'abroad_location',
+  ])
+  if (abroadSpecifyValue) return 'Abroad'
+
+  const localSpecifyValue = firstNonEmptyDetailValue(app, [
+    'within_the_philippines_specify',
+    'withinthephilippinesspecify',
+    'specify_location',
+    'specifylocation',
+    'local_destination',
+    'local_location',
+  ])
+  if (localSpecifyValue) return 'Within the Philippines'
+
+  return ''
+}
+
+function resolveVacationSpecifyValue(app, normalizedVacationDetail, fallbackValue = '') {
+  if (String(fallbackValue || '').trim()) return String(fallbackValue || '').trim()
+
+  if (normalizedVacationDetail === 'Abroad') {
+    return firstNonEmptyDetailValue(
+      app,
+      ['vacation_specify', 'vacationSpecify', 'abroad_specify', 'abroadspecify'],
+      ['specify_destination', 'specifydestination', 'abroad_destination', 'destination'],
+      ['abroad_location', 'location'],
+    )
+  }
+
+  if (normalizedVacationDetail === 'Within the Philippines') {
+    return firstNonEmptyDetailValue(
+      app,
+      [
+        'vacation_specify',
+        'vacationSpecify',
+        'within_the_philippines_specify',
+        'withinthephilippinesspecify',
+      ],
+      ['specify_location', 'specifylocation', 'local_location', 'location'],
+      ['local_destination', 'destination'],
+    )
+  }
+
+  return firstNonEmptyDetailValue(
+    app,
+    ['vacation_specify', 'vacationSpecify'],
+    ['specify_destination', 'specifydestination', 'destination'],
+    ['specify_location', 'specifylocation', 'location'],
+  )
+}
+
+function resolveSickDetailValue(app, fallbackValue = '', fallbackSpecify = '') {
+  const normalizedExplicitValue = normalizeSickDetailValue(fallbackValue)
+  if (normalizedExplicitValue) return normalizedExplicitValue
+
+  const normalizedDerivedValue = normalizeSickDetailValue(
+    firstNonEmptyDetailValue(
+      app,
+      [
+        'sick_detail',
+        'sickDetail',
+        'sick_leave_detail',
+        'sick_leave_type',
+        'illness_type',
+        'patient_type',
+      ],
+      ['in_hospital', 'inhospital', 'inhospitalspecifyillness', 'hospital_illness'],
+      ['out_patient', 'outpatient', 'outpatientspecifyillness', 'outpatient_illness'],
+    ),
+  )
+
+  if (normalizedDerivedValue) return normalizedDerivedValue
+
+  const hospitalSpecifyValue = firstNonEmptyDetailValue(app, [
+    'in_hospital_specify_illness',
+    'inhospitalspecifyillness',
+    'hospital_illness',
+    'hospital_sickness',
+  ])
+  if (hospitalSpecifyValue) return 'In Hospital'
+
+  const outpatientSpecifyValue = firstNonEmptyDetailValue(app, [
+    'out_patient_specify_illness',
+    'outpatientspecifyillness',
+    'outpatient_illness',
+    'outpatient_sickness',
+  ])
+  if (outpatientSpecifyValue || String(fallbackSpecify || '').trim()) return 'Out Patient'
+
+  return ''
+}
+
+function resolveSickSpecifyValue(app, normalizedSickDetail, fallbackValue = '') {
+  if (String(fallbackValue || '').trim()) return String(fallbackValue || '').trim()
+
+  if (normalizedSickDetail === 'In Hospital') {
+    return firstNonEmptyDetailValue(
+      app,
+      ['sick_specify', 'sickSpecify', 'in_hospital_specify_illness', 'inhospitalspecifyillness'],
+      ['hospital_illness', 'hospital_sickness'],
+      [
+        'specified_illness',
+        'specify_illness',
+        'illness',
+        'illness_name',
+        'sickness',
+        'other_illness',
+        'diagnosis',
+      ],
+    )
+  }
+
+  if (normalizedSickDetail === 'Out Patient') {
+    return firstNonEmptyDetailValue(
+      app,
+      ['sick_specify', 'sickSpecify', 'out_patient_specify_illness', 'outpatientspecifyillness'],
+      ['outpatient_illness', 'outpatient_sickness'],
+      [
+        'specified_illness',
+        'specify_illness',
+        'illness',
+        'illness_name',
+        'sickness',
+        'other_illness',
+        'diagnosis',
+      ],
+    )
+  }
+
+  return firstNonEmptyDetailValue(
+    app,
+    ['sick_specify', 'sickSpecify'],
+    ['specified_illness', 'specify_illness', 'illness', 'illness_name'],
+    ['sickness', 'other_illness', 'diagnosis'],
+  )
 }
 
 function normalizeOfficeDepartment(value) {
@@ -235,12 +413,7 @@ function pickFirstFiniteNumber(...values) {
 function normalizePayStatus(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return normalizePayStatus(
-      value.pay_status ??
-      value.payStatus ??
-      value.status ??
-      value.code ??
-      value.value ??
-      '',
+      value.pay_status ?? value.payStatus ?? value.status ?? value.code ?? value.value ?? '',
     )
   }
 
@@ -293,15 +466,21 @@ function normalizeCoverage(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return normalizeCoverage(
       value.coverage ??
-      value.selected_date_coverage ??
-      value.selectedDateCoverage ??
-      value.value ??
-      '',
+        value.selected_date_coverage ??
+        value.selectedDateCoverage ??
+        value.value ??
+        '',
     )
   }
 
-  const normalizedValue = String(value || '').trim().toLowerCase()
-  if (normalizedValue === 'half' || normalizedValue === 'halfday' || normalizedValue === 'half-day') {
+  const normalizedValue = String(value || '')
+    .trim()
+    .toLowerCase()
+  if (
+    normalizedValue === 'half' ||
+    normalizedValue === 'halfday' ||
+    normalizedValue === 'half-day'
+  ) {
     return 'half'
   }
   if (!normalizedValue) return ''
@@ -347,7 +526,9 @@ function resolveApprovedForSectionValues(app) {
   const raw = app?.raw && typeof app.raw === 'object' ? app.raw : null
 
   const resolvePayMode = (value) => {
-    const normalizedValue = String(value || '').trim().toUpperCase()
+    const normalizedValue = String(value || '')
+      .trim()
+      .toUpperCase()
     if (normalizedValue === 'WOP' || normalizedValue === 'WITHOUT PAY') return 'WOP'
     if (normalizedValue === 'WP' || normalizedValue === 'WITH PAY') return 'WP'
     return ''
@@ -379,16 +560,16 @@ function resolveApprovedForSectionValues(app) {
 
   const payStatusMap = toStatusMap(
     app?.selected_date_pay_status ??
-    app?.selectedDatePayStatus ??
-    raw?.selected_date_pay_status ??
-    raw?.selectedDatePayStatus,
+      app?.selectedDatePayStatus ??
+      raw?.selected_date_pay_status ??
+      raw?.selectedDatePayStatus,
   )
 
   const coverageMap = toCoverageMap(
     app?.selected_date_coverage ??
-    app?.selectedDateCoverage ??
-    raw?.selected_date_coverage ??
-    raw?.selectedDateCoverage,
+      app?.selectedDateCoverage ??
+      raw?.selected_date_coverage ??
+      raw?.selectedDateCoverage,
   )
 
   if (payStatusMap) {
@@ -431,10 +612,7 @@ function resolveApprovedForSectionValues(app) {
   }
 
   const normalizedPayMode = resolvePayMode(
-    app?.pay_mode ??
-    app?.payMode ??
-    raw?.pay_mode ??
-    raw?.payMode,
+    app?.pay_mode ?? app?.payMode ?? raw?.pay_mode ?? raw?.payMode,
   )
   const withPayFlag = app?.with_pay ?? app?.withPay ?? raw?.with_pay ?? raw?.withPay
   const withoutPayFlag = app?.without_pay ?? app?.withoutPay ?? raw?.without_pay ?? raw?.withoutPay
@@ -474,14 +652,13 @@ function resolveApprovedForSectionValues(app) {
   const others =
     String(
       app?.approved_for_others ??
-      app?.approved_for_other ??
-      app?.others_specify ??
-      raw?.approved_for_others ??
-      raw?.approved_for_other ??
-      raw?.others_specify ??
-      '',
-    ).trim() ||
-    ((app?.is_monetization || raw?.is_monetization) ? 'Monetization' : '')
+        app?.approved_for_other ??
+        app?.others_specify ??
+        raw?.approved_for_others ??
+        raw?.approved_for_other ??
+        raw?.others_specify ??
+        '',
+    ).trim() || (app?.is_monetization || raw?.is_monetization ? 'Monetization' : '')
 
   return {
     withPayDays,
@@ -510,7 +687,9 @@ function computeCertificationBalance(totalEarned, lessThisApplication, fallbackB
   const totalEarnedNumber = toCreditNumber(totalEarned)
   const normalizedLessThisApplication =
     lessThisApplication == null || lessThisApplication === ''
-      ? totalEarnedNumber !== null ? 0 : null
+      ? totalEarnedNumber !== null
+        ? 0
+        : null
       : toCreditNumber(lessThisApplication)
 
   if (totalEarnedNumber !== null) {
@@ -544,11 +723,13 @@ function prettifyLeaveBalanceLabel(value) {
   if (lower === 'sl') return 'Sick Leave'
   if (lower === 'fl') return 'Mandatory / Forced Leave'
   if (lower === 'spl' || lower === 'special privilege') return 'Special Privilege Leave'
-  if (lower === 'wl' || lower === 'wlp' || lower === 'wellness leave policy') return 'Wellness Leave'
+  if (lower === 'wl' || lower === 'wlp' || lower === 'wellness leave policy')
+    return 'Wellness Leave'
   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave')
     return 'Mandatory / Forced Leave'
   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave')
+    return 'Special Privilege Leave'
   if (lower === 'vacation') return 'Vacation Leave'
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
@@ -596,8 +777,7 @@ function createCertificationEntry(label, value) {
   if (!normalizedLabel) return null
 
   if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const totalEarned =
-      value.total_earned ?? value.totalEarned ?? value.earned
+    const totalEarned = value.total_earned ?? value.totalEarned ?? value.earned
     const lessThisApplication =
       value.less_this_application ?? value.lessThisApplication ?? value.applied ?? value.used
     const fallbackBalance =
@@ -714,10 +894,16 @@ function buildCertificationColumns(app) {
     ]
   }
 
-  return [entryMap.get(selectedKey) || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
+  return [
+    entryMap.get(selectedKey) || createEmptyCertificationEntry(selectedLabel || 'Leave Credits'),
+  ]
 }
 
-function applyCertificationLessThisApplicationOverride(columns, selectedLeaveType, lessThisApplicationDays) {
+function applyCertificationLessThisApplicationOverride(
+  columns,
+  selectedLeaveType,
+  lessThisApplicationDays,
+) {
   if (!Array.isArray(columns) || columns.length === 0) return columns
 
   const normalizedLessThisApplicationDays = toFiniteNumber(lessThisApplicationDays)
@@ -748,10 +934,10 @@ function applyCertificationLessThisApplicationOverride(columns, selectedLeaveTyp
 }
 
 function openPdfDocument(pdfDocument, options = {}) {
-  const targetWindow = options?.targetWindow && !options.targetWindow.closed
-    ? options.targetWindow
-    : null
-  const fileName = String(options?.fileName || 'leave-application.pdf').trim() || 'leave-application.pdf'
+  const targetWindow =
+    options?.targetWindow && !options.targetWindow.closed ? options.targetWindow : null
+  const fileName =
+    String(options?.fileName || 'leave-application.pdf').trim() || 'leave-application.pdf'
 
   return pdfDocument.getBlob().then((blob) => {
     const objectUrl = URL.createObjectURL(blob)
@@ -823,13 +1009,16 @@ function buildCertificationTable(columns) {
  */
 function toBase64(url) {
   return fetch(url)
-    .then(res => res.blob())
-    .then(blob => new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result)
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
-    }))
+    .then((res) => res.blob())
+    .then(
+      (blob) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        }),
+    )
 }
 
 /**
@@ -864,27 +1053,70 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const status = printableApp.status || ''
   const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
   const approvedForSection = resolveApprovedForSectionValues(printableApp)
-  const cert = printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
+  const cert =
+    printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
   const asOfDate = cert.as_of_date || ''
   const certificationColumns = applyCertificationLessThisApplicationOverride(
     buildCertificationColumns(printableApp),
     lt,
     approvedForSection.withPayDays,
   )
-  const vacationDetail = String(
+  const vacationDetail = resolveVacationDetailValue(
+    printableApp,
     getApplicationDetailValue(printableApp, 'vacation_detail', 'vacationDetail', 'vacation_type'),
-  ).trim()
-  const vacationSpecify = String(
-    getApplicationDetailValue(printableApp, 'vacation_specify', 'vacationSpecify', 'destination', 'location'),
-  ).trim()
-  const sickDetail = String(
-    getApplicationDetailValue(printableApp, 'sick_detail', 'sickDetail', 'sick_leave_detail', 'sick_leave_type', 'illness_type'),
-  ).trim()
-  const sickSpecify = String(
-    getApplicationDetailValue(printableApp, 'sick_specify', 'sickSpecify', 'specified_illness', 'specify_illness', 'illness', 'illness_name'),
-  ).trim()
+  )
+  const vacationSpecify = resolveVacationSpecifyValue(
+    printableApp,
+    vacationDetail,
+    getApplicationDetailValue(
+      printableApp,
+      'vacation_specify',
+      'vacationSpecify',
+      'destination',
+      'location',
+    ),
+  )
+  const sickDetail = resolveSickDetailValue(
+    printableApp,
+    getApplicationDetailValue(
+      printableApp,
+      'sick_detail',
+      'sickDetail',
+      'sick_leave_detail',
+      'sick_leave_type',
+      'illness_type',
+    ),
+    getApplicationDetailValue(
+      printableApp,
+      'sick_specify',
+      'sickSpecify',
+      'specified_illness',
+      'specify_illness',
+      'illness',
+      'illness_name',
+    ),
+  )
+  const sickSpecify = resolveSickSpecifyValue(
+    printableApp,
+    sickDetail,
+    getApplicationDetailValue(
+      printableApp,
+      'sick_specify',
+      'sickSpecify',
+      'specified_illness',
+      'specify_illness',
+      'illness',
+      'illness_name',
+    ),
+  )
   const womenSpecify = String(
-    getApplicationDetailValue(printableApp, 'women_specify', 'womenSpecify', 'specified_illness', 'specify_illness'),
+    getApplicationDetailValue(
+      printableApp,
+      'women_specify',
+      'womenSpecify',
+      'specified_illness',
+      'specify_illness',
+    ),
   ).trim()
   const studyDetail = String(
     getApplicationDetailValue(printableApp, 'study_detail', 'studyDetail', 'study_leave_detail'),
@@ -898,11 +1130,16 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const isSick = lt === 'Sick Leave'
   const isStudy = lt === 'Study Leave'
   const normalizedSickDetail = normalizeSickDetailValue(sickDetail)
-  const resolvedSickSpecify = sickSpecify || (isSick ? String(printableApp.reason || '').trim() : '')
-  const showWithinPhilippines = (isVacation || isSpecialPrivilege) && normalizedVacationDetail === 'Within the Philippines'
+  const resolvedSickSpecify =
+    sickSpecify || (isSick ? String(printableApp.reason || '').trim() : '')
+  const showWithinPhilippines =
+    (isVacation || isSpecialPrivilege) && normalizedVacationDetail === 'Within the Philippines'
   const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
   const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
-  const showOutPatient = isSick && (normalizedSickDetail === 'Out Patient' || (!normalizedSickDetail && Boolean(resolvedSickSpecify)))
+  const showOutPatient =
+    isSick &&
+    (normalizedSickDetail === 'Out Patient' ||
+      (!normalizedSickDetail && Boolean(resolvedSickSpecify)))
   const showMastersDegree = isStudy && studyDetail === 'Masters Degree'
   const showBarReview = isStudy && studyDetail === 'BAR Review'
   const showMonetizationPurpose = lt === 'Monetization Leave' || otherPurpose === 'Monetization'
@@ -912,9 +1149,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
   function cbLine(checked, label, opts = {}) {
     const fs = opts.fontSize || 6.5
     const boxSize = 7
-    const canvasItems = [
-      { type: 'rect', x: 0, y: 1, w: boxSize, h: boxSize, lineWidth: 0.5 },
-    ]
+    const canvasItems = [{ type: 'rect', x: 0, y: 1, w: boxSize, h: boxSize, lineWidth: 0.5 }]
     if (checked) {
       canvasItems.push(
         { type: 'line', x1: 1.2, y1: 4.5, x2: 2.8, y2: 7, lineWidth: 1 },
@@ -927,10 +1162,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
         : { ...label, width: label?.width ?? '*' }
 
     return {
-      columns: [
-        { canvas: canvasItems, width: 10 },
-        labelNode,
-      ],
+      columns: [{ canvas: canvasItems, width: 10 }, labelNode],
       margin: opts.margin || [0, 1.2, 0, 1.2],
     }
   }
@@ -954,29 +1186,69 @@ export async function generateLeaveFormPdf(app, options = {}) {
 
   // ── Leave type definitions with legal references ──
   const leaveTypes = [
-    { key: 'Vacation Leave', label: 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
-    { key: 'Mandatory/Forced Leave', label: 'Mandatory/Forced Leave(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
-    { key: 'Sick Leave', label: 'Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
+    {
+      key: 'Vacation Leave',
+      label: 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+    },
+    {
+      key: 'Mandatory/Forced Leave',
+      label: 'Mandatory/Forced Leave(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+    },
+    {
+      key: 'Sick Leave',
+      label: 'Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+    },
     { key: 'Wellness Leave', label: 'Wellness Leave Policy (CSC Resolution No. 2501292)' },
-    { key: 'CTO Leave', label: 'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)' },
-    { key: 'Maternity Leave', label: 'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)' },
-    { key: 'Paternity Leave', label: 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)' },
-    { key: 'Special Privilege Leave', label: 'Special Privilege Leave(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
+    {
+      key: 'CTO Leave',
+      label: 'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
+    },
+    {
+      key: 'Maternity Leave',
+      label: 'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
+    },
+    {
+      key: 'Paternity Leave',
+      label: 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
+    },
+    {
+      key: 'Special Privilege Leave',
+      label:
+        'Special Privilege Leave(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+    },
     { key: 'Solo Parent Leave', label: 'Solo Parent Leave (RA No. 8972 / CSC MC No. 8, s. 2004)' },
-    { key: 'Study Leave', label: 'Study Leave (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
+    {
+      key: 'Study Leave',
+      label: 'Study Leave (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+    },
     { key: '10-Day VAWC Leave', label: '10-Day VAWC Leave (RA No. 9262 / CSC MC No. 15, s. 2005)' },
-    { key: 'Rehabilitation Privilege', label: 'Rehabilitation Privilege (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)' },
-    { key: 'Special Leave Benefits for Women', label: 'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)' },
-    { key: 'Special Emergency (Calamity) Leave', label: 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)' },
+    {
+      key: 'Rehabilitation Privilege',
+      label:
+        'Rehabilitation Privilege (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+    },
+    {
+      key: 'Special Leave Benefits for Women',
+      label: 'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)',
+    },
+    {
+      key: 'Special Emergency (Calamity) Leave',
+      label: 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)',
+    },
     { key: 'Adoption Leave', label: 'Adoption Leave (R.A. No. 8552)' },
   ]
-  const isKnownLeave = leaveTypes.some(t => t.key === lt)
+  const isKnownLeave = leaveTypes.some((t) => t.key === lt)
 
   // ── Section 6.A: Type of Leave checkboxes ──
   const section6A = {
     stack: [
-      { text: '6.A  TYPE OF LEAVE TO BE AVAILED OF', bold: true, fontSize: 7.5, margin: [0, 3, 0, 4] },
-      ...leaveTypes.map(t => cbLine(lt === t.key, t.label)),
+      {
+        text: '6.A  TYPE OF LEAVE TO BE AVAILED OF',
+        bold: true,
+        fontSize: 7.5,
+        margin: [0, 3, 0, 4],
+      },
+      ...leaveTypes.map((t) => cbLine(lt === t.key, t.label)),
       {
         text: [
           { text: '\nOthers:  ', fontSize: 7 },
@@ -993,23 +1265,57 @@ export async function generateLeaveFormPdf(app, options = {}) {
     stack: [
       { text: '6.B  DETAILS OF LEAVE', bold: true, fontSize: 7.5, margin: [0, 3, 0, 4] },
 
-      { text: 'In case of Vacation/Special Privilege Leave(MC06):', fontSize: 7, italics: true, margin: [0, 2, 0, 2] },
-      cbLine(showWithinPhilippines, buildSpecifiedDetailLabel('Within the Philippines', showWithinPhilippines ? vacationSpecify : '', {
-        emptyLine: '___________________',
-      })),
-      cbLine(showAbroad, buildSpecifiedDetailLabel('Abroad (Specify)', showAbroad ? vacationSpecify : '', {
-        emptyLine: '______________________',
-      })),
+      {
+        text: 'In case of Vacation/Special Privilege Leave(MC06):',
+        fontSize: 7,
+        italics: true,
+        margin: [0, 2, 0, 2],
+      },
+      cbLine(
+        showWithinPhilippines,
+        buildSpecifiedDetailLabel(
+          'Within the Philippines',
+          showWithinPhilippines ? vacationSpecify : '',
+          {
+            emptyLine: '___________________',
+          },
+        ),
+      ),
+      cbLine(
+        showAbroad,
+        buildSpecifiedDetailLabel('Abroad (Specify)', showAbroad ? vacationSpecify : '', {
+          emptyLine: '______________________',
+        }),
+      ),
 
       { text: 'In case of Sick Leave:', fontSize: 7, italics: true, margin: [0, 6, 0, 2] },
-      cbLine(showInHospital, buildSpecifiedDetailLabel('In Hospital (Specify Illness)', showInHospital ? resolvedSickSpecify : '', {
-        emptyLine: '_______________',
-      })),
-      cbLine(showOutPatient, buildSpecifiedDetailLabel('Out Patient (Specify Illness)', showOutPatient ? resolvedSickSpecify : '', {
-        emptyLine: '_______________',
-      })),
+      cbLine(
+        showInHospital,
+        buildSpecifiedDetailLabel(
+          'In Hospital (Specify Illness)',
+          showInHospital ? resolvedSickSpecify : '',
+          {
+            emptyLine: '_______________',
+          },
+        ),
+      ),
+      cbLine(
+        showOutPatient,
+        buildSpecifiedDetailLabel(
+          'Out Patient (Specify Illness)',
+          showOutPatient ? resolvedSickSpecify : '',
+          {
+            emptyLine: '_______________',
+          },
+        ),
+      ),
 
-      { text: 'In case of Special Leave Benefits for Women:', fontSize: 7, italics: true, margin: [0, 6, 0, 2] },
+      {
+        text: 'In case of Special Leave Benefits for Women:',
+        fontSize: 7,
+        italics: true,
+        margin: [0, 6, 0, 2],
+      },
       {
         ...buildSpecifiedDetailLabel('(Specify Illness)', womenSpecify, {
           fontSize: 7,
@@ -1019,7 +1325,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
       },
 
       { text: 'In case of Study Leave:', fontSize: 7, italics: true, margin: [0, 6, 0, 2] },
-      cbLine(showMastersDegree, 'Completion of Master\'s Degree'),
+      cbLine(showMastersDegree, "Completion of Master's Degree"),
       cbLine(showBarReview, 'BAR/Board Examination Review'),
 
       { text: 'Other purpose:', fontSize: 7, italics: true, margin: [0, 6, 0, 2] },
@@ -1032,7 +1338,12 @@ export async function generateLeaveFormPdf(app, options = {}) {
   // ── Section 6.C: Working days + inclusive dates ──
   const section6C = {
     stack: [
-      { text: '6.C  NUMBER OF WORKING DAYS APPLIED FOR', bold: true, fontSize: 7.5, margin: [0, 3, 0, 3] },
+      {
+        text: '6.C  NUMBER OF WORKING DAYS APPLIED FOR',
+        bold: true,
+        fontSize: 7.5,
+        margin: [0, 3, 0, 3],
+      },
       { text: `         ${days} day(s)`, fontSize: 8, margin: [0, 0, 0, 8] },
       { text: '       INCLUSIVE DATES', bold: true, fontSize: 7, margin: [0, 0, 0, 3] },
       { text: `         ${startDate}  to  ${endDate}`, fontSize: 8 },
@@ -1048,7 +1359,13 @@ export async function generateLeaveFormPdf(app, options = {}) {
       cbLine(commutation === 'Requested', 'Requested'),
       { text: '', margin: [0, 18, 0, 0] },
       { text: '______________________________________', alignment: 'center', fontSize: 8 },
-      { text: '(Signature of Applicant)', alignment: 'center', fontSize: 7, italics: true, margin: [0, 2, 0, 0] },
+      {
+        text: '(Signature of Applicant)',
+        alignment: 'center',
+        fontSize: 7,
+        italics: true,
+        margin: [0, 2, 0, 0],
+      },
     ],
     margin: [4, 0, 6, 6],
   }
@@ -1056,8 +1373,17 @@ export async function generateLeaveFormPdf(app, options = {}) {
   // ── Section 7.A: Certification of Leave Credits ──
   const section7A = {
     stack: [
-      { text: '7.A  CERTIFICATION OF LEAVE CREDITS', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-      { text: `       As of  ${asOfDate || '________________________'}`, fontSize: 7, margin: [0, 0, 0, 6] },
+      {
+        text: '7.A  CERTIFICATION OF LEAVE CREDITS',
+        bold: true,
+        fontSize: 7.5,
+        margin: [0, 3, 0, 5],
+      },
+      {
+        text: `       As of  ${asOfDate || '________________________'}`,
+        fontSize: 7,
+        margin: [0, 0, 0, 6],
+      },
       buildCertificationTable(certificationColumns),
       { text: '______________________________________', alignment: 'center', fontSize: 8 },
       { text: 'CHRMO Leave In-charge', alignment: 'center', fontSize: 7, margin: [0, 2, 0, 0] },
@@ -1078,14 +1404,18 @@ export async function generateLeaveFormPdf(app, options = {}) {
       {
         table: {
           widths: ['*'],
-          body: [[{
-            text: departmentHeadSignature.fullName || ' ',
-            alignment: 'center',
-            fontSize: 8,
-            bold: true,
-            margin: [0, 0, 0, 2],
-            border: [false, false, false, true],
-          }]],
+          body: [
+            [
+              {
+                text: departmentHeadSignature.fullName || ' ',
+                alignment: 'center',
+                fontSize: 8,
+                bold: true,
+                margin: [0, 0, 0, 2],
+                border: [false, false, false, true],
+              },
+            ],
+          ],
         },
         margin: [36, 0, 36, 0],
         layout: {
@@ -1098,7 +1428,12 @@ export async function generateLeaveFormPdf(app, options = {}) {
           paddingBottom: () => 0,
         },
       },
-      { text: departmentHeadSignature.designation, alignment: 'center', fontSize: 7, margin: [0, 2, 0, 0] },
+      {
+        text: departmentHeadSignature.designation,
+        alignment: 'center',
+        fontSize: 7,
+        margin: [0, 2, 0, 0],
+      },
     ],
     margin: [4, 0, 6, 6],
   }
@@ -1112,9 +1447,21 @@ export async function generateLeaveFormPdf(app, options = {}) {
             width: '50%',
             stack: [
               { text: '7.C  APPROVED FOR:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-              { text: `         ${formatApprovedForDays(approvedForSection.withPayDays)} days with pay`, fontSize: 7, margin: [0, 2, 0, 2] },
-              { text: `         ${formatApprovedForDays(approvedForSection.withoutPayDays)} days without pay`, fontSize: 7, margin: [0, 2, 0, 2] },
-              { text: `         ${formatApprovedForOthers(approvedForSection.others)} others (Specify)`, fontSize: 7, margin: [0, 2, 0, 2] },
+              {
+                text: `         ${formatApprovedForDays(approvedForSection.withPayDays)} days with pay`,
+                fontSize: 7,
+                margin: [0, 2, 0, 2],
+              },
+              {
+                text: `         ${formatApprovedForDays(approvedForSection.withoutPayDays)} days without pay`,
+                fontSize: 7,
+                margin: [0, 2, 0, 2],
+              },
+              {
+                text: `         ${formatApprovedForOthers(approvedForSection.others)} others (Specify)`,
+                fontSize: 7,
+                margin: [0, 2, 0, 2],
+              },
             ],
             margin: [0, 0, 10, 0],
           },
@@ -1122,9 +1469,21 @@ export async function generateLeaveFormPdf(app, options = {}) {
             width: '50%',
             stack: [
               { text: '7.D  DISAPPROVED DUE TO:', bold: true, fontSize: 7.5, margin: [0, 3, 0, 5] },
-              { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
-              { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
-              { text: '     ______________________________________', fontSize: 7, margin: [0, 2, 0, 2] },
+              {
+                text: '     ______________________________________',
+                fontSize: 7,
+                margin: [0, 2, 0, 2],
+              },
+              {
+                text: '     ______________________________________',
+                fontSize: 7,
+                margin: [0, 2, 0, 2],
+              },
+              {
+                text: '     ______________________________________',
+                fontSize: 7,
+                margin: [0, 2, 0, 2],
+              },
             ],
             margin: [10, 0, 0, 0],
           },
@@ -1134,14 +1493,18 @@ export async function generateLeaveFormPdf(app, options = {}) {
       {
         table: {
           widths: ['*'],
-          body: [[{
-            text: 'HON. REY T. UY',
-            alignment: 'center',
-            fontSize: 10,
-            bold: true,
-            margin: [0, 0, 0, 2],
-            border: [false, false, false, true],
-          }]],
+          body: [
+            [
+              {
+                text: 'HON. REY T. UY',
+                alignment: 'center',
+                fontSize: 10,
+                bold: true,
+                margin: [0, 0, 0, 2],
+                border: [false, false, false, true],
+              },
+            ],
+          ],
         },
         margin: [185, 0, 185, 0],
         layout: {
@@ -1169,7 +1532,9 @@ export async function generateLeaveFormPdf(app, options = {}) {
     content: [
       // ═══════ HEADER ═══════
       // Logo positioned absolutely so it doesn't shift the centered text
-      ...(logoBase64 ? [{ image: logoBase64, width: 45, absolutePosition: { x: 135, y: 18 } }] : []),
+      ...(logoBase64
+        ? [{ image: logoBase64, width: 45, absolutePosition: { x: 135, y: 18 } }]
+        : []),
       {
         columns: [
           {
@@ -1185,7 +1550,12 @@ export async function generateLeaveFormPdf(app, options = {}) {
               { text: 'Republic of the Philippines', fontSize: 9, alignment: 'center' },
               { text: 'Province of Davao del Norte', fontSize: 8, alignment: 'center' },
               { text: 'CITY GOVERNMENT OF TAGUM', fontSize: 11, bold: true, alignment: 'center' },
-              { text: 'JV Ayala Avenue, Apokon, Tagum City', fontSize: 7, alignment: 'center', italics: true },
+              {
+                text: 'JV Ayala Avenue, Apokon, Tagum City',
+                fontSize: 7,
+                alignment: 'center',
+                italics: true,
+              },
             ],
           },
           {
@@ -1193,7 +1563,14 @@ export async function generateLeaveFormPdf(app, options = {}) {
             table: {
               widths: ['*'],
               body: [
-                [{ text: 'Stamp of Date of Receipt', fontSize: 7, alignment: 'center', margin: [3, 10, 3, 10] }],
+                [
+                  {
+                    text: 'Stamp of Date of Receipt',
+                    fontSize: 7,
+                    alignment: 'center',
+                    margin: [3, 10, 3, 10],
+                  },
+                ],
               ],
             },
           },
@@ -1226,13 +1603,23 @@ export async function generateLeaveFormPdf(app, options = {}) {
                       {
                         stack: [
                           { text: '1.  OFFICE/DEPARTMENT', bold: true, fontSize: 7 },
-                          { text: office, fontSize: officeFontSize, lineHeight: 1.05, margin: [0, 3, 0, 0] },
+                          {
+                            text: office,
+                            fontSize: officeFontSize,
+                            lineHeight: 1.05,
+                            margin: [0, 3, 0, 0],
+                          },
                         ],
                         margin: [2, 3, 2, 3],
                       },
                       {
                         stack: [
-                          { text: [{ text: '2.  NAME :    ', bold: true, fontSize: 7 }, { text: '(Last)', fontSize: 6, color: '#555' }] },
+                          {
+                            text: [
+                              { text: '2.  NAME :    ', bold: true, fontSize: 7 },
+                              { text: '(Last)', fontSize: 6, color: '#555' },
+                            ],
+                          },
                           { text: lastName, fontSize: 9, margin: [0, 3, 0, 0] },
                         ],
                         margin: [2, 3, 2, 3],
@@ -1249,7 +1636,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
                 },
                 layout: {
                   hLineWidth: () => 0,
-                  vLineWidth: (i) => (i === 2) ? 0.3 : 0,
+                  vLineWidth: (i) => (i === 2 ? 0.3 : 0),
                   vLineColor: () => '#000',
                 },
               },
