@@ -2589,16 +2589,33 @@ export function useAdminApplicationsPage() {
   }
 
   function getCocReleaseStageStatus(app) {
-    if (!app) return ''
+    if (!app || !isCocApplication(app)) return ''
 
     const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+    if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
     if (rawStatus !== 'APPROVED') return ''
 
     if (isApplicationReleased(app)) {
-      return isCocApplication(app) ? 'Released' : 'Approved'
+      return 'Approved'
     }
     if (isApplicationReceivedByHr(app)) return 'Pending Release'
-    return 'Pending Receive'
+    return 'Pending HR Receive'
+  }
+
+  function getLeaveWorkflowStageStatus(app) {
+    if (!app || isCocApplication(app)) return ''
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+    if (rawStatus === 'PENDING_HR') {
+      return isApplicationReceivedByHr(app) ? 'Pending HR Review' : 'Pending HR Receive'
+    }
+    if (rawStatus === 'APPROVED') {
+      return isApplicationReleased(app) ? 'Approved' : 'Pending Release'
+    }
+
+    return ''
   }
 
   function getApplicationStatusLabel(app) {
@@ -2615,6 +2632,10 @@ export function useAdminApplicationsPage() {
     ) {
       return 'Approved'
     }
+
+    const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
+    if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
+
     if (app?.status) return app.status
 
     if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
@@ -2629,9 +2650,11 @@ export function useAdminApplicationsPage() {
     if (isCancelledByUser(app)) return 'grey-7'
 
     const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-    if (cocReleaseStageStatus === 'Released') return 'positive'
+    if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 'positive'
     if (cocReleaseStageStatus === 'Pending Release') return 'indigo-6'
-    if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
+    if (cocReleaseStageStatus === 'Pending HR Receive') return 'teal-6'
+    if (cocReleaseStageStatus === 'Pending HR Review') return 'blue-6'
+    if (cocReleaseStageStatus === 'Pending Admin') return 'warning'
 
     const rawStatus = getApplicationRawStatus(app)
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
@@ -2641,6 +2664,14 @@ export function useAdminApplicationsPage() {
     ) {
       return 'green'
     }
+
+    const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
+    if (leaveWorkflowStageStatus === 'Pending Admin') return 'warning'
+    if (leaveWorkflowStageStatus === 'Pending HR Receive') return 'teal-6'
+    if (leaveWorkflowStageStatus === 'Pending HR Review') return 'blue-6'
+    if (leaveWorkflowStageStatus === 'Pending Release') return 'indigo-6'
+    if (leaveWorkflowStageStatus === 'Approved') return 'green'
+
     if (rawStatus === 'PENDING_ADMIN') return 'warning'
     if (rawStatus === 'PENDING_HR') return 'blue-6'
     if (rawStatus === 'APPROVED') return 'green'
@@ -4206,10 +4237,26 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusPriority(app) {
     const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-    if (cocReleaseStageStatus === 'Pending Receive' || cocReleaseStageStatus === 'Pending Release') {
+    if (
+      cocReleaseStageStatus === 'Pending Admin' ||
+      cocReleaseStageStatus === 'Pending HR Review' ||
+      cocReleaseStageStatus === 'Pending HR Receive' ||
+      cocReleaseStageStatus === 'Pending Release'
+    ) {
       return 1
     }
-    if (cocReleaseStageStatus === 'Released') return 2
+    if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 2
+
+    const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
+    if (
+      leaveWorkflowStageStatus === 'Pending Admin' ||
+      leaveWorkflowStageStatus === 'Pending HR Receive' ||
+      leaveWorkflowStageStatus === 'Pending HR Review' ||
+      leaveWorkflowStageStatus === 'Pending Release'
+    ) {
+      return 1
+    }
+    if (leaveWorkflowStageStatus === 'Approved') return 2
 
     const groupedRawStatus = getApplicationGroupedRawStatus(app)
     if (groupedRawStatus === 'PENDING_ADMIN') return 0

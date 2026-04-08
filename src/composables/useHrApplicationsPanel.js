@@ -414,16 +414,33 @@ function mergeApplications(...sources) {
 }
 
 function getCocReleaseStageStatus(app) {
-  if (!app) return ''
+  if (!app || !isCocApplication(app)) return ''
 
   const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+  if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
   if (rawStatus !== 'APPROVED') return ''
 
   if (isApplicationReleased(app)) {
-    return isCocApplication(app) ? 'Released' : 'Approved'
+    return 'Approved'
   }
   if (isApplicationReceivedByHr(app)) return 'Pending Release'
-  return 'Pending Receive'
+  return 'Pending HR Receive'
+}
+
+function getLeaveWorkflowStageStatus(app) {
+  if (!app || isCocApplication(app)) return ''
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+  if (rawStatus === 'PENDING_HR') {
+    return isApplicationReceivedByHr(app) ? 'Pending HR Review' : 'Pending HR Receive'
+  }
+  if (rawStatus === 'APPROVED') {
+    return isApplicationReleased(app) ? 'Approved' : 'Pending Release'
+  }
+
+  return ''
 }
 
 function mergeStatus(app) {
@@ -441,6 +458,9 @@ function mergeStatus(app) {
   ) {
     return 'Approved'
   }
+
+  const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
+  if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
 
   if (raw === 'PENDING_ADMIN' || normalizedStatus.includes('PENDING ADMIN')) return 'Pending Admin'
   if (raw === 'PENDING_HR' || normalizedStatus.includes('PENDING HR')) return 'Pending HR'
@@ -1656,13 +1676,67 @@ function getApplicationDurationLabel(app) {
   return getApplicationInclusiveDateLines(app).join(' ')
 }
 
+function hasLeaveWorkflowReleaseSignals(app) {
+  if (!app || typeof app !== 'object') return false
+
+  const signalKeys = [
+    'has_hr_received',
+    'has_hr_released',
+    'received_at',
+    'released_at',
+    'hr_received_at',
+    'hr_released_at',
+    'status_history',
+  ]
+
+  return signalKeys.some((key) => {
+    if (!Object.prototype.hasOwnProperty.call(app, key)) return false
+    const value = app?.[key]
+    if (value === null || value === undefined) return false
+    if (typeof value === 'string' && value.trim() === '') return false
+    if (Array.isArray(value) && value.length === 0) return false
+    return true
+  })
+}
+
+async function fetchWorkflowDetailSnapshotsForApprovedLeaveRows(applications = []) {
+  const approvedLeaveRows = (Array.isArray(applications) ? applications : []).filter((application) => {
+    if (!application || typeof application !== 'object') return false
+    if (isCocApplication(application)) return false
+    if (getApplicationRawStatusKey(application) !== 'APPROVED') return false
+    if (hasLeaveWorkflowReleaseSignals(application)) return false
+    return true
+  })
+
+  if (!approvedLeaveRows.length) return []
+
+  const detailRequests = approvedLeaveRows.map(async (application) => {
+    const id = String(getApplicationId(application) ?? '').trim()
+    if (!id) return null
+
+    try {
+      const response = await api.get('/hr/leave-applications/' + id)
+      return normalizeBackendApplicationShape(
+        extractSingleApplicationFromPayload(response?.data),
+      )
+    } catch {
+      return null
+    }
+  })
+
+  const detailRows = await Promise.all(detailRequests)
+  return detailRows.filter((application) => application && typeof application === 'object')
+}
+
 function getApplicationStatusLabel(app) {
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
   if (cocReleaseStageStatus) return cocReleaseStageStatus
 
   if (app?.displayStatus) return app.displayStatus
+  const mergedStatus = mergeStatus(app)
+  if (mergedStatus) return mergedStatus
   if (app?.status) return app.status
-  return mergeStatus(app)
+  return ''
 }
 
 function getApplicationGroupedRawStatusKey(app) {
@@ -1671,8 +1745,26 @@ function getApplicationGroupedRawStatusKey(app) {
 
 function getApplicationStatusPriority(app) {
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-  if (cocReleaseStageStatus === 'Pending Receive' || cocReleaseStageStatus === 'Pending Release') return 0
-  if (cocReleaseStageStatus === 'Released') return 1
+  if (
+    cocReleaseStageStatus === 'Pending Admin' ||
+    cocReleaseStageStatus === 'Pending HR Review' ||
+    cocReleaseStageStatus === 'Pending HR Receive' ||
+    cocReleaseStageStatus === 'Pending Release'
+  ) {
+    return 0
+  }
+  if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 1
+
+  const leaveWorkflowStageStatus = isPendingEditRequest(app) ? '' : getLeaveWorkflowStageStatus(app)
+  if (
+    leaveWorkflowStageStatus === 'Pending Admin' ||
+    leaveWorkflowStageStatus === 'Pending HR Receive' ||
+    leaveWorkflowStageStatus === 'Pending HR Review' ||
+    leaveWorkflowStageStatus === 'Pending Release'
+  ) {
+    return 0
+  }
+  if (leaveWorkflowStageStatus === 'Approved') return 1
 
   const groupedRawStatus = getApplicationGroupedRawStatusKey(app) || getApplicationRawStatusKey(app)
   if (groupedRawStatus === 'PENDING_ADMIN' && isPendingEditRequest(app)) return 1
@@ -1923,15 +2015,23 @@ async function fetchApplications() {
       ])
 
     const dashboardData = dashboardResponse?.data ?? {}
-    const mergedApplications = expandApplicationsForDisplay(
-      mergeApplications(
-        normalizeBackendApplications(extractApplicationsFromPayload(dashboardData)),
-        normalizeBackendApplications(extractApplicationsFromPayload(leaveApplicationsResponse?.data)),
-        normalizeBackendApplications(extractApplicationsFromPayload(cocApplicationsResponse?.data)),
-      ),
+    const mergedApplications = mergeApplications(
+      normalizeBackendApplications(extractApplicationsFromPayload(dashboardData)),
+      normalizeBackendApplications(extractApplicationsFromPayload(leaveApplicationsResponse?.data)),
+      normalizeBackendApplications(extractApplicationsFromPayload(cocApplicationsResponse?.data)),
     )
 
-    applications.value = normalizeBackendApplications(mergedApplications).map((app, index) => {
+    const detailWorkflowSnapshots = await fetchWorkflowDetailSnapshotsForApprovedLeaveRows(
+      mergedApplications,
+    )
+    const mergedApplicationsWithWorkflowSnapshots = detailWorkflowSnapshots.length > 0
+      ? mergeApplications(mergedApplications, detailWorkflowSnapshots)
+      : mergedApplications
+    const applicationsForDisplay = expandApplicationsForDisplay(
+      mergedApplicationsWithWorkflowSnapshots,
+    )
+
+    applications.value = normalizeBackendApplications(applicationsForDisplay).map((app, index) => {
       const normalized = normalizeBackendApplicationShape(app, index) || app
       return {
         ...normalized,
@@ -2141,9 +2241,18 @@ function getApplicationRawStatusKey(app) {
 
 function getApplicationStatusColor(app) {
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-  if (cocReleaseStageStatus === 'Released') return 'positive'
+  if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 'positive'
   if (cocReleaseStageStatus === 'Pending Release') return 'indigo-6'
-  if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
+  if (cocReleaseStageStatus === 'Pending HR Receive') return 'teal-6'
+  if (cocReleaseStageStatus === 'Pending HR Review') return 'blue-6'
+  if (cocReleaseStageStatus === 'Pending Admin') return 'warning'
+
+  const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
+  if (leaveWorkflowStageStatus === 'Pending Admin') return 'warning'
+  if (leaveWorkflowStageStatus === 'Pending HR Receive') return 'teal-6'
+  if (leaveWorkflowStageStatus === 'Pending HR Review') return 'blue-6'
+  if (leaveWorkflowStageStatus === 'Pending Release') return 'indigo-6'
+  if (leaveWorkflowStageStatus === 'Approved') return 'green'
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (isCancelledByUser(app)) return 'grey-7'
