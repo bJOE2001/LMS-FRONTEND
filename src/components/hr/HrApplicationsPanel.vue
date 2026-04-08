@@ -130,6 +130,13 @@
           }}</span>
         </q-td>
       </template>
+      <template #body-cell-days="props">
+        <q-td>
+          <span class="text-weight-medium text-grey-9">
+            {{ getApplicationDurationDisplay(props.row) }}
+          </span>
+        </q-td>
+      </template>
       <template #body-cell-status="props">
         <q-td>
           <div class="status-cell-wrap">
