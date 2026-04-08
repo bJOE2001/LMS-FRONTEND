@@ -83,7 +83,7 @@ const $q = useQuasar()
 const isDark = computed(() => $q.dark.isActive)
 const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
 const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
-const chartMarkerFillColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
+const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const currentYear = new Date().getFullYear()
 const trendYearLabel = computed(() => {
   const parsed = Number(props.analytics?.trend_year)
@@ -213,8 +213,8 @@ const trendChartOptions = computed(() => ({
   markers: {
     size: 4,
     strokeWidth: 2,
-    colors: [chartMarkerFillColor.value],
-    strokeColors: '#1e88e5',
+    colors: ['#1e88e5'],
+    strokeColors: chartMarkerStrokeColor.value,
     hover: { sizeOffset: 2 },
   },
   fill: {
@@ -355,7 +355,9 @@ const leaveTypeTrendChartOptions = computed(() => ({
   },
   markers: {
     size: 3,
-    colors: [chartMarkerFillColor.value],
+    strokeWidth: 2,
+    colors: leaveTypeChartPalette,
+    strokeColors: chartMarkerStrokeColor.value,
     hover: { sizeOffset: 2 },
   },
   grid: {

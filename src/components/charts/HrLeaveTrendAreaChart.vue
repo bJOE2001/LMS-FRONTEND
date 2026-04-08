@@ -78,7 +78,7 @@ const $q = useQuasar()
 const isDark = computed(() => $q.dark.isActive)
 const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
 const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
-const chartMarkerFillColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
+const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
 
@@ -177,8 +177,8 @@ const trendChartOptions = computed(() => ({
   markers: {
     size: 4,
     strokeWidth: 2,
-    colors: [chartMarkerFillColor.value],
-    strokeColors: '#1e88e5',
+    colors: ['#1e88e5'],
+    strokeColors: chartMarkerStrokeColor.value,
     hover: { sizeOffset: 2 },
   },
   fill: {
