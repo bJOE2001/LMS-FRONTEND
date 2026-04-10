@@ -406,7 +406,7 @@ async function doLogout() {
 .logout-card {
   min-width: 340px;
   max-width: 420px;
-  border-radius: 20px;
+  border-radius: 2px;
   box-shadow: 0 14px 40px rgba(15, 23, 42, 0.25);
 }
 .logout-avatar {

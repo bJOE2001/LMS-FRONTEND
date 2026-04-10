@@ -18,55 +18,86 @@
       </q-card-section>
       <q-separator />
       <q-card-section class="application-timeline-content">
-        <div v-if="canShowAttachment" class="q-mb-md">
-          <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="attach_file"
-            color="primary"
-            label="View Attachment"
-            @click="handleViewAttachment"
-          />
-        </div>
+        <template v-if="loadingTimeline">
+          <div v-if="canShowAttachment" class="q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+            <q-skeleton type="rect" class="application-timeline-skeleton-attachment" />
+          </div>
 
-        <div class="application-timeline-panel">
-          <div
-            v-for="(entry, index) in timelineEntries"
-            :key="`${entry.title}-${index}`"
-            class="application-timeline-item"
-          >
-            <div class="application-timeline-marker-column">
-              <div
-                class="application-timeline-marker"
-                :class="`application-timeline-marker--${resolveEntryTone(entry)}`"
-              >
-                <q-icon :name="resolveEntryIcon(entry)" size="16px" />
+          <div class="application-timeline-panel">
+            <div
+              v-for="index in 5"
+              :key="`timeline-skeleton-${index}`"
+              class="application-timeline-item"
+            >
+              <div class="application-timeline-marker-column">
+                <q-skeleton type="circle" size="28px" class="application-timeline-skeleton-marker" />
+                <div
+                  v-if="index < 5"
+                  class="application-timeline-line application-timeline-line--neutral application-timeline-skeleton-line"
+                />
               </div>
-              <div
-                v-if="index < timelineEntries.length - 1"
-                class="application-timeline-line"
-                :class="`application-timeline-line--${resolveEntryTone(entry)}`"
-              />
-            </div>
 
-            <div class="application-timeline-body">
-              <div v-if="entry.subtitle" class="application-timeline-meta">
-                {{ entry.subtitle }}
-              </div>
-              <div class="application-timeline-title">
-                {{ entry.title }}
-              </div>
-              <div v-if="entry.actor" class="application-timeline-actor">
-                Action by: {{ entry.actor }}
-              </div>
-              <div v-else-if="entry.description" class="application-timeline-actor">
-                {{ entry.description }}
+              <div class="application-timeline-body">
+                <q-skeleton type="text" width="34%" class="application-timeline-skeleton-meta" />
+                <q-skeleton type="text" width="72%" class="application-timeline-skeleton-title" />
+                <q-skeleton type="text" width="56%" class="application-timeline-skeleton-actor" />
               </div>
             </div>
           </div>
-        </div>
+        </template>
+
+        <template v-else>
+          <div v-if="canShowAttachment" class="q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="attach_file"
+              color="primary"
+              label="View Attachment"
+              @click="handleViewAttachment"
+            />
+          </div>
+
+          <div class="application-timeline-panel">
+            <div
+              v-for="(entry, index) in timelineEntries"
+              :key="`${entry.title}-${index}`"
+              class="application-timeline-item"
+            >
+              <div class="application-timeline-marker-column">
+                <div
+                  class="application-timeline-marker"
+                  :class="`application-timeline-marker--${resolveEntryTone(entry)}`"
+                >
+                  <q-icon :name="resolveEntryIcon(entry)" size="16px" />
+                </div>
+                <div
+                  v-if="index < timelineEntries.length - 1"
+                  class="application-timeline-line"
+                  :class="`application-timeline-line--${resolveEntryTone(entry)}`"
+                />
+              </div>
+
+              <div class="application-timeline-body">
+                <div v-if="entry.subtitle" class="application-timeline-meta">
+                  {{ entry.subtitle }}
+                </div>
+                <div class="application-timeline-title">
+                  {{ entry.title }}
+                </div>
+                <div v-if="entry.actor" class="application-timeline-actor">
+                  Action by: {{ entry.actor }}
+                </div>
+                <div v-else-if="entry.description" class="application-timeline-actor">
+                  {{ entry.description }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </q-card-section>
     </q-card>
   </q-dialog>
@@ -83,6 +114,10 @@ const props = defineProps({
   selectedApp: {
     type: Object,
     default: null,
+  },
+  loadingTimeline: {
+    type: Boolean,
+    default: false,
   },
   timelineEntries: {
     type: Array,
@@ -266,6 +301,32 @@ function resolveEntryIcon(entry) {
   font-size: 0.78rem;
   color: #64748b;
   line-height: 1.45;
+}
+
+.application-timeline-skeleton-attachment {
+  width: 172px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.application-timeline-skeleton-marker {
+  border-radius: 50%;
+}
+
+.application-timeline-skeleton-line {
+  min-height: 42px;
+}
+
+.application-timeline-skeleton-meta {
+  margin-top: 2px;
+}
+
+.application-timeline-skeleton-title {
+  margin-top: 4px;
+}
+
+.application-timeline-skeleton-actor {
+  margin-top: 6px;
 }
 
 @media (max-width: 599px) {

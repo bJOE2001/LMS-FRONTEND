@@ -15,20 +15,21 @@
         :class="
           isCocApproveFlow
             ? 'hr-action-dialog-card__content--review'
-            : 'text-center hr-action-dialog-card__content--compact'
+            : 'hr-action-dialog-card__content--compact'
         "
       >
         <template v-if="isCocApproveFlow">
-          <div class="text-center">
-            <q-avatar
-              size="64px"
-              class="hr-action-dialog-card__avatar"
-              :class="`hr-action-dialog-card__avatar--${actionTone}`"
-            >
-              <q-icon :name="actionIcon" size="32px" />
-            </q-avatar>
-            <div class="hr-action-dialog-card__title">
-              {{ actionTitle }}
+          <div>
+            <div class="row items-center no-wrap hr-action-dialog-card__title-row">
+              <q-icon
+                :name="actionIcon"
+                :color="actionIconColor"
+                size="28px"
+                class="q-mr-sm hr-action-dialog-card__title-icon"
+              />
+              <div class="hr-action-dialog-card__title">
+                {{ actionTitle }}
+              </div>
             </div>
             <div class="hr-action-dialog-card__message">
               HR must classify each overtime row before the COC application is approved.
@@ -75,15 +76,16 @@
         </template>
 
         <template v-else>
-          <q-avatar
-            size="64px"
-            class="hr-action-dialog-card__avatar"
-            :class="`hr-action-dialog-card__avatar--${actionTone}`"
-          >
-            <q-icon :name="actionIcon" size="32px" />
-          </q-avatar>
-          <div class="hr-action-dialog-card__title">
-            {{ actionTitle }}
+          <div class="row items-center no-wrap hr-action-dialog-card__title-row">
+            <q-icon
+              :name="actionIcon"
+              :color="actionIconColor"
+              size="28px"
+              class="q-mr-sm hr-action-dialog-card__title-icon"
+            />
+            <div class="hr-action-dialog-card__title">
+              {{ actionTitle }}
+            </div>
           </div>
           <div class="hr-action-dialog-card__message">
             {{ actionMessage }}
@@ -105,7 +107,6 @@
           unelevated
           no-caps
           label="Confirm"
-          :icon="actionIcon"
           :color="
             confirmActionType === 'approve'
               ? 'green-7'
@@ -217,16 +218,16 @@ const actionMessage = computed(() => {
   return 'You will continue to the disapproval form.'
 })
 
-const actionTone = computed(() => {
-  if (props.confirmActionType === 'approve') return 'approve'
-  if (props.confirmActionType === 'cancel') return 'cancel'
-  return 'reject'
-})
-
 const actionIcon = computed(() => {
   if (props.confirmActionType === 'approve') return 'check_circle'
   if (props.confirmActionType === 'cancel') return 'remove_circle'
   return 'cancel'
+})
+
+const actionIconColor = computed(() => {
+  if (props.confirmActionType === 'approve') return 'green-7'
+  if (props.confirmActionType === 'cancel') return 'warning'
+  return 'negative'
 })
 
 const normalizeReviewRows = (application) => {
@@ -366,6 +367,7 @@ async function approveApplication() {
     })
     dialogModel.value = false
     emit('approved', {
+      actionType: 'approve',
       applicationId,
       application: response?.data?.application || application,
     })
@@ -404,6 +406,15 @@ watch(
 </script>
 
 <style scoped>
+.hr-action-dialog-card__title-row {
+  display: flex;
+  align-items: center;
+}
+
+.hr-action-dialog-card__title-row .hr-action-dialog-card__title {
+  margin-top: 0 !important;
+}
+
 .coc-review-row {
   border: 1px solid #d8e5f1;
   border-radius: 10px;

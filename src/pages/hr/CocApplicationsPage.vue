@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-md">
+  <q-page :class="[$q.screen.lt.sm ? 'q-pa-sm' : 'q-pa-md', 'coc-late-page']">
     <div class="q-mb-lg coc-late-page__header">
       <div>
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">COC Applications</h1>
@@ -11,8 +11,8 @@
 
     <q-card flat bordered class="rounded-borders">
       <q-card-section>
-        <div class="row items-center justify-between q-col-gutter-sm">
-          <div class="col">
+        <div class="row items-center justify-between q-col-gutter-sm coc-late-toolbar">
+          <div class="col coc-late-toolbar__search">
             <q-input
               v-model="search"
               dense
@@ -25,19 +25,10 @@
               </template>
             </q-input>
           </div>
-          <div class="col-auto row items-center q-gutter-sm">
-            <q-chip color="orange-2" text-color="orange-10" icon="pending_actions">
+          <div class="col-auto row items-center q-gutter-sm coc-late-toolbar__actions">
+            <q-chip color="orange-2" text-color="orange-10" icon="pending_actions" class="coc-late-toolbar__chip">
               {{ pendingLateCount }} pending late review
             </q-chip>
-            <q-btn
-              flat
-              no-caps
-              color="primary"
-              icon="refresh"
-              label="Refresh"
-              :loading="loading"
-              @click="loadApplications"
-            />
           </div>
         </div>
       </q-card-section>
@@ -50,7 +41,13 @@
         :loading="loading"
         :pagination="{ rowsPerPage: 10 }"
         :rows-per-page-options="[10]"
+        :grid="$q.screen.lt.md"
+        class="coc-late-table"
       >
+        <template #loading>
+          <q-inner-loading showing color="primary" />
+        </template>
+
         <template #body-cell-employee="props">
           <q-td>
             <div class="text-weight-medium">{{ props.row.employeeName || 'Unknown' }}</div>
@@ -136,14 +133,90 @@
           </q-td>
         </template>
 
+        <template #item="props">
+          <div class="col-12 q-pa-xs">
+            <q-card flat bordered class="coc-late-mobile-card">
+              <q-card-section class="q-pa-sm">
+                <div class="row items-start q-col-gutter-sm">
+                  <div class="col">
+                    <div class="text-subtitle2 text-weight-medium">
+                      {{ props.row.employeeName || 'Unknown' }}
+                    </div>
+                    <div class="text-caption text-grey-7">{{ props.row.employee_control_no || '-' }}</div>
+                  </div>
+                  <StatusBadge :status="props.row.displayStatus || props.row.status || 'Pending'" />
+                </div>
+
+                <div class="column q-gutter-xs q-mt-sm">
+                  <div class="text-body2 text-grey-9">
+                    <span class="text-grey-7">Office:</span>
+                    {{ props.row.office || props.row.department || 'N/A' }}
+                  </div>
+                  <div class="text-body2 text-grey-9">
+                    <span class="text-grey-7">Application Month:</span>
+                    {{ formatApplicationMonth(props.row) }}
+                  </div>
+                  <div class="text-body2 text-grey-9">
+                    <span class="text-grey-7">Date Filed:</span>
+                    {{ formatDate(props.row.dateFiled || props.row.date_filed) }}
+                  </div>
+                  <div class="text-body2 text-grey-9">
+                    <span class="text-grey-7">Late Filing Deadline:</span>
+                    {{ formatDate(props.row.late_filing_deadline) }}
+                  </div>
+                  <div class="text-body2 text-grey-9">
+                    <span class="text-grey-7">Inclusive Dates:</span>
+                    <div class="column q-gutter-xs q-mt-xs">
+                      <span
+                        v-for="(line, index) in getInclusiveDateLines(props.row)"
+                        :key="`${props.row.id}-mobile-date-${index}`"
+                      >
+                        {{ line }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </q-card-section>
+
+              <q-separator />
+
+              <q-card-actions align="right" class="q-pa-sm q-gutter-xs coc-late-mobile-card__actions">
+                <q-btn flat dense no-caps size="sm" icon="visibility" label="View" @click="openDetails(props.row)" />
+                <q-btn
+                  v-if="isPendingLateReview(props.row)"
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  icon="check_circle"
+                  color="green-7"
+                  label="Approve"
+                  @click="openActionDialog('approve', props.row)"
+                />
+                <q-btn
+                  v-if="isPendingLateReview(props.row)"
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  icon="cancel"
+                  color="negative"
+                  label="Reject"
+                  @click="openActionDialog('reject', props.row)"
+                />
+              </q-card-actions>
+            </q-card>
+          </div>
+        </template>
+
         <template #no-data>
-          <div class="full-width row flex-center q-pa-lg text-grey-7">
+          <div class="full-width row flex-center q-pa-md text-grey-7">
             <template v-if="loading">
               <q-spinner color="primary" size="24px" class="q-mr-sm" />
-              <span>Loading late-filed COC applications...</span>
+              <span>Loading applications...</span>
             </template>
             <template v-else>
-              <q-icon name="inbox" size="md" class="q-mr-sm" />
+              <q-icon name="inbox" size="24px" class="q-mr-sm" />
               <span>No late-filed COC applications found.</span>
             </template>
           </div>
@@ -153,7 +226,7 @@
 
     <q-dialog v-model="showDetailsDialog" persistent>
       <q-card v-if="selectedApplication" class="coc-late-details-card">
-        <q-card-section class="row items-start no-wrap">
+        <q-card-section class="row items-start coc-late-details-card__header">
           <div>
             <div class="text-h6 text-weight-bold">Late COC Filing Details</div>
             <div class="text-caption text-grey-7">{{ selectedApplication.employeeName }}</div>
@@ -203,27 +276,29 @@
 
           <div>
             <div class="text-subtitle2 text-weight-medium q-mb-sm">Overtime Rows</div>
-            <q-markup-table flat bordered dense class="coc-late-details-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Nature of Overtime</th>
-                  <th>Time</th>
-                  <th>Raw Overtime</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in selectedApplication.rows || []"
-                  :key="`${selectedApplication.id}-${row.line_no}`"
-                >
-                  <td>{{ formatDate(row.date) }}</td>
-                  <td>{{ row.nature_of_overtime || 'N/A' }}</td>
-                  <td>{{ formatTimeRange(row.time_from, row.time_to) }}</td>
-                  <td>{{ formatMinutes(row.no_of_hours_and_minutes) }}</td>
-                </tr>
-              </tbody>
-            </q-markup-table>
+            <div class="coc-late-details-table-wrap">
+              <q-markup-table flat bordered dense class="coc-late-details-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Nature of Overtime</th>
+                    <th>Time</th>
+                    <th>Raw Overtime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in selectedApplication.rows || []"
+                    :key="`${selectedApplication.id}-${row.line_no}`"
+                  >
+                    <td>{{ formatDate(row.date) }}</td>
+                    <td>{{ row.nature_of_overtime || 'N/A' }}</td>
+                    <td>{{ formatTimeRange(row.time_from, row.time_to) }}</td>
+                    <td>{{ formatMinutes(row.no_of_hours_and_minutes) }}</td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </div>
           </div>
         </q-card-section>
 
@@ -234,7 +309,7 @@
     </q-dialog>
 
     <q-dialog v-model="showActionDialog" persistent>
-      <q-card style="width: 520px; max-width: 95vw">
+      <q-card style="width: 520px; max-width: 95vw" class="coc-late-action-card">
         <q-card-section class="row items-center q-pb-sm">
           <div class="text-subtitle1 text-weight-bold">
             {{ actionMode === 'approve' ? 'Approve Late Filing' : 'Reject Late Filing' }}
@@ -270,7 +345,7 @@
           />
         </q-card-section>
 
-        <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
+        <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm coc-late-action-card__actions">
           <q-btn flat no-caps color="grey-7" label="Cancel" :disable="actionLoading" @click="showActionDialog = false" />
           <q-btn
             unelevated
@@ -503,12 +578,91 @@ onMounted(() => {
   justify-content: space-between;
 }
 
+.coc-late-toolbar__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.coc-late-mobile-card {
+  border-radius: 10px;
+}
+
+.coc-late-mobile-card__actions {
+  row-gap: 8px;
+}
+
 .coc-late-details-card {
   width: min(880px, 96vw);
   max-width: 96vw;
 }
 
+.coc-late-details-table-wrap {
+  overflow-x: auto;
+}
+
 .coc-late-details-table {
   width: 100%;
+  min-width: 560px;
+}
+
+.coc-late-action-card__actions {
+  row-gap: 8px;
+}
+
+@media (max-width: 1023px) {
+  .coc-late-page__header {
+    margin-bottom: 16px;
+  }
+
+  .coc-late-toolbar {
+    align-items: stretch;
+  }
+
+  .coc-late-toolbar__search {
+    flex: 1 1 100%;
+  }
+
+  .coc-late-toolbar__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 599px) {
+  .coc-late-page__header .text-h4 {
+    font-size: 1.45rem;
+    line-height: 1.95rem;
+  }
+
+  .coc-late-toolbar__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .coc-late-toolbar__chip {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .coc-late-mobile-card__actions {
+    justify-content: flex-start;
+  }
+
+  .coc-late-mobile-card__actions .q-btn {
+    flex: 1 1 auto;
+    min-width: 86px;
+  }
+
+  .coc-late-details-card__header {
+    align-items: flex-start;
+  }
+
+  .coc-late-action-card__actions {
+    align-items: stretch;
+  }
+
+  .coc-late-action-card__actions .q-btn {
+    width: 100%;
+  }
 }
 </style>

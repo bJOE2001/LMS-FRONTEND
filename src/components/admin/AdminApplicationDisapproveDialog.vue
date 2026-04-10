@@ -5,13 +5,6 @@
       :class="rejectionMode === 'cancel' ? 'admin-action-dialog-card--cancel' : 'admin-action-dialog-card--reject'"
     >
       <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
-        <q-avatar
-          size="64px"
-          class="admin-action-dialog-card__avatar"
-          :class="`admin-action-dialog-card__avatar--${getRejectTone(rejectionMode)}`"
-        >
-          <q-icon :name="getRejectIcon(rejectionMode)" size="32px" />
-        </q-avatar>
         <div class="admin-action-dialog-card__title">{{ rejectionDialogTitle }}</div>
       </q-card-section>
       <q-card-section class="q-pt-none admin-action-dialog-card__content--compact">
@@ -29,7 +22,6 @@
           unelevated
           no-caps
           :color="rejectionMode === 'cancel' ? 'warning' : 'negative'"
-          :icon="getRejectIcon(rejectionMode)"
           :label="rejectionMode === 'cancel' ? 'Confirm Cancel' : 'Submit'"
           class="admin-action-dialog-card__button"
           :loading="actionLoading"
@@ -91,21 +83,13 @@ function handleConfirm() {
   if (!props.onConfirm) return
   props.onConfirm()
 }
-
-function getRejectTone(mode) {
-  return mode === 'cancel' ? 'cancel' : 'reject'
-}
-
-function getRejectIcon(mode) {
-  return mode === 'cancel' ? 'remove_circle' : 'cancel'
-}
 </script>
 
 <style scoped>
 .admin-action-dialog-card {
   width: min(560px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  border-radius: 24px;
+  border-radius: 2px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
 }
@@ -114,7 +98,7 @@ function getRejectIcon(mode) {
   width: min(420px, calc(100vw - 24px));
   min-width: 340px;
   max-width: 420px;
-  border-radius: 20px;
+  border-radius: 2px;
 }
 
 .admin-action-dialog-card--cancel {
@@ -166,7 +150,7 @@ function getRejectIcon(mode) {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 16px;
+  border-radius: 2px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -175,7 +159,7 @@ function getRejectIcon(mode) {
   .admin-action-dialog-card {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    border-radius: 20px;
+    border-radius: 2px;
   }
 
   .admin-action-dialog-card--compact {
@@ -199,7 +183,7 @@ function getRejectIcon(mode) {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 2px;
     min-width: 0;
     flex: 1 1 0;
   }

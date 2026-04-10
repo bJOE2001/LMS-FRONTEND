@@ -224,6 +224,7 @@
     <AdminApplicationTimelineDialog
       v-model="showTimelineDialog"
       :selected-app="selectedApp"
+      :loading-timeline="timelineLoading"
       :timeline-entries="selectedAppTimeline"
       :has-application-attachment="hasApplicationAttachment"
       :view-application-attachment="viewApplicationAttachment"
@@ -747,6 +748,7 @@ const {
   showApplyLeaveDialog,
   showDetailsDialog,
   showTimelineDialog,
+  timelineLoading,
   showCalendarPreviewDialog,
   showDisapproveDialog,
   showConfirmActionDialog,

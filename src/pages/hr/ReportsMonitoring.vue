@@ -264,20 +264,21 @@ import MonetizationReportTable from 'components/report/MonetizationReportTable.v
 import CtoAvailmentReportTable from 'components/report/CtoAvailmentReportTable.vue'
 import CocBalancesReportTable from 'components/report/CocBalancesReportTable.vue'
 import LeaveAvailmentPerOfficeReportTable from 'components/report/LeaveAvailmentPerOfficeReportTable.vue'
-import { generateReportsMonitoringPdf } from 'src/utils/reports-monitoring-pdf'
 import {
   exportReportsMonitoringCsv,
   exportReportsMonitoringExcel,
 } from 'src/utils/reports-monitoring-export'
-import { useReportStore } from 'stores/reportStore'   
+import { useReportStore } from 'stores/reportStore'
 
 const reportStore = useReportStore()
 const $q = useQuasar()
 const loading = ref(false)
-const selectedReportType = ref('lwop')
+const DEFAULT_REPORT_TYPE = 'lwop'
+const selectedReportType = ref(DEFAULT_REPORT_TYPE)
 let loadingTimeoutId = null
 const showPrintDialog = ref(false)
 const printingReport = ref(false)
+let generateReportsMonitoringPdfFn = null
 
 const defaultPrintSignatories = {
   preparedByName: 'REYNALDO D. CASAS',
@@ -755,7 +756,7 @@ async function ensureSelectedReportLoaded() {
   loading.value = true
 
   try {
-    await reportStore.ensureReportLoaded(selectedReportType.value)
+    await reportStore.ensureReportLoaded(resolvedReportType.value)
   } catch {
     $q.notify({
       type: 'negative',
@@ -775,7 +776,15 @@ const reportTypeOptions = Object.entries(reportConfigs).map(([value, config]) =>
   value,
 }))
 
-const selectedReport = computed(() => reportConfigs[selectedReportType.value] || reportConfigs.lwop)
+const resolvedReportType = computed(() =>
+  Object.prototype.hasOwnProperty.call(reportConfigs, selectedReportType.value)
+    ? selectedReportType.value
+    : DEFAULT_REPORT_TYPE,
+)
+
+const selectedReport = computed(
+  () => reportConfigs[resolvedReportType.value] || reportConfigs[DEFAULT_REPORT_TYPE],
+)
 const selectedReportRows = computed(() => {
   const rowsSource = selectedReport.value.rows
   const rawRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
@@ -804,10 +813,11 @@ const leaveBalanceVisibleColumnNames = computed(() => {
 })
 
 const activeColumnsSource = computed(() => {
-  if (!isLeaveBalancesReport.value) return selectedReport.value.columns
+  const sourceColumns = Array.isArray(selectedReport.value?.columns) ? selectedReport.value.columns : []
+  if (!isLeaveBalancesReport.value) return sourceColumns
 
   const columnLookup = new Map(
-    selectedReport.value.columns.map((column) => [column.name, column]),
+    sourceColumns.map((column) => [column.name, column]),
   )
 
   return leaveBalanceVisibleColumnNames.value
@@ -827,8 +837,9 @@ const tableMinWidth = computed(() => {
 
 const columns = computed(() => {
   const rowsForWidth = filteredRows.value.length ? filteredRows.value : selectedReportRows.value
+  const sourceColumns = Array.isArray(activeColumnsSource.value) ? activeColumnsSource.value : []
 
-  return activeColumnsSource.value.map((column) => {
+  return sourceColumns.map((column) => {
     const width = getColumnWidth(column, rowsForWidth)
     const widthStyle = `width: ${width}px; min-width: ${width}px; max-width: ${width}px;`
 
@@ -941,6 +952,11 @@ const filteredRows = computed(() => {
 })
 
 watch(selectedReportType, () => {
+  if (selectedReportType.value !== resolvedReportType.value) {
+    selectedReportType.value = resolvedReportType.value
+    return
+  }
+
   filters.month = null
   filters.year = null
   filters.office = null
@@ -962,7 +978,9 @@ watch(
     filters.office,
     filters.status,
     filters.employeeName,
-    selectedReportType.value === 'leaveBalances' ? leaveBalanceVisibleGroups.value.join('|') : '',
+    selectedReportType.value === 'leaveBalances' && Array.isArray(leaveBalanceVisibleGroups.value)
+      ? leaveBalanceVisibleGroups.value.join('|')
+      : '',
   ],
   () => {
     // Client-side filtering only: trigger short table loading feedback on filter changes.
@@ -1040,6 +1058,20 @@ function ensureExportableRows() {
   return false
 }
 
+async function loadReportsPdfGenerator() {
+  if (generateReportsMonitoringPdfFn) return generateReportsMonitoringPdfFn
+
+  const pdfModule = await import('src/utils/reports-monitoring-pdf.js')
+  const pdfGenerator = pdfModule?.generateReportsMonitoringPdf
+
+  if (typeof pdfGenerator !== 'function') {
+    throw new Error('PDF generator is unavailable.')
+  }
+
+  generateReportsMonitoringPdfFn = pdfGenerator
+  return generateReportsMonitoringPdfFn
+}
+
 async function generatePdf(action = 'open', options = {}) {
   if (!filteredRows.value.length) {
     $q.notify({
@@ -1052,9 +1084,11 @@ async function generatePdf(action = 'open', options = {}) {
   triggerTableLoading(420)
 
   try {
+    const generateReportsMonitoringPdf = await loadReportsPdfGenerator()
+
     await generateReportsMonitoringPdf({
       action,
-      reportType: selectedReportType.value,
+      reportType: resolvedReportType.value,
       reportLabel: selectedReport.value.label,
       columns: activeColumnsSource.value,
       rows: filteredRows.value,

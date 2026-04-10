@@ -45,7 +45,12 @@
 
     <div class="row q-col-gutter-sm q-mb-sm stat-cards-row">
       <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card class="stat-card stat-card--applications bg-white rounded-borders" flat elevation="1" @click="goToApplications('total')">
+        <q-card
+          class="stat-card stat-card--applications bg-white rounded-borders"
+          flat
+          elevation="1"
+          @click="goToApplications('total')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -74,13 +79,24 @@
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('pending')">
+        <q-card
+          class="stat-card stat-card--compact bg-white rounded-borders"
+          flat
+          elevation="1"
+          @click="goToApplications('pending')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="schedule" size="28px" color="warning" class="stat-card-icon" />
-                  <q-icon v-if="dashboardData.pending_count > 5" name="warning" size="18px" color="warning" class="stat-card-alert-icon" />
+                  <q-icon
+                    v-if="dashboardData.pending_count > 5"
+                    name="warning"
+                    size="18px"
+                    color="warning"
+                    class="stat-card-alert-icon"
+                  />
                 </div>
                 <div class="text-caption text-weight-medium q-mt-sm">Pending Applications</div>
               </div>
@@ -93,7 +109,12 @@
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('approved')">
+        <q-card
+          class="stat-card stat-card--compact bg-white rounded-borders"
+          flat
+          elevation="1"
+          @click="goToApplications('approved')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -111,7 +132,12 @@
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('rejected')">
+        <q-card
+          class="stat-card stat-card--compact bg-white rounded-borders"
+          flat
+          elevation="1"
+          @click="goToApplications('rejected')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -129,7 +155,12 @@
         </q-card>
       </div>
       <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card class="stat-card stat-card--compact bg-white rounded-borders" flat elevation="1" @click="goToApplications('recalled')">
+        <q-card
+          class="stat-card stat-card--compact bg-white rounded-borders"
+          flat
+          elevation="1"
+          @click="goToApplications('recalled')"
+        >
           <q-card-section class="stat-card-content">
             <div class="stat-card-main">
               <div class="stat-card-left">
@@ -229,7 +260,12 @@ function normalizeEmploymentTypeKey(value) {
 
   if (!normalized) return ''
   if (normalized.includes('ELECTIVE')) return 'elective'
-  if (normalized.includes('CO-TER') || normalized.includes('CO-TERM') || normalized.includes('COTER')) return 'co_terminous'
+  if (
+    normalized.includes('CO-TER') ||
+    normalized.includes('CO-TERM') ||
+    normalized.includes('COTER')
+  )
+    return 'co_terminous'
   if (normalized.includes('REGULAR')) return 'regular'
   if (normalized.includes('CASUAL')) return 'casual'
   return ''
@@ -246,7 +282,6 @@ function normalizeEmploymentBreakdown(source) {
 
   return breakdown
 }
-
 
 function emptyDashboardAnalytics() {
   return {
@@ -455,7 +490,11 @@ function getApplicationLeaveDates(application) {
 }
 
 function getEmployeeKey(application) {
-  const key = application?.employee_control_no ?? application?.employeeControlNo ?? application?.user_id ?? application?.employeeName
+  const key =
+    application?.employee_control_no ??
+    application?.employeeControlNo ??
+    application?.user_id ??
+    application?.employeeName
   return String(key || '').trim()
 }
 
@@ -494,8 +533,12 @@ const manpowerCurrentSnapshot = computed(() => {
   const totalActive = Math.max(Number(activeEmployeeCount.value || 0), 0)
   const onLeaveCount = Math.min(onLeaveEmployeeKeys.size, totalActive)
   const availableCount = Math.max(totalActive - onLeaveCount, 0)
-  const availablePercentage = totalActive ? Number(((availableCount / totalActive) * 100).toFixed(2)) : 0
-  const onLeavePercentage = totalActive ? Number(((onLeaveCount / totalActive) * 100).toFixed(2)) : 0
+  const availablePercentage = totalActive
+    ? Number(((availableCount / totalActive) * 100).toFixed(2))
+    : 0
+  const onLeavePercentage = totalActive
+    ? Number(((onLeaveCount / totalActive) * 100).toFixed(2))
+    : 0
 
   return {
     totalActive,
@@ -519,10 +562,12 @@ const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
   { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
 ]
 
-const totalApplicationBreakdownCards = computed(() => EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
-  ...card,
-  value: totalApplicationsBreakdown.value[card.key] ?? 0,
-})))
+const totalApplicationBreakdownCards = computed(() =>
+  EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
+    ...card,
+    value: totalApplicationsBreakdown.value[card.key] ?? 0,
+  })),
+)
 
 function getEmploymentTypeCardStyle(card) {
   return {
@@ -627,7 +672,10 @@ onMounted(fetchDashboard)
   height: 100%;
   min-height: 100px;
   cursor: pointer;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .stat-card-content {
@@ -711,7 +759,7 @@ onMounted(fetchDashboard)
   min-width: 360px;
   max-width: 480px;
   width: min(480px, calc(100vw - 32px));
-  border-radius: 18px;
+  border-radius: 2px;
 }
 
 .pending-reminder-card__header {
@@ -745,7 +793,7 @@ onMounted(fetchDashboard)
     min-width: 0;
     width: calc(100vw - 18px);
     max-width: calc(100vw - 18px);
-    border-radius: 16px;
+    border-radius: 2px;
   }
 
   .pending-reminder-card__header {
