@@ -187,6 +187,7 @@
       v-if="!props.applicationsOnly"
       :applications="applicationRows"
       :analytics="dashboardData.analytics"
+      :loading="loading"
     />
 
     <q-card v-if="props.applicationsOnly" flat bordered class="rounded-borders">
@@ -612,16 +613,17 @@
               : 'admin-action-dialog-card--reject'
         "
       >
-        <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
-          <q-avatar
-            size="64px"
-            class="admin-action-dialog-card__avatar"
-            :class="`admin-action-dialog-card__avatar--${getAdminConfirmActionTone(confirmActionType)}`"
-          >
-            <q-icon :name="getAdminConfirmActionIcon(confirmActionType)" size="32px" />
-          </q-avatar>
-          <div class="admin-action-dialog-card__title">
-            {{ getConfirmActionTitle(confirmActionType) }}
+        <q-card-section class="admin-action-dialog-card__content admin-action-dialog-card__content--compact">
+          <div class="row items-center no-wrap admin-action-dialog-card__title-row">
+            <q-icon
+              :name="getConfirmActionIcon(confirmActionType)"
+              :color="getConfirmActionIconColor(confirmActionType)"
+              size="28px"
+              class="q-mr-sm admin-action-dialog-card__title-icon"
+            />
+            <div class="admin-action-dialog-card__title">
+              {{ getConfirmActionTitle(confirmActionType) }}
+            </div>
           </div>
           <div class="admin-action-dialog-card__message">
             {{ getConfirmActionMessage(confirmActionType) }}
@@ -640,7 +642,6 @@
             unelevated
             no-caps
             label="Confirm"
-            :icon="getAdminConfirmActionIcon(confirmActionType)"
             :color="
               confirmActionType === 'approve'
                 ? 'green-7'
@@ -666,13 +667,6 @@
         "
       >
         <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
-          <q-avatar
-            size="64px"
-            class="admin-action-dialog-card__avatar"
-            :class="`admin-action-dialog-card__avatar--${getAdminRejectTone(rejectionMode)}`"
-          >
-            <q-icon :name="getAdminRejectIcon(rejectionMode)" size="32px" />
-          </q-avatar>
           <div class="admin-action-dialog-card__title">{{ rejectionDialogTitle }}</div>
         </q-card-section>
         <q-card-section class="q-pt-none admin-action-dialog-card__content--compact">
@@ -690,7 +684,6 @@
             unelevated
             no-caps
             :color="rejectionMode === 'cancel' ? 'warning' : 'negative'"
-            :icon="getAdminRejectIcon(rejectionMode)"
             :label="rejectionMode === 'cancel' ? 'Confirm Cancel' : 'Submit'"
             class="admin-action-dialog-card__button"
             :loading="actionLoading"
@@ -2612,6 +2605,18 @@ function getConfirmActionTitle(type) {
   return 'Disapprove'
 }
 
+function getConfirmActionIcon(type) {
+  if (type === 'approve') return 'check_circle'
+  if (type === 'cancel') return 'remove_circle'
+  return 'cancel'
+}
+
+function getConfirmActionIconColor(type) {
+  if (type === 'approve') return 'green-7'
+  if (type === 'cancel') return 'warning'
+  return 'negative'
+}
+
 function getConfirmActionMessage(type) {
   if (type === 'approve') {
     return 'This will forward the application to HR for final review.'
@@ -2620,26 +2625,6 @@ function getConfirmActionMessage(type) {
     return 'You will continue to the cancellation form.'
   }
   return 'You will continue to the disapproval form.'
-}
-
-function getAdminConfirmActionTone(type) {
-  if (type === 'approve') return 'approve'
-  if (type === 'cancel') return 'cancel'
-  return 'reject'
-}
-
-function getAdminConfirmActionIcon(type) {
-  if (type === 'approve') return 'check_circle'
-  if (type === 'cancel') return 'remove_circle'
-  return 'cancel'
-}
-
-function getAdminRejectTone(mode) {
-  return mode === 'cancel' ? 'cancel' : 'reject'
-}
-
-function getAdminRejectIcon(mode) {
-  return mode === 'cancel' ? 'remove_circle' : 'cancel'
 }
 
 function getActionResultLabel(type) {
@@ -3192,7 +3177,7 @@ async function confirmDisapprove() {
   min-width: 360px;
   max-width: 480px;
   width: min(480px, calc(100vw - 32px));
-  border-radius: 18px;
+  border-radius: 2px;
 }
 .pending-reminder-card__header {
   padding: 20px 24px 0;
@@ -3259,7 +3244,7 @@ async function confirmDisapprove() {
 .admin-action-dialog-card {
   width: min(560px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  border-radius: 24px;
+  border-radius: 2px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
 }
@@ -3267,7 +3252,7 @@ async function confirmDisapprove() {
   width: min(420px, calc(100vw - 24px));
   min-width: 340px;
   max-width: 420px;
-  border-radius: 20px;
+  border-radius: 2px;
 }
 .admin-action-dialog-card--approve {
   border-color: #b7ddc1;
@@ -3292,6 +3277,13 @@ async function confirmDisapprove() {
   line-height: 1.1;
   font-weight: 500;
   color: #111827;
+}
+.admin-action-dialog-card__title-row {
+  display: flex;
+  align-items: center;
+}
+.admin-action-dialog-card__title-row .admin-action-dialog-card__title {
+  margin-top: 0 !important;
 }
 .admin-action-dialog-card--compact .admin-action-dialog-card__title {
   margin-top: 14px;
@@ -3335,7 +3327,7 @@ async function confirmDisapprove() {
 .admin-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 16px;
+  border-radius: 2px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -3343,7 +3335,7 @@ async function confirmDisapprove() {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 16px;
+  border-radius: 2px;
 }
 .admin-action-dialog-card__button--cancel {
   background: transparent;
@@ -3542,7 +3534,7 @@ async function confirmDisapprove() {
   .admin-action-dialog-card {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    border-radius: 20px;
+    border-radius: 2px;
   }
 
   .admin-action-dialog-card--compact {
@@ -3571,7 +3563,7 @@ async function confirmDisapprove() {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 2px;
   }
 
   .admin-action-dialog-card--compact .admin-action-dialog-card__button {
@@ -3583,7 +3575,7 @@ async function confirmDisapprove() {
     min-width: 0;
     width: calc(100vw - 18px);
     max-width: calc(100vw - 18px);
-    border-radius: 16px;
+    border-radius: 2px;
   }
 
   .pending-reminder-card__header {

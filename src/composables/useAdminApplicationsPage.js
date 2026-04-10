@@ -134,6 +134,7 @@ export function useAdminApplicationsPage() {
   const showApplyLeaveDialog = ref(false)
   const showDetailsDialog = ref(false)
   const showTimelineDialog = ref(false)
+  const timelineLoading = ref(false)
   const showCalendarPreviewDialog = ref(false)
   const showDisapproveDialog = ref(false)
   const showConfirmActionDialog = ref(false)
@@ -4520,8 +4521,13 @@ export function useAdminApplicationsPage() {
     showCalendarPreviewDialog.value = false
     showDetailsDialog.value = false
     showTimelineDialog.value = true
+    timelineLoading.value = true
 
-    await hydrateSelectedApplicationForDialog(baseApplication, 'timeline')
+    try {
+      await hydrateSelectedApplicationForDialog(baseApplication, 'timeline')
+    } finally {
+      timelineLoading.value = false
+    }
   }
 
   function hasMobileApplicationActions(app) {
@@ -5016,6 +5022,7 @@ export function useAdminApplicationsPage() {
     showApplyLeaveDialog,
     showDetailsDialog,
     showTimelineDialog,
+    timelineLoading,
     showCalendarPreviewDialog,
     showDisapproveDialog,
     showConfirmActionDialog,

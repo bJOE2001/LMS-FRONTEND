@@ -6,12 +6,6 @@
       <q-card-section
         class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact"
       >
-        <q-avatar
-          size="64px"
-          class="hr-action-dialog-card__avatar hr-action-dialog-card__avatar--reject"
-        >
-          <q-icon name="cancel" size="32px" />
-        </q-avatar>
         <div class="hr-action-dialog-card__title">Disapprove Application</div>
       </q-card-section>
       <q-card-section class="q-pt-none hr-action-dialog-card__content--compact">
@@ -37,7 +31,6 @@
         <q-btn
           unelevated
           color="negative"
-          icon="cancel"
           no-caps
           label="Submit"
           class="hr-action-dialog-card__button"

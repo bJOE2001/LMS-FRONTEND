@@ -214,6 +214,7 @@
   <HrApplicationTimelineDialog
     v-model="showTimelineDialog"
     :application="selectedApp"
+    :loading-timeline="timelineLoading"
     :build-timeline="buildApplicationTimeline"
     :can-receive-application="canReceiveApplication"
     :is-application-received-by-hr="isApplicationReceivedByHr"
@@ -460,7 +461,7 @@ export default defineComponent({
 .hr-action-dialog-card {
   width: min(560px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  border-radius: 24px;
+  border-radius: 2px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
 }
@@ -481,7 +482,7 @@ export default defineComponent({
   width: min(420px, calc(100vw - 24px));
   min-width: 340px;
   max-width: 420px;
-  border-radius: 20px;
+  border-radius: 2px;
 }
 
 .hr-action-dialog-card__content--compact {
@@ -526,7 +527,7 @@ export default defineComponent({
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 16px;
+  border-radius: 2px;
   font-weight: 700;
 }
 
@@ -664,6 +665,18 @@ export default defineComponent({
   flex: 0 0 auto;
 }
 
+.hr-recall-actions__buttons .q-btn {
+  border-radius: 2px;
+}
+
+.hr-receive-required-dialog .q-card {
+  border-radius: 2px !important;
+}
+
+.hr-receive-required-dialog .q-btn {
+  border-radius: 2px !important;
+}
+
 .hr-action-dialog-card__top {
   padding: 12px 12px 0;
 }
@@ -696,7 +709,7 @@ export default defineComponent({
 .hr-action-dialog-card__button {
   flex: 1 1 0;
   min-height: 56px;
-  border-radius: 16px;
+  border-radius: 2px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -712,7 +725,7 @@ export default defineComponent({
   width: min(420px, calc(100vw - 24px));
   min-width: 340px;
   max-width: 420px;
-  border-radius: 20px;
+  border-radius: 2px;
 }
 
 .hr-action-dialog-card__content.hr-action-dialog-card__content--compact {
@@ -740,7 +753,7 @@ export default defineComponent({
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 16px;
+  border-radius: 2px;
   font-weight: 700;
 }
 
@@ -794,7 +807,7 @@ export default defineComponent({
   .hr-action-dialog-card {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    border-radius: 20px;
+    border-radius: 2px;
   }
 
   .hr-action-dialog-card--compact {
@@ -872,7 +885,7 @@ export default defineComponent({
 
   .hr-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 2px;
   }
 
   .hr-action-dialog-card--compact .hr-action-dialog-card__button {

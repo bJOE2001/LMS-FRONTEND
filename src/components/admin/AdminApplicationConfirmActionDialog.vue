@@ -10,22 +10,27 @@
             : 'admin-action-dialog-card--reject'
       "
     >
-      <q-card-section class="text-center admin-action-dialog-card__content admin-action-dialog-card__content--compact">
-        <q-avatar
-          size="64px"
-          class="admin-action-dialog-card__avatar"
-          :class="`admin-action-dialog-card__avatar--${getConfirmActionTone(confirmActionType)}`"
-        >
-          <q-icon :name="getConfirmActionIcon(confirmActionType)" size="32px" />
-        </q-avatar>
-        <div class="admin-action-dialog-card__title">
-          {{ getConfirmActionTitle(confirmActionType) }}
+      <q-card-section
+        class="admin-action-dialog-card__content admin-action-dialog-card__content--compact"
+      >
+        <div class="row items-center no-wrap admin-action-dialog-card__title-row">
+          <q-icon
+            :name="actionIcon"
+            :color="actionIconColor"
+            size="28px"
+            class="q-mr-sm admin-action-dialog-card__title-icon"
+          />
+          <div class="admin-action-dialog-card__title">
+            {{ getConfirmActionTitle(confirmActionType) }}
+          </div>
         </div>
         <div class="admin-action-dialog-card__message">
           {{ getConfirmActionMessage(confirmActionType) }}
         </div>
       </q-card-section>
-      <q-card-actions class="admin-action-dialog-card__actions admin-action-dialog-card__actions--compact">
+      <q-card-actions
+        class="admin-action-dialog-card__actions admin-action-dialog-card__actions--compact"
+      >
         <q-btn
           flat
           no-caps
@@ -38,7 +43,6 @@
           unelevated
           no-caps
           label="Confirm"
-          :icon="getConfirmActionIcon(confirmActionType)"
           :color="
             confirmActionType === 'approve'
               ? 'green-7'
@@ -55,6 +59,8 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   modelValue: {
     type: Boolean,
@@ -80,6 +86,18 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+const actionIcon = computed(() => {
+  if (props.confirmActionType === 'approve') return 'check_circle'
+  if (props.confirmActionType === 'cancel') return 'remove_circle'
+  return 'cancel'
+})
+
+const actionIconColor = computed(() => {
+  if (props.confirmActionType === 'approve') return 'green-7'
+  if (props.confirmActionType === 'cancel') return 'warning'
+  return 'negative'
+})
+
 function onDialogModelUpdate(value) {
   emit('update:modelValue', value)
 }
@@ -88,25 +106,13 @@ function handleConfirm() {
   if (!props.onConfirm) return
   props.onConfirm()
 }
-
-function getConfirmActionTone(type) {
-  if (type === 'approve') return 'approve'
-  if (type === 'cancel') return 'cancel'
-  return 'reject'
-}
-
-function getConfirmActionIcon(type) {
-  if (type === 'approve') return 'check_circle'
-  if (type === 'cancel') return 'remove_circle'
-  return 'cancel'
-}
 </script>
 
 <style scoped>
 .admin-action-dialog-card {
   width: min(560px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  border-radius: 24px;
+  border-radius: 2px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
 }
@@ -115,7 +121,7 @@ function getConfirmActionIcon(type) {
   width: min(420px, calc(100vw - 24px));
   min-width: 340px;
   max-width: 420px;
-  border-radius: 20px;
+  border-radius: 2px;
 }
 
 .admin-action-dialog-card--approve {
@@ -143,6 +149,15 @@ function getConfirmActionIcon(type) {
   line-height: 1.1;
   font-weight: 500;
   color: #111827;
+}
+
+.admin-action-dialog-card__title-row {
+  display: flex;
+  align-items: center;
+}
+
+.admin-action-dialog-card__title-row .admin-action-dialog-card__title {
+  margin-top: 0 !important;
 }
 
 .admin-action-dialog-card--compact .admin-action-dialog-card__title {
@@ -187,7 +202,7 @@ function getConfirmActionIcon(type) {
   flex: 0 0 auto;
   min-height: 44px;
   min-width: 140px;
-  border-radius: 16px;
+  border-radius: 2px;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -202,7 +217,7 @@ function getConfirmActionIcon(type) {
   .admin-action-dialog-card {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
-    border-radius: 20px;
+    border-radius: 2px;
   }
 
   .admin-action-dialog-card--compact {
@@ -231,7 +246,7 @@ function getConfirmActionIcon(type) {
 
   .admin-action-dialog-card__button {
     min-height: 50px;
-    border-radius: 16px;
+    border-radius: 2px;
     min-width: 0;
     flex: 1 1 0;
   }

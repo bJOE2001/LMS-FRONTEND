@@ -15,6 +15,7 @@ const router = useRouter()
 const loading = ref(false)
 const receiveLoading = ref(false)
 const releaseLoading = ref(false)
+const timelineLoading = ref(false)
 const applications = ref([])
 const tablePagination = ref({
   page: 1,
@@ -1700,17 +1701,18 @@ function hasLeaveWorkflowReleaseSignals(app) {
 }
 
 async function fetchWorkflowDetailSnapshotsForApprovedLeaveRows(applications = []) {
-  const approvedLeaveRows = (Array.isArray(applications) ? applications : []).filter((application) => {
+  const stageSensitiveLeaveRows = (Array.isArray(applications) ? applications : []).filter((application) => {
     if (!application || typeof application !== 'object') return false
     if (isCocApplication(application)) return false
-    if (getApplicationRawStatusKey(application) !== 'APPROVED') return false
+    const rawStatus = getApplicationRawStatusKey(application)
+    if (rawStatus !== 'APPROVED' && rawStatus !== 'PENDING_HR') return false
     if (hasLeaveWorkflowReleaseSignals(application)) return false
     return true
   })
 
-  if (!approvedLeaveRows.length) return []
+  if (!stageSensitiveLeaveRows.length) return []
 
-  const detailRequests = approvedLeaveRows.map(async (application) => {
+  const detailRequests = stageSensitiveLeaveRows.map(async (application) => {
     const id = String(getApplicationId(application) ?? '').trim()
     if (!id) return null
 
@@ -3795,9 +3797,13 @@ async function openTimeline(app) {
   selectedApp.value = baseApplication
   showDetailsDialog.value = false
   showTimelineDialog.value = true
+  timelineLoading.value = true
 
   const id = getApplicationId(baseApplication)
-  if (!id) return
+  if (!id) {
+    timelineLoading.value = false
+    return
+  }
 
   const endpoint = isCocApplication(baseApplication)
     ? `/hr/coc-applications/${id}`
@@ -3831,6 +3837,8 @@ async function openTimeline(app) {
     selectedApp.value = mergedApplication
   } catch {
     // Keep existing row payload when detail endpoint fails.
+  } finally {
+    timelineLoading.value = false
   }
 }
 
@@ -4389,17 +4397,20 @@ async function openActionConfirm(type, target) {
 
   if (needsReceiveBeforeApprove) {
     q.dialog({
+      class: 'hr-receive-required-dialog',
       title: 'Receive Required',
       message: 'This application needs to be received by HR first before approving.',
       cancel: {
         label: 'Cancel',
         flat: true,
         color: 'grey-7',
+        class: 'hr-receive-required-dialog__button',
       },
       ok: {
         label: 'Receive',
         color: 'primary',
         unelevated: true,
+        class: 'hr-receive-required-dialog__button',
       },
       persistent: true,
     }).onOk(async () => {
@@ -4443,6 +4454,7 @@ function openRecall(target) {
 }
 
 async function handleDialogMutationSuccess(payload = {}) {
+  const mutationActionType = String(payload?.actionType || '').trim().toLowerCase()
   const payloadApplication =
     payload?.application && typeof payload.application === 'object' ? payload.application : null
   const applicationId = String(payload?.applicationId ?? payload?.id ?? '').trim()
@@ -4454,8 +4466,36 @@ async function handleDialogMutationSuccess(payload = {}) {
   showDetailsDialog.value = false
   await fetchApplications()
 
-  if (!applicationKey) return
-  selectedApp.value = resolveApplication(applicationKey)
+  const refreshedApplication =
+    (applicationKey ? resolveApplication(applicationKey) : null) ||
+    (applicationId ? resolveApplication(applicationId) : null)
+
+  if (refreshedApplication) {
+    selectedApp.value = refreshedApplication
+  }
+
+  const shouldPromptReleaseAfterApproval = mutationActionType === 'approve'
+  if (!shouldPromptReleaseAfterApproval) return
+  if (!refreshedApplication || isCocApplication(refreshedApplication)) return
+  if (!canReleaseApplication(refreshedApplication)) return
+
+  q.dialog({
+    title: 'Ready to release application?',
+    message: 'This leave application is approved. Do you want to release it now?',
+    cancel: {
+      label: 'Later',
+      flat: true,
+      color: 'grey-7',
+    },
+    ok: {
+      label: 'Yes',
+      unelevated: true,
+      color: 'secondary',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationReleased(refreshedApplication)
+  })
 }
 
   return {
@@ -4677,6 +4717,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     showRecallDialog,
     showRejectDialog,
     showTimelineDialog,
+    timelineLoading,
     statusSearch,
     tablePagination,
     toDepartmentCode,
