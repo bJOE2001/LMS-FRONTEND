@@ -491,6 +491,138 @@ function getLeaveBalanceTypeKey(value) {
     return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
 }
 
+function normalizeCertificationTypeKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/^\d+\s*day[s]?\s+/i, '')
+        .trim()
+}
+
+function areCertificationTypeKeysEquivalent(leftKey, rightKey) {
+    const normalizedLeftKey = normalizeCertificationTypeKey(leftKey)
+    const normalizedRightKey = normalizeCertificationTypeKey(rightKey)
+    if (!normalizedLeftKey || !normalizedRightKey) return false
+    if (normalizedLeftKey === normalizedRightKey) return true
+    return (
+        normalizedLeftKey.includes(normalizedRightKey) ||
+        normalizedRightKey.includes(normalizedLeftKey)
+    )
+}
+
+function parseCertificationSourceCandidate(value) {
+    if (value == null) return null
+    if (typeof value !== 'string') return value
+
+    const trimmedValue = value.trim()
+    if (!trimmedValue) return null
+
+    try {
+        return JSON.parse(trimmedValue)
+    } catch {
+        return null
+    }
+}
+
+function findCertificationEntryByTypeKey(entryMap, targetTypeKey) {
+    if (!entryMap?.size || !targetTypeKey) return null
+    if (entryMap.has(targetTypeKey)) return entryMap.get(targetTypeKey)
+
+    for (const [typeKey, entry] of entryMap.entries()) {
+        if (areCertificationTypeKeysEquivalent(typeKey, targetTypeKey)) {
+            return entry
+        }
+    }
+
+    return null
+}
+
+function resolveCertificationDirectBalanceValue(app) {
+    const directCandidates = [
+        app?.leaveBalance,
+        app?.leave_balance,
+        app?.balance,
+        app?.remaining_balance,
+        app?.available_balance,
+        app?.remainingBalance,
+        app?.availableBalance,
+        app?.current_balance,
+        app?.currentBalance,
+        app?.credits,
+        app?.raw?.leaveBalance,
+        app?.raw?.leave_balance,
+        app?.raw?.balance,
+        app?.raw?.remaining_balance,
+        app?.raw?.available_balance,
+        app?.raw?.remainingBalance,
+        app?.raw?.availableBalance,
+        app?.raw?.current_balance,
+        app?.raw?.currentBalance,
+        app?.raw?.credits,
+    ]
+
+    for (const candidate of directCandidates) {
+        const parsedNumber = toCreditNumber(candidate)
+        if (parsedNumber !== null) return parsedNumber
+    }
+
+    return null
+}
+
+function buildSelectedCertificationFallbackEntry(app, selectedLabel) {
+    const selectedTypeLabel = selectedLabel || app?.leaveType || 'Leave Credits'
+    const fallbackBalanceValue = resolveCertificationDirectBalanceValue(app)
+    if (fallbackBalanceValue === null) return null
+
+    return createCertificationEntry(selectedTypeLabel, {
+        balance: fallbackBalanceValue,
+        leave_balance: fallbackBalanceValue,
+    })
+}
+
+function isCertificationEntryLikeObject(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const knownKeys = [
+        'leave_type_name',
+        'leave_type',
+        'type_name',
+        'type',
+        'name',
+        'label',
+        'total_earned',
+        'totalEarned',
+        'earned',
+        'total',
+        'total_credits',
+        'totalCredits',
+        'less_this_application',
+        'lessThisApplication',
+        'applied',
+        'used',
+        'deducted',
+        'deducted_days',
+        'deductedDays',
+        'days_used',
+        'daysUsed',
+        'application_days',
+        'applicationDays',
+        'balance',
+        'leave_balance',
+        'leaveBalance',
+        'remaining_balance',
+        'available_balance',
+        'remainingBalance',
+        'availableBalance',
+        'current_balance',
+        'currentBalance',
+        'credits',
+        'value',
+    ]
+    return knownKeys.some((key) => Object.prototype.hasOwnProperty.call(value, key))
+}
+
 function createEmptyCertificationEntry(label) {
     return {
         label: prettifyLeaveBalanceLabel(label),
@@ -505,17 +637,56 @@ function createCertificationEntry(label, value) {
     if (!normalizedLabel) return null
 
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-        const totalEarned =
-            value.total_earned ?? value.totalEarned ?? value.earned
-        const lessThisApplication =
-            value.less_this_application ?? value.lessThisApplication ?? value.applied ?? value.used
+        let totalEarned =
+            value.total_earned ??
+            value.totalEarned ??
+            value.earned ??
+            value.total ??
+            value.total_credits ??
+            value.totalCredits
+        let lessThisApplication =
+            value.less_this_application ??
+            value.lessThisApplication ??
+            value.applied ??
+            value.used ??
+            value.deducted ??
+            value.deducted_days ??
+            value.deductedDays ??
+            value.days_used ??
+            value.daysUsed ??
+            value.application_days ??
+            value.applicationDays
         const fallbackBalance =
             value.balance ??
+            value.leave_balance ??
+            value.leaveBalance ??
             value.remaining_balance ??
             value.available_balance ??
             value.remainingBalance ??
             value.availableBalance ??
+            value.current_balance ??
+            value.currentBalance ??
+            value.credits ??
+            value.total_credits ??
+            value.totalCredits ??
             value.value
+
+        const totalEarnedNumber = toCreditNumber(totalEarned)
+        const lessThisApplicationNumber = toCreditNumber(lessThisApplication)
+        const fallbackBalanceNumber = toCreditNumber(fallbackBalance)
+
+        // Some non-VL/SL payloads only provide current balance. Infer missing totals so 7.A remains complete.
+        if (totalEarnedNumber === null && fallbackBalanceNumber !== null) {
+            if (lessThisApplicationNumber !== null) {
+                totalEarned = fallbackBalanceNumber + lessThisApplicationNumber
+            } else {
+                totalEarned = fallbackBalanceNumber
+                if (lessThisApplication == null || lessThisApplication === '') {
+                    lessThisApplication = 0
+                }
+            }
+        }
+
         const computedEntry = computeCertificationBalance(
             totalEarned,
             lessThisApplication,
@@ -553,6 +724,14 @@ function mergeCertificationEntry(existing, next) {
 function collectCertificationEntries(map, source, fallbackLabel = '') {
     if (!source) return
 
+    if (typeof source === 'string') {
+        const parsedSource = parseCertificationSourceCandidate(source)
+        if (parsedSource !== null) {
+            collectCertificationEntries(map, parsedSource, fallbackLabel)
+        }
+        return
+    }
+
     if (Array.isArray(source)) {
         for (const item of source) {
             if (item == null || typeof item !== 'object') continue
@@ -581,9 +760,37 @@ function collectCertificationEntries(map, source, fallbackLabel = '') {
         return
     }
 
+    if (isCertificationEntryLikeObject(source)) {
+        const entry = createCertificationEntry(
+            source.leave_type_name ||
+                source.leave_type ||
+                source.type_name ||
+                source.type ||
+                source.name ||
+                source.label ||
+                fallbackLabel,
+            source,
+        )
+        if (!entry) return
+        const key = getLeaveBalanceTypeKey(entry.label)
+        map.set(key, mergeCertificationEntry(map.get(key), entry))
+        return
+    }
+
     for (const [key, value] of Object.entries(source)) {
         if (value == null || key === 'as_of_date') continue
-        const entry = createCertificationEntry(key, value)
+
+        const entryLabel =
+            value && typeof value === 'object' && !Array.isArray(value)
+                ? value.leave_type_name ||
+                  value.leave_type ||
+                  value.type_name ||
+                  value.type ||
+                  value.name ||
+                  value.label ||
+                  key
+                : key
+        const entry = createCertificationEntry(entryLabel, value)
         if (!entry) continue
         const typeKey = getLeaveBalanceTypeKey(entry.label)
         map.set(typeKey, mergeCertificationEntry(map.get(typeKey), entry))
@@ -605,6 +812,21 @@ function buildCertificationEntryMap(app) {
     collectCertificationEntries(entries, app?.employee_leave_balances)
     collectCertificationEntries(entries, app?.leaveBalance)
 
+    if (!entries.size) {
+        const fallbackEntry = createCertificationEntry(
+            app?.leaveType || 'Leave Credits',
+            app?.balance ??
+                app?.leave_balance ??
+                app?.remaining_balance ??
+                app?.available_balance ??
+                app?.credits ??
+                app?.leaveBalance,
+        )
+        if (fallbackEntry) {
+            entries.set(getLeaveBalanceTypeKey(fallbackEntry.label), fallbackEntry)
+        }
+    }
+
     return entries
 }
 
@@ -623,7 +845,13 @@ function buildCertificationColumns(app) {
         ]
     }
 
-    return [entryMap.get(selectedKey) || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
+    const resolvedSelectedEntry =
+        findCertificationEntryByTypeKey(entryMap, selectedKey) ||
+        (entryMap.size === 1 ? entryMap.values().next().value : null)
+    const selectedFallbackEntry = buildSelectedCertificationFallbackEntry(app, selectedLabel)
+    const mergedSelectedEntry = mergeCertificationEntry(resolvedSelectedEntry, selectedFallbackEntry)
+
+    return [mergedSelectedEntry || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
 }
 
 function applyCertificationLessThisApplicationOverride(columns, selectedLeaveType, lessThisApplicationDays) {
@@ -637,18 +865,30 @@ function applyCertificationLessThisApplicationOverride(columns, selectedLeaveTyp
 
     return columns.map((column) => {
         const columnTypeKey = getLeaveBalanceTypeKey(column?.label)
-        if (!columnTypeKey || columnTypeKey !== selectedLeaveTypeKey) {
+        if (!columnTypeKey || !areCertificationTypeKeysEquivalent(columnTypeKey, selectedLeaveTypeKey)) {
             return column
         }
 
-        const totalEarnedNumber = toCreditNumber(column?.totalEarned)
+        const existingTotalEarnedNumber = toCreditNumber(column?.totalEarned)
+        const existingBalanceNumber = toCreditNumber(column?.balance)
         const nextColumn = {
             ...column,
             lessThisApplication: fmtCredit(normalizedLessThisApplicationDays),
         }
 
-        if (totalEarnedNumber !== null) {
-            const computedBalance = totalEarnedNumber - normalizedLessThisApplicationDays
+        const resolvedTotalEarnedNumber =
+            existingTotalEarnedNumber !== null
+                ? existingTotalEarnedNumber
+                : existingBalanceNumber !== null
+                  ? existingBalanceNumber + normalizedLessThisApplicationDays
+                  : null
+
+        if (resolvedTotalEarnedNumber !== null && !nextColumn.totalEarned) {
+            nextColumn.totalEarned = fmtCredit(resolvedTotalEarnedNumber)
+        }
+
+        if (resolvedTotalEarnedNumber !== null) {
+            const computedBalance = resolvedTotalEarnedNumber - normalizedLessThisApplicationDays
             nextColumn.balance = fmtCredit(Math.abs(computedBalance) < 1e-9 ? 0 : computedBalance)
         }
 
