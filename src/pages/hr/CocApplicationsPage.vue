@@ -4,7 +4,7 @@
       <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Late COC Application</h1>
     </div>
 
-    <HrApplicationsPanel application-type="COC" />
+    <HrApplicationsPanel application-type="COC" application-source="late_filing" />
   </q-page>
 </template>
 
