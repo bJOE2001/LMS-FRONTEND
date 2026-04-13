@@ -6,7 +6,7 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { generateCocCertificatePdf } from 'src/utils/coc-certificate-pdf'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 
-export function useHrApplicationsPanel() {
+export function useHrApplicationsPanel(options = {}) {
 
 const q = useQuasar()
 const route = useRoute()
@@ -23,6 +23,7 @@ const tablePagination = ref({
 })
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
+const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationType))
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'recalled'])
 const DEPARTMENT_STOP_WORDS = new Set([
   'A',
@@ -1891,6 +1892,9 @@ function getApplicationSearchTokenSet(app) {
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
   const rows = applications.value.filter((app) => {
+    if (applicationTypeFilter.value && getApplicationType(app) !== applicationTypeFilter.value) {
+      return false
+    }
     const rawStatus = getApplicationRawStatusKey(app)
     const shouldHidePendingAdmin = rawStatus === 'PENDING_ADMIN' && !isPendingEditRequest(app)
     if (shouldHidePendingAdmin) return false
