@@ -265,6 +265,16 @@ onBeforeUnmount(() => {
   background: rgba(16, 22, 30, 0.72);
 }
 
+.trend-chart-wrapper :deep(.apexcharts-canvas:focus),
+.trend-chart-wrapper :deep(.apexcharts-canvas:focus-visible),
+.trend-chart-wrapper :deep(.apexcharts-svg:focus),
+.trend-chart-wrapper :deep(.apexcharts-svg:focus-visible),
+.trend-chart-wrapper :deep(svg:focus),
+.trend-chart-wrapper :deep(svg:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 @media (max-width: 1199px) {
   .trend-chart-wrapper {
     min-height: 220px;
