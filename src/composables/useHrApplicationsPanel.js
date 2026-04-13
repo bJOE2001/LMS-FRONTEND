@@ -1910,40 +1910,105 @@ const applicationsForTable = computed(() => {
   return filteredRows.sort(compareApplicationsForTable)
 })
 
+const employeeColumn = { name: 'employee', label: 'Employee', align: 'left' }
+const officeColumn = {
+  name: 'office',
+  label: 'Office',
+  field: (row) => row.officeShort || row.office,
+  align: 'left',
+}
+const leaveTypeColumn = {
+  name: 'leaveType',
+  label: 'Leave Type',
+  field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
+  align: 'left',
+}
+const dateFiledColumn = {
+  name: 'dateFiled',
+  label: 'Date Filed',
+  field: (row) => (row.dateFiled ? formatDate(row.dateFiled) : 'N/A'),
+  align: 'left',
+}
+const lateDeadlineColumn = {
+  name: 'lateDeadline',
+  label: 'Late Filing Deadline',
+  field: (row) => (row?.late_filing_deadline ? formatDate(row.late_filing_deadline) : 'N/A'),
+  align: 'left',
+}
+const inclusiveDatesColumn = {
+  name: 'inclusiveDates',
+  label: 'Inclusive Dates',
+  field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row)),
+  align: 'left',
+}
+const durationColumn = {
+  name: 'days',
+  label: 'Duration',
+  field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row)),
+  align: 'left',
+}
+const statusColumn = { name: 'status', label: 'Status', align: 'left' }
+const actionsColumn = { name: 'actions', label: 'Actions', align: 'center' }
+const cocEmployeeColumn = {
+  ...employeeColumn,
+  style: 'width: 30%',
+  headerStyle: 'width: 30%',
+}
+const cocOfficeColumn = {
+  ...officeColumn,
+  style: 'width: 9%',
+  headerStyle: 'width: 9%',
+}
+const cocLeaveTypeColumn = {
+  ...leaveTypeColumn,
+  style: 'width: 12%',
+  headerStyle: 'width: 12%',
+}
+const cocDateFiledColumn = {
+  ...dateFiledColumn,
+  style: 'width: 10%',
+  headerStyle: 'width: 10%',
+}
+const cocLateDeadlineColumn = {
+  ...lateDeadlineColumn,
+  style: 'width: 11%',
+  headerStyle: 'width: 11%',
+}
+const cocInclusiveDatesColumn = {
+  ...inclusiveDatesColumn,
+  style: 'width: 12%',
+  headerStyle: 'width: 12%',
+}
+const cocStatusColumn = {
+  ...statusColumn,
+  style: 'width: 8%',
+  headerStyle: 'width: 8%',
+}
+const cocActionsColumn = {
+  ...actionsColumn,
+  style: 'width: 8%',
+  headerStyle: 'width: 8%',
+}
+
 const columns = [
-  { name: 'employee', label: 'Employee', align: 'left' },
-  {
-    name: 'office',
-    label: 'Office',
-    field: (row) => row.officeShort || row.office,
-    align: 'left',
-  },
-  {
-    name: 'leaveType',
-    label: 'Leave Type',
-    field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
-    align: 'left',
-  },
-  {
-    name: 'dateFiled',
-    label: 'Date Filed',
-    field: (row) => (row.dateFiled ? formatDate(row.dateFiled) : 'N/A'),
-    align: 'left',
-  },
-  {
-    name: 'inclusiveDates',
-    label: 'Inclusive Dates',
-    field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row)),
-    align: 'left',
-  },
-  {
-    name: 'days',
-    label: 'Duration',
-    field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row)),
-    align: 'left',
-  },
-  { name: 'status', label: 'Status', align: 'left' },
-  { name: 'actions', label: 'Actions', align: 'center' },
+  employeeColumn,
+  officeColumn,
+  leaveTypeColumn,
+  dateFiledColumn,
+  inclusiveDatesColumn,
+  durationColumn,
+  statusColumn,
+  actionsColumn,
+]
+const cocLateColumns = [
+  cocEmployeeColumn,
+  cocOfficeColumn,
+  cocLeaveTypeColumn,
+  cocDateFiledColumn,
+  cocLateDeadlineColumn,
+  cocInclusiveDatesColumn,
+  cocStatusColumn,
+  cocActionsColumn,
 ]
 const mobileApplicationColumnWidths = {
   employee: {
@@ -1962,13 +2027,24 @@ const mobileApplicationColumnWidths = {
     style: 'min-width: 145px',
     headerStyle: 'min-width: 145px',
   },
+  dateFiled: {
+    style: 'min-width: 130px',
+    headerStyle: 'min-width: 130px',
+  },
 }
 const applicationTableColumns = computed(() => {
-  if (!q.screen.lt.sm) return columns
+  const desktopColumns = applicationTypeFilter.value === 'COC' ? cocLateColumns : columns
+  if (!q.screen.lt.sm) return desktopColumns
 
-  return ['employee', 'status', 'office', 'leaveType']
+  const mobileColumnNames = applicationTypeFilter.value === 'COC'
+    ? ['employee', 'status', 'office', 'dateFiled']
+    : ['employee', 'status', 'office', 'leaveType']
+
+  return mobileColumnNames
     .map((name) => {
-      const column = columns.find((candidate) => candidate.name === name)
+      const column =
+        desktopColumns.find((candidate) => candidate.name === name)
+        || columns.find((candidate) => candidate.name === name)
       if (!column) return null
 
       const mobileWidth = mobileApplicationColumnWidths[name]
