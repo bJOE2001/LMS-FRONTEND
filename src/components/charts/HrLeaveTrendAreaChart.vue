@@ -80,7 +80,7 @@ const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
 const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
 const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
+const trendChartHeight = computed(() => ($q.screen.lt.lg ? 220 : 260))
 
 function getApplicationDate(application) {
   return (
@@ -249,8 +249,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .trend-chart-wrapper {
   width: 100%;
-  min-height: 210px;
-  max-height: 210px;
+  min-height: 260px;
+  max-height: 260px;
 }
 
 .chart-loading-host {
@@ -267,8 +267,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1199px) {
   .trend-chart-wrapper {
-    min-height: 190px;
-    max-height: 190px;
+    min-height: 220px;
+    max-height: 220px;
   }
 }
 </style>

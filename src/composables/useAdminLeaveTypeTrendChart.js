@@ -16,7 +16,7 @@ export function useAdminLeaveTypeTrendChart(props) {
   const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
   const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
   const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
-  const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
+  const trendChartHeight = computed(() => ($q.screen.lt.lg ? 220 : 260))
   const leaveTypeFilter = ref('All')
   const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 
@@ -154,9 +154,7 @@ export function useAdminLeaveTypeTrendChart(props) {
       },
     },
     legend: {
-      show: true,
-      position: 'top',
-      horizontalAlign: 'left',
+      show: false,
     },
     tooltip: {
       shared: true,

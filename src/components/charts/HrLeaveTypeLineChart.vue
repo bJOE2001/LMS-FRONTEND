@@ -84,7 +84,7 @@ const ALL_OFFICES_FILTER = '__ALL_OFFICES__'
 const OFFICE_ACRONYM_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
 const leaveTypeFilter = ref('All')
 const officeFilter = ref(ALL_OFFICES_FILTER)
-const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
+const trendChartHeight = computed(() => ($q.screen.lt.lg ? 220 : 260))
 const chartRoot = ref(null)
 let chartTitleCleanupObserver = null
 
@@ -428,8 +428,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .trend-chart-wrapper {
   width: 100%;
-  min-height: 210px;
-  max-height: 210px;
+  min-height: 260px;
+  max-height: 260px;
 }
 
 .chart-loading-host {
@@ -446,8 +446,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1199px) {
   .trend-chart-wrapper {
-    min-height: 190px;
-    max-height: 190px;
+    min-height: 220px;
+    max-height: 220px;
   }
 }
 </style>
