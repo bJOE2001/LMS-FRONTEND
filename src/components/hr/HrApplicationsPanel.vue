@@ -194,6 +194,19 @@
               <q-tooltip>Approve</q-tooltip>
             </q-btn>
             <q-btn
+              v-if="canShowPendingReleaseAction(props.row)"
+              flat
+              dense
+              round
+              size="sm"
+              icon="outbox"
+              color="secondary"
+              :disable="releaseLoading"
+              @click.stop="markApplicationReleased(props.row)"
+            >
+              <q-tooltip>Release</q-tooltip>
+            </q-btn>
+            <q-btn
               v-if="canRecallApplication(props.row)"
               flat
               dense
@@ -353,8 +366,16 @@ export default defineComponent({
       return app?.displayStatus || panel.getApplicationStatusLabel(app)
     }
 
+    function canShowPendingReleaseAction(app) {
+      return (
+        getFinalStatusForStatusColumn(app) === 'Pending Release' &&
+        panel.canReleaseApplication(app)
+      )
+    }
+
     return {
       ...panel,
+      canShowPendingReleaseAction,
       getFinalStatusForStatusColumn,
     }
   },
