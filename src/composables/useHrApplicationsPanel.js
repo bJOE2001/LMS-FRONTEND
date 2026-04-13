@@ -1773,55 +1773,57 @@ function getApplicationGroupedRawStatusKey(app) {
   return getApplicationRawStatusKey({ raw_status: app?.group_raw_status || '' })
 }
 
-function getApplicationStatusPriority(app) {
-  const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-  if (
-    cocReleaseStageStatus === 'Pending Admin' ||
-    cocReleaseStageStatus === 'Pending HR Review' ||
-    cocReleaseStageStatus === 'Pending HR Receive' ||
-    cocReleaseStageStatus === 'Pending Release'
-  ) {
-    return 0
-  }
-  if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 1
+function getPendingQueueStagePriority(app) {
+  const workflowStageStatus = getCocReleaseStageStatus(app) || getLeaveWorkflowStageStatus(app) || ''
+  if (workflowStageStatus === 'Pending HR Receive') return 0
+  if (workflowStageStatus === 'Pending HR Review') return 1
+  if (workflowStageStatus === 'Pending Release') return 2
+  if (workflowStageStatus === 'Pending Admin') return 3
+  return 4
+}
 
-  const leaveWorkflowStageStatus = isPendingEditRequest(app) ? '' : getLeaveWorkflowStageStatus(app)
-  if (
-    leaveWorkflowStageStatus === 'Pending Admin' ||
-    leaveWorkflowStageStatus === 'Pending HR Receive' ||
-    leaveWorkflowStageStatus === 'Pending HR Review' ||
-    leaveWorkflowStageStatus === 'Pending Release'
-  ) {
-    return 0
-  }
-  if (leaveWorkflowStageStatus === 'Approved') return 1
+function getApplicationStatusPriority(app) {
+  const workflowStageStatus = getCocReleaseStageStatus(app) || getLeaveWorkflowStageStatus(app) || ''
+  if (workflowStageStatus.startsWith('Pending')) return 0
+  if (workflowStageStatus === 'Approved' || workflowStageStatus === 'Released') return 1
 
   const groupedRawStatus = getApplicationGroupedRawStatusKey(app) || getApplicationRawStatusKey(app)
-  if (groupedRawStatus === 'PENDING_ADMIN' && isPendingEditRequest(app)) return 1
   if (groupedRawStatus === 'PENDING_ADMIN' || groupedRawStatus === 'PENDING_HR') return 0
   if (groupedRawStatus === 'APPROVED') return 1
-  if (groupedRawStatus === 'RECALLED') return 2
-  if (groupedRawStatus === 'REJECTED') return 3
+  if (groupedRawStatus === 'REJECTED') return 2
+  if (groupedRawStatus === 'RECALLED') return 3
 
   const status = String(getApplicationStatusLabel(app) || '').toLowerCase()
   if (status.includes('pending')) return 0
   if (status.includes('approved')) return 1
-  if (status.includes('recalled')) return 2
-  if (status.includes('rejected') || status.includes('disapproved')) return 3
+  if (status.includes('rejected') || status.includes('disapproved')) return 2
+  if (status.includes('recalled')) return 3
   return 4
 }
 
+function getApplicationQueueTimestamp(app) {
+  const timestamp = Date.parse(String(app?.filed_at || '').trim())
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp
+}
+
 function compareApplicationsForTable(a, b) {
-  const statusPriorityDiff = getApplicationStatusPriority(a) - getApplicationStatusPriority(b)
+  const statusPriorityA = getApplicationStatusPriority(a)
+  const statusPriorityB = getApplicationStatusPriority(b)
+  const statusPriorityDiff = statusPriorityA - statusPriorityB
   if (statusPriorityDiff !== 0) return statusPriorityDiff
 
-  const dateA = Date.parse(a?.filed_at || a?.created_at || '') || 0
-  const dateB = Date.parse(b?.filed_at || b?.created_at || '') || 0
-  if (dateA !== dateB) return dateB - dateA
+  if (statusPriorityA === 0 && statusPriorityB === 0) {
+    const pendingStagePriorityDiff = getPendingQueueStagePriority(a) - getPendingQueueStagePriority(b)
+    if (pendingStagePriorityDiff !== 0) return pendingStagePriorityDiff
+  }
 
-  const idA = Number(a?.id) || 0
-  const idB = Number(b?.id) || 0
-  if (idB !== idA) return idB - idA
+  const dateA = getApplicationQueueTimestamp(a)
+  const dateB = getApplicationQueueTimestamp(b)
+  if (dateA !== dateB) return dateA - dateB
+
+  const idA = Number(a?.id)
+  const idB = Number(b?.id)
+  if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) return idA - idB
 
   const variantA = a?.application_row_variant === 'recalled' ? 1 : 0
   const variantB = b?.application_row_variant === 'recalled' ? 1 : 0
@@ -1829,7 +1831,7 @@ function compareApplicationsForTable(a, b) {
 
   const keyA = String(a?.application_uid || '')
   const keyB = String(b?.application_uid || '')
-  return keyB.localeCompare(keyA)
+  return keyA.localeCompare(keyB)
 }
 
 function getDateSearchValues(dateValue) {

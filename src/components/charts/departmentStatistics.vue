@@ -5,21 +5,92 @@
         <div class="col-12 col-md">
           <div class="text-h6">Department Leave Statistics</div>
           <p class="text-caption text-grey-7 q-mb-none">
-            {{ selectedPeriodLabel }} view
+            Grouped by {{ selectedGroupByLabel }}
           </p>
         </div>
         <div class="col-12 col-md-auto">
-          <q-btn-toggle
-            v-model="selectedPeriod"
-            :options="periodToggleOptions"
-            no-caps
-            unelevated
+          <q-select
+            v-model="selectedGroupBy"
+            :options="groupByOptions"
+            emit-value
+            map-options
             dense
-            toggle-color="primary"
-            color="grey-3"
-            text-color="grey-8"
-            class="department-period-toggle"
-            :spread="isMobile"
+            outlined
+            label="Group By"
+            class="department-group-select"
+          />
+        </div>
+        <div v-if="usesDailyDateFilter" class="col-12 col-md-auto">
+          <q-input
+            v-model="selectedFilterDate"
+            label="Date"
+            outlined
+            dense
+            readonly
+            class="department-secondary-filter"
+          >
+            <template #append>
+              <q-icon name="event" class="cursor-pointer">
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date v-model="selectedFilterDate" mask="YYYY-MM-DD">
+                    <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                      <q-btn v-close-popup label="Close" color="primary" flat no-caps />
+                    </div>
+                  </q-date>
+                </q-popup-proxy>
+              </q-icon>
+            </template>
+          </q-input>
+        </div>
+        <div v-if="usesWeeklyRangeFilter" class="col-12 col-md-auto">
+          <q-input
+            :model-value="selectedWeeklyRangeLabel"
+            label="Week Range"
+            outlined
+            dense
+            readonly
+            class="department-secondary-filter"
+          >
+            <template #append>
+              <q-icon name="event" class="cursor-pointer">
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date
+                    v-model="selectedWeeklyRange"
+                    range
+                    mask="YYYY-MM-DD"
+                    @update:model-value="handleWeeklyRangeChange"
+                  >
+                    <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                      <q-btn v-close-popup label="Close" color="primary" flat no-caps />
+                    </div>
+                  </q-date>
+                </q-popup-proxy>
+              </q-icon>
+            </template>
+          </q-input>
+        </div>
+        <div v-if="usesMonthFilter" class="col-12 col-md-auto">
+          <q-select
+            v-model="selectedFilterMonth"
+            :options="monthOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Month"
+            class="department-secondary-filter"
+          />
+        </div>
+        <div v-if="usesYearFilter" class="col-12 col-md-auto">
+          <q-select
+            v-model="selectedFilterYear"
+            :options="yearOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Year"
+            class="department-secondary-filter"
           />
         </div>
       </div>
@@ -43,20 +114,22 @@
           </template>
           <template v-else>
             <q-icon name="inbox" size="20px" class="q-mr-sm" />
-            <span>No department statistics available for this period.</span>
+            <span>No department statistics available for this grouping.</span>
           </template>
         </div>
 
         <div v-else class="department-mobile-list">
           <q-card
             v-for="row in departmentRows"
-            :key="row.department"
+            :key="row.rowKey"
             flat
             bordered
             class="department-mobile-item"
           >
             <q-card-section class="department-mobile-item__header">
-              <div class="department-mobile-item__name">{{ row.department }}</div>
+              <div class="department-mobile-item__identity">
+                <div class="department-mobile-item__name">{{ row.department }}</div>
+              </div>
               <q-badge
                 color="primary"
                 text-color="primary"
@@ -70,7 +143,7 @@
             <q-card-section class="department-mobile-item__stats">
               <div
                 v-for="column in leaveTypeColumns"
-                :key="`${row.department}-${column.name}`"
+                :key="`${row.rowKey}-${column.name}`"
                 class="department-mobile-stat"
               >
                 <span class="department-mobile-stat__label">{{ column.mobileLabel }}</span>
@@ -85,7 +158,7 @@
         v-else
         :rows="departmentRows"
         :columns="tableColumns"
-        row-key="department"
+        row-key="rowKey"
         flat
         dense
         hide-pagination
@@ -113,7 +186,7 @@
             </template>
             <template v-else>
               <q-icon name="inbox" size="20px" class="q-mr-sm" />
-              <span>No department statistics available for this period.</span>
+              <span>No department statistics available for this grouping.</span>
             </template>
           </div>
         </template>
@@ -125,8 +198,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { api } from 'src/boot/axios'
-import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { useDepartmentStatisticsStore } from 'src/stores/department-statistics-store'
 
 const props = defineProps({
   apiEndpoint: {
@@ -144,26 +216,59 @@ const props = defineProps({
 })
 
 const $q = useQuasar()
+const departmentStatisticsStore = useDepartmentStatisticsStore()
+const today = new Date()
+const todayYear = today.getFullYear()
+const todayMonth = today.getMonth() + 1
+const todayDateString = today.toISOString().slice(0, 10)
 
-const tableMinWidth = '1460px'
+const tableMinWidth = '1620px'
 const isMobile = computed(() => $q.screen.lt.md)
-const selectedPeriod = ref('daily')
-const periodOptions = [
+const selectedGroupBy = ref('daily')
+const groupByOptions = [
   { label: 'Daily', value: 'daily' },
   { label: 'Weekly', value: 'weekly' },
   { label: 'Monthly', value: 'monthly' },
   { label: 'Yearly', value: 'yearly' },
 ]
-const periodToggleOptions = computed(() => {
-  if (!$q.screen.xs) return periodOptions
-
-  return [
-    { label: 'Day', value: 'daily' },
-    { label: 'Week', value: 'weekly' },
-    { label: 'Month', value: 'monthly' },
-    { label: 'Year', value: 'yearly' },
-  ]
+const monthOptions = [
+  { label: 'January', value: 1 },
+  { label: 'February', value: 2 },
+  { label: 'March', value: 3 },
+  { label: 'April', value: 4 },
+  { label: 'May', value: 5 },
+  { label: 'June', value: 6 },
+  { label: 'July', value: 7 },
+  { label: 'August', value: 8 },
+  { label: 'September', value: 9 },
+  { label: 'October', value: 10 },
+  { label: 'November', value: 11 },
+  { label: 'December', value: 12 },
+]
+const yearOptions = Array.from({ length: todayYear - 1999 }, (_unused, index) => {
+  const value = todayYear - index
+  return { label: String(value), value }
 })
+const selectedFilterDate = ref(todayDateString)
+const selectedFilterMonth = ref(todayMonth)
+const selectedFilterYear = ref(todayYear)
+const selectedWeeklyRange = ref({
+  from: todayDateString,
+  to: todayDateString,
+})
+const normalizedApiEndpoint = computed(() => String(props.apiEndpoint || '').trim())
+const DEPARTMENT_ACRONYM_STOP_WORDS = new Set([
+  'A',
+  'AN',
+  'AND',
+  'FOR',
+  'IN',
+  'OF',
+  'OFFICE',
+  'ON',
+  'THE',
+  'TO',
+])
 
 const leaveTypeColumns = [
   { name: 'vacationLeave', label: 'Vacation Leave', mobileLabel: 'Vacation' },
@@ -184,48 +289,33 @@ const leaveTypeColumns = [
   { name: 'soloParentLeave', label: 'Solo Parent Leave', mobileLabel: 'Solo Parent' },
 ]
 
-// Single backend mapping variable: update these keys to match your API exactly.
-const backendFieldMap = {
-  // Optional wrapper key path from API response root.
-  // Example: 'departmentStatistics' or 'data.departmentStatistics'
-  responseDataPath: '',
-
-  // Optional path for each period container.
-  // Example: { daily: 'daily', weekly: 'weekly', monthly: 'monthly', yearly: 'yearly' }
-  rowsPathByPeriod: {
-    daily: '',
-    weekly: '',
-    monthly: '',
-    yearly: '',
-  },
-
-  // Optional rows key path inside responseDataPath / rowsPathByPeriod.
-  // Example: 'rows'
-  rowsPath: '',
-
-  // Row field mappings
-  department: 'department',
-  vacationLeave: 'vacationLeave',
-  sickLeave: 'sickLeave',
-  mandatoryForcedLeave: 'mandatoryForcedLeave',
-  mco6Leave: 'mco6Leave',
-  wellnessLeave: 'wellnessLeave',
-  maternityLeave: 'maternityLeave',
-  paternityLeave: 'paternityLeave',
-  specialPrivilegeLeave: 'specialPrivilegeLeave',
-  soloParentLeave: 'soloParentLeave',
-}
-
-const periodKeys = ['daily', 'weekly', 'monthly', 'yearly']
-const isLoading = ref(false)
-const fetchErrorMessage = ref('')
-const loadStateByPeriod = ref(createPeriodState(false))
-const departmentRowsByPeriod = ref(createPeriodState([]))
-let activeRequestId = 0
-
-const selectedPeriodLabel = computed(() =>
-  periodOptions.find((option) => option.value === selectedPeriod.value)?.label || 'Daily',
+const selectedGroupByLabel = computed(() =>
+  groupByOptions.find((option) => option.value === selectedGroupBy.value)?.label || 'Daily',
 )
+const usesDailyDateFilter = computed(() => selectedGroupBy.value === 'daily')
+const usesWeeklyRangeFilter = computed(() => selectedGroupBy.value === 'weekly')
+const usesMonthFilter = computed(() => selectedGroupBy.value === 'monthly')
+const usesYearFilter = computed(
+  () => selectedGroupBy.value === 'monthly' || selectedGroupBy.value === 'yearly',
+)
+const selectedWeeklyRangeLabel = computed(() => {
+  const from = String(selectedWeeklyRange.value?.from || '').trim()
+  const to = String(selectedWeeklyRange.value?.to || '').trim()
+  if (!from && !to) return ''
+  if (from && to) return `${from} to ${to}`
+  return from || to
+})
+const activeFilterSignature = computed(() => {
+  if (selectedGroupBy.value === 'daily' || selectedGroupBy.value === 'weekly') {
+    return `${selectedGroupBy.value}|${selectedFilterDate.value}`
+  }
+
+  if (selectedGroupBy.value === 'monthly') {
+    return `${selectedGroupBy.value}|${selectedFilterMonth.value}|${selectedFilterYear.value}`
+  }
+
+  return `${selectedGroupBy.value}|${selectedFilterYear.value}`
+})
 
 const tableColumns = computed(() => [
   {
@@ -250,128 +340,41 @@ const tableColumns = computed(() => [
   },
 ])
 
-function createPeriodState(defaultValue) {
-  return periodKeys.reduce((result, periodKey) => {
-    result[periodKey] = Array.isArray(defaultValue) ? [...defaultValue] : defaultValue
-    return result
-  }, {})
-}
+const isLoading = computed(() =>
+  departmentStatisticsStore.isLoading(normalizedApiEndpoint.value, selectedGroupBy.value, {
+    filterDate: selectedFilterDate.value,
+    filterMonth: selectedFilterMonth.value,
+    filterYear: selectedFilterYear.value,
+  }),
+)
 
-function toSafeCount(value) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) return 0
-  return Math.round(parsed)
-}
-
-function normalizePeriodKey(value) {
-  if (periodKeys.includes(value)) return value
-  return 'daily'
-}
-
-function readByPath(source, path) {
-  if (!path) return source
-  return String(path)
-    .split('.')
-    .reduce((value, key) => {
-      if (!value || typeof value !== 'object') return undefined
-      return value[key]
-    }, source)
-}
-
-function normalizeDepartmentRow(rawRow) {
-  if (!rawRow || typeof rawRow !== 'object' || Array.isArray(rawRow)) return null
-
-  const departmentName = String(readByPath(rawRow, backendFieldMap.department) || '').trim()
-  if (!departmentName) return null
-
-  return {
-    department: departmentName,
-    vacationLeave: toSafeCount(readByPath(rawRow, backendFieldMap.vacationLeave)),
-    sickLeave: toSafeCount(readByPath(rawRow, backendFieldMap.sickLeave)),
-    mandatoryForcedLeave: toSafeCount(readByPath(rawRow, backendFieldMap.mandatoryForcedLeave)),
-    mco6Leave: toSafeCount(readByPath(rawRow, backendFieldMap.mco6Leave)),
-    wellnessLeave: toSafeCount(readByPath(rawRow, backendFieldMap.wellnessLeave)),
-    maternityLeave: toSafeCount(readByPath(rawRow, backendFieldMap.maternityLeave)),
-    paternityLeave: toSafeCount(readByPath(rawRow, backendFieldMap.paternityLeave)),
-    specialPrivilegeLeave: toSafeCount(readByPath(rawRow, backendFieldMap.specialPrivilegeLeave)),
-    soloParentLeave: toSafeCount(readByPath(rawRow, backendFieldMap.soloParentLeave)),
-  }
-}
-
-function normalizeDepartmentRows(rawRows) {
-  if (!Array.isArray(rawRows)) return []
-
-  return rawRows
-    .map((row) => normalizeDepartmentRow(row))
-    .filter((row) => row != null)
-    .sort((left, right) => left.department.localeCompare(right.department))
-}
-
-function resolveRowsFromResponse(data, periodKey) {
-  const scopedResponse = readByPath(data, backendFieldMap.responseDataPath)
-  const periodPath = backendFieldMap.rowsPathByPeriod?.[periodKey] || ''
-  const periodSource = readByPath(scopedResponse, periodPath)
-  const rowsSource = readByPath(periodSource, backendFieldMap.rowsPath)
-
-  if (Array.isArray(rowsSource)) return rowsSource
-  if (Array.isArray(periodSource)) return periodSource
-
-  const fallbackRowsSource = readByPath(scopedResponse, backendFieldMap.rowsPath)
-  if (Array.isArray(fallbackRowsSource)) return fallbackRowsSource
-  if (Array.isArray(scopedResponse)) return scopedResponse
-
-  return []
-}
-
-async function fetchDepartmentStatistics(period = selectedPeriod.value, forceRefresh = false) {
-  const periodKey = normalizePeriodKey(period)
-  if (!props.apiEndpoint) return
-  if (!forceRefresh && loadStateByPeriod.value[periodKey]) return
-
-  const requestId = ++activeRequestId
-  isLoading.value = true
-  fetchErrorMessage.value = ''
-
-  try {
-    const { data } = await api.get(props.apiEndpoint, {
-      params: { period: periodKey },
-    })
-
-    if (requestId !== activeRequestId) return
-
-    const rows = normalizeDepartmentRows(resolveRowsFromResponse(data, periodKey))
-    departmentRowsByPeriod.value[periodKey] = rows
-    loadStateByPeriod.value[periodKey] = true
-  } catch (err) {
-    if (requestId !== activeRequestId) return
-
-    fetchErrorMessage.value = resolveApiErrorMessage(
-      err,
-      'Unable to load department leave statistics right now.',
-    )
-
-    if (props.notifyOnFetchError) {
-      $q.notify({ type: 'negative', message: fetchErrorMessage.value, position: 'top' })
-    }
-  } finally {
-    if (requestId === activeRequestId) {
-      isLoading.value = false
-    }
-  }
-}
+const fetchErrorMessage = computed(() =>
+  departmentStatisticsStore.getError(normalizedApiEndpoint.value, selectedGroupBy.value, {
+    filterDate: selectedFilterDate.value,
+    filterMonth: selectedFilterMonth.value,
+    filterYear: selectedFilterYear.value,
+  }),
+)
 
 const departmentRows = computed(() =>
-  (departmentRowsByPeriod.value[selectedPeriod.value] || []).map((row) => {
-    const total = leaveTypeColumns.reduce(
-      (sum, column) => sum + Number(row[column.name] || 0),
-      0,
-    )
+  departmentStatisticsStore
+    .getRows(normalizedApiEndpoint.value, selectedGroupBy.value, {
+      filterDate: selectedFilterDate.value,
+      filterMonth: selectedFilterMonth.value,
+      filterYear: selectedFilterYear.value,
+    })
+    .map((row) => {
+      const total = leaveTypeColumns.reduce(
+        (sum, column) => sum + Number(row[column.name] || 0),
+        0,
+      )
 
-    return {
-      ...row,
-      total,
-    }
-  }),
+      return {
+        ...row,
+        department: toDepartmentCode(row?.department),
+        total,
+      }
+    }),
 )
 
 const tablePagination = ref({
@@ -379,9 +382,141 @@ const tablePagination = ref({
   rowsPerPage: 0,
 })
 
-watch(selectedPeriod, (nextPeriod) => {
+function formatDateToIso(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return todayDateString
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function toDepartmentCode(value) {
+  const source = String(value || '').trim()
+  if (!source) return '-'
+
+  if (!/\s/.test(source) && source === source.toUpperCase()) {
+    return source
+  }
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter(
+    (word) => !DEPARTMENT_ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source
+}
+
+function parseIsoDate(value) {
+  const normalized = String(value || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null
+
+  const parsedDate = new Date(`${normalized}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return null
+  return parsedDate
+}
+
+function resolveWeekRangeFromDate(value) {
+  const date = parseIsoDate(value) || new Date(`${todayDateString}T00:00:00`)
+  const dayOfWeek = date.getDay()
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+
+  const weekStart = new Date(date)
+  weekStart.setDate(date.getDate() + diffToMonday)
+
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+
+  return {
+    from: formatDateToIso(weekStart),
+    to: formatDateToIso(weekEnd),
+  }
+}
+
+function handleWeeklyRangeChange(rangeValue) {
+  const range = rangeValue && typeof rangeValue === 'object' ? rangeValue : {}
+  const anchorDate = String(range.from || range.to || selectedFilterDate.value || todayDateString)
+  const normalizedRange = resolveWeekRangeFromDate(anchorDate)
+
+  selectedWeeklyRange.value = normalizedRange
+  selectedFilterDate.value = normalizedRange.from
+}
+
+function syncSecondaryFiltersByGroupBy(groupBy) {
+  if (groupBy === 'daily') {
+    selectedFilterDate.value = parseIsoDate(selectedFilterDate.value)
+      ? selectedFilterDate.value
+      : todayDateString
+    selectedWeeklyRange.value = resolveWeekRangeFromDate(selectedFilterDate.value)
+    selectedFilterMonth.value = null
+    selectedFilterYear.value = null
+    return
+  }
+
+  if (groupBy === 'weekly') {
+    selectedFilterDate.value = parseIsoDate(selectedFilterDate.value)
+      ? selectedFilterDate.value
+      : todayDateString
+    selectedWeeklyRange.value = resolveWeekRangeFromDate(selectedFilterDate.value)
+    selectedFilterDate.value = selectedWeeklyRange.value.from
+    selectedFilterMonth.value = null
+    selectedFilterYear.value = null
+    return
+  }
+
+  if (groupBy === 'monthly') {
+    selectedFilterDate.value = ''
+    selectedWeeklyRange.value = resolveWeekRangeFromDate(todayDateString)
+    selectedFilterMonth.value = Number.isInteger(selectedFilterMonth.value)
+      ? selectedFilterMonth.value
+      : todayMonth
+    selectedFilterYear.value = Number.isInteger(selectedFilterYear.value)
+      ? selectedFilterYear.value
+      : todayYear
+    return
+  }
+
+  selectedFilterDate.value = ''
+  selectedWeeklyRange.value = resolveWeekRangeFromDate(todayDateString)
+  selectedFilterMonth.value = null
+  selectedFilterYear.value = Number.isInteger(selectedFilterYear.value)
+    ? selectedFilterYear.value
+    : todayYear
+}
+
+async function fetchDepartmentStatistics(groupBy = selectedGroupBy.value, forceRefresh = false) {
+  if (!normalizedApiEndpoint.value) return []
+
+  return departmentStatisticsStore.fetchDepartmentStatistics({
+    apiEndpoint: normalizedApiEndpoint.value,
+    groupBy,
+    filterDate: selectedFilterDate.value,
+    filterMonth: selectedFilterMonth.value,
+    filterYear: selectedFilterYear.value,
+    force: forceRefresh,
+    notifyOnError: props.notifyOnFetchError,
+    notify: (message) => {
+      $q.notify({ type: 'negative', message, position: 'top' })
+    },
+  })
+}
+
+watch(selectedGroupBy, (nextGroupBy) => {
+  syncSecondaryFiltersByGroupBy(nextGroupBy)
+})
+
+watch(activeFilterSignature, () => {
   if (!props.autoFetch) return
-  fetchDepartmentStatistics(nextPeriod)
+  fetchDepartmentStatistics(selectedGroupBy.value)
 })
 
 watch(
@@ -389,19 +524,21 @@ watch(
   (nextEndpoint, previousEndpoint) => {
     if (nextEndpoint === previousEndpoint) return
 
-    departmentRowsByPeriod.value = createPeriodState([])
-    loadStateByPeriod.value = createPeriodState(false)
-    fetchErrorMessage.value = ''
+    const previousApiEndpoint = String(previousEndpoint || '').trim()
+    if (previousApiEndpoint) {
+      departmentStatisticsStore.clearForEndpoint(previousApiEndpoint)
+    }
 
     if (props.autoFetch) {
-      fetchDepartmentStatistics(selectedPeriod.value, true)
+      fetchDepartmentStatistics(selectedGroupBy.value, true)
     }
   },
 )
 
 onMounted(() => {
+  syncSecondaryFiltersByGroupBy(selectedGroupBy.value)
   if (props.autoFetch) {
-    fetchDepartmentStatistics(selectedPeriod.value, true)
+    fetchDepartmentStatistics(selectedGroupBy.value, true)
   }
 })
 
@@ -415,7 +552,11 @@ defineExpose({
   width: 100%;
 }
 
-.department-period-toggle {
+.department-group-select {
+  width: 100%;
+}
+
+.department-secondary-filter {
   width: 100%;
 }
 
@@ -438,6 +579,10 @@ defineExpose({
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.department-mobile-item__identity {
+  min-width: 0;
 }
 
 .department-mobile-item__name {
@@ -525,16 +670,6 @@ defineExpose({
   background: #e8f2ff;
 }
 
-@media (max-width: 767px) {
-  .department-period-toggle :deep(.q-btn) {
-    min-width: 0;
-  }
-
-  .department-period-toggle :deep(.q-btn .block) {
-    font-size: 0.74rem;
-  }
-}
-
 @media (max-width: 359px) {
   .department-mobile-item__stats {
     grid-template-columns: minmax(0, 1fr);
@@ -542,8 +677,12 @@ defineExpose({
 }
 
 @media (min-width: 768px) {
-  .department-period-toggle {
-    width: auto;
+  .department-group-select {
+    width: 180px;
+  }
+
+  .department-secondary-filter {
+    width: 180px;
   }
 }
 </style>

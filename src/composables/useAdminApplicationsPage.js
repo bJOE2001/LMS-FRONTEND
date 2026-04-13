@@ -2849,16 +2849,30 @@ export function useAdminApplicationsPage() {
     ]
   }
 
+  function getApplicationSearchStatusLabel(app) {
+    const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
+    if (updateRequestBadgeLabel) return updateRequestBadgeLabel
+
+    if (hasApplicationEditRequest(app)) {
+      const editRequestStatusLabel = getApplicationEditRequestStatusLabel(app)
+      if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') return editRequestStatusLabel
+    }
+
+    return app?.displayStatus || getApplicationStatusLabel(app)
+  }
+
   function getApplicationSearchText(app) {
     const dateTerms = getDateSearchValues(app?.filed_at || app?.created_at)
     const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
+    const hasEditRequest = hasApplicationEditRequest(app)
+    const searchStatusLabel = getApplicationSearchStatusLabel(app)
 
     const searchValues = [
       'application',
       app?.id,
-      getApplicationRawStatus(app),
-      app?.status,
-      getApplicationStatusLabel(app),
+      searchStatusLabel,
+      hasEditRequest ? '' : getApplicationRawStatus(app),
+      hasEditRequest ? '' : app?.status,
       isCancelledByUser(app) ? 'cancelled' : '',
       app?.leaveType,
       app?.employee_name,
@@ -4368,7 +4382,7 @@ export function useAdminApplicationsPage() {
     if (groupedRawStatus === 'PENDING_HR') return 1
     if (groupedRawStatus === 'APPROVED') return 2
     if (groupedRawStatus === 'REJECTED' && !isCancelledByUser(app)) return 3
-    if (isCancelledByUser(app)) return 4
+    if (isCancelledByUser(app)) return 99
     return 5
   }
 

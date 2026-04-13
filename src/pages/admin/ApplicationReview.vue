@@ -81,7 +81,7 @@ import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useLeaveStore } from 'stores/leave-store'
 import StatusBadge from 'components/StatusBadge.vue'
-import { generateLeaveFormPdf } from 'src/composables/useLeaveFormPdf'
+import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
 import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
 import { api } from 'src/boot/axios'
 
@@ -215,4 +215,3 @@ async function printApplication() {
   border-color: #e6b8b8;
 }
 </style>
-
