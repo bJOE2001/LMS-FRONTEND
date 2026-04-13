@@ -27,7 +27,7 @@ const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationT
 const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
   .toLowerCase()
-const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'recalled'])
+const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'disapproved', 'recalled'])
 const DEPARTMENT_STOP_WORDS = new Set([
   'A',
   'AN',
@@ -479,7 +479,7 @@ function mergeStatus(app) {
     status.includes('REJECTED') ||
     status.includes('DISAPPROVED')
   ) {
-    return 'Rejected'
+    return 'Disapproved'
   }
 
   if (raw.includes('RECALLED') || normalizedStatus.includes('RECALLED')) {
@@ -666,7 +666,7 @@ function getEditRequestBadgeLabel(app) {
   const labelPrefix = getEditRequestLabelPrefix(app)
   if (status === 'PENDING') return labelPrefix + ' Pending'
   if (status === 'APPROVED') return labelPrefix + ' Approved'
-  if (status === 'REJECTED') return labelPrefix + ' Rejected'
+  if (status === 'REJECTED') return labelPrefix + ' Disapproved'
   return ''
 }
 
@@ -687,7 +687,7 @@ function getEditRequestStatusLabel(app) {
     return 'Pending Review'
   }
   if (status === 'APPROVED') return 'Approved'
-  if (status === 'REJECTED') return 'Rejected'
+  if (status === 'REJECTED') return 'Disapproved'
   return ''
 }
 
@@ -2399,7 +2399,7 @@ function getApplicationStatusColor(app) {
   if (rawStatus === 'PENDING_HR') return 'blue-6'
   if (rawStatus === 'APPROVED') return 'green'
   if (rawStatus === 'RECALLED') return 'blue-grey-6'
-  if (rawStatus === 'REJECTED') return 'negative'
+  if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return 'negative'
   return 'grey-6'
 }
 
@@ -2797,7 +2797,7 @@ function getEditRequestTimelineTerminology(app) {
       ? 'Cancellation Request Approved by Admin'
       : 'Edit Request Approved by Admin',
     approvedTitle: isCancelRequest ? 'Cancellation Request Approved' : 'Edit Request Approved',
-    rejectedTitle: isCancelRequest ? 'Cancellation Request Rejected' : 'Edit Request Rejected',
+    rejectedTitle: isCancelRequest ? 'Cancellation Request Disapproved' : 'Edit Request Disapproved',
     pendingHrTitle: isCancelRequest
       ? 'Pending Cancellation Review (HR)'
       : 'Pending Edit Review (HR)',
@@ -2814,8 +2814,8 @@ function getEditRequestTimelineTerminology(app) {
       ? 'Requested cancellation was reviewed and approved.'
       : 'Requested edits were reviewed and approved.',
     rejectedDescription: isCancelRequest
-      ? 'Requested cancellation was reviewed and rejected.'
-      : 'Requested edits were reviewed and rejected.',
+      ? 'Requested cancellation was reviewed and disapproved.'
+      : 'Requested edits were reviewed and disapproved.',
     pendingHrDescription: isCancelRequest
       ? 'Waiting for HR final review of the cancellation request.'
       : 'Waiting for HR final review of the edit request.',
@@ -4751,7 +4751,7 @@ function getLateCocMutationFallbackPatch(actionType) {
       raw_status: 'REJECTED',
       rawStatus: 'REJECTED',
       group_raw_status: 'REJECTED',
-      status: 'Rejected',
+      status: 'Disapproved',
     }
   }
 
