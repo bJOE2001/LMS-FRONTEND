@@ -62,107 +62,83 @@ function parseObjectCandidate(value) {
     return typeof value === 'object' && !Array.isArray(value) ? value : null
 }
 
-function normalizeDetailKey(value) {
-    return String(value || '')
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '')
-}
+const CONFIRMED_LEAVE_DETAIL_FIELDS = Object.freeze([
+    'vacation_detail',
+    'vacation_specify',
+    'sick_detail',
+    'sick_specify',
+    'women_specify',
+    'study_detail',
+    'other_purpose',
+])
 
-function collectDetailValueEntries(source, targetMap, path = []) {
-    if (!source) return
+function readConfirmedLeaveDetailField(sources, fieldName) {
+    for (const source of sources) {
+        if (!source || typeof source !== 'object' || Array.isArray(source)) continue
 
-    if (typeof source === 'string') {
-        const parsedValue = parseObjectCandidate(source)
-        if (parsedValue) collectDetailValueEntries(parsedValue, targetMap, path)
-        return
-    }
+        const value = source[fieldName]
+        if (value == null) continue
 
-    if (Array.isArray(source)) {
-        source.forEach((entry) => {
-            if (entry && typeof entry === 'object') {
-                const entryKeyRaw =
-                    entry.key ??
-                    entry.name ??
-                    entry.field ??
-                    entry.id ??
-                    entry.slug ??
-                    entry.label
-                const entryKey = normalizeDetailKey(entryKeyRaw)
-                const entryValue =
-                    entry.value ??
-                    entry.answer ??
-                    entry.text ??
-                    entry.selected ??
-                    entry.data
-
-                if (entryKey && entryValue != null && !targetMap.has(entryKey)) {
-                    const normalizedValue =
-                        typeof entryValue === 'string' ? entryValue.trim() : entryValue
-                    if (normalizedValue !== '') {
-                        targetMap.set(entryKey, normalizedValue)
-                        const parentPathKey = normalizeDetailKey([...path, entryKeyRaw].join('_'))
-                        if (parentPathKey && !targetMap.has(parentPathKey)) {
-                            targetMap.set(parentPathKey, normalizedValue)
-                        }
-                    }
-                }
-            }
-
-            collectDetailValueEntries(entry, targetMap, path)
-        })
-        return
-    }
-
-    if (typeof source !== 'object') return
-
-    Object.entries(source).forEach(([key, value]) => {
-        const normalizedKey = normalizeDetailKey(key)
-        const normalizedPathKey = normalizeDetailKey([...path, key].join('_'))
-        const normalizedTailPathKey = normalizeDetailKey([...path.slice(-2), key].join('_'))
-
-        if (normalizedKey && value != null && typeof value !== 'object' && !Array.isArray(value) && !targetMap.has(normalizedKey)) {
-            const normalizedValue = typeof value === 'string' ? value.trim() : value
-            if (normalizedValue !== '') {
-                targetMap.set(normalizedKey, normalizedValue)
-                if (normalizedPathKey && !targetMap.has(normalizedPathKey)) {
-                    targetMap.set(normalizedPathKey, normalizedValue)
-                }
-                if (normalizedTailPathKey && !targetMap.has(normalizedTailPathKey)) {
-                    targetMap.set(normalizedTailPathKey, normalizedValue)
-                }
-            }
-        }
-
-        collectDetailValueEntries(value, targetMap, [...path, key])
-    })
-}
-
-function getApplicationDetailValue(app, ...keys) {
-    const raw = app?.raw && typeof app.raw === 'object' ? app.raw : null
-    const details = parseObjectCandidate(app?.details ?? app?.application_details ?? app?.applicationDetails)
-    const rawDetails = parseObjectCandidate(raw?.details ?? raw?.application_details ?? raw?.applicationDetails)
-    const sources = [app, raw, details, rawDetails].filter(Boolean)
-    const detailValueMap = new Map()
-
-    sources.forEach((source) => collectDetailValueEntries(source, detailValueMap))
-
-    for (const key of keys) {
-        const normalizedKey = normalizeDetailKey(key)
-        if (!normalizedKey) continue
-
-        if (detailValueMap.has(normalizedKey)) {
-            return detailValueMap.get(normalizedKey)
-        }
-
-        for (const [mapKey, mapValue] of detailValueMap.entries()) {
-            if (mapKey.endsWith(normalizedKey) || normalizedKey.endsWith(mapKey)) {
-                return mapValue
-            }
+        const normalizedValue = String(value).trim()
+        if (normalizedValue !== '') {
+            return normalizedValue
         }
     }
 
     return ''
+}
+
+function resolveConfirmedLeaveDetails(app) {
+    const raw = app?.raw && typeof app.raw === 'object' ? app.raw : null
+    const details = parseObjectCandidate(app?.details)
+    const rawDetails = parseObjectCandidate(raw?.details)
+    const detailsOfLeave = parseObjectCandidate(app?.details_of_leave)
+    const rawDetailsOfLeave = parseObjectCandidate(raw?.details_of_leave)
+    const pendingUpdate = parseObjectCandidate(app?.pending_update)
+    const rawPendingUpdate = parseObjectCandidate(raw?.pending_update)
+    const latestUpdatePayload = parseObjectCandidate(app?.latest_update_request_payload)
+    const rawLatestUpdatePayload = parseObjectCandidate(raw?.latest_update_request_payload)
+    const pendingUpdateDetailsOfLeave = parseObjectCandidate(pendingUpdate?.details_of_leave)
+    const rawPendingUpdateDetailsOfLeave = parseObjectCandidate(rawPendingUpdate?.details_of_leave)
+    const latestUpdateDetailsOfLeave = parseObjectCandidate(latestUpdatePayload?.details_of_leave)
+    const rawLatestUpdateDetailsOfLeave = parseObjectCandidate(rawLatestUpdatePayload?.details_of_leave)
+    const nestedDetails = parseObjectCandidate(details?.details)
+    const rawNestedDetails = parseObjectCandidate(rawDetails?.details)
+    const detailsOfLeaveNestedDetails = parseObjectCandidate(detailsOfLeave?.details)
+    const rawDetailsOfLeaveNestedDetails = parseObjectCandidate(rawDetailsOfLeave?.details)
+    const pendingUpdateNestedDetails = parseObjectCandidate(pendingUpdate?.details)
+    const rawPendingUpdateNestedDetails = parseObjectCandidate(rawPendingUpdate?.details)
+    const latestUpdateNestedDetails = parseObjectCandidate(latestUpdatePayload?.details)
+    const rawLatestUpdateNestedDetails = parseObjectCandidate(rawLatestUpdatePayload?.details)
+    const sources = [
+        app,
+        raw,
+        details,
+        rawDetails,
+        nestedDetails,
+        rawNestedDetails,
+        detailsOfLeave,
+        rawDetailsOfLeave,
+        detailsOfLeaveNestedDetails,
+        rawDetailsOfLeaveNestedDetails,
+        pendingUpdate,
+        rawPendingUpdate,
+        pendingUpdateNestedDetails,
+        rawPendingUpdateNestedDetails,
+        pendingUpdateDetailsOfLeave,
+        rawPendingUpdateDetailsOfLeave,
+        latestUpdatePayload,
+        rawLatestUpdatePayload,
+        latestUpdateNestedDetails,
+        rawLatestUpdateNestedDetails,
+        latestUpdateDetailsOfLeave,
+        rawLatestUpdateDetailsOfLeave,
+    ].filter(Boolean)
+
+    return CONFIRMED_LEAVE_DETAIL_FIELDS.reduce((resolvedDetails, fieldName) => {
+        resolvedDetails[fieldName] = readConfirmedLeaveDetailField(sources, fieldName)
+        return resolvedDetails
+    }, {})
 }
 
 function buildSpecifiedDetailLabel(label, value, opts = {}) {
@@ -226,130 +202,20 @@ function normalizeVacationDetailValue(value) {
     return ''
 }
 
-function firstNonEmptyDetailValue(app, ...groups) {
-    for (const keys of groups) {
-        const value = String(getApplicationDetailValue(app, ...keys) || '').trim()
-        if (value) return value
-    }
-    return ''
+function resolveVacationDetailValue(value = '') {
+    return normalizeVacationDetailValue(value)
 }
 
-function resolveVacationDetailValue(app, fallbackValue = '') {
-    const normalizedExplicitValue = normalizeVacationDetailValue(fallbackValue)
-    if (normalizedExplicitValue) return normalizedExplicitValue
-
-    const normalizedDerivedValue = normalizeVacationDetailValue(
-        firstNonEmptyDetailValue(
-            app,
-            ['vacation_detail', 'vacationDetail', 'vacation_type', 'vacation_location_type', 'destination_type', 'location_type'],
-            ['abroad', 'abroad_specify', 'abroadspecify'],
-            ['within_the_philippines', 'withinphilippines', 'withinthephilippines', 'local'],
-        ),
-    )
-
-    if (normalizedDerivedValue) return normalizedDerivedValue
-
-    const abroadSpecifyValue = firstNonEmptyDetailValue(
-        app,
-        ['abroad_specify', 'abroadspecify', 'specify_destination', 'specifydestination', 'abroad_destination', 'abroad_location'],
-    )
-    if (abroadSpecifyValue) return 'Abroad'
-
-    const localSpecifyValue = firstNonEmptyDetailValue(
-        app,
-        ['within_the_philippines_specify', 'withinthephilippinesspecify', 'specify_location', 'specifylocation', 'local_destination', 'local_location'],
-    )
-    if (localSpecifyValue) return 'Within the Philippines'
-
-    return ''
+function resolveVacationSpecifyValue(value = '') {
+    return String(value || '').trim()
 }
 
-function resolveVacationSpecifyValue(app, normalizedVacationDetail, fallbackValue = '') {
-    if (String(fallbackValue || '').trim()) return String(fallbackValue || '').trim()
-
-    if (normalizedVacationDetail === 'Abroad') {
-        return firstNonEmptyDetailValue(
-            app,
-            ['vacation_specify', 'vacationSpecify', 'abroad_specify', 'abroadspecify'],
-            ['specify_destination', 'specifydestination', 'abroad_destination', 'destination'],
-            ['abroad_location', 'location'],
-        )
-    }
-
-    if (normalizedVacationDetail === 'Within the Philippines') {
-        return firstNonEmptyDetailValue(
-            app,
-            ['vacation_specify', 'vacationSpecify', 'within_the_philippines_specify', 'withinthephilippinesspecify'],
-            ['specify_location', 'specifylocation', 'local_location', 'location'],
-            ['local_destination', 'destination'],
-        )
-    }
-
-    return firstNonEmptyDetailValue(
-        app,
-        ['vacation_specify', 'vacationSpecify'],
-        ['specify_destination', 'specifydestination', 'destination'],
-        ['specify_location', 'specifylocation', 'location'],
-    )
+function resolveSickDetailValue(value = '') {
+    return normalizeSickDetailValue(value)
 }
 
-function resolveSickDetailValue(app, fallbackValue = '', fallbackSpecify = '') {
-    const normalizedExplicitValue = normalizeSickDetailValue(fallbackValue)
-    if (normalizedExplicitValue) return normalizedExplicitValue
-
-    const normalizedDerivedValue = normalizeSickDetailValue(
-        firstNonEmptyDetailValue(
-            app,
-            ['sick_detail', 'sickDetail', 'sick_leave_detail', 'sick_leave_type', 'illness_type', 'patient_type'],
-            ['in_hospital', 'inhospital', 'inhospitalspecifyillness', 'hospital_illness'],
-            ['out_patient', 'outpatient', 'outpatientspecifyillness', 'outpatient_illness'],
-        ),
-    )
-
-    if (normalizedDerivedValue) return normalizedDerivedValue
-
-    const hospitalSpecifyValue = firstNonEmptyDetailValue(
-        app,
-        ['in_hospital_specify_illness', 'inhospitalspecifyillness', 'hospital_illness', 'hospital_sickness'],
-    )
-    if (hospitalSpecifyValue) return 'In Hospital'
-
-    const outpatientSpecifyValue = firstNonEmptyDetailValue(
-        app,
-        ['out_patient_specify_illness', 'outpatientspecifyillness', 'outpatient_illness', 'outpatient_sickness'],
-    )
-    if (outpatientSpecifyValue || String(fallbackSpecify || '').trim()) return 'Out Patient'
-
-    return ''
-}
-
-function resolveSickSpecifyValue(app, normalizedSickDetail, fallbackValue = '') {
-    if (String(fallbackValue || '').trim()) return String(fallbackValue || '').trim()
-
-    if (normalizedSickDetail === 'In Hospital') {
-        return firstNonEmptyDetailValue(
-            app,
-            ['sick_specify', 'sickSpecify', 'in_hospital_specify_illness', 'inhospitalspecifyillness'],
-            ['hospital_illness', 'hospital_sickness'],
-            ['specified_illness', 'specify_illness', 'illness', 'illness_name', 'sickness', 'other_illness', 'diagnosis'],
-        )
-    }
-
-    if (normalizedSickDetail === 'Out Patient') {
-        return firstNonEmptyDetailValue(
-            app,
-            ['sick_specify', 'sickSpecify', 'out_patient_specify_illness', 'outpatientspecifyillness'],
-            ['outpatient_illness', 'outpatient_sickness'],
-            ['specified_illness', 'specify_illness', 'illness', 'illness_name', 'sickness', 'other_illness', 'diagnosis'],
-        )
-    }
-
-    return firstNonEmptyDetailValue(
-        app,
-        ['sick_specify', 'sickSpecify'],
-        ['specified_illness', 'specify_illness', 'illness', 'illness_name'],
-        ['sickness', 'other_illness', 'diagnosis'],
-    )
+function resolveSickSpecifyValue(value = '') {
+    return String(value || '').trim()
 }
 
 function fmtDate(dateStr) {
@@ -1320,41 +1186,21 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const b = 0.5 // border width
     const name = parseName(app)
     const departmentHeadSignature = getDepartmentHeadSignature(app)
-    const vacationDetail = resolveVacationDetailValue(
-        app,
-        getApplicationDetailValue(app, 'vacation_detail', 'vacationDetail', 'vacation_type'),
-    )
-    const vacationSpecify = resolveVacationSpecifyValue(
-        app,
-        vacationDetail,
-        getApplicationDetailValue(app, 'vacation_specify', 'vacationSpecify', 'destination', 'location'),
-    )
-    const sickDetail = resolveSickDetailValue(
-        app,
-        getApplicationDetailValue(app, 'sick_detail', 'sickDetail', 'sick_leave_detail', 'sick_leave_type', 'illness_type'),
-        getApplicationDetailValue(app, 'sick_specify', 'sickSpecify', 'specified_illness', 'specify_illness', 'illness', 'illness_name'),
-    )
-    const sickSpecify = resolveSickSpecifyValue(
-        app,
-        sickDetail,
-        getApplicationDetailValue(app, 'sick_specify', 'sickSpecify', 'specified_illness', 'specify_illness', 'illness', 'illness_name'),
-    )
-    const womenSpecify = String(
-        getApplicationDetailValue(app, 'women_specify', 'womenSpecify', 'specified_illness', 'specify_illness'),
-    ).trim()
-    const studyDetail = String(
-        getApplicationDetailValue(app, 'study_detail', 'studyDetail', 'study_leave_detail'),
-    ).trim()
-    const otherPurpose = String(
-        getApplicationDetailValue(app, 'other_purpose', 'otherPurpose', 'purpose'),
-    ).trim()
+    const leaveDetails = resolveConfirmedLeaveDetails(app)
+    const vacationDetail = resolveVacationDetailValue(leaveDetails.vacation_detail)
+    const vacationSpecify = resolveVacationSpecifyValue(leaveDetails.vacation_specify)
+    const sickDetail = resolveSickDetailValue(leaveDetails.sick_detail)
+    const sickSpecify = resolveSickSpecifyValue(leaveDetails.sick_specify)
+    const womenSpecify = leaveDetails.women_specify
+    const studyDetail = leaveDetails.study_detail
+    const otherPurpose = leaveDetails.other_purpose
     const normalizedVacationDetail = normalizeVacationDetailValue(vacationDetail)
     const normalizedSickDetail = normalizeSickDetailValue(sickDetail)
-    const resolvedSickSpecify = sickSpecify || (isSick ? String(app.reason || '').trim() : '')
+    const resolvedSickSpecify = sickSpecify
     const showWithinPhilippines = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
     const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
     const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
-    const showOutPatient = isSick && (normalizedSickDetail === 'Out Patient' || (!normalizedSickDetail && Boolean(resolvedSickSpecify)))
+    const showOutPatient = isSick && normalizedSickDetail === 'Out Patient'
     const showMastersDegree = isStudy && studyDetail === 'Masters Degree'
     const showBarReview = isStudy && studyDetail === 'BAR Review'
     const showMonetizationPurpose = isMonetization || otherPurpose === 'Monetization'

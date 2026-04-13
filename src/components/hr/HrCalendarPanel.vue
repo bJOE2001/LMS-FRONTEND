@@ -66,25 +66,25 @@
             </q-btn-dropdown>
           </div>
           <q-btn flat round dense icon="chevron_right" @click="nextMonth" />
-        </div>
-        <div class="row items-center justify-between two-week-toolbar">
-          <q-btn
-            flat
-            dense
-            round
-            icon="keyboard_arrow_left"
-            :disable="!hasPrevTwoWeekWindow"
-            @click="prevTwoWeekWindow"
-          />
-          <div class="text-caption text-weight-bold">{{ visibleWeekLabel }}</div>
-          <q-btn
-            flat
-            dense
-            round
-            icon="keyboard_arrow_right"
-            :disable="!hasNextTwoWeekWindow"
-            @click="nextTwoWeekWindow"
-          />
+          <div class="row items-center no-wrap week-nav-inline">
+            <q-btn
+              flat
+              dense
+              round
+              icon="keyboard_arrow_left"
+              :disable="!hasPrevTwoWeekWindow"
+              @click="prevTwoWeekWindow"
+            />
+            <div class="text-caption text-weight-bold week-nav-inline__label">{{ visibleWeekLabel }}</div>
+            <q-btn
+              flat
+              dense
+              round
+              icon="keyboard_arrow_right"
+              :disable="!hasNextTwoWeekWindow"
+              @click="nextTwoWeekWindow"
+            />
+          </div>
         </div>
       </div>
       <div class="calendar-grid calendar-grid-header">
@@ -701,13 +701,18 @@ function nextMonth() {
 .calendar-toolbar {
   min-height: 40px;
   gap: 6px;
+  flex-wrap: wrap;
 }
-.two-week-toolbar {
+.week-nav-inline {
   min-height: 28px;
-  margin-top: 2px;
+  margin-left: auto;
+  gap: 2px;
 }
 .calendar-picker-group {
   gap: 10px;
+}
+.week-nav-inline__label {
+  white-space: nowrap;
 }
 .calendar-picker {
   padding: 0;
@@ -827,6 +832,17 @@ function nextMonth() {
 }
 
 @media (max-width: 599px) {
+  .week-nav-inline {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .week-nav-inline__label {
+    white-space: normal;
+    text-align: center;
+  }
+
   .calendar-grid {
     gap: 3px;
   }

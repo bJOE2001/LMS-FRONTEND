@@ -169,7 +169,7 @@
           :is="selectedReport.component"
           :rows="filteredRows"
           :columns="columns"
-          :loading="loading"
+          :loading="tableLoading"
           :min-width="tableMinWidth"
         />
       </q-card-section>
@@ -256,7 +256,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, unref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, unref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import LwopReportTable from 'components/report/LwopReportTable.vue'
 import LeaveBalancesReportTable from 'components/report/LeaveBalancesReportTable.vue'
@@ -275,7 +275,6 @@ const $q = useQuasar()
 const loading = ref(false)
 const DEFAULT_REPORT_TYPE = 'lwop'
 const selectedReportType = ref(DEFAULT_REPORT_TYPE)
-let loadingTimeoutId = null
 const showPrintDialog = ref(false)
 const printingReport = ref(false)
 let generateReportsMonitoringPdfFn = null
@@ -785,6 +784,9 @@ const resolvedReportType = computed(() =>
 const selectedReport = computed(
   () => reportConfigs[resolvedReportType.value] || reportConfigs[DEFAULT_REPORT_TYPE],
 )
+const tableLoading = computed(
+  () => loading.value || Boolean(reportStore.loadingByType?.[resolvedReportType.value]),
+)
 const selectedReportRows = computed(() => {
   const rowsSource = selectedReport.value.rows
   const rawRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
@@ -970,25 +972,6 @@ watch(selectedReportType, () => {
   void ensureSelectedReportLoaded()
 })
 
-watch(
-  () => [
-    selectedReportType.value,
-    filters.month,
-    filters.year,
-    filters.office,
-    filters.status,
-    filters.employeeName,
-    selectedReportType.value === 'leaveBalances' && Array.isArray(leaveBalanceVisibleGroups.value)
-      ? leaveBalanceVisibleGroups.value.join('|')
-      : '',
-  ],
-  () => {
-    // Client-side filtering only: trigger short table loading feedback on filter changes.
-    triggerTableLoading()
-  },
-  { immediate: true },
-)
-
 function getColumnWidth(column, rows) {
   if (column.name === 'no') return 56
 
@@ -1035,19 +1018,6 @@ function getColumnValueLength(row, column) {
   return String(rawValue ?? '').trim().length
 }
 
-function triggerTableLoading(duration = 280) {
-  loading.value = true
-
-  if (loadingTimeoutId) {
-    clearTimeout(loadingTimeoutId)
-  }
-
-  loadingTimeoutId = setTimeout(() => {
-    loading.value = false
-    loadingTimeoutId = null
-  }, duration)
-}
-
 function ensureExportableRows() {
   if (filteredRows.value.length) return true
 
@@ -1080,8 +1050,6 @@ async function generatePdf(action = 'open', options = {}) {
     })
     return
   }
-
-  triggerTableLoading(420)
 
   try {
     const generateReportsMonitoringPdf = await loadReportsPdfGenerator()
@@ -1177,12 +1145,6 @@ function handleExportExcel() {
   }
 }
 
-onBeforeUnmount(() => {
-  if (loadingTimeoutId) {
-    clearTimeout(loadingTimeoutId)
-    loadingTimeoutId = null
-  }
-})
 </script>
 
 <style scoped>
