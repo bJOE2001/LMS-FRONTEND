@@ -1962,6 +1962,79 @@ export function useAdminApplicationsPage() {
     return {}
   }
 
+  function normalizeHalfDayPortionCode(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return normalizeHalfDayPortionCode(
+        value.half_day_portion ??
+          value.half_day_period ??
+          value.halfDayPortion ??
+          value.halfDayPeriod ??
+          value.period ??
+          value.value ??
+          '',
+      )
+    }
+
+    const normalizedValue = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s_.-]+/g, '')
+
+    if (normalizedValue === 'AM') return 'AM'
+    if (normalizedValue === 'PM') return 'PM'
+    return ''
+  }
+
+  function toSelectedDateHalfDayPortionMap(value) {
+    if (!value) return {}
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return {}
+      try {
+        const parsed = JSON.parse(trimmed)
+        return toSelectedDateHalfDayPortionMap(parsed)
+      } catch {
+        return {}
+      }
+    }
+
+    if (Array.isArray(value)) {
+      return value.reduce((acc, entry, index) => {
+        const normalized = normalizeHalfDayPortionCode(entry)
+        if (normalized) acc[String(index)] = normalized
+        return acc
+      }, {})
+    }
+
+    if (typeof value === 'object') {
+      return Object.entries(value).reduce((acc, [key, entry]) => {
+        const normalized = normalizeHalfDayPortionCode(entry)
+        if (normalized) acc[String(key)] = normalized
+        return acc
+      }, {})
+    }
+
+    return {}
+  }
+
+  function normalizeMapKeysWithIsoAlias(valueMap = {}) {
+    const normalizedMap = {}
+    Object.entries(valueMap).forEach(([rawKey, value]) => {
+      const key = String(rawKey || '').trim()
+      if (!key || !value) return
+
+      normalizedMap[key] = value
+
+      const isoKey = toIsoDateString(key)
+      if (isoKey) {
+        normalizedMap[isoKey] = value
+      }
+    })
+
+    return normalizedMap
+  }
+
   function resolveApplicationPayModeCode(app) {
     const rawPayMode = String(app?.pay_mode ?? '').trim()
 
@@ -1995,18 +2068,7 @@ export function useAdminApplicationsPage() {
       app?.selected_date_coverage,
     )
 
-    const normalizedCoverageMap = {}
-    Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
-      const key = String(rawKey || '').trim()
-      if (!key || !coverage) return
-
-      normalizedCoverageMap[key] = coverage
-
-      const isoKey = toIsoDateString(key)
-      if (isoKey) {
-        normalizedCoverageMap[isoKey] = coverage
-      }
-    })
+    const normalizedCoverageMap = normalizeMapKeysWithIsoAlias(rawCoverageMap)
 
     const totalDays = resolveApplicationTotalDays(app)
     const hasCoverageOverrides = Object.keys(normalizedCoverageMap).length > 0
@@ -2059,18 +2121,16 @@ export function useAdminApplicationsPage() {
       app?.selected_date_pay_status,
     )
 
-    const normalizedStatusMap = {}
-    Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
-      const key = String(rawKey || '').trim()
-      if (!key || !status) return
-
-      normalizedStatusMap[key] = status
-
-      const isoKey = toIsoDateString(key)
-      if (isoKey) {
-        normalizedStatusMap[isoKey] = status
-      }
-    })
+    const normalizedStatusMap = normalizeMapKeysWithIsoAlias(rawStatusMap)
+    const normalizedHalfDayPortionMap = normalizeMapKeysWithIsoAlias(
+      toSelectedDateHalfDayPortionMap(
+        app?.selected_date_half_day_portion ??
+          app?.selectedDateHalfDayPortion ??
+          app?.selected_date_half_day_period ??
+          app?.selectedDateHalfDayPeriod ??
+          app?.selected_date_halfday_period,
+      ),
+    )
 
     const fallbackStatus = resolveApplicationPayModeCode(app)
     const coverageWeights = getSelectedDateCoverageWeights(app)
@@ -2088,11 +2148,18 @@ export function useAdminApplicationsPage() {
         fallbackStatus
       )
       const coverageWeight = Number(coverageWeights[key] ?? 1)
+      const halfDayPortion = (
+        normalizedHalfDayPortionMap[key] ??
+        normalizedHalfDayPortionMap[String(index)] ??
+        normalizedHalfDayPortionMap[String(index + 1)] ??
+        ''
+      )
 
       return {
         dateKey: key,
         dateText: formatDate(key),
-        coverageLabel: coverageWeight === 0.5 ? 'Half Day' : 'Whole Day',
+        coverageLabel: getDateCoverageLabel(coverageWeight, halfDayPortion),
+        halfDayPortion: halfDayPortion === 'AM' || halfDayPortion === 'PM' ? halfDayPortion : '',
         payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
         recalled: shouldMarkRecalledDates && recalledDateSet.has(key),
       }
@@ -2108,18 +2175,7 @@ export function useAdminApplicationsPage() {
 
     const rawCoverageMap = toSelectedDateCoverageMap(payload?.selected_date_coverage)
 
-    const normalizedCoverageMap = {}
-    Object.entries(rawCoverageMap).forEach(([rawKey, coverage]) => {
-      const key = String(rawKey || '').trim()
-      if (!key || !coverage) return
-
-      normalizedCoverageMap[key] = coverage
-
-      const isoKey = toIsoDateString(key)
-      if (isoKey) {
-        normalizedCoverageMap[isoKey] = coverage
-      }
-    })
+    const normalizedCoverageMap = normalizeMapKeysWithIsoAlias(rawCoverageMap)
 
     const totalDays = (() => {
       const candidates = [
@@ -2186,18 +2242,16 @@ export function useAdminApplicationsPage() {
 
     const rawStatusMap = toSelectedDatePayStatusMap(payload?.selected_date_pay_status)
 
-    const normalizedStatusMap = {}
-    Object.entries(rawStatusMap).forEach(([rawKey, status]) => {
-      const key = String(rawKey || '').trim()
-      if (!key || !status) return
-
-      normalizedStatusMap[key] = status
-
-      const isoKey = toIsoDateString(key)
-      if (isoKey) {
-        normalizedStatusMap[isoKey] = status
-      }
-    })
+    const normalizedStatusMap = normalizeMapKeysWithIsoAlias(rawStatusMap)
+    const normalizedHalfDayPortionMap = normalizeMapKeysWithIsoAlias(
+      toSelectedDateHalfDayPortionMap(
+        payload?.selected_date_half_day_portion ??
+          payload?.selectedDateHalfDayPortion ??
+          payload?.selected_date_half_day_period ??
+          payload?.selectedDateHalfDayPeriod ??
+          payload?.selected_date_halfday_period,
+      ),
+    )
 
     const fallbackStatus = normalizePayStatusCode(payload?.pay_mode) === 'WOP' ? 'WOP' : 'WP'
     const coverageWeights = getPendingUpdateDateCoverageWeights(app)
@@ -2211,14 +2265,34 @@ export function useAdminApplicationsPage() {
         normalizedStatusMap[String(index + 1)] ??
         fallbackStatus
       )
+      const coverageWeight = Number(coverageWeights[key] ?? 1)
+      const halfDayPortion = (
+        normalizedHalfDayPortionMap[key] ??
+        normalizedHalfDayPortionMap[String(index)] ??
+        normalizedHalfDayPortionMap[String(index + 1)] ??
+        ''
+      )
 
       return {
         dateKey: key,
         dateText: formatDate(key),
-        coverageLabel: Number(coverageWeights[key] ?? 1) === 0.5 ? 'Half Day' : 'Whole Day',
+        coverageLabel: getDateCoverageLabel(coverageWeight, halfDayPortion),
+        halfDayPortion: halfDayPortion === 'AM' || halfDayPortion === 'PM' ? halfDayPortion : '',
         payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
       }
     })
+  }
+
+  function getDateCoverageLabel(weight, halfDayPortion = '') {
+    if (Number(weight) !== 0.5) return 'Whole Day'
+
+    const normalizedPortion = String(halfDayPortion || '')
+      .trim()
+      .toUpperCase()
+    if (normalizedPortion === 'AM' || normalizedPortion === 'PM') {
+      return `Half Day (${normalizedPortion})`
+    }
+    return 'Half Day'
   }
 
   function hasPendingDateUpdate(app) {
@@ -2256,6 +2330,17 @@ export function useAdminApplicationsPage() {
 
     if (app.is_monetization) {
       return ['N/A']
+    }
+
+    const indicatorRows = getSelectedDateIndicatorRows(app)
+    if (indicatorRows.length && indicatorRows.some((entry) => entry?.coverageLabel?.startsWith('Half Day'))) {
+      return indicatorRows.map((entry) => {
+        const dateText = String(entry?.dateText || '').trim()
+        const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
+        return halfDayPortion === 'AM' || halfDayPortion === 'PM'
+          ? `${dateText} (${halfDayPortion})`
+          : `${dateText} (Half Day)`
+      })
     }
 
     if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
@@ -2954,12 +3039,30 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestFromDates(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
-    return formatDateSetSummary(resolveDateSetFromSource(app))
+    const inclusiveDateLines = getApplicationInclusiveDateLines(app)
+    return inclusiveDateLines.length ? inclusiveDateLines.join(', ') : 'N/A'
   }
 
   function getApplicationEditRequestToDates(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
     const pendingPayload = getPendingUpdatePayload(app)
+
+    const requestedIndicatorRows = getPendingUpdateDateIndicatorRows(app)
+    if (
+      requestedIndicatorRows.length &&
+      requestedIndicatorRows.some((entry) => String(entry?.coverageLabel || '').startsWith('Half Day'))
+    ) {
+      return requestedIndicatorRows
+        .map((entry) => {
+          const dateText = String(entry?.dateText || '').trim()
+          const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
+          return halfDayPortion === 'AM' || halfDayPortion === 'PM'
+            ? `${dateText} (${halfDayPortion})`
+            : `${dateText} (Half Day)`
+        })
+        .join(', ')
+    }
+
     return formatDateSetSummary(resolveDateSetFromSource(pendingPayload))
   }
 
@@ -2995,7 +3098,8 @@ export function useAdminApplicationsPage() {
 
   function getApplicationEditRequestFinalInclusiveDates(app) {
     if (!isApplicationEditRequestHrApproved(app)) return 'N/A'
-    return formatDateSetSummary(resolveDateSetFromSource(app))
+    const inclusiveDateLines = getApplicationInclusiveDateLines(app)
+    return inclusiveDateLines.length ? inclusiveDateLines.join(', ') : 'N/A'
   }
 
   function getApplicationEditRequestFinalDuration(app) {
