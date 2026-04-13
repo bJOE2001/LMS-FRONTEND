@@ -24,6 +24,9 @@ const tablePagination = ref({
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
 const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationType))
+const applicationSourceFilter = String(options?.applicationSource || '')
+  .trim()
+  .toLowerCase()
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'recalled'])
 const DEPARTMENT_STOP_WORDS = new Set([
   'A',
@@ -419,6 +422,7 @@ function getCocReleaseStageStatus(app) {
   if (!app || !isCocApplication(app)) return ''
 
   const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_LATE_HR') return 'Pending Late Filing'
   if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
   if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
   if (rawStatus !== 'APPROVED') return ''
@@ -1896,7 +1900,10 @@ const applicationsForTable = computed(() => {
       return false
     }
     const rawStatus = getApplicationRawStatusKey(app)
-    const shouldHidePendingAdmin = rawStatus === 'PENDING_ADMIN' && !isPendingEditRequest(app)
+    const shouldHidePendingAdmin =
+      rawStatus === 'PENDING_ADMIN' &&
+      !isPendingEditRequest(app) &&
+      !(isLateCocSourceView() && getApplicationType(app) === 'COC')
     if (shouldHidePendingAdmin) return false
     return matchesEmploymentTypeFilter(app)
   })
@@ -1951,18 +1958,18 @@ const statusColumn = { name: 'status', label: 'Status', align: 'left' }
 const actionsColumn = { name: 'actions', label: 'Actions', align: 'center' }
 const cocEmployeeColumn = {
   ...employeeColumn,
-  style: 'width: 30%',
-  headerStyle: 'width: 30%',
+  style: 'width: 27%',
+  headerStyle: 'width: 27%',
 }
 const cocOfficeColumn = {
   ...officeColumn,
-  style: 'width: 9%',
-  headerStyle: 'width: 9%',
+  style: 'width: 8%',
+  headerStyle: 'width: 8%',
 }
 const cocLeaveTypeColumn = {
   ...leaveTypeColumn,
-  style: 'width: 12%',
-  headerStyle: 'width: 12%',
+  style: 'width: 11%',
+  headerStyle: 'width: 11%',
 }
 const cocDateFiledColumn = {
   ...dateFiledColumn,
@@ -1971,23 +1978,23 @@ const cocDateFiledColumn = {
 }
 const cocLateDeadlineColumn = {
   ...lateDeadlineColumn,
-  style: 'width: 11%',
-  headerStyle: 'width: 11%',
+  style: 'width: 10%',
+  headerStyle: 'width: 10%',
 }
 const cocInclusiveDatesColumn = {
   ...inclusiveDatesColumn,
-  style: 'width: 12%',
-  headerStyle: 'width: 12%',
+  style: 'width: 11%',
+  headerStyle: 'width: 11%',
 }
 const cocStatusColumn = {
   ...statusColumn,
-  style: 'width: 8%',
-  headerStyle: 'width: 8%',
+  style: 'width: 13%',
+  headerStyle: 'width: 13%',
 }
 const cocActionsColumn = {
   ...actionsColumn,
-  style: 'width: 8%',
-  headerStyle: 'width: 8%',
+  style: 'width: 10%',
+  headerStyle: 'width: 10%',
 }
 
 const columns = [
@@ -2119,6 +2126,26 @@ function toIsoDate(value) {
 async function fetchApplications() {
   loading.value = true
   try {
+    if (applicationTypeFilter.value === 'COC' && applicationSourceFilter === 'late_filing') {
+      const cocLateResponse = await api.get('/hr/coc-applications/late-filings')
+      const lateApplications = normalizeBackendApplications(
+        extractApplicationsFromPayload(cocLateResponse?.data),
+      )
+
+      applications.value = lateApplications.map((app, index) => {
+        const normalized = normalizeBackendApplicationShape(app, index) || app
+        return {
+          ...normalized,
+          application_type: getApplicationType(normalized),
+          application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
+          employeeName: normalized?.employeeName || 'Unknown',
+          officeShort: toDepartmentCode(normalized?.office),
+          displayStatus: mergeStatus(normalized),
+        }
+      })
+      return
+    }
+
     const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] =
       await Promise.all([
         api.get('/hr/dashboard'),
@@ -4703,6 +4730,34 @@ function openRecall(target) {
   showRecallDialog.value = true
 }
 
+function isLateCocSourceView() {
+  return applicationTypeFilter.value === 'COC' && applicationSourceFilter === 'late_filing'
+}
+
+function getLateCocMutationFallbackPatch(actionType) {
+  const normalizedActionType = String(actionType || '').trim().toLowerCase()
+
+  if (normalizedActionType === 'approve') {
+    return {
+      raw_status: 'PENDING_ADMIN',
+      rawStatus: 'PENDING_ADMIN',
+      group_raw_status: 'PENDING_ADMIN',
+      status: 'Pending Admin',
+    }
+  }
+
+  if (normalizedActionType === 'reject' || normalizedActionType === 'disapprove') {
+    return {
+      raw_status: 'REJECTED',
+      rawStatus: 'REJECTED',
+      group_raw_status: 'REJECTED',
+      status: 'Rejected',
+    }
+  }
+
+  return {}
+}
+
 async function handleDialogMutationSuccess(payload = {}) {
   const mutationActionType = String(payload?.actionType || '').trim().toLowerCase()
   const payloadApplication =
@@ -4714,6 +4769,45 @@ async function handleDialogMutationSuccess(payload = {}) {
       applicationId,
   ).trim()
   showDetailsDialog.value = false
+
+  const initialApplication =
+    (applicationKey ? resolveApplication(applicationKey) : null) ||
+    (applicationId ? resolveApplication(applicationId) : null)
+
+  if (isLateCocSourceView()) {
+    const fallbackPatch = getLateCocMutationFallbackPatch(mutationActionType)
+    const lateCocBaseApplication =
+      (initialApplication && typeof initialApplication === 'object' && initialApplication) ||
+      (payloadApplication && typeof payloadApplication === 'object' && payloadApplication) ||
+      (applicationId ? { id: applicationId, application_type: 'COC' } : null)
+
+    if (lateCocBaseApplication) {
+      const lateCocNextApplication =
+        normalizeBackendApplicationShape({
+          ...lateCocBaseApplication,
+          ...(payloadApplication || {}),
+          ...fallbackPatch,
+        }) ||
+        ({
+          ...lateCocBaseApplication,
+          ...(payloadApplication || {}),
+          ...fallbackPatch,
+        })
+
+      applyCocApplicationUpdate(lateCocNextApplication)
+      await fetchLatestHrCocApplication(lateCocNextApplication)
+    }
+
+    const refreshedLateCocApplication =
+      (applicationKey ? resolveApplication(applicationKey) : null) ||
+      (applicationId ? resolveApplication(applicationId) : null)
+
+    if (refreshedLateCocApplication) {
+      selectedApp.value = refreshedLateCocApplication
+    }
+    return
+  }
+
   await fetchApplications()
 
   const refreshedApplication =
