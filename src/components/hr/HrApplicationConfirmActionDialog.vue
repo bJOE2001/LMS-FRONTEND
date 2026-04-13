@@ -1,14 +1,15 @@
 <template>
   <q-dialog v-model="dialogModel" persistent>
     <q-card
-      class="hr-action-dialog-card hr-action-dialog-card--compact"
-      :class="
+      class="hr-action-dialog-card"
+      :class="[
         confirmActionType === 'approve'
           ? 'hr-action-dialog-card--approve'
           : confirmActionType === 'cancel'
             ? 'hr-action-dialog-card--cancel'
-            : 'hr-action-dialog-card--reject'
-      "
+            : 'hr-action-dialog-card--reject',
+        isCocApproveFlow ? 'hr-action-dialog-card--review-wide' : 'hr-action-dialog-card--compact',
+      ]"
     >
       <q-card-section
         class="hr-action-dialog-card__content"
@@ -46,35 +47,61 @@
             <span>Loading overtime rows...</span>
           </div>
 
-          <div v-else class="column q-gutter-sm">
-            <div
-              v-for="row in cocReviewRows"
-              :key="row.lineNo"
-              class="coc-review-row"
+          <div v-else class="coc-review-table-wrap">
+            <q-markup-table
+              flat
+              bordered
+              dense
+              separator="cell"
+              class="coc-review-table"
             >
-              <div class="coc-review-row__meta">
-                <div class="text-weight-medium">{{ formatReviewDate(row.date) }}</div>
-                <div class="text-caption text-grey-8">{{ row.natureOfOvertime || 'N/A' }}</div>
-                <div class="text-caption text-grey-7">
-                  {{ formatReviewTimeRange(row.timeFrom, row.timeTo) }} • {{ formatReviewMinutes(row.minutes) }}
-                </div>
-              </div>
-              <q-btn-toggle
-                v-model="row.creditCategory"
-                spread
-                dense
-                no-caps
-                unelevated
-                toggle-color="primary"
-                color="grey-3"
-                text-color="grey-8"
-                class="coc-review-row__toggle"
-                :options="creditCategoryOptions"
-              />
-            </div>
+              <thead>
+                <tr>
+                  <th class="text-left">Date</th>
+                  <th class="text-left">Nature of Overtime</th>
+                  <th class="text-left">Time Range</th>
+                  <th class="text-left">Duration</th>
+                  <th class="text-left">Credit Category</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in cocReviewRows" :key="row.lineNo">
+                  <td class="coc-review-table__cell coc-review-table__cell--date">
+                    {{ formatReviewDate(row.date) }}
+                  </td>
+                  <td class="coc-review-table__cell">
+                    {{ row.natureOfOvertime || 'N/A' }}
+                  </td>
+                  <td class="coc-review-table__cell">
+                    {{ formatReviewTimeRange(row.timeFrom, row.timeTo) }}
+                  </td>
+                  <td class="coc-review-table__cell">
+                    {{ formatReviewMinutes(row.minutes) }}
+                  </td>
+                  <td class="coc-review-table__cell coc-review-table__cell--toggle">
+                    <q-btn-toggle
+                      v-model="row.creditCategory"
+                      spread
+                      dense
+                      no-caps
+                      unelevated
+                      toggle-color="primary"
+                      color="grey-3"
+                      text-color="grey-8"
+                      class="coc-review-table__toggle"
+                      :options="creditCategoryOptions"
+                    />
+                  </td>
+                </tr>
+                <tr v-if="!cocReviewRows.length">
+                  <td class="text-center text-grey-7 coc-review-table__empty" colspan="5">
+                    No overtime rows found for this COC application.
+                  </td>
+                </tr>
+              </tbody>
+            </q-markup-table>
           </div>
         </template>
-
         <template v-else>
           <div class="row items-center no-wrap hr-action-dialog-card__title-row">
             <q-icon
@@ -94,6 +121,7 @@
       </q-card-section>
       <q-card-actions
         class="hr-action-dialog-card__actions hr-action-dialog-card__actions--compact"
+        :class="{ 'hr-action-dialog-card__actions--review-wide': isCocApproveFlow }"
       >
         <q-btn
           flat
@@ -240,7 +268,8 @@ const normalizeReviewRows = (application) => {
     timeFrom: String(row?.time_from ?? row?.timeFrom ?? '').trim(),
     timeTo: String(row?.time_to ?? row?.timeTo ?? '').trim(),
     minutes: Number(row?.no_of_hours_and_minutes ?? row?.minutes ?? 0),
-    creditCategory: String(row?.credit_category ?? row?.creditCategory ?? '').trim().toUpperCase(),
+    creditCategory:
+      String(row?.credit_category ?? row?.creditCategory ?? '').trim().toUpperCase() || 'REGULAR',
   }))
 }
 
@@ -415,33 +444,85 @@ watch(
   margin-top: 0 !important;
 }
 
-.coc-review-row {
-  border: 1px solid #d8e5f1;
+.hr-action-dialog-card--review-wide {
+  width: min(1040px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+}
+
+.hr-action-dialog-card__actions--review-wide {
+  justify-content: flex-end !important;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.hr-action-dialog-card--review-wide .hr-action-dialog-card__button {
+  flex: 0 0 auto;
+  min-width: 110px;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+}
+
+.coc-review-table-wrap {
+  overflow-x: auto;
   border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
 }
 
-.coc-review-row__meta {
+.coc-review-table {
+  width: 100%;
   min-width: 0;
-  flex: 1 1 auto;
+  table-layout: fixed;
 }
 
-.coc-review-row__toggle {
-  flex: 0 0 260px;
+.coc-review-table thead th {
+  background: #f4f8fc;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.coc-review-table__cell {
+  vertical-align: middle;
+  font-size: 0.86rem;
+  color: #1f2937;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.coc-review-table__cell--date {
+  font-weight: 600;
+  width: 150px;
+}
+
+.coc-review-table__cell--toggle {
+  width: 260px;
+}
+
+.coc-review-table__toggle {
+  width: 100%;
+  min-width: 0;
+}
+
+.coc-review-table__empty {
+  padding: 16px 12px;
 }
 
 @media (max-width: 640px) {
-  .coc-review-row {
-    flex-direction: column;
-    align-items: stretch;
+  .hr-action-dialog-card--review-wide {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
   }
 
-  .coc-review-row__toggle {
-    flex-basis: auto;
+  .hr-action-dialog-card--review-wide .hr-action-dialog-card__button {
+    min-width: 102px;
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  .coc-review-table {
+    min-width: 680px;
   }
 }
 </style>

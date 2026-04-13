@@ -167,6 +167,7 @@ export const useNotificationStore = defineStore('notification', () => {
       type: payload.type || 'reminder',
       title: payload.title || 'Reminder',
       message: payload.message || '',
+      action_route: payload.action_route ?? null,
       leave_application_id: payload.leave_application_id ?? null,
       coc_application_id: payload.coc_application_id ?? null,
       application_type: payload.application_type ?? null,

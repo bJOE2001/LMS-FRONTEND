@@ -208,45 +208,23 @@ function normalizeLeaveRequestActionTypeToken(value) {
 
 function resolveLeaveRequestActionTypeFromPayload(payload) {
   if (!payload || typeof payload !== 'object') return ''
-
-  const candidates = [
-    payload?.action_type,
-    payload?.actionType,
-    payload?.request_action_type,
-    payload?.requestActionType,
-    payload?.type,
-  ]
-
-  for (const candidate of candidates) {
-    const normalized = normalizeLeaveRequestActionTypeToken(candidate)
-    if (normalized) return normalized
-  }
-
-  return ''
+  return normalizeLeaveRequestActionTypeToken(payload?.action_type)
 }
 
 function parsePendingUpdatePayload(application) {
-  const payloadCandidates = [
-    application?.pending_update,
-    application?.pendingUpdate,
-    application?.latest_update_request_payload,
-    application?.latestUpdateRequestPayload,
-  ]
+  const payload = application?.latest_update_request_payload
+  if (!payload) return null
+  if (payload && typeof payload === 'object') return payload
 
-  for (const candidate of payloadCandidates) {
-    if (!candidate) continue
-    if (candidate && typeof candidate === 'object') return candidate
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim()
+    if (!trimmed) return null
 
-    if (typeof candidate === 'string') {
-      const trimmed = candidate.trim()
-      if (!trimmed) continue
-
-      try {
-        const parsed = JSON.parse(trimmed)
-        if (parsed && typeof parsed === 'object') return parsed
-      } catch {
-        // Ignore malformed payload strings.
-      }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') return parsed
+    } catch {
+      // Ignore malformed payload strings.
     }
   }
 
@@ -255,18 +233,10 @@ function parsePendingUpdatePayload(application) {
 
 function resolveLeaveRequestActionType(application = null) {
   if (!application || typeof application !== 'object') return ''
-
-  const explicitCandidates = [
-    application?.pending_update_action_type,
-    application?.pendingUpdateActionType,
+  const explicitActionType = normalizeLeaveRequestActionTypeToken(
     application?.latest_update_request_action_type,
-    application?.latestUpdateRequestActionType,
-  ]
-
-  for (const candidate of explicitCandidates) {
-    const normalized = normalizeLeaveRequestActionTypeToken(candidate)
-    if (normalized) return normalized
-  }
+  )
+  if (explicitActionType) return explicitActionType
 
   const payloadType = resolveLeaveRequestActionTypeFromPayload(parsePendingUpdatePayload(application))
   if (payloadType) return payloadType
@@ -435,9 +405,7 @@ const isCocApplicationType = computed(() => {
     .toUpperCase()
   if (appType) return appType === 'COC'
 
-  const leaveTypeName = String(
-    props.application?.leaveType || props.application?.leave_type_name || '',
-  )
+  const leaveTypeName = String(props.application?.leave_type_name || '')
     .trim()
     .toLowerCase()
   return leaveTypeName === 'coc application' || leaveTypeName === 'coc'
@@ -649,19 +617,19 @@ function normalizeStatusHistoryActionToken(value) {
 
 function resolveStatusHistoryTimestamp(entry) {
   if (!entry || typeof entry !== 'object') return null
-  return entry?.created_at || entry?.updated_at || null
+  return entry?.created_at || null
 }
 
 function resolveStatusHistoryActor(entry) {
   if (!entry || typeof entry !== 'object') return ''
-  return String(entry?.actor_name || entry?.action_by_name || entry?.action_by || '').trim()
+  return String(entry?.actor_name || '').trim()
 }
 
 function resolveCurrentUpdateRequestCycleStartAt(application) {
   if (!application || typeof application !== 'object') return null
 
   const explicitValue = String(
-    application?.latest_update_requested_at ?? application?.latestUpdateRequestedAt ?? '',
+    application?.latest_update_requested_at ?? '',
   ).trim()
   if (explicitValue) return explicitValue
 

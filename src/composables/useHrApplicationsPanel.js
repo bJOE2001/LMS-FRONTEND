@@ -1910,7 +1910,7 @@ const columns = [
   { name: 'employee', label: 'Employee', align: 'left' },
   {
     name: 'office',
-    label: 'Department',
+    label: 'Office',
     field: (row) => row.officeShort || row.office,
     align: 'left',
   },
@@ -4247,6 +4247,44 @@ async function fetchLatestHrLeaveApplication(target = selectedApp.value) {
   }
 }
 
+async function fetchLatestHrCocApplication(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!application || typeof application !== 'object' || !isCocApplication(application)) {
+    return application || null
+  }
+
+  const id = getApplicationId(application)
+  if (!id) return application
+
+  try {
+    const response = await api.get('/hr/coc-applications/' + id)
+    const detailedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+    if (!detailedApplication || typeof detailedApplication !== 'object') return application
+
+    const mergedApplication =
+      normalizeBackendApplicationShape({
+        ...application,
+        ...detailedApplication,
+      }) ||
+      ({
+        ...application,
+        ...detailedApplication,
+      })
+
+    const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+    if (selectedId === String(id).trim()) {
+      selectedApp.value = mergedApplication
+    }
+
+    applyCocApplicationUpdate(mergedApplication)
+    return mergedApplication
+  } catch {
+    return application
+  }
+}
+
 async function markApplicationReceived(target = selectedApp.value) {
   const application = resolveApplication(target) || target
   if (!canReceiveApplication(application)) return false
@@ -4270,9 +4308,21 @@ async function markApplicationReceived(target = selectedApp.value) {
         extractSingleApplicationFromPayload(response?.data),
       )
 
+      let nextApplication = application
       if (updatedApplication && typeof updatedApplication === 'object') {
         applyCocApplicationUpdate(updatedApplication)
+        nextApplication =
+          normalizeBackendApplicationShape({
+            ...(application && typeof application === 'object' ? application : {}),
+            ...updatedApplication,
+          }) ||
+          ({
+            ...(application && typeof application === 'object' ? application : {}),
+            ...updatedApplication,
+          })
       }
+
+      await fetchLatestHrCocApplication(nextApplication)
 
       q.notify({
         type: 'positive',
@@ -4389,9 +4439,21 @@ async function markApplicationReleased(target = selectedApp.value) {
         extractSingleApplicationFromPayload(response?.data),
       )
 
+      let nextApplication = application
       if (updatedApplication && typeof updatedApplication === 'object') {
         applyCocApplicationUpdate(updatedApplication)
+        nextApplication =
+          normalizeBackendApplicationShape({
+            ...(application && typeof application === 'object' ? application : {}),
+            ...updatedApplication,
+          }) ||
+          ({
+            ...(application && typeof application === 'object' ? application : {}),
+            ...updatedApplication,
+          })
       }
+
+      await fetchLatestHrCocApplication(nextApplication)
 
       q.notify({
         type: 'positive',

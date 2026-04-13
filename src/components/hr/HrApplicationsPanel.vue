@@ -170,7 +170,20 @@
               <q-tooltip>Edit</q-tooltip>
             </q-btn>
             <q-btn
-              v-if="props.row.rawStatus === 'PENDING_HR'"
+              v-if="canShowPendingReceiveAction(props.row)"
+              flat
+              dense
+              round
+              size="sm"
+              icon="inventory_2"
+              color="primary"
+              :disable="receiveLoading"
+              @click.stop="markApplicationReceived(props.row)"
+            >
+              <q-tooltip>Receive</q-tooltip>
+            </q-btn>
+            <q-btn
+              v-if="canShowHrReviewDecisionActions(props.row)"
               flat
               dense
               round
@@ -182,7 +195,7 @@
               <q-tooltip>Disapprove</q-tooltip>
             </q-btn>
             <q-btn
-              v-if="props.row.rawStatus === 'PENDING_HR'"
+              v-if="canShowHrReviewDecisionActions(props.row)"
               flat
               dense
               round
@@ -368,14 +381,30 @@ export default defineComponent({
 
     function canShowPendingReleaseAction(app) {
       return (
-        getFinalStatusForStatusColumn(app) === 'Pending Release' &&
+        panel.getApplicationStatusLabel(app) === 'Pending Release' &&
         panel.canReleaseApplication(app)
+      )
+    }
+
+    function canShowPendingReceiveAction(app) {
+      return (
+        panel.getApplicationStatusLabel(app) === 'Pending HR Receive' &&
+        panel.canReceiveApplication(app)
+      )
+    }
+
+    function canShowHrReviewDecisionActions(app) {
+      return (
+        panel.getApplicationRawStatusKey(app) === 'PENDING_HR' &&
+        !canShowPendingReceiveAction(app)
       )
     }
 
     return {
       ...panel,
       canShowPendingReleaseAction,
+      canShowPendingReceiveAction,
+      canShowHrReviewDecisionActions,
       getFinalStatusForStatusColumn,
     }
   },

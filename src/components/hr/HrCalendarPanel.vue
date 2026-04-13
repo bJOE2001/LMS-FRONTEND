@@ -9,7 +9,7 @@
           outlined
           emit-value
           map-options
-          label="Select Department"
+          label="Select Office"
           clearable
           class="department-select q-mb-sm"
           :loading="loadingDepts"

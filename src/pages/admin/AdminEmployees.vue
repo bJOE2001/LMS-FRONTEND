@@ -336,7 +336,7 @@
                 />
               </div>
               <div class="col-12 col-md-4">
-                <q-input :model-value="adminDepartmentName" outlined dense label="Office / Department" readonly />
+                <q-input :model-value="adminDepartmentName" outlined dense label="Office" readonly />
               </div>
 
               <div class="col-12 col-md-4">
@@ -460,7 +460,7 @@
                 <q-input v-model="employeeForm.status" outlined dense label="Status" readonly />
               </div>
               <div class="col-12 col-md-4">
-                <q-input :model-value="adminDepartmentName" outlined dense label="Assign To Department" readonly />
+                <q-input :model-value="adminDepartmentName" outlined dense label="Assign To Office" readonly />
               </div>
 
               <div class="col-12 col-md-4">
