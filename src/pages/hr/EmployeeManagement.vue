@@ -372,7 +372,7 @@
                       <th rowspan="2" class="ledger-table__primary-head">
                         <span class="ledger-table__stacked-head">Period</span>
                       </th>
-                      <th rowspan="2" class="ledger-table__primary-head">
+                      <th rowspan="2" class="ledger-table__primary-head ledger-table__primary-head--particulars">
                         <span class="ledger-table__stacked-head">Particulars</span>
                       </th>
                       <th colspan="4" class="ledger-table__section-head">
@@ -380,6 +380,9 @@
                       </th>
                       <th colspan="4" class="ledger-table__section-head">
                         <span class="ledger-table__stacked-head">Sick Leave</span>
+                      </th>
+                      <th colspan="4" class="ledger-table__section-head">
+                        <span class="ledger-table__stacked-head">Other Type of Leave</span>
                       </th>
                       <th rowspan="2" class="ledger-table__primary-head">
                         <span class="ledger-table__stacked-head">
@@ -398,6 +401,21 @@
                           Abs.<br />
                           Und.<br />
                           W/P
+                        </span>
+                      </th>
+                      <th><span class="ledger-table__stacked-head">Bal.</span></th>
+                      <th>
+                        <span class="ledger-table__stacked-head">
+                          Abs.<br />
+                          Und.<br />
+                          W/oP
+                        </span>
+                      </th>
+                      <th><span class="ledger-table__stacked-head">Earned</span></th>
+                      <th>
+                        <span class="ledger-table__stacked-head">
+                          Abs.<br />
+                          Und.
                         </span>
                       </th>
                       <th><span class="ledger-table__stacked-head">Bal.</span></th>
@@ -473,6 +491,26 @@
                           {{ entry.sickAbsUndWop }}
                         </span>
                       </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.otherEarned)">
+                          {{ entry.otherEarned }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.otherAbsUndWp)">
+                          {{ entry.otherAbsUndWp }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.otherBalance)">
+                          {{ entry.otherBalance }}
+                        </span>
+                      </td>
+                      <td>
+                        <span :class="ledgerValueClass(entry.otherAbsUndWop)">
+                          {{ entry.otherAbsUndWop }}
+                        </span>
+                      </td>
                       <td class="ledger-table__cell--action">{{ entry.actionTaken }}</td>
                     </tr>
                   </tbody>
@@ -483,17 +521,6 @@
         </q-card-section>
 
         <q-card-actions class="ledger-dialog-actions q-pa-md">
-          <q-select
-            v-model="ledgerPaperSize"
-            dense
-            outlined
-            emit-value
-            map-options
-            options-dense
-            :options="ledgerPaperSizeOptions"
-            label="Paper Size"
-            class="ledger-paper-select"
-          />
           <q-space />
           <q-btn
             unelevated
@@ -812,7 +839,7 @@ const LEDGER_PAPER_PRESETS = {
   },
 }
 
-const LEDGER_COLUMN_WIDTH_UNITS = [12, 16, 8, 8, 8, 8, 8, 8, 8, 8, 14]
+const LEDGER_COLUMN_WIDTH_UNITS = [10, 12, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 12]
 const LEDGER_COLUMN_WIDTH_TOTAL = LEDGER_COLUMN_WIDTH_UNITS.reduce(
   (total, width) => total + width,
   0,
@@ -828,13 +855,13 @@ const LEDGER_BLANK_ROW_TEMPLATE = Object.freeze({
   sickAbsUnd: '',
   sickBalance: '',
   sickAbsUndWop: '',
+  otherEarned: '',
+  otherAbsUndWp: '',
+  otherBalance: '',
+  otherAbsUndWop: '',
   actionTaken: '',
 })
 
-const ledgerPaperSizeOptions = Object.entries(LEDGER_PAPER_PRESETS).map(([value, preset]) => ({
-  label: preset.label,
-  value,
-}))
 const ledgerColumnWidths = LEDGER_COLUMN_WIDTH_UNITS.map(
   (width) => `${(width / LEDGER_COLUMN_WIDTH_TOTAL) * 100}%`,
 )
@@ -1730,6 +1757,14 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
       {},
       {},
       {
+        text: 'OTHER TYPE OF LEAVE',
+        colSpan: 4,
+        style: 'ledgerPdfGroupHead',
+      },
+      {},
+      {},
+      {},
+      {
         text: 'DATE &\nACTION\nTAKEN ON\nAPPLICATION\nFOR LEAVE',
         rowSpan: 2,
         style: 'ledgerPdfActionHead',
@@ -1740,6 +1775,10 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
       {},
       { text: 'EARNED', style: 'ledgerPdfSubHead' },
       { text: 'ABS.\nUND.\nW/P', style: 'ledgerPdfSubHead' },
+      { text: 'BAL.', style: 'ledgerPdfSubHead' },
+      { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
+      { text: 'EARNED', style: 'ledgerPdfSubHead' },
+      { text: 'ABS.\nUND.', style: 'ledgerPdfSubHead' },
       { text: 'BAL.', style: 'ledgerPdfSubHead' },
       { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
       { text: 'EARNED', style: 'ledgerPdfSubHead' },
@@ -1757,7 +1796,7 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
         fontSize: 5.45,
       }),
       buildLedgerPdfBodyCell(entry.particulars, {
-        fontSize: 5.1,
+        fontSize: 4.55,
         lineHeight: 0.94,
         margin: [0.4, 1.15, 0.4, 0.15],
       }),
@@ -1783,6 +1822,18 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
         fontSize: 5.55,
       }),
       buildLedgerPdfValueCell(entry.sickAbsUndWop, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.otherEarned, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.otherAbsUndWp, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.otherBalance, undefined, {
+        fontSize: 5.55,
+      }),
+      buildLedgerPdfValueCell(entry.otherAbsUndWop, undefined, {
         fontSize: 5.55,
       }),
       buildLedgerPdfBodyCell(entry.actionTaken, {
@@ -1885,34 +1936,34 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
     styles: {
       ledgerPdfRowSpanHead: {
         color: '#000000',
-        fontSize: 5.9,
+        fontSize: 5.45,
         bold: true,
         alignment: 'center',
-        margin: [1, 12.2, 1, 0],
+        margin: [0.8, 12.2, 0.8, 0],
         lineHeight: 1.01,
       },
       ledgerPdfActionHead: {
         color: '#000000',
-        fontSize: 5.45,
+        fontSize: 4.95,
         bold: true,
         alignment: 'center',
-        margin: [0.5, 4.7, 0.5, 0],
+        margin: [0.4, 4.8, 0.4, 0],
         lineHeight: 0.98,
       },
       ledgerPdfGroupHead: {
         color: '#000000',
-        fontSize: 5.7,
+        fontSize: 5.25,
         bold: true,
         alignment: 'center',
-        margin: [1, 4.15, 1, 0],
+        margin: [0.8, 4.15, 0.8, 0],
         lineHeight: 1,
       },
       ledgerPdfSubHead: {
         color: '#000000',
-        fontSize: 5.4,
+        fontSize: 4.65,
         bold: true,
         alignment: 'center',
-        margin: [0.8, 2.8, 0.8, 0],
+        margin: [0.6, 2.9, 0.6, 0],
         lineHeight: 0.98,
       },
     },
@@ -2292,6 +2343,101 @@ function normalizeLedgerRow(entry, index) {
         'sick_leave.without_pay',
         'sick_leave.used_without_pay',
         'sick.used_without_pay',
+      ]),
+    ),
+    otherEarned: normalizeLedgerAccrualQuantityValue(
+      pickFirstDefined(entry, [
+        'other_earned',
+        'otherEarned',
+        'other_leave_earned',
+        'otherLeaveEarned',
+        'other_type_earned',
+        'otherTypeEarned',
+        'others_earned',
+        'othersEarned',
+        'otl_earned',
+        'other.earned',
+        'other_leave.earned',
+        'other_type.earned',
+        'others.earned',
+        'special_privilege_earned',
+        'specialPrivilegeEarned',
+        'spl_earned',
+        'vawc_earned',
+        'vawcEarned',
+      ]),
+    ),
+    otherAbsUndWp: normalizeLedgerWithPayDeductionValue(
+      pickFirstDefined(entry, [
+        'other_abs_und',
+        'otherAbsUnd',
+        'other_abs_und_wp',
+        'otherAbsUndWp',
+        'other_leave_abs_und',
+        'otherLeaveAbsUnd',
+        'other_leave_abs_und_wp',
+        'otherLeaveAbsUndWp',
+        'other_type_abs_und',
+        'otherTypeAbsUnd',
+        'other_type_abs_und_wp',
+        'otherTypeAbsUndWp',
+        'others_abs_und',
+        'othersAbsUnd',
+        'others_abs_und_wp',
+        'othersAbsUndWp',
+        'other.with_pay',
+        'other_leave.with_pay',
+        'other_type.with_pay',
+        'others.with_pay',
+        'special_privilege_abs_und_wp',
+        'specialPrivilegeAbsUndWp',
+        'spl_abs_und_wp',
+        'vawc_abs_und_wp',
+        'vawcAbsUndWp',
+      ]),
+    ),
+    otherBalance: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'other_balance',
+        'otherBalance',
+        'other_leave_balance',
+        'otherLeaveBalance',
+        'other_type_balance',
+        'otherTypeBalance',
+        'others_balance',
+        'othersBalance',
+        'otl_balance',
+        'other.balance',
+        'other_leave.balance',
+        'other_type.balance',
+        'others.balance',
+        'special_privilege_balance',
+        'specialPrivilegeBalance',
+        'spl_balance',
+        'vawc_balance',
+        'vawcBalance',
+      ]),
+    ),
+    otherAbsUndWop: normalizeLedgerQuantityValue(
+      pickFirstDefined(entry, [
+        'other_abs_und_wop',
+        'otherAbsUndWop',
+        'other_leave_abs_und_wop',
+        'otherLeaveAbsUndWop',
+        'other_type_abs_und_wop',
+        'otherTypeAbsUndWop',
+        'others_abs_und_wop',
+        'othersAbsUndWop',
+        'otl_abs_und_wop',
+        'other.without_pay',
+        'other_leave.without_pay',
+        'other_type.without_pay',
+        'others.without_pay',
+        'special_privilege_abs_und_wop',
+        'specialPrivilegeAbsUndWop',
+        'spl_abs_und_wop',
+        'vawc_abs_und_wop',
+        'vawcAbsUndWop',
       ]),
     ),
     actionTaken: buildLedgerActionText(entry),
@@ -2904,7 +3050,7 @@ async function saveLeaveCredits() {
 .ledger-table td {
   border: 1px solid #000000;
   padding: 1px 2px;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   line-height: 1.02;
   vertical-align: middle;
   color: #000000;
@@ -2926,6 +3072,13 @@ async function saveLeaveCredits() {
 
 .ledger-table thead tr:nth-child(2) th {
   height: 34px;
+}
+
+.ledger-table thead tr:nth-child(2) .ledger-table__stacked-head {
+  font-size: 0.56rem;
+  line-height: 0.96;
+  letter-spacing: 0.01em;
+  padding: 1px 1px;
 }
 
 .ledger-table td {
@@ -2968,6 +3121,16 @@ async function saveLeaveCredits() {
   text-align: center !important;
 }
 
+.ledger-table__cell--particulars {
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.ledger-table__primary-head--particulars .ledger-table__stacked-head {
+  font-size: 0.56rem;
+  letter-spacing: 0.01em;
+}
+
 .ledger-table__cell--period {
   font-weight: 600;
 }
@@ -2981,11 +3144,6 @@ async function saveLeaveCredits() {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.ledger-paper-select {
-  width: 140px;
-  min-width: 140px;
 }
 
 .leave-history-table :deep(.q-table__middle) {
@@ -3025,11 +3183,6 @@ async function saveLeaveCredits() {
   .ledger-sheet__identity-service {
     text-align: center;
     justify-content: center;
-  }
-
-  .ledger-paper-select {
-    width: 100%;
-    min-width: 0;
   }
 
   .ledger-dialog-actions {
