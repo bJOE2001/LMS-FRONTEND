@@ -1,5 +1,12 @@
 <template>
-  <q-card flat bordered class="hr-applications-panel rounded-borders q-mb-lg">
+  <q-card
+    flat
+    bordered
+    :class="[
+      'hr-applications-panel rounded-borders q-mb-lg',
+      { 'hr-applications-panel--coc-only': isCocOnlyView },
+    ]"
+  >
     <q-card-section>
       <div
         class="row items-center justify-between q-mb-md q-col-gutter-sm applications-panel-toolbar"
@@ -41,7 +48,10 @@
       v-model:pagination="tablePagination"
       :rows-per-page-options="[10]"
       :loading="loading"
-      class="applications-table applications-table--interactive"
+      :class="[
+        'applications-table applications-table--interactive',
+        { 'applications-table--coc-only': isCocOnlyView },
+      ]"
       @row-click="handleApplicationRowClick"
     >
       <template #no-data>
@@ -58,7 +68,9 @@
       </template>
       <template #body-cell-employee="props">
         <q-td>
-          <div class="text-weight-medium">{{ props.row.employeeName }}</div>
+          <div class="text-weight-medium application-employee-name" :title="props.row.employeeName">
+            {{ props.row.employeeName }}
+          </div>
           <div class="text-caption text-grey-7">{{ props.row.employee_control_no }}</div>
         </q-td>
       </template>
@@ -127,6 +139,13 @@
         <q-td>
           <span class="text-weight-medium text-grey-9">{{
             formatDate(props.row.dateFiled) || 'N/A'
+          }}</span>
+        </q-td>
+      </template>
+      <template #body-cell-lateDeadline="props">
+        <q-td>
+          <span class="text-weight-medium text-grey-9">{{
+            formatDate(props.row.late_filing_deadline) || 'N/A'
           }}</span>
         </q-td>
       </template>
@@ -348,7 +367,7 @@
 </template>
 
 <script>
-import { defineComponent } from 'vue'
+import { computed, defineComponent } from 'vue'
 import StatusBadge from 'components/StatusBadge.vue'
 import HrApplicationTimelineDialog from 'components/hr/HrApplicationTimelineDialog.vue'
 import HrApplicationDetailsDialog from 'components/hr/HrApplicationDetailsDialog.vue'
@@ -360,6 +379,12 @@ import { useHrApplicationsPanel } from 'src/composables/useHrApplicationsPanel'
 
 export default defineComponent({
   name: 'HrApplicationsPanel',
+  props: {
+    applicationType: {
+      type: String,
+      default: '',
+    },
+  },
   components: {
     StatusBadge,
     HrApplicationTimelineDialog,
@@ -369,8 +394,13 @@ export default defineComponent({
     HrApplicationRejectDialog,
     HrApplicationRecallDialog,
   },
-  setup() {
-    const panel = useHrApplicationsPanel()
+  setup(props) {
+    const panel = useHrApplicationsPanel({
+      applicationType: props.applicationType,
+    })
+    const isCocOnlyView = computed(
+      () => String(props.applicationType || '').trim().toUpperCase() === 'COC',
+    )
 
     function getFinalStatusForStatusColumn(app) {
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
@@ -406,6 +436,7 @@ export default defineComponent({
       canShowPendingReceiveAction,
       canShowHrReviewDecisionActions,
       getFinalStatusForStatusColumn,
+      isCocOnlyView,
     }
   },
 })
@@ -441,6 +472,29 @@ export default defineComponent({
   white-space: normal;
   line-height: 1.3;
   height: auto;
+}
+.hr-applications-panel--coc-only .applications-table .q-table__middle {
+  overflow-x: hidden;
+}
+.hr-applications-panel--coc-only .applications-table table {
+  width: 100%;
+  table-layout: fixed;
+}
+.hr-applications-panel--coc-only .applications-table tbody td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.hr-applications-panel--coc-only .applications-table thead th,
+.hr-applications-panel--coc-only .applications-table tbody td {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.hr-applications-panel--coc-only .application-employee-name {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-cell-wrap {

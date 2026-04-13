@@ -1860,6 +1860,124 @@ function resolveDateSetFromSource(source) {
   return enumerateInclusiveDateRange(firstDate, lastDate)
 }
 
+function normalizeCoverageCode(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizeCoverageCode(
+      value.coverage ?? value.coverage_type ?? value.coverageType ?? value.type ?? value.value ?? '',
+    )
+  }
+
+  const normalizedValue = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '')
+
+  if (normalizedValue === 'half' || normalizedValue === 'halfday') return 'half'
+  if (normalizedValue === 'whole' || normalizedValue === 'wholeday') return 'whole'
+  return ''
+}
+
+function normalizeHalfDayPortionCode(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizeHalfDayPortionCode(
+      value.half_day_portion ??
+        value.half_day_period ??
+        value.halfDayPortion ??
+        value.halfDayPeriod ??
+        value.period ??
+        value.value ??
+        '',
+    )
+  }
+
+  const normalizedValue = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_.-]+/g, '')
+
+  if (normalizedValue === 'AM') return 'AM'
+  if (normalizedValue === 'PM') return 'PM'
+  return ''
+}
+
+function normalizeDateKeyedMap(value, normalizer) {
+  if (!value) return {}
+
+  let source = value
+  if (typeof source === 'string') {
+    const trimmed = source.trim()
+    if (!trimmed) return {}
+    try {
+      source = JSON.parse(trimmed)
+    } catch {
+      return {}
+    }
+  }
+
+  if (Array.isArray(source)) {
+    return source.reduce((acc, entry, index) => {
+      const normalized = normalizer(entry)
+      if (normalized) acc[String(index)] = normalized
+      return acc
+    }, {})
+  }
+
+  if (typeof source === 'object') {
+    return Object.entries(source).reduce((acc, [key, entry]) => {
+      const normalized = normalizer(entry)
+      if (normalized) acc[String(key)] = normalized
+      return acc
+    }, {})
+  }
+
+  return {}
+}
+
+function buildHalfDayInclusiveDateLines(source) {
+  if (!source || typeof source !== 'object') return []
+
+  const dateSet = resolveDateSetFromSource(source)
+  if (!dateSet.length) return []
+
+  const coverageMap = normalizeDateKeyedMap(source?.selected_date_coverage, normalizeCoverageCode)
+  const halfDayPortionMap = normalizeDateKeyedMap(
+    source?.selected_date_half_day_portion ??
+      source?.selectedDateHalfDayPortion ??
+      source?.selected_date_half_day_period ??
+      source?.selectedDateHalfDayPeriod ??
+      source?.selected_date_halfday_period,
+    normalizeHalfDayPortionCode,
+  )
+
+  const rows = dateSet.map((dateValue, index) => {
+    const dateKey = String(dateValue || '').trim()
+    const coverage =
+      coverageMap[dateKey] ??
+      coverageMap[String(index)] ??
+      coverageMap[String(index + 1)] ??
+      ''
+    const halfDayPortion =
+      halfDayPortionMap[dateKey] ??
+      halfDayPortionMap[String(index)] ??
+      halfDayPortionMap[String(index + 1)] ??
+      ''
+
+    return {
+      dateKey,
+      isHalfDay: coverage === 'half',
+      halfDayPortion: halfDayPortion === 'AM' || halfDayPortion === 'PM' ? halfDayPortion : '',
+    }
+  })
+
+  if (!rows.some((row) => row.isHalfDay)) return []
+
+  return rows.map((row) => {
+    const dateText = formatDate(row.dateKey) || row.dateKey
+    if (!row.isHalfDay) return dateText
+    return row.halfDayPortion ? `${dateText} (${row.halfDayPortion})` : `${dateText} (Half Day)`
+  })
+}
+
 function getPendingUpdatePayload(app) {
   const candidates = [
     app?.pending_update,
@@ -1965,6 +2083,9 @@ function getPendingUpdateInclusiveDateLines(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || payload.is_monetization) return []
 
+  const halfDayLines = buildHalfDayInclusiveDateLines(payload)
+  if (halfDayLines.length) return halfDayLines
+
   const requestedDateSet = resolveDateSetFromSource(payload)
   if (!requestedDateSet.length) return []
 
@@ -1984,7 +2105,13 @@ function hasPendingDateUpdate(app) {
   if (!currentDateSet.length) return true
   if (currentDateSet.length !== requestedDateSet.length) return true
 
-  return requestedDateSet.some((date, index) => date !== currentDateSet[index])
+  if (requestedDateSet.some((date, index) => date !== currentDateSet[index])) return true
+
+  const currentHalfDayLines = buildHalfDayInclusiveDateLines(app)
+  const requestedHalfDayLines = buildHalfDayInclusiveDateLines(payload)
+  if (!currentHalfDayLines.length && !requestedHalfDayLines.length) return false
+  if (currentHalfDayLines.length !== requestedHalfDayLines.length) return true
+  return requestedHalfDayLines.some((line, index) => line !== currentHalfDayLines[index])
 }
 
 function getApplicationInclusiveDateLines(app) {
@@ -1993,6 +2120,9 @@ function getApplicationInclusiveDateLines(app) {
   if (app.is_monetization) {
     return [`${formatDayValue(app.days)} day(s)`]
   }
+
+  const halfDayLines = buildHalfDayInclusiveDateLines(app)
+  if (halfDayLines.length) return halfDayLines
 
   const dateSet = resolveDateSetFromSource(app)
   if (dateSet.length > 0) {

@@ -270,7 +270,7 @@ const adminNav = [
 const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
-  { path: '/hr/coc-applications', label: 'COC Applications', icon: 'schedule_send' },
+  { path: '/hr/coc-applications', label: 'Late COC', icon: 'schedule_send' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
   { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
