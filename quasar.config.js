@@ -49,12 +49,13 @@ const resolveProxyTarget = () => {
   return ''
 }
 
-export default defineConfig((/* ctx */) => {
+export default defineConfig((ctx) => {
+  const isDevMode = ctx.dev === true
   const apiProxyTarget = resolveProxyTarget()
 
-  if (!/^https?:\/\//i.test(apiProxyTarget)) {
+  if (isDevMode && !/^https?:\/\//i.test(apiProxyTarget)) {
     throw new Error(
-      `Invalid VITE_DEV_PROXY_TARGET: "${apiProxyTarget || '<empty>'}". Set frontend/.env.local, e.g. VITE_DEV_PROXY_TARGET=http://192.168.150.136:8000`
+      `Invalid VITE_DEV_PROXY_TARGET: "${apiProxyTarget || '<empty>'}". Set .env.local, e.g. VITE_DEV_PROXY_TARGET=http://192.168.150.136:8000`
     )
   }
 
@@ -128,16 +129,20 @@ export default defineConfig((/* ctx */) => {
     devServer: {
       host: '0.0.0.0',
       port: 9000,
-      proxy: {
-        '/api': {
-          target: apiProxyTarget,
-          changeOrigin: true,
-        },
-        '/sanctum': {
-          target: apiProxyTarget,
-          changeOrigin: true,
-        },
-      },
+      ...(isDevMode
+        ? {
+          proxy: {
+            '/api': {
+              target: apiProxyTarget,
+              changeOrigin: true,
+            },
+            '/sanctum': {
+              target: apiProxyTarget,
+              changeOrigin: true,
+            },
+          },
+        }
+        : {}),
       // https: true,
       open: true, // opens browser window automatically
     },

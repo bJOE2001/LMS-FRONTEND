@@ -1,9 +1,10 @@
 import { defineBoot } from '#q-app/wrappers'
 import axios from 'axios'
 
+// localStorage key used to persist the auth token after login.
 const TOKEN_KEY = 'lms_token'
-// Keep API base env-driven so dev/prod switching does not require code edits.
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
+// Frontend API prefix; in dev this path is proxied to the backend server.
+const API_BASE_URL = '/api'
 
 // Create an Axios instance pointed at the Laravel API
 const api = axios.create({
