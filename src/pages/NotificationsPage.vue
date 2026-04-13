@@ -81,8 +81,10 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNotificationStore } from 'stores/notification-store'
 
+const router = useRouter()
 const notifStore = useNotificationStore()
 
 onMounted(() => {
@@ -90,15 +92,53 @@ onMounted(() => {
 })
 
 function onClickNotif(notif) {
+  const actionRoute = resolveNotificationActionRoute(notif)
+
   if (!notif.read_at) {
     notifStore.markAsRead(notif.id)
   }
+
+  if (actionRoute) {
+    router.push(actionRoute)
+    return
+  }
+
   // Optional: could open detail modal or navigate to related resource (e.g. leave application)
   const id = notif.related_id || notif.leave_application_id || notif.coc_application_id
   if (id && notif.type && (notif.type.includes('leave') || notif.type.includes('coc'))) {
     // Navigate to leave history or application detail if you have a route
     // router.push({ name: 'employee-history' }) or similar
   }
+}
+
+function isPendingApplicationsReminder(notif) {
+  const type = String(notif?.type || '').trim().toLowerCase()
+  const title = String(notif?.title || '').trim().toLowerCase()
+  return type === 'reminder' && title === 'pending applications'
+}
+
+function resolveNotificationActionRoute(notif) {
+  const configuredRoute = notif?.action_route
+  if (
+    configuredRoute &&
+    typeof configuredRoute === 'object' &&
+    (configuredRoute.name || configuredRoute.path)
+  ) {
+    return configuredRoute
+  }
+
+  if (!isPendingApplicationsReminder(notif)) return null
+
+  const notificationId = String(notif?.id || '').toLowerCase()
+  if (notificationId.includes('local-pending-reminder-admin')) {
+    return { name: 'admin-applications', query: { search: 'pending' } }
+  }
+
+  if (notificationId.includes('local-pending-reminder-hr')) {
+    return { name: 'hr-applications', query: { status: 'pending' } }
+  }
+
+  return null
 }
 
 function getNotifIcon(type) {

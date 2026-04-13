@@ -6,43 +6,6 @@
       </div>
     </div>
 
-    <q-dialog v-model="showPendingReminderDialog" persistent class="pending-reminder-dialog">
-      <q-card class="pending-reminder-card">
-        <q-card-section class="row items-center q-pb-none pending-reminder-card__header">
-          <q-icon
-            name="pending_actions"
-            color="warning"
-            size="28px"
-            class="q-mr-sm pending-reminder-card__icon"
-          />
-          <div class="text-h6 pending-reminder-card__title">Pending Applications</div>
-        </q-card-section>
-        <q-card-section class="pending-reminder-card__body">
-          <div class="text-body2 text-grey-8 pending-reminder-card__message">
-            You have
-            <span class="text-weight-bold">{{ dashboardData.pending_count }}</span>
-            pending application(s) that need review and approval.
-          </div>
-        </q-card-section>
-        <q-card-actions align="right" class="pending-reminder-card__actions">
-          <q-btn
-            flat
-            color="grey-7"
-            label="Later"
-            class="pending-reminder-card__button"
-            v-close-popup
-          />
-          <q-btn
-            unelevated
-            color="warning"
-            label="Review Now"
-            class="pending-reminder-card__button"
-            @click="reviewPendingApplications"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
     <div class="row q-col-gutter-sm q-mb-sm stat-cards-row">
       <div class="col-12 col-sm-6 col-md stat-card-col">
         <q-card
@@ -216,11 +179,6 @@
       </div>
     </div>
 
-    <div class="row q-col-gutter-sm q-mt-sm">
-      <div class="col-12 dashboard-panel-col">
-        <DepartmentStatistics class="compact-panel full-width department-stats-panel" />
-      </div>
-    </div>
   </q-page>
 </template>
 
@@ -235,7 +193,6 @@ import HrCalendarPanel from 'components/hr/HrCalendarPanel.vue'
 import HrManpowerPieChart from 'components/charts/HrManpowerPieChart.vue'
 import HrLeaveTrendAreaChart from 'components/charts/HrLeaveTrendAreaChart.vue'
 import HrLeaveTypeLineChart from 'components/charts/HrLeaveTypeLineChart.vue'
-import DepartmentStatistics from 'components/charts/departmentStatistics.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
@@ -375,33 +332,14 @@ const dashboardData = ref({
 })
 const dashboardApplications = ref([])
 const activeEmployeeCount = ref(0)
-const showPendingReminderDialog = ref(false)
 const trendYearLabel = computed(() => {
   const parsed = Number(dashboardData.value.analytics?.trend_year)
   if (!Number.isFinite(parsed) || parsed < 2000) return new Date().getFullYear()
   return Math.round(parsed)
 })
 
-function pendingReminderSeenSessionKey() {
-  return `lms_pending_reminder_seen:hr:${authStore.user?.id ?? 'unknown'}`
-}
-
 function pendingReminderNotificationId() {
   return `local-pending-reminder-hr:${authStore.user?.id ?? 'unknown'}`
-}
-
-function hasSeenPendingReminderThisLogin() {
-  if (typeof sessionStorage === 'undefined') return false
-  const token = authStore.getToken?.()
-  if (!token) return false
-  return sessionStorage.getItem(pendingReminderSeenSessionKey()) === token
-}
-
-function markPendingReminderSeenThisLogin() {
-  if (typeof sessionStorage === 'undefined') return
-  const token = authStore.getToken?.()
-  if (!token) return
-  sessionStorage.setItem(pendingReminderSeenSessionKey(), token)
 }
 
 function syncPendingReminderNotification(pendingCount) {
@@ -417,6 +355,10 @@ function syncPendingReminderNotification(pendingCount) {
     type: 'reminder',
     title: 'Pending Applications',
     message: `You have ${pendingCount} pending ${noun} that need review and approval.`,
+    action_route: {
+      name: 'hr-applications',
+      query: { status: 'pending' },
+    },
   })
 }
 
@@ -625,21 +567,6 @@ function goToApplications(status, extraQuery = {}) {
 function maybeShowPendingReminder() {
   const pendingCount = Number(dashboardData.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
-
-  if (pendingCount <= 0) {
-    showPendingReminderDialog.value = false
-    return
-  }
-
-  if (hasSeenPendingReminderThisLogin()) return
-
-  showPendingReminderDialog.value = true
-  markPendingReminderSeenThisLogin()
-}
-
-function reviewPendingApplications() {
-  showPendingReminderDialog.value = false
-  goToApplications('pending')
 }
 
 onMounted(fetchDashboard)
@@ -922,9 +849,5 @@ onMounted(fetchDashboard)
     font-size: 0.58rem;
   }
 
-  .department-stats-panel {
-    width: 100%;
-    min-width: 0;
-  }
 }
 </style>

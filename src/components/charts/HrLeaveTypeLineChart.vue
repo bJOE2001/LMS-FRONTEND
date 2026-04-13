@@ -2,13 +2,25 @@
   <q-card flat bordered class="rounded-borders full-height">
     <q-card-section>
       <div class="row items-end justify-between q-col-gutter-md q-mb-sm">
-        <div class="col-12 col-md-8">
+        <div class="col-12 col-md-6">
           <div class="text-h6">Leave Type Line Chart</div>
           <p class="text-caption text-grey-7 q-mb-none">
             Monthly leave applications by leave type for {{ resolvedTrendYearLabel }}
           </p>
         </div>
-        <div class="col-12 col-sm-4 col-md-4">
+        <div class="col-12 col-sm-6 col-md-3">
+          <q-select
+            v-model="officeFilter"
+            :options="officeFilterOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Office"
+            :disable="loading"
+          />
+        </div>
+        <div class="col-12 col-sm-6 col-md-3">
           <q-select
             v-model="leaveTypeFilter"
             :options="leaveTypeFilterOptions"
@@ -68,7 +80,10 @@ const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
 const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
+const ALL_OFFICES_FILTER = '__ALL_OFFICES__'
+const OFFICE_ACRONYM_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
 const leaveTypeFilter = ref('All')
+const officeFilter = ref(ALL_OFFICES_FILTER)
 const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
 const chartRoot = ref(null)
 let chartTitleCleanupObserver = null
@@ -106,6 +121,55 @@ function getApplicationDate(application) {
   )
 }
 
+function normalizeOfficeName(value) {
+  const normalized = String(value || '').trim()
+  return normalized || 'Unassigned'
+}
+
+function getApplicationOffice(application) {
+  const candidates = [
+    application?.office,
+    application?.department,
+    application?.office_name,
+    application?.department_name,
+    application?.employee?.office,
+    application?.employee?.department,
+    application?.user?.department_name,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim()
+    if (normalized) return normalizeOfficeName(normalized)
+  }
+
+  return 'Unassigned'
+}
+
+function toOfficeCode(value) {
+  const source = String(value || '').trim()
+  if (!source) return 'Unassigned'
+
+  if (!/\s/.test(source) && source === source.toUpperCase()) {
+    return source
+  }
+
+  const words = source
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim().toUpperCase())
+    .filter(Boolean)
+
+  if (!words.length) return source
+
+  const acronymWords = words.filter(
+    (word) => !OFFICE_ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word),
+  )
+  const selectedWords = acronymWords.length ? acronymWords : words
+  const acronym = selectedWords.map((word) => word[0]).join('')
+
+  return acronym || source.toUpperCase()
+}
+
 
 function normalizeTrendBuckets(rawBuckets) {
   return Array.from({ length: 12 }, (_unused, monthIndex) => {
@@ -138,6 +202,33 @@ const resolvedTrendYearLabel = computed(() => {
   return Math.round(parsed)
 })
 
+const officeFilterOptions = computed(() => {
+  const offices = new Set()
+
+  for (const application of props.applications) {
+    if (!isApprovedApplication(application)) continue
+    offices.add(getApplicationOffice(application))
+  }
+
+  return [{ label: 'All Offices', value: ALL_OFFICES_FILTER }, ...Array.from(offices)
+    .sort((left, right) => left.localeCompare(right))
+    .map((office) => ({
+      label: toOfficeCode(office),
+      value: office,
+    }))]
+})
+
+watch(
+  officeFilterOptions,
+  (options) => {
+    const optionValues = options.map((option) => option.value)
+    if (!optionValues.includes(officeFilter.value)) {
+      officeFilter.value = ALL_OFFICES_FILTER
+    }
+  },
+  { immediate: true },
+)
+
 function normalizeLeaveTypeName(value) {
   if (typeof value === 'string' && value.trim()) return value.trim()
 
@@ -164,8 +255,9 @@ function getApplicationLeaveType(application) {
 const leaveTypeMonthlyTrendMap = computed(() => {
   const trendMap = new Map()
   const leaveTypeTrendPayload = props.analytics?.leave_type_monthly_trend
+  const shouldUseAnalyticsPayload = officeFilter.value === ALL_OFFICES_FILTER
 
-  if (leaveTypeTrendPayload && typeof leaveTypeTrendPayload === 'object') {
+  if (shouldUseAnalyticsPayload && leaveTypeTrendPayload && typeof leaveTypeTrendPayload === 'object') {
     for (const [rawLeaveType, buckets] of Object.entries(leaveTypeTrendPayload)) {
       const leaveTypeName = normalizeLeaveTypeName(rawLeaveType)
       const normalizedBuckets = normalizeTrendBuckets(buckets)
@@ -193,6 +285,12 @@ const leaveTypeMonthlyTrendMap = computed(() => {
     const parsedDate = new Date(rawDate)
     if (Number.isNaN(parsedDate.getTime())) continue
     if (parsedDate.getFullYear() !== resolvedTrendYearLabel.value) continue
+    if (
+      officeFilter.value !== ALL_OFFICES_FILTER &&
+      getApplicationOffice(application) !== officeFilter.value
+    ) {
+      continue
+    }
 
     const leaveTypeName = getApplicationLeaveType(application)
     if (!trendMap.has(leaveTypeName)) {

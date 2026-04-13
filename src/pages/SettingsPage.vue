@@ -92,7 +92,7 @@
             <div v-if="userInfo.department !== 'N/A'" class="info-row">
               <div class="row items-center">
                 <q-icon name="business" color="primary" size="20px" class="q-mr-sm" />
-                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Department</span>
+                <span class="text-caption text-grey-7 text-uppercase text-weight-medium">Office</span>
               </div>
               <div class="text-body1 text-weight-medium q-mt-xs q-ml-lg">{{ userInfo.department }}</div>
               <q-separator class="q-mt-sm" />
@@ -578,5 +578,4 @@ function handleSaveNotifications() {
   }
 }
 </style>
-
 

@@ -22,7 +22,7 @@
         <div class="row q-col-gutter-md q-mb-lg">
           <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Name</div><div class="text-weight-medium">{{ application.employeeName }}</div></div>
           <div class="col-12 col-md-6"><div class="text-caption text-grey-7">Control No</div><div class="text-weight-medium">{{ application.employee_control_no }}</div></div>
-          <div class="col-12"><div class="text-caption text-grey-7">Department</div><div class="text-weight-medium">{{ application.office }}</div></div>
+          <div class="col-12"><div class="text-caption text-grey-7">Office</div><div class="text-weight-medium">{{ application.office }}</div></div>
         </div>
 
         <div class="text-h6 q-mb-md">{{ application.is_monetization ? 'Monetization Details' : 'Leave Details' }}</div>

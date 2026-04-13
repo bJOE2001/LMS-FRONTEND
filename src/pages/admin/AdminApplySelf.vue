@@ -29,13 +29,13 @@
 
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-4">
-                <label class="input-label">1. Office / Department</label>
+                <label class="input-label">1. Office</label>
                 <q-input
                   v-model="form.office"
                   outlined
                   dense
                   readonly
-                  placeholder="Your department"
+                  placeholder="Your office"
                   class="form-input readonly-field"
                 />
               </div>
@@ -3475,7 +3475,6 @@ watch(
   }
 }
 </style>
-
 
 
 

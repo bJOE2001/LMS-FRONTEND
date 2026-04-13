@@ -49,7 +49,7 @@
             <div class="row items-center no-wrap">
               <q-icon name="supervisor_account" size="md" color="orange-8" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">Department Admin Accounts</div>
+                <div class="text-caption text-weight-medium">Office Admin Accounts</div>
                 <div class="text-h4 text-orange-8">{{ departmentAdminAccounts }}</div>
               </div>
             </div>
@@ -67,7 +67,7 @@
           clearable
           debounce="250"
           label="Search accounts"
-          placeholder="Name, username, role, department, position..."
+          placeholder="Name, username, role, office, position..."
         >
           <template #prepend>
             <q-icon name="search" color="grey-6" />
@@ -103,7 +103,7 @@
               :loading="deletingId === props.row.account_id"
               @click="confirmRemoveAccount(props.row)"
             >
-              <q-tooltip>Remove Department Admin Account</q-tooltip>
+              <q-tooltip>Remove Office Admin Account</q-tooltip>
             </q-btn>
             <span v-else-if="isDepartmentAdmin(props.row)" class="text-grey-6">Protected</span>
             <span v-else class="text-grey-6">-</span>
@@ -161,20 +161,20 @@
                   emit-value
                   map-options
                   use-input
-                  input-debounce="200"
-                  outlined
-                  dense
-                  label="Department *"
-                  :loading="loadingDepartments"
-                  :disable="creatingAccount || loadingDepartments"
-                  :rules="[requiredRule('Department')]"
-                  @filter="filterDepartments"
-                  @update:model-value="handleDepartmentChange"
-                >
+                input-debounce="200"
+                outlined
+                dense
+                label="Office *"
+                :loading="loadingDepartments"
+                :disable="creatingAccount || loadingDepartments"
+                :rules="[requiredRule('Office')]"
+                @filter="filterDepartments"
+                @update:model-value="handleDepartmentChange"
+              >
                   <template #no-option>
                     <q-item>
                       <q-item-section class="text-grey-6">
-                        No departments found.
+                        No offices found.
                       </q-item-section>
                     </q-item>
                   </template>
@@ -323,7 +323,7 @@ const columns = [
   { name: 'role_label', label: 'Role', field: 'role_label', align: 'center', sortable: true },
   {
     name: 'department',
-    label: 'Department',
+    label: 'Office',
     field: (row) => toDepartmentCode(row?.department),
     align: 'left',
     sortable: true,
@@ -397,6 +397,13 @@ function defaultCreateForm() {
 
 function normalizeSearch(value) {
   return String(value || '').trim().toLowerCase()
+}
+
+function replaceDepartmentWithOffice(text) {
+  return String(text || '')
+    .replace(/\bdepartment admin\b/gi, 'Office Admin')
+    .replace(/\bdepartments\b/gi, (match) => (match[0] === 'D' ? 'Offices' : 'offices'))
+    .replace(/\bdepartment\b/gi, (match) => (match[0] === 'D' ? 'Office' : 'office'))
 }
 
 const DEPARTMENT_STOP_WORDS = new Set([
@@ -564,7 +571,7 @@ async function fetchDepartmentOptions() {
     departments.value = Array.isArray(data?.departments) ? data.departments : []
     departmentOptions.value = buildDepartmentOptions(departments.value)
   } catch (err) {
-    const message = resolveApiErrorMessage(err, 'Unable to load departments right now.')
+    const message = resolveApiErrorMessage(err, 'Unable to load offices right now.')
     $q.notify({
       type: 'negative',
       message,
@@ -648,7 +655,9 @@ async function createAdminAccount() {
     const { data } = await api.post('/hr/user-management/department-admins', payload)
     $q.notify({
       type: 'positive',
-      message: data?.message || 'Department admin account created successfully.',
+      message: replaceDepartmentWithOffice(
+        data?.message || 'Office admin account created successfully.',
+      ),
       position: 'top',
     })
 
@@ -660,11 +669,11 @@ async function createAdminAccount() {
   } catch (err) {
     const message = resolveApiErrorMessage(
       err,
-      'Unable to create department admin account right now.',
+      'Unable to create office admin account right now.',
     )
     $q.notify({
       type: 'negative',
-      message,
+      message: replaceDepartmentWithOffice(message),
       position: 'top',
     })
   } finally {
@@ -680,8 +689,8 @@ function confirmRemoveAccount(row) {
   if (!accountId) return
 
   $q.dialog({
-    title: 'Remove Department Admin',
-    message: `Remove ${row.full_name} as Department Admin account?`,
+    title: 'Remove Office Admin',
+    message: `Remove ${row.full_name} as Office Admin account?`,
     cancel: {
       label: 'Cancel',
       color: 'grey-7',
@@ -701,15 +710,15 @@ function confirmRemoveAccount(row) {
       const { data } = await api.delete(`/hr/user-management/department-admins/${accountId}`)
       $q.notify({
         type: 'positive',
-        message: data?.message || 'Department admin removed successfully.',
+        message: replaceDepartmentWithOffice(data?.message || 'Office admin removed successfully.'),
         position: 'top',
       })
       await fetchAccounts()
     } catch (err) {
-      const message = resolveApiErrorMessage(err, 'Unable to remove department admin right now.')
+      const message = resolveApiErrorMessage(err, 'Unable to remove office admin right now.')
       $q.notify({
         type: 'negative',
-        message,
+        message: replaceDepartmentWithOffice(message),
         position: 'top',
       })
     } finally {
@@ -722,7 +731,12 @@ async function fetchAccounts() {
   loading.value = true
   try {
     const { data } = await api.get('/hr/user-management/department-admins')
-    accounts.value = Array.isArray(data?.accounts) ? data.accounts : []
+    accounts.value = Array.isArray(data?.accounts)
+      ? data.accounts.map((account) => ({
+          ...account,
+          role_label: replaceDepartmentWithOffice(account?.role_label),
+        }))
+      : []
     summary.value = {
       total_accounts: Number(data?.summary?.total_accounts ?? accounts.value.length),
       hr_accounts: Number(

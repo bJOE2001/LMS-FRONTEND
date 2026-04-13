@@ -85,7 +85,10 @@
             class="notif-menu-wrapper"
             @before-show="notifStore.fetchNotifications()"
           >
-            <NotificationPanel :on-view-all="closeNotifMenuAndGoToNotifications" />
+            <NotificationPanel
+              :on-view-all="closeNotifMenuAndGoToNotifications"
+              :on-notification-navigate="closeNotifMenu"
+            />
           </q-menu>
         </q-btn>
         <q-btn flat round dense>
@@ -188,6 +191,10 @@ const notifMenuRef = ref(null)
 let navbarObserver = null
 
 function closeNotifMenuAndGoToNotifications() {
+  notifMenuRef.value?.hide()
+}
+
+function closeNotifMenu() {
   notifMenuRef.value?.hide()
 }
 

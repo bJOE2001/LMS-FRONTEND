@@ -44,7 +44,7 @@
             <div class="row items-center no-wrap summary-strip__content">
               <q-icon name="business" size="md" color="green-8" class="q-mr-sm summary-strip__icon" />
               <div class="summary-strip__text">
-                <div class="text-caption text-weight-medium summary-strip__label">Departments</div>
+                <div class="text-caption text-weight-medium summary-strip__label">Offices</div>
                 <div class="text-h4 text-green-8 summary-strip__value">
                   <q-spinner v-if="loadingDepartments" size="32px" color="green-8" />
                   <template v-else>{{ allDepartments.length }}</template>
@@ -79,7 +79,7 @@
               outlined
               dense
               debounce="400"
-              placeholder="Search name, ID, status, department..."
+              placeholder="Search name, ID, status, office..."
               class="search-input full-width"
               clearable
             >
@@ -229,7 +229,7 @@
               <div class="text-caption text-grey-6">{{ selectedEmployee.designation || '-' }}</div>
             </div>
             <div class="col-6">
-              <div class="text-caption text-grey-6">Department</div>
+              <div class="text-caption text-grey-6">Office</div>
               <div class="text-body2 text-weight-medium">
                 {{ toDepartmentCode(selectedEmployee.office) }}
               </div>
@@ -703,7 +703,7 @@ const employeeColumns = [
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
   {
     name: 'office',
-    label: 'Department',
+    label: 'Office',
     align: 'left',
     field: (row) => toDepartmentCode(row.office),
     sortable: true,
@@ -3103,4 +3103,3 @@ async function saveLeaveCredits() {
   }
 }
 </style>
-
