@@ -360,6 +360,12 @@ import { useHrApplicationsPanel } from 'src/composables/useHrApplicationsPanel'
 
 export default defineComponent({
   name: 'HrApplicationsPanel',
+  props: {
+    applicationType: {
+      type: String,
+      default: '',
+    },
+  },
   components: {
     StatusBadge,
     HrApplicationTimelineDialog,
@@ -369,8 +375,10 @@ export default defineComponent({
     HrApplicationRejectDialog,
     HrApplicationRecallDialog,
   },
-  setup() {
-    const panel = useHrApplicationsPanel()
+  setup(props) {
+    const panel = useHrApplicationsPanel({
+      applicationType: props.applicationType,
+    })
 
     function getFinalStatusForStatusColumn(app) {
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
