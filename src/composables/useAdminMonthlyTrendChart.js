@@ -14,7 +14,7 @@ export function useAdminMonthlyTrendChart(props) {
   const chartGridColor = computed(() => (isDark.value ? '#3a4d66' : '#e0e0e0'))
   const chartAxisColor = computed(() => (isDark.value ? '#bdd0e5' : '#6b7280'))
   const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffffff'))
-  const trendChartHeight = computed(() => ($q.screen.lt.md ? 190 : 210))
+  const trendChartHeight = computed(() => ($q.screen.lt.lg ? 220 : 260))
 
   const currentYear = new Date().getFullYear()
   const trendYearLabel = computed(() => {

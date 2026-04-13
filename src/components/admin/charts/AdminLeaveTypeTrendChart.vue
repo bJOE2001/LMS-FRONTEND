@@ -77,8 +77,8 @@ const { chartRoot } = useApexChartTitleCleanup([
 <style scoped>
 .trend-chart-wrapper {
   width: 100%;
-  min-height: 210px;
-  max-height: 210px;
+  min-height: 260px;
+  max-height: 260px;
 }
 
 .chart-loading-host {
@@ -95,8 +95,8 @@ const { chartRoot } = useApexChartTitleCleanup([
 
 @media (max-width: 1199px) {
   .trend-chart-wrapper {
-    min-height: 190px;
-    max-height: 190px;
+    min-height: 220px;
+    max-height: 220px;
   }
 }
 </style>

@@ -751,6 +751,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const PENDING_REMINDER_SESSION_PREFIX = 'lms_pending_reminder_seen:'
 
 const mobileApplicationColumnWidths = {
   employee: '180px',
@@ -1009,6 +1010,50 @@ function pendingReminderNotificationId() {
   return `local-pending-reminder-admin:${authStore.user?.id ?? 'unknown'}`
 }
 
+function pendingReminderSessionKey() {
+  return `${PENDING_REMINDER_SESSION_PREFIX}admin:${authStore.user?.id ?? 'unknown'}`
+}
+
+function hasSeenPendingReminderDialog() {
+  if (typeof sessionStorage === 'undefined') return false
+  return sessionStorage.getItem(pendingReminderSessionKey()) === '1'
+}
+
+function markPendingReminderDialogSeen() {
+  if (typeof sessionStorage === 'undefined') return
+  sessionStorage.setItem(pendingReminderSessionKey(), '1')
+}
+
+function showPendingReminderDialog(pendingCount) {
+  const noun = pendingCount === 1 ? 'application' : 'applications'
+
+  $q.dialog({
+    class: 'pending-reminder-card',
+    title: 'Pending Applications',
+    message: `You have ${pendingCount} pending ${noun} that need review and approval.`,
+    cancel: {
+      label: 'Later',
+      flat: true,
+      color: 'grey-7',
+      class: 'pending-reminder-card__button',
+    },
+    ok: {
+      label: 'Review',
+      unelevated: true,
+      color: 'primary',
+      class: 'pending-reminder-card__button',
+    },
+    persistent: true,
+  })
+    .onOk(() => {
+      markPendingReminderDialogSeen()
+      openApplicationsView('pending')
+    })
+    .onCancel(() => {
+      markPendingReminderDialogSeen()
+    })
+}
+
 function syncPendingReminderNotification(pendingCount) {
   const id = pendingReminderNotificationId()
   if (pendingCount <= 0) {
@@ -1080,6 +1125,10 @@ async function fetchDashboard() {
 function maybeShowPendingReminder() {
   const pendingCount = Number(dashboardData.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
+  if (props.applicationsOnly) return
+  if (pendingCount <= 0) return
+  if (hasSeenPendingReminderDialog()) return
+  showPendingReminderDialog(pendingCount)
 }
 
 function openApplicationsView(search = '') {
