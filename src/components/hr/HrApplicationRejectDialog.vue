@@ -85,6 +85,12 @@ const dialogModel = computed({
   set: (value) => emit('update:modelValue', value),
 })
 
+const normalizeRawStatusKey = (application) =>
+  String(application?.group_raw_status ?? application?.rawStatus ?? application?.raw_status ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
 const applicationId = computed(() => props.getApplicationId(props.application))
 
 watch(
@@ -124,18 +130,24 @@ async function handleSubmit() {
   try {
     const application = props.application
     const isCoc = props.isCocApplication(application)
+    const isCocLateFilingReview =
+      isCoc && normalizeRawStatusKey(application) === 'PENDING_LATE_HR'
     const isEditRequest = props.isPendingEditRequest(application)
     const isCancellationRequest =
       String(props.getLeaveRequestActionType(application) || '').toUpperCase() === 'REQUEST_CANCEL'
     const endpoint = isCoc
-      ? `/hr/coc-applications/${id}/reject`
+      ? isCocLateFilingReview
+        ? `/hr/coc-applications/${id}/late-filing/reject`
+        : `/hr/coc-applications/${id}/reject`
       : `/hr/leave-applications/${id}/reject`
 
-    await api.post(endpoint, { remarks })
+    const response = await api.post(endpoint, { remarks })
     $q.notify({
       type: 'info',
       message: isCoc
-        ? 'COC application rejected with remarks'
+        ? isCocLateFilingReview
+          ? 'Late COC filing rejected.'
+          : 'COC application rejected with remarks'
         : isEditRequest
           ? isCancellationRequest
             ? 'Cancellation request rejected. The approved leave application remains active.'
@@ -146,8 +158,9 @@ async function handleSubmit() {
 
     dialogModel.value = false
     emit('rejected', {
+      actionType: 'reject',
       applicationId: id,
-      application,
+      application: response?.data?.application || application,
     })
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to reject this application right now.')

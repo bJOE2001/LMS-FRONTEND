@@ -384,6 +384,10 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    applicationSource: {
+      type: String,
+      default: '',
+    },
   },
   components: {
     StatusBadge,
@@ -397,6 +401,7 @@ export default defineComponent({
   setup(props) {
     const panel = useHrApplicationsPanel({
       applicationType: props.applicationType,
+      applicationSource: props.applicationSource,
     })
     const isCocOnlyView = computed(
       () => String(props.applicationType || '').trim().toUpperCase() === 'COC',
@@ -424,8 +429,9 @@ export default defineComponent({
     }
 
     function canShowHrReviewDecisionActions(app) {
+      const rawStatus = panel.getApplicationRawStatusKey(app)
       return (
-        panel.getApplicationRawStatusKey(app) === 'PENDING_HR' &&
+        (rawStatus === 'PENDING_HR' || rawStatus === 'PENDING_LATE_HR') &&
         !canShowPendingReceiveAction(app)
       )
     }
@@ -487,12 +493,17 @@ export default defineComponent({
 }
 .hr-applications-panel--coc-only .applications-table thead th,
 .hr-applications-panel--coc-only .applications-table tbody td {
-  padding-left: 14px;
-  padding-right: 14px;
+  padding-left: 12px;
+  padding-right: 12px;
 }
 .hr-applications-panel--coc-only .application-employee-name {
   display: block;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hr-applications-panel--coc-only .status-cell-wrap .q-badge {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }

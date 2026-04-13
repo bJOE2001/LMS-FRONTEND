@@ -208,11 +208,28 @@ const dialogModel = computed({
   set: (value) => emit('update:modelValue', value),
 })
 
+const normalizeRawStatusKey = (application) =>
+  String(application?.group_raw_status ?? application?.rawStatus ?? application?.raw_status ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+const isCocLateFilingReviewFlow = computed(
+  () =>
+    props.confirmActionType === 'approve'
+    && props.isCocApplication(props.application)
+    && normalizeRawStatusKey(props.application) === 'PENDING_LATE_HR',
+)
+
 const isCocApproveFlow = computed(
-  () => props.confirmActionType === 'approve' && props.isCocApplication(props.application),
+  () =>
+    props.confirmActionType === 'approve'
+    && props.isCocApplication(props.application)
+    && !isCocLateFilingReviewFlow.value,
 )
 
 const actionTitle = computed(() => {
+  if (isCocLateFilingReviewFlow.value) return 'Approve Late Filing'
   if (props.confirmActionType === 'approve') return 'Approve'
   if (props.confirmActionType === 'cancel') return 'Cancel'
   return 'Disapprove'
@@ -224,6 +241,10 @@ const isCancellationRequest = computed(
 
 const actionMessage = computed(() => {
   if (props.confirmActionType === 'approve') {
+    if (isCocLateFilingReviewFlow.value) {
+      return 'This will approve this late-filed COC and forward it to department admin review.'
+    }
+
     if (props.isEditRequest) {
       return isCancellationRequest.value
         ? 'This will approve the cancellation request and continue the cancellation workflow.'
@@ -348,13 +369,17 @@ async function approveApplication() {
   }
 
   const isCoc = props.isCocApplication(application)
+  const isCocLateFilingReview =
+    isCoc && normalizeRawStatusKey(application) === 'PENDING_LATE_HR'
   const isEditRequest = props.isPendingEditRequest(application)
   const endpoint = isCoc
-    ? `/hr/coc-applications/${applicationId}/approve`
+    ? isCocLateFilingReview
+      ? `/hr/coc-applications/${applicationId}/late-filing/approve`
+      : `/hr/coc-applications/${applicationId}/approve`
     : `/hr/leave-applications/${applicationId}/approve`
 
   const payload = {}
-  if (isCoc) {
+  if (isCoc && !isCocLateFilingReview) {
     if (!cocReviewRows.value.length) {
       $q.notify({
         type: 'negative',
@@ -388,7 +413,9 @@ async function approveApplication() {
     $q.notify({
       type: 'positive',
       message: isCoc
-        ? 'COC application approved and converted to CTO credits.'
+        ? isCocLateFilingReview
+          ? 'Late COC filing approved and forwarded to department admin review.'
+          : 'COC application approved and converted to CTO credits.'
         : isEditRequest
           ? 'Edit request approved. Requested changes and leave balances are now applied.'
           : 'Leave application approved! Balance deducted if credit-based.',
