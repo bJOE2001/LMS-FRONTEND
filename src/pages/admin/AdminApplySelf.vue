@@ -458,6 +458,28 @@
                           {{ selectedDateDurationLabel(d) }}
                         </button>
                         <button
+                          v-if="selectedDateDurations[d] === 'half_day'"
+                          type="button"
+                          :class="[
+                            'selected-date-duration-toggle',
+                            'selected-date-duration-toggle--half-day-portion',
+                            {
+                              'selected-date-duration-toggle--half-day-portion-pm':
+                                selectedDateHalfDayPortions[d] === 'PM',
+                            },
+                          ]"
+                          @click="toggleSelectedDateHalfDayPortion(d)"
+                        >
+                          {{ selectedDateHalfDayPortionLabel(d) }}
+                        </button>
+                        <span
+                          v-else
+                          class="selected-date-duration-toggle selected-date-duration-toggle--half-day-placeholder"
+                          aria-hidden="true"
+                        >
+                          AM
+                        </span>
+                        <button
                           type="button"
                           :class="[
                             'selected-date-duration-toggle',
@@ -491,6 +513,28 @@
                           >
                             {{ selectedDateDurationLabel(d) }}
                           </button>
+                          <button
+                            v-if="selectedDateDurations[d] === 'half_day'"
+                            type="button"
+                            :class="[
+                              'selected-date-duration-toggle',
+                              'selected-date-duration-toggle--half-day-portion',
+                              {
+                                'selected-date-duration-toggle--half-day-portion-pm':
+                                  selectedDateHalfDayPortions[d] === 'PM',
+                              },
+                            ]"
+                            @click="toggleSelectedDateHalfDayPortion(d)"
+                          >
+                            {{ selectedDateHalfDayPortionLabel(d) }}
+                          </button>
+                          <span
+                            v-else
+                            class="selected-date-duration-toggle selected-date-duration-toggle--half-day-placeholder"
+                            aria-hidden="true"
+                          >
+                            AM
+                          </span>
                           <button
                             type="button"
                             :class="[
@@ -615,6 +659,7 @@ const loading = ref(false)
 const dialogSummaryLoading = ref(Boolean(props.inDialog))
 const selectedDateDurations = ref({})
 const selectedDatePayStatuses = ref({})
+const selectedDateHalfDayPortions = ref({})
 const calendarDateWarning = ref('')
 const calendarDateWarningDate = ref('')
 const calendarDateWarningStyle = ref({})
@@ -1619,6 +1664,7 @@ function onLeaveTypeChange() {
   form.value.leaveTypeOther = ''
   selectedDates.value = []
   selectedDateDurations.value = {}
+  selectedDateHalfDayPortions.value = {}
   clearCalendarDateWarning()
   monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
 }
@@ -2035,6 +2081,22 @@ function syncSelectedDatePayStatuses(dates) {
   })
 }
 
+function syncSelectedDateHalfDayPortions(dates) {
+  const activeDates = new Set(dates)
+
+  Object.keys(selectedDateHalfDayPortions.value).forEach((date) => {
+    if (!activeDates.has(date) || selectedDateDurations.value[date] !== 'half_day') {
+      delete selectedDateHalfDayPortions.value[date]
+    }
+  })
+
+  dates.forEach((date) => {
+    if (selectedDateDurations.value[date] === 'half_day' && !selectedDateHalfDayPortions.value[date]) {
+      selectedDateHalfDayPortions.value[date] = 'AM'
+    }
+  })
+}
+
 function parseIsoDateValue(value) {
   const raw = String(value || '').trim()
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -2219,6 +2281,16 @@ function buildSelectedDateCoveragePayload(dates) {
   }, {})
 }
 
+function buildSelectedDateHalfDayPortionPayload(dates) {
+  const portions = dates.reduce((acc, date) => {
+    if (selectedDateDurations.value[date] !== 'half_day') return acc
+    acc[date] = selectedDateHalfDayPortions.value[date] === 'PM' ? 'PM' : 'AM'
+    return acc
+  }, {})
+
+  return Object.keys(portions).length > 0 ? portions : null
+}
+
 function buildSelectedDatePayStatusesPayload(dates) {
   return dates.reduce((acc, date) => {
     acc[date] = selectedDatePayStatuses.value[date] || 'with_pay'
@@ -2266,10 +2338,31 @@ function selectedDateDurationLabel(date) {
 }
 
 function toggleSelectedDateDuration(date) {
-  selectedDateDurations.value[date] =
-    selectedDateDurations.value[date] === 'half_day' ? 'whole_day' : 'half_day'
+  const isHalfDay = selectedDateDurations.value[date] === 'half_day'
+  selectedDateDurations.value[date] = isHalfDay ? 'whole_day' : 'half_day'
+
+  if (isHalfDay) {
+    delete selectedDateHalfDayPortions.value[date]
+  } else if (!selectedDateHalfDayPortions.value[date]) {
+    selectedDateHalfDayPortions.value[date] = 'AM'
+  }
+
   applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
+}
+
+function selectedDateHalfDayPortionLabel(date) {
+  return selectedDateHalfDayPortions.value[date] === 'PM' ? 'PM' : 'AM'
+}
+
+function toggleSelectedDateHalfDayPortion(date) {
+  if (selectedDateDurations.value[date] !== 'half_day') {
+    delete selectedDateHalfDayPortions.value[date]
+    return
+  }
+
+  selectedDateHalfDayPortions.value[date] =
+    selectedDateHalfDayPortions.value[date] === 'PM' ? 'AM' : 'PM'
 }
 
 function selectedDatePayStatusLabel(date) {
@@ -2415,6 +2508,7 @@ watch(selectedDates, (dates) => {
 
   syncSelectedDateDurations(dates)
   syncSelectedDatePayStatuses(dates)
+  syncSelectedDateHalfDayPortions(dates)
   applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
 
@@ -2518,6 +2612,9 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
     String(form.value.firstName || '').trim(),
     String(form.value.lastName || '').trim(),
   ].filter(Boolean).join(' ').trim()
+  const selectedDateHalfDayPortionPayload = buildSelectedDateHalfDayPortionPayload(
+    sortedSelectedDates.value,
+  )
 
   return {
     ...(backendApplication && typeof backendApplication === 'object' ? backendApplication : {}),
@@ -2544,6 +2641,14 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
     days: backendApplication?.days ?? backendApplication?.total_days ?? selectedDateTotalDays.value,
     total_days: backendApplication?.total_days ?? selectedDateTotalDays.value,
     selected_dates: backendApplication?.selected_dates ?? [...selectedDates.value],
+    selected_date_half_day_portion:
+      backendApplication?.selected_date_half_day_portion ??
+      backendApplication?.selectedDateHalfDayPortion ??
+      selectedDateHalfDayPortionPayload,
+    selectedDateHalfDayPortion:
+      backendApplication?.selectedDateHalfDayPortion ??
+      backendApplication?.selected_date_half_day_portion ??
+      selectedDateHalfDayPortionPayload,
     reason: backendApplication?.reason ?? (String(form.value.reason || '').trim() || null),
     commutation: backendApplication?.commutation ?? form.value.commutation,
     is_monetization:
@@ -2738,6 +2843,8 @@ async function onSubmit() {
       without_pay_dates: payStatusBreakdown.withoutPayDates,
       selected_date_durations: buildSelectedDateDurationsPayload(sortedSelectedDatesPayload),
       selected_date_coverage: buildSelectedDateCoveragePayload(sortedSelectedDatesPayload),
+      selected_date_half_day_portion: buildSelectedDateHalfDayPortionPayload(sortedSelectedDatesPayload),
+      selectedDateHalfDayPortion: buildSelectedDateHalfDayPortionPayload(sortedSelectedDatesPayload),
       selected_date_pay_statuses: buildSelectedDatePayStatusesPayload(sortedSelectedDatesPayload),
       selected_date_pay_status_codes: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
       selected_date_pay_status: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
@@ -3174,6 +3281,18 @@ watch(
 .selected-date-duration-toggle--pay-status {
   min-width: 52px;
 }
+.selected-date-duration-toggle--half-day-portion {
+  min-width: 52px;
+  color: #ef6c00;
+}
+.selected-date-duration-toggle--half-day-portion-pm {
+  color: #1d4ed8;
+}
+.selected-date-duration-toggle--half-day-placeholder {
+  min-width: 52px;
+  visibility: hidden;
+  pointer-events: none;
+}
 .selected-date-duration-toggle--without-pay {
   color: #42a5f5;
 }
@@ -3182,6 +3301,12 @@ watch(
 }
 .selected-date-duration-toggle--half:hover {
   background: rgba(66, 165, 245, 0.16);
+}
+.selected-date-duration-toggle--half-day-portion:hover {
+  background: rgba(239, 108, 0, 0.14);
+}
+.selected-date-duration-toggle--half-day-portion-pm:hover {
+  background: rgba(29, 78, 216, 0.16);
 }
 .selected-date-duration-toggle--without-pay:hover {
   background: rgba(66, 165, 245, 0.16);
