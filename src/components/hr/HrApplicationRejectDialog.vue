@@ -110,7 +110,7 @@ async function handleSubmit() {
   if (!remarks) {
     $q.notify({
       type: 'warning',
-      message: 'Please provide a reason for rejection',
+      message: 'Please provide a reason for disapproval',
       position: 'top',
     })
     return
@@ -146,13 +146,13 @@ async function handleSubmit() {
       type: 'info',
       message: isCoc
         ? isCocLateFilingReview
-          ? 'Late COC filing rejected.'
-          : 'COC application rejected with remarks'
+          ? 'Late COC filing disapproved.'
+          : 'COC application disapproved with remarks'
         : isEditRequest
           ? isCancellationRequest
-            ? 'Cancellation request rejected. The approved leave application remains active.'
-            : 'Edit request rejected. Original approved application remains unchanged.'
-          : 'Leave application rejected with remarks',
+            ? 'Cancellation request disapproved. The approved leave application remains active.'
+            : 'Edit request disapproved. Original approved application remains unchanged.'
+          : 'Leave application disapproved with remarks',
       position: 'top',
     })
 
@@ -163,7 +163,7 @@ async function handleSubmit() {
       application: response?.data?.application || application,
     })
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to reject this application right now.')
+    const msg = resolveApiErrorMessage(err, 'Unable to disapprove this application right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     submitLoading.value = false
