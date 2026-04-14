@@ -1916,6 +1916,88 @@ function resolveQueueGroupStatusForDisplay(app) {
   return 'OTHER'
 }
 
+function resolveQueueStagePriorityForDisplay(app) {
+  const explicitStagePriority = Number(app?.queue_stage_priority ?? app?.queueStagePriority)
+  if (Number.isFinite(explicitStagePriority) && explicitStagePriority > 0) {
+    return explicitStagePriority
+  }
+
+  const queueStagePriorityMap = {
+    PENDING_LATE_HR: 1,
+    PENDING_HR_RECEIVE: 2,
+    PENDING_HR_REVIEW: 3,
+    PENDING_HR_CLASSIFICATION: 4,
+    PENDING_ADMIN: 5,
+    PENDING_ADMIN_REVIEW: 6,
+    PENDING_RELEASE: 7,
+    PENDING: 8,
+  }
+
+  const queueStageKey = normalizeQueueStageKeyToken(app?.queue_stage_key ?? app?.queueStageKey)
+  if (queueStagePriorityMap[queueStageKey] !== undefined) {
+    return queueStagePriorityMap[queueStageKey]
+  }
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_LATE_HR') return queueStagePriorityMap.PENDING_LATE_HR
+  if (rawStatus === 'PENDING_ADMIN') {
+    return isPendingEditRequest(app)
+      ? queueStagePriorityMap.PENDING_ADMIN_REVIEW
+      : queueStagePriorityMap.PENDING_ADMIN
+  }
+  if (rawStatus === 'PENDING_HR') {
+    return isApplicationReceivedByHr(app)
+      ? queueStagePriorityMap.PENDING_HR_REVIEW
+      : queueStagePriorityMap.PENDING_HR_RECEIVE
+  }
+  if (rawStatus === 'APPROVED' && !isApplicationReleased(app)) return queueStagePriorityMap.PENDING_RELEASE
+  if (rawStatus.includes('PENDING')) return queueStagePriorityMap.PENDING
+
+  return queueStagePriorityMap.PENDING
+}
+
+function resolveQueueTimestampForDisplay(app) {
+  const candidates = [app?.created_at, app?.filed_at, app?.dateFiled, app?.date_filed]
+  for (const candidate of candidates) {
+    const timestamp = Date.parse(String(candidate || '').trim())
+    if (Number.isFinite(timestamp)) return timestamp
+  }
+  return Number.POSITIVE_INFINITY
+}
+
+function compareApplicationsByTimestampAsc(a, b) {
+  const timestampDiff = resolveQueueTimestampForDisplay(a) - resolveQueueTimestampForDisplay(b)
+  if (timestampDiff !== 0) return timestampDiff
+
+  const idA = Number(a?.id)
+  const idB = Number(b?.id)
+  const normalizedIdA = Number.isFinite(idA) ? idA : Number.MAX_SAFE_INTEGER
+  const normalizedIdB = Number.isFinite(idB) ? idB : Number.MAX_SAFE_INTEGER
+  if (normalizedIdA !== normalizedIdB) return normalizedIdA - normalizedIdB
+
+  return String(a?.application_uid || '').localeCompare(String(b?.application_uid || ''))
+}
+
+function compareApplicationsByTimestampDesc(a, b) {
+  const timestampDiff = resolveQueueTimestampForDisplay(b) - resolveQueueTimestampForDisplay(a)
+  if (timestampDiff !== 0) return timestampDiff
+
+  const idA = Number(a?.id)
+  const idB = Number(b?.id)
+  const normalizedIdA = Number.isFinite(idA) ? idA : Number.MIN_SAFE_INTEGER
+  const normalizedIdB = Number.isFinite(idB) ? idB : Number.MIN_SAFE_INTEGER
+  if (normalizedIdA !== normalizedIdB) return normalizedIdB - normalizedIdA
+
+  return String(b?.application_uid || '').localeCompare(String(a?.application_uid || ''))
+}
+
+function comparePendingApplicationsForQueue(a, b) {
+  const stagePriorityDiff = resolveQueueStagePriorityForDisplay(a) - resolveQueueStagePriorityForDisplay(b)
+  if (stagePriorityDiff !== 0) return stagePriorityDiff
+
+  return compareApplicationsByTimestampAsc(a, b)
+}
+
 function groupApplicationsForDisplay(rows = []) {
   const groupedRows = {
     PENDING: [],
@@ -1933,6 +2015,11 @@ function groupApplicationsForDisplay(rows = []) {
     }
     groupedRows[groupStatus].push(row)
   })
+
+  groupedRows.PENDING.sort(comparePendingApplicationsForQueue)
+  groupedRows.APPROVED.sort(compareApplicationsByTimestampDesc)
+  groupedRows.REJECTED.sort(compareApplicationsByTimestampDesc)
+  groupedRows.RECALLED.sort(compareApplicationsByTimestampDesc)
 
   return queueGroupRenderOrder.flatMap((groupStatus) => groupedRows[groupStatus] || [])
 }
@@ -4349,6 +4436,33 @@ async function printCocCertificate(app = selectedApp.value) {
   await generateCocCertificatePdf(printableApp)
 }
 
+function promptCocCertificateAfterReceive(app) {
+  const targetApp = resolveApplication(app) || app
+  if (!targetApp || !isCocApplication(targetApp)) return false
+  if (!isApplicationReceivedByHr(targetApp)) return false
+  if (!canPrintCocCertificate(targetApp)) return false
+
+  q.dialog({
+    title: 'Print COC certificate?',
+    message: 'COC application received by HR. Do you want to print the certificate now?',
+    cancel: {
+      label: 'Later',
+      flat: true,
+      color: 'grey-7',
+    },
+    ok: {
+      label: 'Print',
+      unelevated: true,
+      color: 'primary',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await printCocCertificate(targetApp)
+  })
+
+  return true
+}
+
 function handleApplicationRowClick(_evt, row) {
   if (!row) return
   openTimeline(row)
@@ -4607,7 +4721,14 @@ async function markApplicationReceived(target = selectedApp.value) {
           })
       }
 
-      await fetchLatestHrCocApplication(nextApplication)
+      const refreshedCocApplication = await fetchLatestHrCocApplication(nextApplication)
+      const promptTargetApplication =
+        resolveApplication(`COC:${resolvedId}`) ||
+        resolveApplication(resolvedId) ||
+        refreshedCocApplication ||
+        nextApplication
+
+      promptCocCertificateAfterReceive(promptTargetApplication)
 
       q.notify({
         type: 'positive',

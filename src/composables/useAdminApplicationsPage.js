@@ -4560,15 +4560,21 @@ export function useAdminApplicationsPage() {
       if (stagePriorityDiff !== 0) return stagePriorityDiff
     }
 
+    const isLifoGroup =
+      groupA === groupB &&
+      (groupA === 'APPROVED' || groupA === 'REJECTED' || groupA === 'RECALLED')
+
     const dateA = getApplicationQueueTimestamp(a)
     const dateB = getApplicationQueueTimestamp(b)
-    if (dateA !== dateB) return dateA - dateB
+    if (dateA !== dateB) return isLifoGroup ? dateB - dateA : dateA - dateB
 
     const idA = Number(a?.id)
     const idB = Number(b?.id)
     const normalizedIdA = Number.isFinite(idA) ? idA : Number.MAX_SAFE_INTEGER
     const normalizedIdB = Number.isFinite(idB) ? idB : Number.MAX_SAFE_INTEGER
-    if (normalizedIdA !== normalizedIdB) return normalizedIdA - normalizedIdB
+    if (normalizedIdA !== normalizedIdB) {
+      return isLifoGroup ? normalizedIdB - normalizedIdA : normalizedIdA - normalizedIdB
+    }
 
     const variantA = a?.application_row_variant === 'recalled' ? 1 : 0
     const variantB = b?.application_row_variant === 'recalled' ? 1 : 0

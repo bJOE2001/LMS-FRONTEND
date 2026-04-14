@@ -1159,12 +1159,6 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const isSLBW = lt.includes('special leave benefit')
     const isCalamity = lt.includes('calamity') || lt.includes('emergency')
     const isAdoption = lt.includes('adoption')
-    const isOtherBase = !(isVacation || isMandatory || isSick || isWellness || isCTO || isMaternity || isPaternity || isSpecPriv || isSoloParent || isStudy || isVAWC || isRehab || isSLBW || isCalamity || isAdoption)
-    const isOther = isOtherBase || isMonetization
-    const otherLeaveLabel = isMonetization
-        ? 'Monetization Leave'
-        : (isOtherBase ? (app.leaveType || '') : '')
-
     const isCommutationRequested = String(app.commutation || '').toLowerCase().trim() === 'requested'
     const isCommutationRequestedForPrint = isMonetization || isCommutationRequested
     const isForApproval = rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || statusLabel === 'APPROVED' || statusLabel === 'PENDING HR'
@@ -1376,8 +1370,6 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                     checkboxRow(isSLBW, 'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)'),
                                     checkboxRow(isCalamity, 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)'),
                                     checkboxRow(isAdoption, 'Adoption Leave (R.A. No. 8552)'),
-                                    { text: ' ', fontSize: 4 },
-                                    checkboxRow(isOther, `Others: ${isOther ? (otherLeaveLabel || '_______________') : '_______________'}`, { marginVertical: 1, marginBottom: 4 }),
                                 ],
                                 border: [true, false, true, true],
                             },

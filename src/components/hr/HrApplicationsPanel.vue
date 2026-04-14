@@ -239,6 +239,18 @@
               <q-tooltip>Release</q-tooltip>
             </q-btn>
             <q-btn
+              v-if="canShowCocCertificatePrintAction(props.row)"
+              flat
+              dense
+              round
+              size="sm"
+              icon="print"
+              color="blue-grey-7"
+              @click.stop="printCocCertificate(props.row)"
+            >
+              <q-tooltip>Print COC Certificate</q-tooltip>
+            </q-btn>
+            <q-btn
               v-if="canRecallApplication(props.row)"
               flat
               dense
@@ -439,8 +451,13 @@ export default defineComponent({
       )
     }
 
+    function canShowCocCertificatePrintAction(app) {
+      return panel.canPrintCocCertificate(app) && panel.isApplicationReceivedByHr(app)
+    }
+
     return {
       ...panel,
+      canShowCocCertificatePrintAction,
       canShowPendingReleaseAction,
       canShowPendingReceiveAction,
       canShowHrReviewDecisionActions,

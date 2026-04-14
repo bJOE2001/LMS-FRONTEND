@@ -363,7 +363,7 @@ function buildCertificateSection(data, options = {}) {
                 fontSize: CERTIFICATE_MAYOR_FONT_SIZE,
                 bold: true,
                 alignment: 'center',
-                margin: [0, 8, 0, 1],
+                margin: [0, 20, 0, 1],
               },
               {
                 text: MAYOR_TITLE,
