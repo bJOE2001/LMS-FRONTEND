@@ -47,6 +47,17 @@ const EMPLOYMENT_TYPE_FILTER_LABELS = {
   casual: 'Casual',
 }
 const ctoStandardDayHours = 8
+const EVENT_BASED_LEAVE_TYPES = [
+  'Maternity Leave',
+  'Paternity Leave',
+  'Solo Parent Leave',
+  'Study Leave',
+  '10-Day VAWC Leave',
+  'Rehabilitation Privilege',
+  'Special Leave Benefits for Women',
+  'Special Emergency (Calamity) Leave',
+  'Adoption Leave',
+]
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
@@ -1321,6 +1332,37 @@ function normalizeLeaveBalanceLookupKey(value) {
   return normalizedValue
 }
 
+function resolveApplicationLeaveTypeCategory(app) {
+  const categoryCandidates = [
+    app?.leave_type_category,
+    app?.leaveTypeCategory,
+    app?.category,
+    app?.leave_type?.category,
+    app?.leaveType?.category,
+    app?.leave_type_detail?.category,
+    app?.leaveTypeDetail?.category,
+    app?.leave_type_info?.category,
+    app?.leaveTypeInfo?.category,
+    app?.leave_type_definition?.category,
+    app?.leaveTypeDefinition?.category,
+  ]
+
+  for (const candidate of categoryCandidates) {
+    const normalizedCategory = String(candidate || '').trim().toUpperCase()
+    if (normalizedCategory) return normalizedCategory
+  }
+
+  return ''
+}
+
+function isEventBasedLeaveType(value) {
+  const typeKey = normalizeLeaveBalanceLookupKey(value)
+  if (!typeKey) return false
+  return EVENT_BASED_LEAVE_TYPES.some(
+    (label) => normalizeLeaveBalanceLookupKey(label) === typeKey,
+  )
+}
+
 function getEmployeeBalanceLookupKey(app) {
   const explicitKey = app?.employee_control_no
   if (explicitKey !== undefined && explicitKey !== null && String(explicitKey).trim() !== '') {
@@ -1454,6 +1496,22 @@ function getCurrentLeaveBalanceClass(app) {
   const requiredDays = Number(app?.days)
   if (balance === null || !Number.isFinite(requiredDays) || requiredDays <= 0) return 'text-green-8'
   return balance < requiredDays ? 'text-negative' : 'text-green-8'
+}
+
+function shouldShowCurrentLeaveBalance(app) {
+  if (!app) return false
+  if (isCocApplication(app)) return true
+
+  const leaveTypeCategory = resolveApplicationLeaveTypeCategory(app)
+  if (leaveTypeCategory === 'EVENT') return false
+
+  const leaveTypeLabel =
+    getCurrentLeaveTypeLabel(app) ||
+    app?.leaveType ||
+    app?.leave_type_name ||
+    ''
+
+  return !isEventBasedLeaveType(leaveTypeLabel)
 }
 
 function isCtoLeaveApplication(app) {
@@ -4910,6 +4968,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getCurrentLeaveBalanceClass,
     getCurrentLeaveBalanceDisplay,
     getCurrentLeaveBalanceValue,
+    shouldShowCurrentLeaveBalance,
     getCurrentLeaveTypeId,
     getCurrentLeaveTypeLabel,
     getCocNatureOfOvertimeLines,

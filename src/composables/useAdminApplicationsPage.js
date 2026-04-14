@@ -1361,6 +1361,46 @@ export function useAdminApplicationsPage() {
     )
   }
 
+  function resolveApplicationLeaveTypeCategory(app) {
+    const categoryCandidates = [
+      app?.leave_type_category,
+      app?.leaveTypeCategory,
+      app?.category,
+      app?.leave_type?.category,
+      app?.leaveType?.category,
+      app?.leave_type_detail?.category,
+      app?.leaveTypeDetail?.category,
+      app?.leave_type_info?.category,
+      app?.leaveTypeInfo?.category,
+      app?.leave_type_definition?.category,
+      app?.leaveTypeDefinition?.category,
+    ]
+
+    for (const candidate of categoryCandidates) {
+      const normalizedCategory = String(candidate || '').trim().toUpperCase()
+      if (normalizedCategory) return normalizedCategory
+    }
+
+    return ''
+  }
+
+  function shouldShowCurrentLeaveBalance(app) {
+    if (!app) return false
+    if (isCocApplication(app)) return true
+
+    const leaveTypeCategory = resolveApplicationLeaveTypeCategory(app)
+    if (leaveTypeCategory === 'EVENT') return false
+
+    const leaveTypeLabel =
+      app?.leaveType ??
+      app?.leave_type ??
+      app?.leaveTypeName ??
+      app?.leave_type_name ??
+      ''
+
+    return !isEventBasedLeaveBalanceType(leaveTypeLabel)
+  }
+
   function collectLeaveBalanceEntriesFromValue(entries, seen, source, fallbackLabel = '') {
     if (!source) return
 
@@ -5237,5 +5277,6 @@ export function useAdminApplicationsPage() {
     formatApplicationLeaveTypeLabel,
     printRequestChangesActionResult,
     getAdminUpdateRequestActionType,
+    shouldShowCurrentLeaveBalance,
   }
 }

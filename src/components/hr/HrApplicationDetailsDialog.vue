@@ -50,7 +50,10 @@
               v-close-popup
             />
           </div>
-          <div class="hr-application-details-header-balance-text">
+          <div
+            v-if="shouldShowCurrentLeaveBalance(application)"
+            class="hr-application-details-header-balance-text"
+          >
             <div class="hr-application-details-label">Available Leave Balance</div>
             <div
               class="hr-application-details-header-balance-value"
@@ -487,6 +490,10 @@ const props = defineProps({
   getCurrentLeaveBalanceDisplay: {
     type: Function,
     default: () => '',
+  },
+  shouldShowCurrentLeaveBalance: {
+    type: Function,
+    default: () => true,
   },
   isCtoLeaveApplication: {
     type: Function,
