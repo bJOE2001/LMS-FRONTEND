@@ -162,8 +162,9 @@ function handleConfirm() {
 
 .admin-action-dialog-card--compact .admin-action-dialog-card__title {
   margin-top: 14px;
-  font-size: 2rem;
-  line-height: 1.1;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .admin-action-dialog-card__message {
@@ -232,6 +233,10 @@ function handleConfirm() {
 
   .admin-action-dialog-card__title {
     font-size: 1.55rem;
+  }
+
+  .admin-action-dialog-card--compact .admin-action-dialog-card__title {
+    font-size: 1.2rem;
   }
 
   .admin-action-dialog-card__message {

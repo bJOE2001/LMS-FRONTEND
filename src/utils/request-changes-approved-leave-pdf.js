@@ -9,7 +9,6 @@ const VALIDATED_BY_TITLE = 'Supervising Administrative Officer'
 const NOTED_BY_NAME = 'JANLYLENE A. PALERMO, MM'
 const NOTED_BY_TITLE = 'City Human Resource Mgt. Officer'
 
-
 const ACTION_TYPE_UPDATE = 'REQUEST_UPDATE'
 const ACTION_TYPE_CANCEL = 'REQUEST_CANCEL'
 
@@ -100,8 +99,11 @@ function toIsoDateString(dateValue) {
 }
 
 function normalizeIsoDateList(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((value) => toIsoDateString(value)).filter(Boolean))]
-    .sort((left, right) => Date.parse(left) - Date.parse(right))
+  return [
+    ...new Set(
+      (Array.isArray(values) ? values : []).map((value) => toIsoDateString(value)).filter(Boolean),
+    ),
+  ].sort((left, right) => Date.parse(left) - Date.parse(right))
 }
 
 function enumerateInclusiveDateRange(startDateValue, endDateValue) {
@@ -237,16 +239,15 @@ function formatRequestedDatesList(source) {
     return `${monthChunks.join(', ')}, ${year}`
   }
 
-  return groups
-    .map((group) => `${group.month} ${group.days.join(', ')}, ${group.year}`)
-    .join(', ')
+  return groups.map((group) => `${group.month} ${group.days.join(', ')}, ${group.year}`).join(', ')
 }
 
 function resolveFromDateValue(source) {
   const dateSet = resolveDateSetFromSource(source)
   if (dateSet.length) return formatDate(dateSet[0])
 
-  const fallbackDate = source?.start_date || source?.startDate || source?.end_date || source?.endDate || ''
+  const fallbackDate =
+    source?.start_date || source?.startDate || source?.end_date || source?.endDate || ''
   return fallbackDate ? formatDate(fallbackDate) : ''
 }
 
@@ -266,10 +267,10 @@ function resolveRequestFormData(app) {
 
   const employeeName =
     app?.employeeName ||
-      app?.employee_name ||
-      source?.employee_name ||
-      source?.filed_by ||
-      'Employee'
+    app?.employee_name ||
+    source?.employee_name ||
+    source?.filed_by ||
+    'Employee'
 
   const fromValue = resolveFromDateValue(source)
   const toValue = formatRequestedDatesList(payload)
@@ -322,7 +323,9 @@ function resolveRequestFormData(app) {
 
   if (!actionType) actionType = ACTION_TYPE_UPDATE
 
-  const approvedBy = normalizeText(resolveDepartmentHeadName(app) || resolveDepartmentHeadName(source))
+  const approvedBy = normalizeText(
+    resolveDepartmentHeadName(app) || resolveDepartmentHeadName(source),
+  )
 
   return {
     requestDate,
@@ -348,15 +351,17 @@ function shortUnderline(value, options = {}) {
         margin: [0, 0, 0, 2],
       },
       {
-        canvas: [{
-          type: 'line',
-          x1: 0,
-          y1: 0,
-          x2: lineWidth,
-          y2: 0,
-          lineWidth: 0.8,
-          lineColor: '#111111',
-        }],
+        canvas: [
+          {
+            type: 'line',
+            x1: 0,
+            y1: 0,
+            x2: lineWidth,
+            y2: 0,
+            lineWidth: 0.8,
+            lineColor: '#111111',
+          },
+        ],
       },
     ],
   }
@@ -365,14 +370,16 @@ function shortUnderline(value, options = {}) {
 function buildHeader(logoBase64) {
   const headerBarHeight = 18
   const smallRectHeight = headerBarHeight
+  const smallRectTopOffset = 35
   const headerTextSize = 10
   const leftInset = 6
+  const officeBandPaddingTop = Math.max(0, Math.floor((headerBarHeight - headerTextSize) / 2))
 
   return {
     columns: [
       {
         width: 28,
-        margin: [0, 35, 8, 0],
+        margin: [0, smallRectTopOffset, 8, 0],
         canvas: [{ type: 'rect', x: 0, y: 0, w: 22, h: smallRectHeight, color: HEADER_BAR_COLOR }],
       },
       logoBase64
@@ -388,17 +395,28 @@ function buildHeader(logoBase64) {
             table: {
               widths: ['*'],
               heights: [headerBarHeight],
-              body: [[{
-                text: 'CITY HUMAN RESOURCE MANAGEMENT OFFICE',
-                color: '#ffffff',
-                bold: true,
-                alignment: 'left',
-                fontSize: headerTextSize,
-                fillColor: HEADER_BAR_COLOR,
-                margin: [leftInset, 4, 4, 0],
-              }]],
+              body: [
+                [
+                  {
+                    text: 'CITY HUMAN RESOURCE MANAGEMENT OFFICE',
+                    color: '#ffffff',
+                    bold: true,
+                    alignment: 'left',
+                    fontSize: headerTextSize,
+                    fillColor: HEADER_BAR_COLOR,
+                    margin: [leftInset, officeBandPaddingTop, 4, 0],
+                  },
+                ],
+              ],
             },
-            layout: 'noBorders',
+            layout: {
+              hLineWidth: () => 0,
+              vLineWidth: () => 0,
+              paddingLeft: () => 0,
+              paddingRight: () => 0,
+              paddingTop: () => 0,
+              paddingBottom: () => 0,
+            },
             margin: [0, 2, 0, 0],
           },
         ],
@@ -466,11 +484,10 @@ function signerBlock(label, name, title) {
 
 function openPdfDocument(pdfDocument, options = {}) {
   const targetWindow =
-    options?.targetWindow && !options.targetWindow.closed
-      ? options.targetWindow
-      : null
-  const fileName = String(options?.fileName || 'request-changes-approved-leave.pdf').trim()
-    || 'request-changes-approved-leave.pdf'
+    options?.targetWindow && !options.targetWindow.closed ? options.targetWindow : null
+  const fileName =
+    String(options?.fileName || 'request-changes-approved-leave.pdf').trim() ||
+    'request-changes-approved-leave.pdf'
 
   return pdfDocument.getBlob().then((blob) => {
     const objectUrl = URL.createObjectURL(blob)

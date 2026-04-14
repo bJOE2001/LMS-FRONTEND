@@ -263,6 +263,10 @@
                       'Pending HR',
                       'Pending HR Receive',
                       'Pending HR Review',
+                      'Pending Update Receive',
+                      'Pending Update HR Review',
+                      'Pending Update Admin Review',
+                      'Pending Update Release',
                       'Pending Admin',
                     ].includes(getApplicationStatusLabel(selectedApp))
                   "

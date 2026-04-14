@@ -28,6 +28,7 @@ const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
   .toLowerCase()
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'disapproved', 'recalled'])
+const queueGroupRenderOrder = ['PENDING', 'APPROVED', 'REJECTED', 'RECALLED', 'OTHER']
 const DEPARTMENT_STOP_WORDS = new Set([
   'A',
   'AN',
@@ -445,16 +446,66 @@ function getCocReleaseStageStatus(app) {
   return 'Pending HR Receive'
 }
 
+function normalizeQueueStageKeyToken(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function getApplicationQueueStageKey(app) {
+  const candidates = [
+    app?.queue_stage_key,
+    app?.queueStageKey,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeQueueStageKeyToken(candidate)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
+function isPendingUpdateWorkflowCycle(app) {
+  if (!app || isCocApplication(app)) return false
+  if (!isEditUpdateRequest(app)) return false
+  return getLatestUpdateRequestStatus(app) === 'PENDING'
+}
+
+function isApprovedUpdateWorkflowCycle(app) {
+  if (!app || isCocApplication(app)) return false
+  if (!isEditUpdateRequest(app)) return false
+  return getLatestUpdateRequestStatus(app) === 'APPROVED'
+}
+
 function getLeaveWorkflowStageStatus(app) {
   if (!app || isCocApplication(app)) return ''
+
+  const queueStageKey = getApplicationQueueStageKey(app)
+  if (queueStageKey === 'PENDING_ADMIN') return 'Pending Admin'
+  if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Pending Admin Review'
+  if (queueStageKey === 'PENDING_HR_RECEIVE') {
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
+  }
+  if (queueStageKey === 'PENDING_HR_REVIEW') {
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'Pending HR Review'
+  }
+  if (queueStageKey === 'PENDING_RELEASE') {
+    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+  }
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
   if (rawStatus === 'PENDING_HR') {
-    return isApplicationReceivedByHr(app) ? 'Pending HR Review' : 'Pending HR Receive'
+    if (isApplicationReceivedByHr(app)) {
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'Pending HR Review'
+    }
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
   }
   if (rawStatus === 'APPROVED') {
-    return isApplicationReleased(app) ? 'Approved' : 'Pending Release'
+    if (isApplicationReleased(app)) return 'Approved'
+    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
   }
 
   return ''
@@ -467,14 +518,6 @@ function mergeStatus(app) {
   const raw = getApplicationRawStatusKey(app)
   const status = String(app.status || '').toUpperCase()
   const normalizedStatus = status.replace(/[_-]+/g, ' ')
-  const latestUpdateRequestStatus = getLatestUpdateRequestStatus(app)
-
-  if (
-    latestUpdateRequestStatus === 'PENDING' &&
-    (raw === 'PENDING_ADMIN' || raw === 'PENDING_HR')
-  ) {
-    return 'Approved'
-  }
 
   const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
   if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
@@ -675,7 +718,14 @@ function getLatestUpdateRequestStatus(app) {
 function getEditRequestBadgeLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
   const labelPrefix = getEditRequestLabelPrefix(app)
-  if (status === 'PENDING') return labelPrefix + ' Pending'
+  if (status === 'PENDING') {
+    if (!isCancellationRequestAction(app)) {
+      const rawStatus = getApplicationRawStatusKey(app)
+      if (rawStatus === 'PENDING_ADMIN') return 'Pending Update Admin Review'
+      return 'Pending Update HR Review'
+    }
+    return labelPrefix + ' Pending'
+  }
   if (status === 'APPROVED') return labelPrefix + ' Approved'
   if (status === 'REJECTED') return labelPrefix + ' Disapproved'
   return ''
@@ -1832,69 +1882,59 @@ function getApplicationStatusLabel(app) {
   return ''
 }
 
-function getApplicationGroupedRawStatusKey(app) {
-  return getApplicationRawStatusKey({ raw_status: app?.group_raw_status || '' })
+function normalizeQueueGroupStatusToken(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+  if (normalized === 'PENDING') return 'PENDING'
+  if (normalized === 'APPROVED') return 'APPROVED'
+  if (normalized === 'REJECTED' || normalized === 'DISAPPROVED') return 'REJECTED'
+  if (normalized === 'RECALLED') return 'RECALLED'
+  return ''
 }
 
-function getPendingQueueStagePriority(app) {
-  const workflowStageStatus = getCocReleaseStageStatus(app) || getLeaveWorkflowStageStatus(app) || ''
-  if (workflowStageStatus === 'Pending HR Receive') return 0
-  if (workflowStageStatus === 'Pending HR Review') return 1
-  if (workflowStageStatus === 'Pending Release') return 2
-  if (workflowStageStatus === 'Pending Admin') return 3
-  return 4
+function resolveQueueGroupStatusForDisplay(app) {
+  const explicitQueueGroupStatus = normalizeQueueGroupStatusToken(
+    app?.queue_group_status ?? app?.queueGroupStatus,
+  )
+  if (explicitQueueGroupStatus) return explicitQueueGroupStatus
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'RECALLED') return 'RECALLED'
+  if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return 'REJECTED'
+  if (rawStatus === 'APPROVED') return 'APPROVED'
+  if (rawStatus.includes('PENDING')) return 'PENDING'
+
+  const mergedStatus = String(getApplicationStatusLabel(app) || '').toUpperCase()
+  if (mergedStatus.includes('RECALL')) return 'RECALLED'
+  if (mergedStatus.includes('REJECT') || mergedStatus.includes('DISAPPROV')) return 'REJECTED'
+  if (mergedStatus.includes('APPROV')) return 'APPROVED'
+  if (mergedStatus.includes('PENDING')) return 'PENDING'
+
+  return 'OTHER'
 }
 
-function getApplicationStatusPriority(app) {
-  const workflowStageStatus = getCocReleaseStageStatus(app) || getLeaveWorkflowStageStatus(app) || ''
-  if (workflowStageStatus.startsWith('Pending')) return 0
-  if (workflowStageStatus === 'Approved' || workflowStageStatus === 'Released') return 1
-
-  const groupedRawStatus = getApplicationGroupedRawStatusKey(app) || getApplicationRawStatusKey(app)
-  if (groupedRawStatus === 'PENDING_ADMIN' || groupedRawStatus === 'PENDING_HR') return 0
-  if (groupedRawStatus === 'APPROVED') return 1
-  if (groupedRawStatus === 'REJECTED') return 2
-  if (groupedRawStatus === 'RECALLED') return 3
-
-  const status = String(getApplicationStatusLabel(app) || '').toLowerCase()
-  if (status.includes('pending')) return 0
-  if (status.includes('approved')) return 1
-  if (status.includes('rejected') || status.includes('disapproved')) return 2
-  if (status.includes('recalled')) return 3
-  return 4
-}
-
-function getApplicationQueueTimestamp(app) {
-  const timestamp = Date.parse(String(app?.filed_at || '').trim())
-  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp
-}
-
-function compareApplicationsForTable(a, b) {
-  const statusPriorityA = getApplicationStatusPriority(a)
-  const statusPriorityB = getApplicationStatusPriority(b)
-  const statusPriorityDiff = statusPriorityA - statusPriorityB
-  if (statusPriorityDiff !== 0) return statusPriorityDiff
-
-  if (statusPriorityA === 0 && statusPriorityB === 0) {
-    const pendingStagePriorityDiff = getPendingQueueStagePriority(a) - getPendingQueueStagePriority(b)
-    if (pendingStagePriorityDiff !== 0) return pendingStagePriorityDiff
+function groupApplicationsForDisplay(rows = []) {
+  const groupedRows = {
+    PENDING: [],
+    APPROVED: [],
+    REJECTED: [],
+    RECALLED: [],
+    OTHER: [],
   }
 
-  const dateA = getApplicationQueueTimestamp(a)
-  const dateB = getApplicationQueueTimestamp(b)
-  if (dateA !== dateB) return dateA - dateB
+  ;(Array.isArray(rows) ? rows : []).forEach((row) => {
+    const groupStatus = resolveQueueGroupStatusForDisplay(row)
+    if (!groupedRows[groupStatus]) {
+      groupedRows.OTHER.push(row)
+      return
+    }
+    groupedRows[groupStatus].push(row)
+  })
 
-  const idA = Number(a?.id)
-  const idB = Number(b?.id)
-  if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) return idA - idB
-
-  const variantA = a?.application_row_variant === 'recalled' ? 1 : 0
-  const variantB = b?.application_row_variant === 'recalled' ? 1 : 0
-  if (variantA !== variantB) return variantA - variantB
-
-  const keyA = String(a?.application_uid || '')
-  const keyB = String(b?.application_uid || '')
-  return keyA.localeCompare(keyB)
+  return queueGroupRenderOrder.flatMap((groupStatus) => groupedRows[groupStatus] || [])
 }
 
 function getDateSearchValues(dateValue) {
@@ -1965,14 +2005,14 @@ const applicationsForTable = computed(() => {
     if (shouldHidePendingAdmin) return false
     return matchesEmploymentTypeFilter(app)
   })
-  if (!queryTokens.length) return [...rows].sort(compareApplicationsForTable)
+  if (!queryTokens.length) return groupApplicationsForDisplay(rows)
 
   const filteredRows = rows.filter((app) => {
     const searchText = getApplicationSearchTokenSet(app)
     return queryTokens.every((token) => searchText.includes(token))
   })
 
-  return filteredRows.sort(compareApplicationsForTable)
+  return groupApplicationsForDisplay(filteredRows)
 })
 
 const employeeColumn = { name: 'employee', label: 'Employee', align: 'left' }
@@ -2204,16 +2244,13 @@ async function fetchApplications() {
       return
     }
 
-    const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] =
+    const [leaveApplicationsResponse, cocApplicationsResponse] =
       await Promise.all([
-        api.get('/hr/dashboard'),
         api.get('/hr/leave-applications').catch(() => null),
         api.get('/hr/coc-applications').catch(() => null),
       ])
 
-    const dashboardData = dashboardResponse?.data ?? {}
     const mergedApplications = mergeApplications(
-      normalizeBackendApplications(extractApplicationsFromPayload(dashboardData)),
       normalizeBackendApplications(extractApplicationsFromPayload(leaveApplicationsResponse?.data)),
       normalizeBackendApplications(extractApplicationsFromPayload(cocApplicationsResponse?.data)),
     )
@@ -2446,8 +2483,12 @@ function getApplicationStatusColor(app) {
 
   const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
   if (leaveWorkflowStageStatus === 'Pending Admin') return 'warning'
+  if (leaveWorkflowStageStatus === 'Pending Admin Review') return 'warning'
+  if (leaveWorkflowStageStatus === 'Pending Update Receive') return 'teal-6'
   if (leaveWorkflowStageStatus === 'Pending HR Receive') return 'teal-6'
+  if (leaveWorkflowStageStatus === 'Pending Update Review') return 'blue-6'
   if (leaveWorkflowStageStatus === 'Pending HR Review') return 'blue-6'
+  if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
   if (leaveWorkflowStageStatus === 'Pending Release') return 'indigo-6'
   if (leaveWorkflowStageStatus === 'Approved') return 'green'
 
@@ -3263,6 +3304,54 @@ function formatRecentRemarks(app) {
   return remarksText.replace(/^cancelled(?:\s+via\s+erms)?\b:?\s*/i, '').trim()
 }
 
+function isLateCocWorkflowApplication(app) {
+  return isLateCocSourceView() && isCocApplication(app)
+}
+
+function getLateCocHrEvaluationTimelineEntry(app) {
+  if (!isLateCocWorkflowApplication(app)) return null
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_LATE_HR') {
+    return {
+      title: 'Under HR Evaluation',
+      subtitle: 'Current stage',
+      description: 'Waiting for HR evaluation of this late COC application.',
+      icon: 'pending_actions',
+      color: 'warning',
+    }
+  }
+
+  const completedStatuses = new Set([
+    'PENDING_ADMIN',
+    'PENDING_HR',
+    'APPROVED',
+    'REJECTED',
+    'RECALLED',
+  ])
+  if (!completedStatuses.has(rawStatus)) return null
+
+  const evaluatedAt = formatDateTime(
+    pickLatestTimestampValue(
+      resolveFinalApprovalDateValue(app),
+      resolveDisapprovedDateValue(app),
+      resolveDepartmentAdminActionDateValue(app),
+    ),
+  ) || 'Completed'
+
+  const hrActor = resolveHrActor(app)
+  const actor = hrActor && hrActor !== 'Unknown' ? hrActor : undefined
+
+  return {
+    title: 'Under HR Evaluation',
+    subtitle: evaluatedAt,
+    description: 'HR evaluation for this late COC application is complete.',
+    icon: 'task_alt',
+    color: 'positive',
+    ...(actor ? { actor } : {}),
+  }
+}
+
 function buildApplicationTimeline(app) {
   if (!app) return []
 
@@ -3304,6 +3393,37 @@ function buildApplicationTimeline(app) {
       icon: 'task_alt',
       color: 'positive',
       actor: resolveCancelledActor(app),
+    })
+    return entries
+  }
+
+  const lateCocEvaluationEntry = getLateCocHrEvaluationTimelineEntry(app)
+  if (lateCocEvaluationEntry) {
+    entries.push(lateCocEvaluationEntry)
+  }
+
+  if (rawStatus === 'PENDING_LATE_HR') {
+    entries.push({
+      title: 'Department Admin Review Pending',
+      subtitle: 'Upcoming',
+      description: 'This stage starts after HR approves the late COC application.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+    })
+    entries.push({
+      title: 'Pending HR Review',
+      subtitle: 'Upcoming',
+      description: 'This stage starts after department admin approval.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
+    })
+    entries.push(...editRequestEntries)
+    entries.push({
+      title: 'Application Closed',
+      subtitle: 'Upcoming',
+      description: 'Application will be closed after final HR action.',
+      icon: 'radio_button_unchecked',
+      color: 'grey-5',
     })
     return entries
   }
@@ -4915,7 +5035,6 @@ async function handleDialogMutationSuccess(payload = {}) {
     canReleaseApplication,
     clearEmploymentTypeFilter,
     columns,
-    compareApplicationsForTable,
     confirmActionTarget,
     confirmActionType,
     createRecalledCompanionRow,
@@ -4958,7 +5077,6 @@ async function handleDialogMutationSuccess(payload = {}) {
     getApplicationSearchTokenSet,
     getApplicationStatusColor,
     getApplicationStatusLabel,
-    getApplicationStatusPriority,
     getApplicationType,
     getApplicationCtoRequiredHoursDisplay,
     getApplicationCtoRequiredHoursValue,

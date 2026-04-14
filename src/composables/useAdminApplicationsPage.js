@@ -44,6 +44,23 @@ const EVENT_BASED_LEAVE_BALANCE_TYPES = [
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
 const ctoStandardDayHours = 8
+const queueGroupPriority = {
+  PENDING: 0,
+  APPROVED: 1,
+  REJECTED: 2,
+  RECALLED: 3,
+  OTHER: 4,
+}
+const queueStagePriority = {
+  PENDING_LATE_HR: 1,
+  PENDING_HR_RECEIVE: 2,
+  PENDING_HR_REVIEW: 3,
+  PENDING_HR_CLASSIFICATION: 4,
+  PENDING_ADMIN: 5,
+  PENDING_ADMIN_REVIEW: 6,
+  PENDING_RELEASE: 7,
+  PENDING: 8,
+}
 
 function getActualRequestedDayCount(app) {
   const explicitCandidates = [
@@ -1226,6 +1243,10 @@ export function useAdminApplicationsPage() {
     assignBackendAliasIfMissing(normalized, 'released_at', 'releasedAt')
     assignBackendAliasIfMissing(normalized, 'has_hr_received', 'hasHrReceived')
     assignBackendAliasIfMissing(normalized, 'has_hr_released', 'hasHrReleased')
+    assignBackendAliasIfMissing(normalized, 'queue_group_status', 'queueGroupStatus')
+    assignBackendAliasIfMissing(normalized, 'queue_group_priority', 'queueGroupPriority')
+    assignBackendAliasIfMissing(normalized, 'queue_stage_key', 'queueStageKey')
+    assignBackendAliasIfMissing(normalized, 'queue_stage_priority', 'queueStagePriority')
 
     return normalized
   }
@@ -1243,26 +1264,7 @@ export function useAdminApplicationsPage() {
   function normalizeAdminApplicationForDisplay(app) {
     if (!app || typeof app !== 'object') return app
 
-    const normalizedApp = normalizeAdminWorkflowAliases(app)
-
-    if (isCancelledByUser(normalizedApp)) return normalizedApp
-
-    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(normalizedApp)
-    const rawStatus = getApplicationRawStatus(normalizedApp) || getApplicationGroupedRawStatus(normalizedApp)
-
-    if (
-      latestUpdateStatus === 'PENDING' &&
-      (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
-    ) {
-      return {
-        ...normalizedApp,
-        raw_status: normalizedApp?.raw_status ?? rawStatus,
-        group_raw_status: normalizedApp?.group_raw_status ?? rawStatus,
-        status: 'Approved',
-      }
-    }
-
-    return normalizedApp
+    return normalizeAdminWorkflowAliases(app)
   }
 
   function prettifyLeaveBalanceLabel(value) {
@@ -2729,16 +2731,66 @@ export function useAdminApplicationsPage() {
     return 'Pending HR Receive'
   }
 
+  function normalizeQueueStageKeyToken(value) {
+    return String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
+  }
+
+  function getApplicationQueueStageKey(app) {
+    const candidates = [
+      app?.queue_stage_key,
+      app?.queueStageKey,
+    ]
+
+    for (const candidate of candidates) {
+      const normalized = normalizeQueueStageKeyToken(candidate)
+      if (normalized) return normalized
+    }
+
+    return ''
+  }
+
+  function isPendingUpdateWorkflowCycle(app) {
+    if (!app || isCocApplication(app)) return false
+    if (!hasAdminEditRequestSignal(app)) return false
+    return getAdminLatestUpdateRequestStatus(app) === 'PENDING'
+  }
+
+  function isApprovedUpdateWorkflowCycle(app) {
+    if (!app || isCocApplication(app)) return false
+    if (!hasAdminEditRequestSignal(app)) return false
+    return getAdminLatestUpdateRequestStatus(app) === 'APPROVED'
+  }
+
   function getLeaveWorkflowStageStatus(app) {
     if (!app || isCocApplication(app)) return ''
+
+    const queueStageKey = getApplicationQueueStageKey(app)
+    if (queueStageKey === 'PENDING_ADMIN') return 'Pending Admin'
+    if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Pending Update Admin Review'
+    if (queueStageKey === 'PENDING_HR_RECEIVE') {
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
+    }
+    if (queueStageKey === 'PENDING_HR_REVIEW') {
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'Pending HR Review'
+    }
+    if (queueStageKey === 'PENDING_RELEASE') {
+      return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+    }
 
     const rawStatus = getApplicationRawStatus(app)
     if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
     if (rawStatus === 'PENDING_HR') {
-      return isApplicationReceivedByHr(app) ? 'Pending HR Review' : 'Pending HR Receive'
+      if (isApplicationReceivedByHr(app)) {
+        return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'Pending HR Review'
+      }
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
     }
     if (rawStatus === 'APPROVED') {
-      return isApplicationReleased(app) ? 'Approved' : 'Pending Release'
+      if (isApplicationReleased(app)) return 'Approved'
+      return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
     }
 
     return ''
@@ -2751,13 +2803,6 @@ export function useAdminApplicationsPage() {
     if (cocReleaseStageStatus) return cocReleaseStageStatus
 
     const rawStatus = getApplicationRawStatus(app)
-    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
-    if (
-      latestUpdateStatus === 'PENDING' &&
-      (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
-    ) {
-      return 'Approved'
-    }
 
     const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
     if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
@@ -2783,18 +2828,14 @@ export function useAdminApplicationsPage() {
     if (cocReleaseStageStatus === 'Pending Admin') return 'warning'
 
     const rawStatus = getApplicationRawStatus(app)
-    const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
-    if (
-      latestUpdateStatus === 'PENDING' &&
-      (rawStatus === 'PENDING_ADMIN' || rawStatus === 'PENDING_HR')
-    ) {
-      return 'green'
-    }
-
     const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
     if (leaveWorkflowStageStatus === 'Pending Admin') return 'warning'
+    if (leaveWorkflowStageStatus === 'Pending Update Admin Review') return 'warning'
+    if (leaveWorkflowStageStatus === 'Pending Update Receive') return 'teal-6'
     if (leaveWorkflowStageStatus === 'Pending HR Receive') return 'teal-6'
+    if (leaveWorkflowStageStatus === 'Pending Update HR Review') return 'blue-6'
     if (leaveWorkflowStageStatus === 'Pending HR Review') return 'blue-6'
+    if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
     if (leaveWorkflowStageStatus === 'Pending Release') return 'indigo-6'
     if (leaveWorkflowStageStatus === 'Approved') return 'green'
 
@@ -2809,9 +2850,22 @@ export function useAdminApplicationsPage() {
   function getEditRequestBadgeLabel(app) {
     const status = getAdminEditRequestBadgeStatus(app)
     const labelPrefix = getAdminEditRequestLabelPrefix(app)
-    if (status === 'PENDING_ADMIN') return labelPrefix + ' Pending Admin'
-    if (status === 'PENDING_HR') return labelPrefix + ' Pending HR'
-    if (status === 'PENDING') return labelPrefix + ' Pending'
+    const isCancelRequest = isAdminCancellationRequest(app)
+
+    if (status === 'PENDING_ADMIN') {
+      return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Pending Update Admin Review'
+    }
+    if (status === 'PENDING_HR') {
+      if (isCancelRequest) return labelPrefix + ' Pending HR'
+      const stageStatus = getLeaveWorkflowStageStatus(app)
+      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
+        return stageStatus
+      }
+      return 'Pending Update HR Review'
+    }
+    if (status === 'PENDING') {
+      return isCancelRequest ? labelPrefix + ' Pending' : 'Pending Update HR Review'
+    }
     if (status === 'APPROVED') return labelPrefix + ' Approved'
     if (status === 'REJECTED') return labelPrefix + ' Rejected'
     return ''
@@ -3000,10 +3054,23 @@ export function useAdminApplicationsPage() {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
     const status = getAdminEditRequestBadgeStatus(app)
+    const isCancelRequest = isApplicationEditCancellationRequest(app)
     if (status === 'APPROVED') return 'Approved'
     if (status === 'REJECTED') return 'Rejected'
-    if (status === 'PENDING_HR') return 'Pending HR Review'
-    if (status === 'PENDING_ADMIN') return 'Pending Admin Review'
+    if (status === 'PENDING_HR') {
+      if (isCancelRequest) return 'Pending HR Review'
+      const stageStatus = getLeaveWorkflowStageStatus(app)
+      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
+        return stageStatus
+      }
+      return 'Pending Update HR Review'
+    }
+    if (status === 'PENDING_ADMIN') {
+      return isCancelRequest ? 'Pending Admin Review' : 'Pending Update Admin Review'
+    }
+    if (status === 'PENDING') {
+      return isCancelRequest ? 'Pending Review' : 'Pending Update HR Review'
+    }
     return 'Pending'
   }
 
@@ -4394,55 +4461,120 @@ export function useAdminApplicationsPage() {
     return reviewedDate ? formatDate(reviewedDate) : 'N/A'
   }
 
-  function getApplicationStatusPriority(app) {
-    const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-    if (
-      cocReleaseStageStatus === 'Pending Admin' ||
-      cocReleaseStageStatus === 'Pending HR Review' ||
-      cocReleaseStageStatus === 'Pending HR Receive' ||
-      cocReleaseStageStatus === 'Pending Release'
-    ) {
-      return 1
-    }
-    if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 2
+  function normalizeQueueGroupStatusToken(value) {
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
 
-    const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
-    if (
-      leaveWorkflowStageStatus === 'Pending Admin' ||
-      leaveWorkflowStageStatus === 'Pending HR Receive' ||
-      leaveWorkflowStageStatus === 'Pending HR Review' ||
-      leaveWorkflowStageStatus === 'Pending Release'
-    ) {
-      return 1
-    }
-    if (leaveWorkflowStageStatus === 'Approved') return 2
+    if (normalized === 'PENDING') return 'PENDING'
+    if (normalized === 'APPROVED') return 'APPROVED'
+    if (normalized === 'REJECTED' || normalized === 'DISAPPROVED') return 'REJECTED'
+    if (normalized === 'RECALLED') return 'RECALLED'
+    return ''
+  }
+
+  function getApplicationQueueGroupStatus(app) {
+    const explicitQueueGroupStatus = normalizeQueueGroupStatusToken(
+      app?.queue_group_status ?? app?.queueGroupStatus,
+    )
+    if (explicitQueueGroupStatus) return explicitQueueGroupStatus
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'RECALLED') return 'RECALLED'
+    if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return 'REJECTED'
+    if (rawStatus === 'APPROVED') return 'APPROVED'
+    if (rawStatus.includes('PENDING')) return 'PENDING'
 
     const groupedRawStatus = getApplicationGroupedRawStatus(app)
-    if (groupedRawStatus === 'PENDING_ADMIN') return 0
-    if (groupedRawStatus === 'PENDING_HR') return 1
-    if (groupedRawStatus === 'APPROVED') return 2
-    if (groupedRawStatus === 'REJECTED' && !isCancelledByUser(app)) return 3
-    if (isCancelledByUser(app)) return 99
-    return 5
+    if (groupedRawStatus === 'RECALLED') return 'RECALLED'
+    if (groupedRawStatus === 'REJECTED' || groupedRawStatus === 'DISAPPROVED') return 'REJECTED'
+    if (groupedRawStatus === 'APPROVED') return 'APPROVED'
+    if (groupedRawStatus.includes('PENDING')) return 'PENDING'
+
+    const statusLabel = String(getApplicationStatusLabel(app) || '').toUpperCase()
+    if (statusLabel.includes('RECALL')) return 'RECALLED'
+    if (statusLabel.includes('REJECT') || statusLabel.includes('DISAPPROV')) return 'REJECTED'
+    if (statusLabel.includes('APPROV')) return 'APPROVED'
+    if (statusLabel.includes('PENDING')) return 'PENDING'
+
+    return 'OTHER'
+  }
+
+  function resolvePendingQueueStagePriority(app) {
+    const explicitPriority = Number(app?.queue_stage_priority ?? app?.queueStagePriority)
+    if (Number.isFinite(explicitPriority) && explicitPriority > 0) {
+      return explicitPriority
+    }
+
+    const queueStageKey = getApplicationQueueStageKey(app)
+    if (queueStagePriority[queueStageKey] !== undefined) {
+      return queueStagePriority[queueStageKey]
+    }
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_LATE_HR') return queueStagePriority.PENDING_LATE_HR
+    if (rawStatus === 'PENDING_ADMIN') {
+      return isPendingUpdateWorkflowCycle(app)
+        ? queueStagePriority.PENDING_ADMIN_REVIEW
+        : queueStagePriority.PENDING_ADMIN
+    }
+    if (rawStatus === 'PENDING_HR') {
+      return isApplicationReceivedByHr(app)
+        ? queueStagePriority.PENDING_HR_REVIEW
+        : queueStagePriority.PENDING_HR_RECEIVE
+    }
+    if (rawStatus === 'APPROVED' && !isApplicationReleased(app)) {
+      return queueStagePriority.PENDING_RELEASE
+    }
+    if (rawStatus.includes('PENDING')) return queueStagePriority.PENDING
+
+    return queueStagePriority.PENDING
+  }
+
+  function getApplicationQueueTimestamp(app) {
+    const candidateDates = [
+      app?.created_at,
+      app?.filed_at,
+      app?.dateFiled,
+    ]
+
+    for (const candidate of candidateDates) {
+      const timestamp = Date.parse(String(candidate || '').trim())
+      if (Number.isFinite(timestamp)) return timestamp
+    }
+
+    return Number.POSITIVE_INFINITY
   }
 
   function compareApplicationsForTable(a, b) {
-    const statusPriorityDiff = getApplicationStatusPriority(a) - getApplicationStatusPriority(b)
-    if (statusPriorityDiff !== 0) return statusPriorityDiff
+    const groupPriorityDiff =
+      (queueGroupPriority[getApplicationQueueGroupStatus(a)] ?? queueGroupPriority.OTHER) -
+      (queueGroupPriority[getApplicationQueueGroupStatus(b)] ?? queueGroupPriority.OTHER)
+    if (groupPriorityDiff !== 0) return groupPriorityDiff
 
-    const dateA = getApplicationRecencyTimestamp(a)
-    const dateB = getApplicationRecencyTimestamp(b)
-    if (dateA !== dateB) return dateB - dateA
+    const groupA = getApplicationQueueGroupStatus(a)
+    const groupB = getApplicationQueueGroupStatus(b)
+    if (groupA === 'PENDING' && groupB === 'PENDING') {
+      const stagePriorityDiff = resolvePendingQueueStagePriority(a) - resolvePendingQueueStagePriority(b)
+      if (stagePriorityDiff !== 0) return stagePriorityDiff
+    }
 
-    const idA = Number(a?.id) || 0
-    const idB = Number(b?.id) || 0
-    if (idB !== idA) return idB - idA
+    const dateA = getApplicationQueueTimestamp(a)
+    const dateB = getApplicationQueueTimestamp(b)
+    if (dateA !== dateB) return dateA - dateB
+
+    const idA = Number(a?.id)
+    const idB = Number(b?.id)
+    const normalizedIdA = Number.isFinite(idA) ? idA : Number.MAX_SAFE_INTEGER
+    const normalizedIdB = Number.isFinite(idB) ? idB : Number.MAX_SAFE_INTEGER
+    if (normalizedIdA !== normalizedIdB) return normalizedIdA - normalizedIdB
 
     const variantA = a?.application_row_variant === 'recalled' ? 1 : 0
     const variantB = b?.application_row_variant === 'recalled' ? 1 : 0
     if (variantA !== variantB) return variantA - variantB
 
-    return 0
+    return String(a?.application_uid || '').localeCompare(String(b?.application_uid || ''))
   }
 
   function getApplicationRecencyTimestamp(app) {

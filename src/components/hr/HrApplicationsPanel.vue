@@ -416,15 +416,17 @@ export default defineComponent({
     }
 
     function canShowPendingReleaseAction(app) {
+      const stageStatus = panel.getApplicationStatusLabel(app)
       return (
-        panel.getApplicationStatusLabel(app) === 'Pending Release' &&
+        (stageStatus === 'Pending Release' || stageStatus === 'Pending Update Release') &&
         panel.canReleaseApplication(app)
       )
     }
 
     function canShowPendingReceiveAction(app) {
+      const stageStatus = panel.getApplicationStatusLabel(app)
       return (
-        panel.getApplicationStatusLabel(app) === 'Pending HR Receive' &&
+        (stageStatus === 'Pending HR Receive' || stageStatus === 'Pending Update Receive') &&
         panel.canReceiveApplication(app)
       )
     }
