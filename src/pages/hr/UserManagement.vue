@@ -200,10 +200,11 @@
                   emit-value
                   map-options
                   use-input
-                  input-debounce="200"
+                  input-debounce="300"
                   outlined
                   dense
                   label="Employee *"
+                  hint="Type at least 2 characters to search employees."
                   :loading="loadingEligibleEmployees"
                   :disable="creatingAccount"
                   :rules="[employeeRequiredRule]"
@@ -213,7 +214,7 @@
                   <template #no-option>
                     <q-item>
                       <q-item-section class="text-grey-6">
-                        No active employees found.
+                        {{ eligibleEmployeeNoOptionMessage }}
                       </q-item-section>
                     </q-item>
                   </template>
@@ -298,6 +299,7 @@ const loadingEligibleEmployees = ref(false)
 const showCreateDialog = ref(false)
 const createFormRef = ref(null)
 const showGuestPassword = ref(false)
+const MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH = 2
 
 const search = ref('')
 const accounts = ref([])
@@ -383,6 +385,18 @@ const selectedCreateEmployeeDisplay = computed(() => {
   return selected ? formatEmployeeOptionLabel(selected) : ''
 })
 
+const eligibleEmployeeNoOptionMessage = computed(() => {
+  if (loadingEligibleEmployees.value) {
+    return 'Searching employees...'
+  }
+
+  if (normalizeEligibleEmployeeSearchValue(eligibleEmployeeSearch.value).length < MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH) {
+    return 'Type at least 2 characters to search employees.'
+  }
+
+  return 'No active employees found.'
+})
+
 onMounted(fetchAccounts)
 
 function defaultCreateForm() {
@@ -397,6 +411,14 @@ function defaultCreateForm() {
 
 function normalizeSearch(value) {
   return String(value || '').trim().toLowerCase()
+}
+
+function normalizeEligibleEmployeeSearchValue(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function replaceDepartmentWithOffice(text) {
@@ -526,7 +548,17 @@ function filterDepartments(value, update) {
 }
 
 function filterEligibleEmployees(value, update) {
-  eligibleEmployeeSearch.value = String(value || '').trim()
+  eligibleEmployeeSearch.value = String(value || '')
+  const normalizedSearch = normalizeEligibleEmployeeSearchValue(eligibleEmployeeSearch.value)
+
+  if (normalizedSearch.length < MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH) {
+    eligibleEmployeesRequestId += 1
+    loadingEligibleEmployees.value = false
+    update(() => {
+      eligibleEmployeeOptions.value = []
+    })
+    return
+  }
 
   fetchEligibleEmployees(eligibleEmployeeSearch.value, { silent: true })
     .then(() => {
@@ -543,6 +575,9 @@ function filterEligibleEmployees(value, update) {
 
 async function handleEligibleEmployeePopupShow() {
   if (createForm.value.is_guest) return
+  if (normalizeEligibleEmployeeSearchValue(eligibleEmployeeSearch.value).length < MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH) {
+    return
+  }
   if (loadingEligibleEmployees.value) return
   if (eligibleEmployeeOptions.value.length) return
 
@@ -585,12 +620,20 @@ async function fetchDepartmentOptions() {
 }
 
 async function fetchEligibleEmployees(searchTerm = '', { silent = false } = {}) {
+  const normalizedSearch = normalizeEligibleEmployeeSearchValue(searchTerm)
+  if (normalizedSearch.length < MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH) {
+    eligibleEmployees.value = []
+    eligibleEmployeeOptions.value = []
+    loadingEligibleEmployees.value = false
+    return
+  }
+
   const requestId = ++eligibleEmployeesRequestId
   loadingEligibleEmployees.value = true
   try {
     const { data } = await api.get('/hr/user-management/eligible-employees', {
       params: {
-        search: String(searchTerm || '').trim() || undefined,
+        search: normalizedSearch || undefined,
         limit: 20,
       },
     })

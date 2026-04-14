@@ -740,7 +740,11 @@ const filteredCreditEmployeeOptions = ref([])
 const leaveCreditForm = ref(defaultLeaveCreditForm())
 const creditEmployeeSelect = ref(null)
 const creditEmployeeFilter = ref('')
+const CREDIT_EMPLOYEE_LOOKUP_LIMIT = 20
+const CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH = 2
+const creditEmployeeLookupCache = new Map()
 let creditEmployeeLookupSequence = 0
+let creditEmployeeAbortController = null
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -773,7 +777,7 @@ const creditEmployeeNoOptionMessage = computed(() => {
     return 'Searching employees...'
   }
 
-  if (normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length < 2) {
+  if (normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length < CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH) {
     return 'Type at least 2 characters to search employees.'
   }
 
@@ -1388,6 +1392,18 @@ function getSelectedCreditEmployeeOption() {
   return allCreditEmployeeOptions.value.find((option) => option.value === selectedControlNo) ?? null
 }
 
+function buildCreditEmployeeLookupCacheKey(departmentId, searchText) {
+  const normalizedDepartmentId = departmentId ? String(departmentId).trim() : ''
+  const normalizedSearchText = normalizeCreditEmployeeSearchValue(searchText)
+  return `${normalizedDepartmentId}|${normalizedSearchText}|${CREDIT_EMPLOYEE_LOOKUP_LIMIT}`
+}
+
+function isCreditEmployeeLookupAbortError(error) {
+  const errorCode = String(error?.code ?? '').trim().toUpperCase()
+  const errorName = String(error?.name ?? '').trim()
+  return errorCode === 'ERR_CANCELED' || errorName === 'AbortError' || errorName === 'CanceledError'
+}
+
 function buildCreditEmployeeLookupParams(rawSearchValue) {
   const normalizedRawSearchValue = normalizeCreditEmployeeSearchValue(rawSearchValue)
   const { searchText, departmentId } = resolveEmployeeSearch(rawSearchValue)
@@ -1404,7 +1420,7 @@ function buildCreditEmployeeLookupParams(rawSearchValue) {
   return {
     departmentId,
     searchText: resolvedSearchText,
-    shouldLookup: departmentId !== null || normalizedRawSearchValue.length >= 2,
+    shouldLookup: departmentId !== null || normalizedRawSearchValue.length >= CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH,
   }
 }
 
@@ -1413,11 +1429,27 @@ async function fetchCreditEmployees(rawSearchValue = '') {
   const { departmentId, searchText, shouldLookup } = buildCreditEmployeeLookupParams(rawSearchValue)
 
   if (!shouldLookup) {
+    if (creditEmployeeAbortController) {
+      creditEmployeeAbortController.abort()
+      creditEmployeeAbortController = null
+    }
     const selectedOption = getSelectedCreditEmployeeOption()
     setCreditEmployeeOptions(selectedOption ? [selectedOption] : [])
     return
   }
 
+  const cacheKey = buildCreditEmployeeLookupCacheKey(departmentId, searchText)
+  const cachedOptions = creditEmployeeLookupCache.get(cacheKey)
+  if (Array.isArray(cachedOptions)) {
+    const selectedOption = getSelectedCreditEmployeeOption()
+    setCreditEmployeeOptions(selectedOption ? [selectedOption, ...cachedOptions] : cachedOptions)
+    return
+  }
+
+  if (creditEmployeeAbortController) {
+    creditEmployeeAbortController.abort()
+  }
+  creditEmployeeAbortController = new AbortController()
   loadingCreditEmployees.value = true
 
   try {
@@ -1425,8 +1457,9 @@ async function fetchCreditEmployees(rawSearchValue = '') {
       params: {
         department_id: departmentId || undefined,
         search: searchText || undefined,
-        limit: 20,
+        limit: CREDIT_EMPLOYEE_LOOKUP_LIMIT,
       },
+      signal: creditEmployeeAbortController.signal,
     })
 
     if (lookupSequence !== creditEmployeeLookupSequence) {
@@ -1438,9 +1471,13 @@ async function fetchCreditEmployees(rawSearchValue = '') {
       .map(buildCreditEmployeeOption)
       .filter(Boolean)
 
+    creditEmployeeLookupCache.set(cacheKey, lookupOptions)
     setCreditEmployeeOptions(selectedOption ? [selectedOption, ...lookupOptions] : lookupOptions)
   } catch (err) {
     if (lookupSequence !== creditEmployeeLookupSequence) {
+      return
+    }
+    if (isCreditEmployeeLookupAbortError(err)) {
       return
     }
 
@@ -1449,6 +1486,7 @@ async function fetchCreditEmployees(rawSearchValue = '') {
   } finally {
     if (lookupSequence === creditEmployeeLookupSequence) {
       loadingCreditEmployees.value = false
+      creditEmployeeAbortController = null
     }
   }
 }
@@ -2823,6 +2861,10 @@ function defaultLeaveCreditForm() {
 
 function resetLeaveCreditForm() {
   creditEmployeeLookupSequence += 1
+  if (creditEmployeeAbortController) {
+    creditEmployeeAbortController.abort()
+    creditEmployeeAbortController = null
+  }
   loadingCreditEmployees.value = false
   leaveCreditForm.value = defaultLeaveCreditForm()
   creditEmployeeFilter.value = ''
