@@ -211,36 +211,39 @@
     <!-- View Employee Dialog -->
     <q-dialog v-model="showViewDialog" persistent>
       <q-card class="rounded-borders employee-details-dialog">
-        <q-card-section class="row items-center q-pb-none">
+        <q-card-section class="row items-center q-pb-none employee-details-dialog__toolbar">
           <div class="text-h6">Employee Details</div>
           <q-space />
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
-        <q-card-section v-if="selectedEmployee">
-          <div class="row q-col-gutter-md">
-            <div class="col-12 text-center q-mb-md">
-              <q-avatar size="64px" color="primary" text-color="white" class="text-h5">
-                {{ (selectedEmployee.firstname || '').charAt(0)
-                }}{{ (selectedEmployee.surname || '').charAt(0) }}
-              </q-avatar>
-              <div class="text-h6 q-mt-sm">
-                {{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}
-              </div>
-              <div class="text-caption text-grey-6">{{ selectedEmployee.designation || '-' }}</div>
-            </div>
-            <div class="col-6">
-              <div class="text-caption text-grey-6">Office</div>
-              <div class="text-body2 text-weight-medium">
-                {{ toDepartmentCode(selectedEmployee.office) }}
+        <q-card-section v-if="selectedEmployee" class="employee-details-dialog__content">
+          <div class="employee-details-header">
+            <div class="employee-details-header__profile">
+              <div class="employee-details-header__identity">
+                <div class="text-h6 employee-details-header__name">
+                  {{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}
+                </div>
+                <div class="text-caption text-grey-6 employee-details-header__designation">
+                  {{ selectedEmployee.designation || '-' }}
+                </div>
               </div>
             </div>
-            <div class="col-6">
-              <div class="text-caption text-grey-6">Status</div>
-              <q-badge
-                :color="statusBadgeColor(selectedEmployee.status)"
-                :label="selectedEmployee.status"
-                rounded
-              />
+
+            <div class="employee-details-header__meta">
+              <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Office</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ toDepartmentCode(selectedEmployee.office) }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Status</div>
+                <q-badge
+                  :color="statusBadgeColor(selectedEmployee.status)"
+                  :label="selectedEmployee.status"
+                  rounded
+                />
+              </div>
             </div>
           </div>
         </q-card-section>
@@ -2945,6 +2948,59 @@ async function saveLeaveCredits() {
   max-width: 90vw;
 }
 
+.employee-details-dialog__toolbar {
+  padding-bottom: 0;
+}
+
+.employee-details-dialog__content {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.employee-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.employee-details-header__profile {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.employee-details-header__identity {
+  min-width: 0;
+}
+
+.employee-details-header__name {
+  margin: 0;
+  line-height: 1.15;
+}
+
+.employee-details-header__designation {
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.employee-details-header__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.employee-details-header__meta-item {
+  min-width: 110px;
+}
+
+.employee-details-header__meta-value {
+  line-height: 1.25;
+}
+
 .ledger-preview-stage {
   flex: 1 1 auto;
   min-height: 0;
@@ -3188,6 +3244,17 @@ async function saveLeaveCredits() {
   .ledger-dialog-actions {
     align-items: stretch;
   }
+
+  .employee-details-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .employee-details-header__meta {
+    justify-content: flex-start;
+    gap: 16px;
+    width: 100%;
+  }
 }
 
 @media (max-width: 600px) {
@@ -3253,6 +3320,25 @@ async function saveLeaveCredits() {
   .employee-records-table :deep(td:nth-child(3)) {
     width: 180px;
     min-width: 180px;
+  }
+
+  .employee-details-dialog {
+    width: min(96vw, 96vw);
+    max-width: 96vw;
+  }
+
+  .employee-details-header__profile {
+    align-items: flex-start;
+  }
+
+  .employee-details-header__meta {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-details-header__meta-item {
+    min-width: 0;
   }
 }
 </style>
