@@ -11,6 +11,9 @@
             The request update has been approved. You can print the leave form and request-change
             form now.
           </template>
+          <template v-else-if="actionResultType === 'cancelled'">
+            The application has been cancelled.
+          </template>
           <template v-else>
             The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
             finalized form now.
@@ -31,6 +34,7 @@
           @click="handlePrintRequestChanges"
         />
         <q-btn
+          v-if="actionResultType !== 'cancelled'"
           unelevated
           color="primary"
           icon="print"
