@@ -290,7 +290,10 @@
           </div>
           <div class="admin-application-details-header-side">
             <q-btn flat dense round icon="close" class="admin-application-details-close" v-close-popup />
-            <div class="admin-application-details-header-balance-text">
+            <div
+              v-if="shouldShowCurrentLeaveBalance(selectedApp)"
+              class="admin-application-details-header-balance-text"
+            >
               <div class="admin-application-details-label">Available Leave Balance</div>
               <div class="admin-application-details-header-balance-value">
                 {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
@@ -839,6 +842,7 @@ const {
   printRequestChangesApplication,
   formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
+  shouldShowCurrentLeaveBalance,
 } = useAdminApplicationsPage()
 
 function getFinalStatusForStatusColumn(app) {

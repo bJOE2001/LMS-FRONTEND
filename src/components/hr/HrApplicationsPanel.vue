@@ -283,6 +283,7 @@
     :format-date="formatDate"
     :get-current-leave-balance-class="getCurrentLeaveBalanceClass"
     :get-current-leave-balance-display="getCurrentLeaveBalanceDisplay"
+    :should-show-current-leave-balance="shouldShowCurrentLeaveBalance"
     :is-cto-leave-application="isCtoLeaveApplication"
     :get-current-cto-available-hours-display="getCurrentCtoAvailableHoursDisplay"
     :get-application-cto-required-hours-display="getApplicationCtoRequiredHoursDisplay"

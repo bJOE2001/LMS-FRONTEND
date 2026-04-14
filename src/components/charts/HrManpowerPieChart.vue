@@ -262,6 +262,16 @@ onBeforeUnmount(() => {
   height: 100% !important;
 }
 
+.manpower-chart-wrapper :deep(.apexcharts-canvas:focus),
+.manpower-chart-wrapper :deep(.apexcharts-canvas:focus-visible),
+.manpower-chart-wrapper :deep(.apexcharts-svg:focus),
+.manpower-chart-wrapper :deep(.apexcharts-svg:focus-visible),
+.manpower-chart-wrapper :deep(svg:focus),
+.manpower-chart-wrapper :deep(svg:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 @media (max-width: 1199px) {
   .manpower-chart-wrapper {
     min-height: 220px;

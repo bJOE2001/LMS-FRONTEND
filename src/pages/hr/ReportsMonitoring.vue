@@ -420,7 +420,6 @@ const reportConfigs = {
     metricUnit: 'days',
     balanceField: null,
     columns: [
-      { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'status', label: 'Status', field: 'status', align: 'left' },
@@ -461,7 +460,6 @@ const reportConfigs = {
     balanceField: 'totalNoLeave',
     balanceUnit: 'days',
     columns: [
-      { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
       {
         name: 'designation',
@@ -584,7 +582,6 @@ const reportConfigs = {
     metricUnit: 'days',
     balanceField: null,
     columns: [
-      { name: 'no', label: 'No.', field: 'no', align: 'left' },
       {
         name: 'dateReceivedHRMO',
         label: 'Date Received at HRMO',
@@ -620,7 +617,6 @@ const reportConfigs = {
     balanceField: 'cocBalanceApproved',
     balanceUnit: 'hours',
     columns: [
-      { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'dateFiled', label: 'Date Filed', field: 'dateFiled', align: 'left' },
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
       {
@@ -685,7 +681,6 @@ const reportConfigs = {
     balanceField: 'totalBalanceHours',
     balanceUnit: 'hours',
     columns: [
-      { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
       {
         name: 'designation',
@@ -725,7 +720,6 @@ const reportConfigs = {
     metricUnit: 'days',
     balanceField: null,
     columns: [
-      { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
       {
         name: 'designation',
@@ -804,7 +798,6 @@ const leaveBalanceVisibleColumnNames = computed(() => {
   )
 
   return [
-    'no',
     'name',
     'designation',
     'status',
@@ -973,8 +966,6 @@ watch(selectedReportType, () => {
 })
 
 function getColumnWidth(column, rows) {
-  if (column.name === 'no') return 56
-
   const headerLength = String(column.label || '')
     .replace(/\s+/g, ' ')
     .trim()
