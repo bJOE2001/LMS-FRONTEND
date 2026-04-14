@@ -71,11 +71,20 @@
         <q-btn flat round dense icon="help" to="/help">
           <q-tooltip>Help</q-tooltip>
         </q-btn>
-        <q-btn flat round dense icon="notifications">
+        <q-btn
+          flat
+          round
+          dense
+          icon="notifications"
+          :color="isNotificationsPage ? 'primary' : undefined"
+          :aria-current="isNotificationsPage ? 'page' : undefined"
+        >
           <q-badge v-if="notifStore.hasUnread" color="negative" floating rounded>
             {{ notifStore.unreadCount }}
           </q-badge>
+          <q-tooltip v-if="isNotificationsPage">You're already on Notifications</q-tooltip>
           <q-menu
+            v-if="!isNotificationsPage"
             ref="notifMenuRef"
             anchor="bottom end"
             self="top end"
@@ -200,6 +209,7 @@ function closeNotifMenu() {
 
 // Dark mode
 const isDark = computed(() => $q.dark.isActive)
+const isNotificationsPage = computed(() => route.name === 'notifications')
 
 function toggleDarkMode() {
   $q.dark.toggle()

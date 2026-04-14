@@ -76,26 +76,35 @@
         </q-item>
       </q-list>
     </q-card>
+
+    <NotificationDetailDialog
+      v-model="showDetailDialog"
+      :notification="selectedNotif"
+      @notification-enriched="onNotificationEnriched"
+    />
   </q-page>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import NotificationDetailDialog from 'components/NotificationDetailDialog.vue'
 import { useNotificationStore } from 'stores/notification-store'
 
 const router = useRouter()
 const notifStore = useNotificationStore()
+const selectedNotif = ref(null)
+const showDetailDialog = ref(false)
 
 onMounted(() => {
   notifStore.fetchNotifications()
 })
 
-function onClickNotif(notif) {
+async function onClickNotif(notif) {
   const actionRoute = resolveNotificationActionRoute(notif)
 
   if (!notif.read_at) {
-    notifStore.markAsRead(notif.id)
+    await notifStore.markAsRead(notif.id)
   }
 
   if (actionRoute) {
@@ -103,11 +112,16 @@ function onClickNotif(notif) {
     return
   }
 
-  // Optional: could open detail modal or navigate to related resource (e.g. leave application)
-  const id = notif.related_id || notif.leave_application_id || notif.coc_application_id
-  if (id && notif.type && (notif.type.includes('leave') || notif.type.includes('coc'))) {
-    // Navigate to leave history or application detail if you have a route
-    // router.push({ name: 'employee-history' }) or similar
+  selectedNotif.value = { ...notif }
+  showDetailDialog.value = true
+}
+
+function onNotificationEnriched(enrichedNotif) {
+  selectedNotif.value = enrichedNotif
+
+  const index = notifStore.notifications.findIndex((item) => item.id === enrichedNotif.id)
+  if (index !== -1) {
+    notifStore.notifications.splice(index, 1, enrichedNotif)
   }
 }
 
