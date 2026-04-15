@@ -519,6 +519,8 @@ function mergeStatus(app) {
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
   if (cocReleaseStageStatus) return cocReleaseStageStatus
 
+  if (isCancelledByUser(app)) return 'Cancelled'
+
   const raw = getApplicationRawStatusKey(app)
   const status = String(app.status || '').toUpperCase()
   const normalizedStatus = status.replace(/[_-]+/g, ' ')
@@ -1987,6 +1989,8 @@ async function fetchWorkflowDetailSnapshotsForApprovedLeaveRows(applications = [
 }
 
 function getApplicationStatusLabel(app) {
+  if (isCancelledByUser(app)) return 'Cancelled'
+
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
   if (cocReleaseStageStatus) return cocReleaseStageStatus
 
@@ -2184,7 +2188,7 @@ function getApplicationSearchStatusLabel(app) {
   }
 
   return normalizeDisapprovedStatusLabel(
-    app?.displayStatus || getApplicationStatusLabel(app),
+    getApplicationStatusLabel(app) || app?.displayStatus,
   )
 }
 
@@ -2225,6 +2229,7 @@ function getApplicationSearchTokenSet(app) {
 const applicationsForTable = computed(() => {
   const queryTokens = getSearchTokens(statusSearch.value)
   const rows = applications.value.filter((app) => {
+    if (isCancelledByUser(app)) return false
     if (applicationTypeFilter.value && getApplicationType(app) !== applicationTypeFilter.value) {
       return false
     }
@@ -2699,8 +2704,27 @@ function hasExplicitTimeComponent(value) {
 }
 
 function isCancelledByUser(app) {
-  const remarksText = String(app?.remarks || '').trim()
-  return /^cancelled\b/i.test(remarksText)
+  if (!app || typeof app !== 'object') return false
+
+  const explicitCancelled = normalizeOptionalBackendFlag(app?.cancelled)
+  if (explicitCancelled === true) return true
+
+  if (app?.cancelled_at || app?.cancelled_by) return true
+
+  const statusCandidates = [app?.status, app?.displayStatus]
+  if (
+    statusCandidates.some((value) => /\bcancelled\b/i.test(String(value || '').trim()))
+  ) {
+    return true
+  }
+
+  const remarksCandidates = [
+    app?.remarks,
+    app?.cancellation_reason,
+    app?.rejection_reason,
+  ]
+
+  return remarksCandidates.some((value) => /^cancelled\b/i.test(String(value || '').trim()))
 }
 
 function getApplicationRawStatusKey(app) {

@@ -464,6 +464,13 @@ export default defineComponent({
     const normalizeDisapprovedStatusLabel = (statusValue) =>
       String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
 
+    function getDisplayApplicationStatusLabel(app) {
+      const statusLabel = String(
+        panel.getApplicationStatusLabel(app) || app?.displayStatus || '',
+      ).trim()
+      return normalizeDisapprovedStatusLabel(statusLabel)
+    }
+
     const panel = useHrApplicationsPanel({
       applicationType: props.applicationType,
       applicationSource: props.applicationSource,
@@ -883,7 +890,7 @@ export default defineComponent({
     }
 
     function getFinalStatusForStatusColumn(app) {
-      const resolvedStatus = String(app?.displayStatus || panel.getApplicationStatusLabel(app) || '').trim()
+      const resolvedStatus = getDisplayApplicationStatusLabel(app)
       const normalizedResolvedStatus = resolvedStatus.toUpperCase()
 
       if (
@@ -898,9 +905,7 @@ export default defineComponent({
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
       if (updateRequestBadgeLabel) return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
 
-      return normalizeDisapprovedStatusLabel(
-        app?.displayStatus || panel.getApplicationStatusLabel(app),
-      )
+      return getDisplayApplicationStatusLabel(app)
     }
 
     function canShowPendingReleaseAction(app) {

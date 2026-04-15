@@ -200,12 +200,13 @@ export function useAdminApplicationsPage() {
 
   const applicationsForTable = computed(() => {
     const queryTokens = getSearchTokens(statusSearch.value)
+    const visibleApplications = applicationRows.value.filter((app) => !isCancelledByUser(app))
     const filteredApplications = queryTokens.length
-      ? applicationRows.value.filter((app) => {
+      ? visibleApplications.filter((app) => {
           const searchText = getApplicationSearchText(app)
           return queryTokens.every((token) => searchText.includes(token))
         })
-      : applicationRows.value
+      : visibleApplications
 
     return [...filteredApplications].sort(compareApplicationsForTable)
   })
