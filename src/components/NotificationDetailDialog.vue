@@ -107,6 +107,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { api } from 'boot/axios'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -473,28 +474,6 @@ function resolveEmployeeName(application) {
   )
 }
 
-function formatOfficeAcronym(office) {
-  const rawOffice = String(office || '').trim()
-  if (!rawOffice) return ''
-
-  const normalizedOffice = rawOffice
-    .replace(/[_-]+/g, ' ')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!normalizedOffice) return ''
-  if (/^[A-Za-z]{2,12}$/.test(normalizedOffice)) return normalizedOffice.toUpperCase()
-
-  const words = normalizedOffice.split(' ').filter(Boolean)
-  const stopWords = new Set(['A', 'AN', 'AND', 'BY', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
-  const meaningfulWords = words.filter((word) => !stopWords.has(word.toUpperCase()))
-  const sourceWords = meaningfulWords.length ? meaningfulWords : words
-  const acronym = sourceWords.map((word) => word[0]).join('').toUpperCase()
-
-  return acronym || normalizedOffice.toUpperCase()
-}
-
 function finalizeApplicationDetails(details) {
   const visibleDetails = details.filter((item) => {
     if (item.value === null || item.value === undefined) return false
@@ -523,7 +502,7 @@ function buildApplicationDetails(application) {
   if (String(application.application_type || '').trim().toUpperCase() === 'COC') {
     const details = [
       { label: 'Employee Name', value: resolveEmployeeName(application) },
-      { label: 'Office', value: formatOfficeAcronym(application.office) },
+      { label: 'Office', value: resolveOfficeAcronymLabel(application) },
       { label: 'Status', value: application.status || application.raw_status },
       { label: 'Application Type', value: application.leave_type_name || 'COC Application' },
       { label: 'Overtime Dates', value: formatSelectedDates(application.selected_dates) },
@@ -542,7 +521,7 @@ function buildApplicationDetails(application) {
 
   const details = [
     { label: 'Employee Name', value: resolveEmployeeName(application) },
-    { label: 'Office', value: formatOfficeAcronym(application.office) },
+    { label: 'Office', value: resolveOfficeAcronymLabel(application) },
     { label: 'Status', value: application.status || application.raw_status },
     { label: 'Leave Type', value: application.leave_type_name },
     {

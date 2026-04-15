@@ -146,7 +146,7 @@
 
               <template #body-cell-office="props">
                 <q-td :props="props">
-                  <div>{{ props.row.officeAcronym || formatOfficeAcronym(props.row.office) || 'N/A' }}</div>
+                  <div>{{ resolveEmployeeOfficeAcronymLabel(props.row) || 'N/A' }}</div>
                   <div class="text-caption text-grey-7">{{ props.row.designation || 'No designation' }}</div>
                 </q-td>
               </template>
@@ -252,7 +252,7 @@
               <q-banner rounded class="bg-grey-1 text-grey-9">
                 <div class="text-weight-medium">{{ selectedOverrideEmployee.full_name || selectedOverrideEmployee.label }}</div>
                 <div class="text-caption">{{ selectedOverrideEmployee.designation || 'No designation' }}</div>
-                <div class="text-caption">{{ selectedOverrideEmployee.officeAcronym || formatOfficeAcronym(selectedOverrideEmployee.office) || selectedOverrideEmployee.office || 'No office' }} • {{ selectedOverrideEmployee.status || 'No status' }}</div>
+                <div class="text-caption">{{ resolveEmployeeOfficeAcronymLabel(selectedOverrideEmployee) || 'No office' }} • {{ selectedOverrideEmployee.status || 'No status' }}</div>
               </q-banner>
             </div>
 
@@ -305,18 +305,6 @@ import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const STANDARD_WORKDAY_HOURS = 8
-const departmentStopWords = new Set([
-  'OF',
-  'THE',
-  'AND',
-  'NG',
-  'SA',
-  'OFFICE',
-  'CITY',
-  'OFFICER',
-  'DEPARTMENT',
-])
-
 const $q = useQuasar()
 
 const loading = ref(false)
@@ -496,7 +484,8 @@ function openEditOverrideDialog(row) {
     full_name: row.employee_name,
     designation: row.designation,
     office: row.office,
-    officeAcronym: row.officeAcronym || row.hrisOfficeAcronym || null,
+    officeAcronym: row.hrisOfficeAcronym || row.officeAcronym || null,
+    hrisOfficeAcronym: row.hrisOfficeAcronym || row.officeAcronym || null,
     status: row.status,
     label: row.employee_name,
   }
@@ -575,10 +564,13 @@ function handleEmployeeSelection(controlNo) {
   const normalizedControlNo = String(controlNo || '').trim()
   if (!normalizedControlNo) {
     selectedOverrideEmployee.value = null
+    employeeSearch.value = ''
     return
   }
 
-  selectedOverrideEmployee.value = employeeDirectory.value[normalizedControlNo] || null
+  const selectedEmployee = employeeDirectory.value[normalizedControlNo] || null
+  selectedOverrideEmployee.value = selectedEmployee
+  employeeSearch.value = selectedEmployee?.full_name || selectedEmployee?.label || normalizedControlNo
 }
 
 function filterEmployeeOptions(value, update) {
@@ -628,14 +620,20 @@ async function fetchEmployeeOptions(searchTerm) {
     const directory = { ...employeeDirectory.value }
     const options = employees.map((employee) => {
       const controlNo = String(employee?.control_no || '').trim()
+      const fullName = String(
+        employee?.full_name
+        || [employee?.firstname, employee?.middlename, employee?.surname].filter(Boolean).join(' ')
+        || controlNo,
+      ).trim() || controlNo
       directory[controlNo] = employee
       return {
-        label: employee?.full_name || controlNo,
+        label: fullName,
         value: controlNo,
         caption: [
           employee?.designation,
-          employee?.officeAcronym || formatOfficeAcronym(employee?.office),
+          resolveEmployeeOfficeAcronymLabel(employee),
         ].filter(Boolean).join(' • '),
+        full_name: fullName,
       }
     })
 
@@ -711,25 +709,21 @@ function formatWorkingHoursLabel(value) {
   return `${numeric.toFixed(2)} hour(s)`
 }
 
-function formatOfficeAcronym(value) {
-  const source = String(value || '').trim()
-  if (!source) return ''
+function resolveEmployeeOfficeAcronymLabel(employee) {
+  const hrisOfficeAcronym = String(employee?.hrisOfficeAcronym || '').trim()
+  const officeAcronym = String(employee?.officeAcronym || '').trim()
+  const directOffice = String(employee?.office || '').trim()
+  const assignedDepartment = String(employee?.assigned_department_name || '').trim()
+  const hrisOffice = String(employee?.hris_office || '').trim()
 
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !departmentStopWords.has(word) && !/^\d+$/.test(word),
+  return (
+    hrisOfficeAcronym
+    || officeAcronym
+    || directOffice
+    || assignedDepartment
+    || hrisOffice
+    || ''
   )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source.toUpperCase()
 }
 
 function formatScheduleSummary(row) {

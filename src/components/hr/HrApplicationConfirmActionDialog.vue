@@ -61,6 +61,7 @@
                   <th class="text-left">Nature of Overtime</th>
                   <th class="text-left">Time Range</th>
                   <th class="text-left">Duration</th>
+                  <th class="text-left">Final Calculation</th>
                   <th class="text-left">Credit Category</th>
                 </tr>
               </thead>
@@ -78,6 +79,9 @@
                   <td class="coc-review-table__cell">
                     {{ formatReviewMinutes(row.minutes) }}
                   </td>
+                  <td class="coc-review-table__cell coc-review-table__cell--final">
+                    {{ formatReviewMinutes(resolveRowFinalCalculationMinutes(row)) }}
+                  </td>
                   <td class="coc-review-table__cell coc-review-table__cell--toggle">
                     <q-btn-toggle
                       v-model="row.creditCategory"
@@ -94,7 +98,7 @@
                   </td>
                 </tr>
                 <tr v-if="!cocReviewRows.length">
-                  <td class="text-center text-grey-7 coc-review-table__empty" colspan="5">
+                  <td class="text-center text-grey-7 coc-review-table__empty" colspan="6">
                     No overtime rows found for this COC application.
                   </td>
                 </tr>
@@ -197,6 +201,9 @@ const $q = useQuasar()
 const loading = ref(false)
 const classificationLoading = ref(false)
 const cocReviewRows = ref([])
+const MINIMUM_CREDITABLE_EXCESS_MINUTES = 20
+const MANDATORY_MEAL_BREAK_MINUTES = 60
+const MANDATORY_MEAL_BREAK_TRIGGER_MINUTES = 240
 
 const creditCategoryOptions = [
   { label: 'Regular (1.0)', value: 'REGULAR' },
@@ -292,6 +299,35 @@ const normalizeReviewRows = (application) => {
     creditCategory:
       String(row?.credit_category ?? row?.creditCategory ?? '').trim().toUpperCase() || 'REGULAR',
   }))
+}
+
+const calculateMandatoryBreakMinutes = (minutes) =>
+  Number(minutes || 0) >= MANDATORY_MEAL_BREAK_TRIGGER_MINUTES ? MANDATORY_MEAL_BREAK_MINUTES : 0
+
+const calculateCreditableMinutes = (minutes) => {
+  const normalizedMinutes = Math.max(0, Number(minutes || 0))
+  if (!Number.isFinite(normalizedMinutes) || normalizedMinutes <= 0) return 0
+
+  const wholeHoursMinutes = Math.floor(normalizedMinutes / 60) * 60
+  const excessMinutes = normalizedMinutes % 60
+  const creditableExcessMinutes =
+    excessMinutes >= MINIMUM_CREDITABLE_EXCESS_MINUTES ? excessMinutes : 0
+
+  return wholeHoursMinutes + creditableExcessMinutes
+}
+
+const resolveRowFinalCalculationMinutes = (row) => {
+  const rawMinutes = Number(row?.minutes || 0)
+  if (!Number.isFinite(rawMinutes) || rawMinutes <= 0) return 0
+
+  const effectiveMinutes =
+    rawMinutes - calculateMandatoryBreakMinutes(rawMinutes)
+
+  const creditableMinutes = calculateCreditableMinutes(Math.max(0, effectiveMinutes))
+  const normalizedCategory = String(row?.creditCategory || '').trim().toUpperCase()
+  const creditMultiplier = normalizedCategory === 'SPECIAL' ? 1.5 : 1.0
+
+  return Math.max(0, Math.round(creditableMinutes * creditMultiplier))
 }
 
 const formatReviewDate = (value) => {
@@ -527,6 +563,11 @@ watch(
   width: 260px;
 }
 
+.coc-review-table__cell--final {
+  font-weight: 600;
+  color: #1f2937;
+}
+
 .coc-review-table__toggle {
   width: 100%;
   min-width: 0;
@@ -549,7 +590,7 @@ watch(
   }
 
   .coc-review-table {
-    min-width: 680px;
+    min-width: 820px;
   }
 }
 </style>
