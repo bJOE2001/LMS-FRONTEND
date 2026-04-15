@@ -744,6 +744,33 @@ function findLatestStatusHistoryEntryBefore(application, matcher, beforeValue) {
   return null
 }
 
+function findLatestStatusHistoryEntryOnOrAfter(application, matcher, onOrAfterValue) {
+  const lowerBoundTimestamp = toComparableTimestamp(onOrAfterValue)
+  if (Number.isNaN(lowerBoundTimestamp)) return null
+
+  const entries = getStatusHistoryEntries(application)
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const candidate = entries[index] || {}
+    if (!matcher(candidate)) continue
+
+    const candidateTimestamp = toComparableTimestamp(resolveStatusHistoryTimestamp(candidate))
+    if (Number.isNaN(candidateTimestamp)) continue
+    if (candidateTimestamp >= lowerBoundTimestamp) return candidate
+  }
+
+  return null
+}
+
+function isReleasedStatusHistoryEntry(entry) {
+  const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+  const stageToken = normalizeStatusHistoryToken(entry?.stage)
+  return (
+    actionToken === 'HR_RELEASED' ||
+    stageToken === 'hr released' ||
+    stageToken === 'released application'
+  )
+}
+
 function resolveHistoricalReceivedBeforeCurrentUpdateMeta(application) {
   const cycleStart = currentUpdateRequestCycleStartAt.value
   if (!cycleStart) return null
@@ -767,15 +794,7 @@ function resolveHistoricalReleasedBeforeCurrentUpdateMeta(application) {
 
   const historyEntry = findLatestStatusHistoryEntryBefore(
     application,
-    (entry) => {
-      const actionToken = normalizeStatusHistoryActionToken(entry?.action)
-      const stageToken = normalizeStatusHistoryToken(entry?.stage)
-      return (
-        actionToken === 'HR_RELEASED' ||
-        stageToken === 'hr released' ||
-        stageToken === 'released application'
-      )
-    },
+    (entry) => isReleasedStatusHistoryEntry(entry),
     cycleStart,
   )
   if (!historyEntry) return null
@@ -783,6 +802,56 @@ function resolveHistoricalReleasedBeforeCurrentUpdateMeta(application) {
   return {
     at: resolveStatusHistoryTimestamp(historyEntry),
     actor: resolveStatusHistoryActor(historyEntry) || 'Unknown',
+  }
+}
+
+function pickPreferredReleaseDateValue(application, historyEntry = null) {
+  const cycleStart = currentUpdateRequestCycleStartAt.value
+  const releaseDateCandidates = [
+    String(application?.released_at || '').trim(),
+    String(application?.hr_released_at || '').trim(),
+    String(resolveStatusHistoryTimestamp(historyEntry) || '').trim(),
+  ].filter(Boolean)
+
+  const validCandidates = cycleStart
+    ? releaseDateCandidates.filter((value) => isTimestampOnOrAfter(value, cycleStart))
+    : releaseDateCandidates
+  if (!validCandidates.length) return ''
+
+  const sortedByNewest = [...validCandidates].sort((left, right) => {
+    const leftTimestamp = toComparableTimestamp(left)
+    const rightTimestamp = toComparableTimestamp(right)
+    if (Number.isNaN(leftTimestamp) || Number.isNaN(rightTimestamp)) return 0
+    return rightTimestamp - leftTimestamp
+  })
+
+  return sortedByNewest[0] || ''
+}
+
+function resolveCurrentReleasedMeta(application) {
+  if (!application || typeof application !== 'object') return null
+
+  const cycleStart = currentUpdateRequestCycleStartAt.value
+  const historyEntry = cycleStart
+    ? findLatestStatusHistoryEntryOnOrAfter(
+      application,
+      (entry) => isReleasedStatusHistoryEntry(entry),
+      cycleStart,
+    )
+    : getStatusHistoryEntries(application).find((entry) => isReleasedStatusHistoryEntry(entry)) || null
+  const at = pickPreferredReleaseDateValue(application, historyEntry)
+  if (!at) return null
+
+  const actor = String(
+    application?.released_by ||
+    application?.hr_released_by ||
+    resolveStatusHistoryActor(historyEntry) ||
+    '',
+  ).trim()
+
+  return {
+    at,
+    actor: actor || null,
   }
 }
 
@@ -1097,12 +1166,20 @@ function buildReleasedTimelineEntry(existingEntry = null) {
   }
 
   const localState = localReleasedState.value
+  const resolvedReleasedMeta = resolveCurrentReleasedMeta(props.application)
+  const existingSubtitle = String(existingEntry?.subtitle || '').trim()
+  const shouldKeepExistingSubtitle =
+    Boolean(existingSubtitle) &&
+    existingSubtitle.toLowerCase() !== 'completed'
   const subtitle =
-    String(existingEntry?.subtitle || '').trim() ||
+    (shouldKeepExistingSubtitle ? existingSubtitle : '') ||
+    formatDateTime(resolvedReleasedMeta?.at) ||
     (localState ? formatDateTime(localState.at) : '') ||
+    existingSubtitle ||
     'Completed'
   const actor =
     String(existingEntry?.actor || '').trim() ||
+    String(resolvedReleasedMeta?.actor || '').trim() ||
     (localState ? String(localState.actor || '').trim() : '') ||
     null
 
