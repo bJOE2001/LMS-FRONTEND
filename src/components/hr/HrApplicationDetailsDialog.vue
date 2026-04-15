@@ -83,7 +83,7 @@
               <div class="hr-application-requested-changes-line">
                 <span class="hr-application-requested-changes-key">Current:</span>
                 <span class="hr-application-requested-changes-value">{{
-                  getApplicationEditRequestFromDates(application)
+                  formatInclusiveDateSummary(getApplicationEditRequestFromDates(application))
                 }}</span>
               </div>
               <div class="hr-application-requested-changes-line">
@@ -93,7 +93,7 @@
                     hr-application-requested-changes-value
                     hr-application-requested-changes-value--requested
                   "
-                  >{{ getApplicationEditRequestToDates(application) }}</span
+                  >{{ formatInclusiveDateSummary(getApplicationEditRequestToDates(application)) }}</span
                 >
               </div>
             </div>
@@ -274,7 +274,7 @@
                       class="hr-application-duration-date-row"
                     >
                       <span class="text-caption hr-application-duration-date">{{
-                        entry.dateText
+                        formatInclusiveDateEntry(entry)
                       }}</span>
                       <q-badge
                         v-if="entry.recalled"
@@ -311,7 +311,7 @@
                   :key="`current-inclusive-${index}`"
                   class="text-caption hr-application-duration-date"
                 >
-                  {{ line }}
+                  {{ formatInclusiveDateSummary(line) }}
                 </div>
               </template>
               <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
@@ -330,7 +330,7 @@
                       class="hr-application-duration-date-row"
                     >
                       <span class="text-caption hr-application-duration-date text-deep-purple-8">{{
-                        entry.dateText
+                        formatInclusiveDateEntry(entry)
                       }}</span>
                       <q-badge
                         dense
@@ -358,7 +358,7 @@
                   :key="`requested-inclusive-${index}`"
                   class="text-caption hr-application-duration-date text-deep-purple-8"
                 >
-                  {{ line }}
+                  {{ formatInclusiveDateSummary(line) }}
                 </div>
               </template>
             </div>
@@ -381,7 +381,7 @@
                   class="hr-application-duration-date-row"
                 >
                   <span class="text-caption hr-application-duration-date">{{
-                    entry.dateText
+                    formatInclusiveDateEntry(entry)
                   }}</span>
                   <q-badge
                     dense
@@ -420,7 +420,7 @@
                   :key="`${columnIndex}-${dateText}`"
                   class="text-caption hr-application-duration-date"
                 >
-                  {{ dateText }}
+                  {{ formatInclusiveDateSummary(dateText) }}
                 </div>
               </div>
             </div>
@@ -431,8 +431,8 @@
                 { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
               ]"
             >
-              {{ application.startDate ? formatDate(application.startDate) : 'N/A' }} -
-              {{ application.endDate ? formatDate(application.endDate) : 'N/A' }}
+              {{ application.startDate ? formatInclusiveDateLabel(application.startDate) : 'N/A' }} -
+              {{ application.endDate ? formatInclusiveDateLabel(application.endDate) : 'N/A' }}
             </div>
           </div>
           <div
@@ -734,6 +734,47 @@ const dialogModel = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 })
+
+const inclusiveDatePatterns = [
+  /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/g,
+  /\b[A-Z][a-z]{2}\s+\d{1,2}\s+\d{4}\b/g,
+]
+
+function formatInclusiveDateLabel(value) {
+  const normalizedValue = String(value || '').trim()
+  if (!normalizedValue) return ''
+
+  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)
+    ? new Date(`${normalizedValue}T00:00:00`)
+    : new Date(normalizedValue)
+
+  if (Number.isNaN(parsedDate.getTime())) return normalizedValue
+
+  return parsedDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatInclusiveDateSummary(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+
+  return inclusiveDatePatterns.reduce(
+    (formattedText, pattern) =>
+      formattedText.replace(pattern, (dateText) => formatInclusiveDateLabel(dateText)),
+    text,
+  )
+}
+
+function formatInclusiveDateEntry(entry) {
+  const dateValue = String(entry?.dateKey || entry?.dateText || '').trim()
+  if (!dateValue) return ''
+
+  return formatInclusiveDateLabel(dateValue)
+}
 
 const shouldShowFooterActions = computed(() => {
   const app = props.application
