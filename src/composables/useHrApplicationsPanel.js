@@ -2166,16 +2166,41 @@ function getDateSearchValues(dateValue) {
   ]
 }
 
+function normalizeDisapprovedStatusLabel(statusValue) {
+  return String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+}
+
+function getApplicationSearchStatusLabel(app) {
+  const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
+  if (updateRequestBadgeLabel) {
+    return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
+  }
+
+  if (hasApplicationEditRequest(app)) {
+    const editRequestStatusLabel = getEditRequestStatusLabel(app)
+    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') {
+      return normalizeDisapprovedStatusLabel(editRequestStatusLabel)
+    }
+  }
+
+  return normalizeDisapprovedStatusLabel(
+    app?.displayStatus || getApplicationStatusLabel(app),
+  )
+}
+
 function getApplicationSearchTokenSet(app) {
   const dateTerms = getDateSearchValues(app?.filed_at || app?.created_at)
   const inclusiveDateTerms = getApplicationInclusiveDateLines(app)
+  const hasEditRequest = hasApplicationEditRequest(app)
+  const searchStatusLabel = getApplicationSearchStatusLabel(app)
 
   const searchValues = [
     'application',
     app?.id,
-    getApplicationRawStatusKey(app),
-    app?.status,
-    getApplicationStatusLabel(app),
+    searchStatusLabel,
+    hasEditRequest ? '' : getApplicationRawStatusKey(app),
+    hasEditRequest ? '' : app?.status,
+    isCancelledByUser(app) ? 'cancelled' : '',
     app?.leaveType,
     app?.employee_name,
     app?.firstname,
