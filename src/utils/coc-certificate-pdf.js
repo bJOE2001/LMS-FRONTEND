@@ -5,6 +5,7 @@ pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
 const MAYOR_NAME = 'HON. REY T. UY'
 const MAYOR_TITLE = 'City Mayor'
+const HRMO_VALIDATOR_NAME = 'JANLYLENE A. PALERMO, MM'
 const HRMO_VALIDATOR_FALLBACK = 'City Human Resource Management Officer'
 const HEADER_BAR_COLOR = '#0f6b3a'
 const CERTIFICATES_PER_PAGE = 2
@@ -124,7 +125,9 @@ function resolveValidUntil(app, dateIssued) {
 }
 
 function resolveHrmoValidatorName(app) {
-  return normalizeText(app?.hr_action_by || app?.hrActionBy)
+  const explicitValidatorName = normalizeText(app?.hrmo_validator_name || app?.hrmoValidatorName)
+  if (explicitValidatorName) return explicitValidatorName
+  return HRMO_VALIDATOR_NAME
 }
 
 function numberToWords(value) {
