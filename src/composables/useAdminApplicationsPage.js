@@ -1168,10 +1168,14 @@ export function useAdminApplicationsPage() {
 
       if (
         stageToken.includes('edit request rejected') ||
+        stageToken.includes('edit request disapproved') ||
         stageToken.includes('cancellation request rejected') ||
+        stageToken.includes('cancellation request disapproved') ||
         stageToken.includes('cancel request rejected') ||
         remarksToken.includes('edit request rejected') ||
+        remarksToken.includes('edit request disapproved') ||
         remarksToken.includes('cancellation request rejected') ||
+        remarksToken.includes('cancellation request disapproved') ||
         remarksToken.includes('cancel request rejected')
       ) {
         return 'REJECTED'
@@ -2828,7 +2832,7 @@ export function useAdminApplicationsPage() {
     if (rawStatus === 'PENDING_HR') return 'Pending HR'
     if (rawStatus === 'APPROVED') return 'Approved'
     if (rawStatus === 'RECALLED') return 'Recalled'
-    if (rawStatus === 'REJECTED') return 'Rejected'
+    if (rawStatus === 'REJECTED') return 'Disapproved'
     return 'Unknown'
   }
 
@@ -2882,7 +2886,7 @@ export function useAdminApplicationsPage() {
       return isCancelRequest ? labelPrefix + ' Pending' : 'Pending Update HR Review'
     }
     if (status === 'APPROVED') return labelPrefix + ' Approved'
-    if (status === 'REJECTED') return labelPrefix + ' Rejected'
+    if (status === 'REJECTED') return labelPrefix + ' Disapproved'
     return ''
   }
 
@@ -3071,7 +3075,7 @@ export function useAdminApplicationsPage() {
     const status = getAdminEditRequestBadgeStatus(app)
     const isCancelRequest = isApplicationEditCancellationRequest(app)
     if (status === 'APPROVED') return 'Approved'
-    if (status === 'REJECTED') return 'Rejected'
+    if (status === 'REJECTED') return 'Disapproved'
     if (status === 'PENDING_HR') {
       if (isCancelRequest) return 'Pending HR Review'
       const stageStatus = getLeaveWorkflowStageStatus(app)
@@ -3335,7 +3339,7 @@ export function useAdminApplicationsPage() {
         ? 'Cancellation Request Approved by Admin'
         : 'Edit Request Approved by Admin',
       approvedTitle: isCancelRequest ? 'Cancellation Request Approved' : 'Edit Request Approved',
-      rejectedTitle: isCancelRequest ? 'Cancellation Request Rejected' : 'Edit Request Rejected',
+      rejectedTitle: isCancelRequest ? 'Cancellation Request Disapproved' : 'Edit Request Disapproved',
       pendingHrTitle: isCancelRequest
         ? 'Pending Cancellation Review (HR)'
         : 'Pending Edit Review (HR)',
@@ -3352,8 +3356,8 @@ export function useAdminApplicationsPage() {
         ? 'Requested cancellation was reviewed and approved.'
         : 'Requested edits were reviewed and approved.',
       rejectedDescription: isCancelRequest
-        ? 'Requested cancellation was reviewed and rejected.'
-        : 'Requested edits were reviewed and rejected.',
+        ? 'Requested cancellation was reviewed and disapproved.'
+        : 'Requested edits were reviewed and disapproved.',
       pendingHrDescription: isCancelRequest
         ? 'Waiting for HR final review of the cancellation request.'
         : 'Waiting for HR final review of the edit request.',
@@ -3631,7 +3635,11 @@ export function useAdminApplicationsPage() {
           .reverse()
           .find((entry) => {
             const title = String(entry?.title || '').toLowerCase()
-            return title.includes('request approved') || title.includes('request rejected')
+            return (
+              title.includes('request approved') ||
+              title.includes('request rejected') ||
+              title.includes('request disapproved')
+            )
           })
         const closedSubtitle = lastCompletedEditEntry?.subtitle || preEditHrApprovalEntry?.subtitle || 'Completed'
         const closedActor = lastCompletedEditEntry?.actor || preEditHrApprovalEntry?.actor || resolveHrActor(app)
@@ -3740,19 +3748,31 @@ export function useAdminApplicationsPage() {
     )
 
     const hasUpdateCycle = hasAdminEditRequestSignal(app)
+    const cycleDisapprovedEntry = hasUpdateCycle
+      ? getCurrentCycleDisapprovedTimelineEntry(cleanedTimeline)
+      : null
     const historicalReceivedEntry = hasUpdateCycle
       ? buildHistoricalReceivedTimelineEntry(app, existingReceivedEntry)
       : null
     const historicalReleasedEntry = hasUpdateCycle
       ? buildHistoricalReleasedTimelineEntry(app, existingReleasedEntry)
       : null
+    const shouldShowCurrentCycleReceivedEntry =
+      !cycleDisapprovedEntry || Boolean(historicalReceivedEntry || isApplicationReceivedByHr(app))
 
     const cycleReceivedEntry = buildReceivedTimelineEntry(app, existingReceivedEntry)
-    const cycleReleasedEntry = buildReleasedTimelineEntry(app, existingReleasedEntry)
+    const cycleReleasedEntry = buildReleasedTimelineEntry(
+      app,
+      existingReleasedEntry,
+      cycleDisapprovedEntry,
+    )
 
-    const receivedInsertEntry = historicalReceivedEntry || cycleReceivedEntry
-    const receivedInsertIndex = getReceivedTimelineInsertionIndex(app, cleanedTimeline)
-    cleanedTimeline.splice(receivedInsertIndex, 0, receivedInsertEntry)
+    const receivedInsertEntry = historicalReceivedEntry ||
+      (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
+    if (receivedInsertEntry) {
+      const receivedInsertIndex = getReceivedTimelineInsertionIndex(app, cleanedTimeline)
+      cleanedTimeline.splice(receivedInsertIndex, 0, receivedInsertEntry)
+    }
 
     const finalizedEntries = [...cleanedTimeline]
     if (hasUpdateCycle) {
@@ -3761,7 +3781,7 @@ export function useAdminApplicationsPage() {
           getHistoricalReleasedTimelineInsertionIndex(finalizedEntries)
         finalizedEntries.splice(historicalReleaseInsertIndex, 0, historicalReleasedEntry)
       }
-      if (historicalReceivedEntry) {
+      if (historicalReceivedEntry && shouldShowCurrentCycleReceivedEntry) {
         const updateReceivedInsertIndex =
           getUpdateReceivedTimelineInsertionIndex(finalizedEntries)
         finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
@@ -3771,7 +3791,11 @@ export function useAdminApplicationsPage() {
       finalizedEntries.push(cycleReleasedEntry)
     }
 
-    const closedEntry = buildClosedTimelineEntry(existingClosedEntries[0] || null, isApplicationReleased(app))
+    const closedEntry = buildClosedTimelineEntry(
+      existingClosedEntries[0] || null,
+      isApplicationReleased(app),
+      cycleDisapprovedEntry,
+    )
     if (closedEntry) {
       finalizedEntries.push(closedEntry)
     }
@@ -3822,6 +3846,11 @@ export function useAdminApplicationsPage() {
     return cycleLabel ? cycleLabel + ' Released' : 'Released Application'
   }
 
+  function getDisapprovedDocumentTimelineTitle(app) {
+    const cycleLabel = getRequestCycleDocumentLabel(app)
+    return cycleLabel ? cycleLabel + ' Disapproved' : 'Application Disapproved'
+  }
+
   function isHrPhaseTimelineEntry(entry) {
     const normalizedTitle = normalizeTimelineEntryTitle(entry)
     return (
@@ -3833,8 +3862,10 @@ export function useAdminApplicationsPage() {
       normalizedTitle.includes('pending cancellation review (hr)') ||
       normalizedTitle.includes('edit request approved') ||
       normalizedTitle.includes('edit request rejected') ||
+      normalizedTitle.includes('edit request disapproved') ||
       normalizedTitle.includes('cancellation request approved') ||
       normalizedTitle.includes('cancellation request rejected') ||
+      normalizedTitle.includes('cancellation request disapproved') ||
       normalizedTitle.includes('current status')
     )
   }
@@ -3846,10 +3877,31 @@ export function useAdminApplicationsPage() {
       normalizedTitle.includes('pending edit review') ||
       normalizedTitle.includes('edit request approved') ||
       normalizedTitle.includes('edit request rejected') ||
+      normalizedTitle.includes('edit request disapproved') ||
       normalizedTitle.includes('cancellation request submitted') ||
       normalizedTitle.includes('pending cancellation review') ||
       normalizedTitle.includes('cancellation request approved') ||
-      normalizedTitle.includes('cancellation request rejected')
+      normalizedTitle.includes('cancellation request rejected') ||
+      normalizedTitle.includes('cancellation request disapproved')
+    )
+  }
+
+  function isDisapprovedUpdateRequestTimelineEntry(entry) {
+    const normalizedTitle = normalizeTimelineEntryTitle(entry)
+    return (
+      normalizedTitle.includes('edit request rejected') ||
+      normalizedTitle.includes('edit request disapproved') ||
+      normalizedTitle.includes('cancellation request rejected') ||
+      normalizedTitle.includes('cancellation request disapproved')
+    )
+  }
+
+  function getCurrentCycleDisapprovedTimelineEntry(entries) {
+    if (!Array.isArray(entries)) return null
+    return (
+      [...entries]
+        .reverse()
+        .find((entry) => isDisapprovedUpdateRequestTimelineEntry(entry)) || null
     )
   }
 
@@ -4009,11 +4061,26 @@ export function useAdminApplicationsPage() {
     }
   }
 
-  function buildReleasedTimelineEntry(app, existingEntry = null) {
+  function buildReleasedTimelineEntry(app, existingEntry = null, disapprovedEntry = null) {
     const entryTitle = getReleasedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
     const isCoc = isCocApplication(app)
     const isCocAwaitingRelease = isCoc && isApplicationReceivedByHr(app)
+
+    if (disapprovedEntry) {
+      return {
+        title: getDisapprovedDocumentTimelineTitle(app),
+        subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Reviewed',
+        description:
+          String(disapprovedEntry?.description || '').trim() ||
+          (cycleDocumentLabel === 'Cancellation Form'
+            ? 'Cancellation form release ended because the request was disapproved.'
+            : 'Update release ended because the request was disapproved.'),
+        icon: 'cancel',
+        color: 'negative',
+        actor: String(disapprovedEntry?.actor || '').trim() || undefined,
+      }
+    }
 
     if (!isApplicationReleased(app)) {
       return {
@@ -4099,8 +4166,18 @@ export function useAdminApplicationsPage() {
     }
   }
 
-  function buildClosedTimelineEntry(existingEntry = null, isReleasedState = false) {
+  function buildClosedTimelineEntry(existingEntry = null, isReleasedState = false, disapprovedEntry = null) {
     const baseEntry = existingEntry ? { ...existingEntry } : getDefaultClosedTimelineEntry()
+    if (disapprovedEntry) {
+      return {
+        ...baseEntry,
+        subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Completed',
+        description: 'Application workflow is complete.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: String(disapprovedEntry?.actor || '').trim() || undefined,
+      }
+    }
     if (isReleasedState) return baseEntry
 
     return {
@@ -5130,7 +5207,7 @@ export function useAdminApplicationsPage() {
     return {
       ...app,
       raw_status: 'REJECTED',
-      status: 'Rejected',
+      status: 'Disapproved',
       remarks: app.remarks || remarks.value,
     }
   }
@@ -5298,8 +5375,8 @@ export function useAdminApplicationsPage() {
             ? 'COC application cancelled with remarks'
             : 'Leave application cancelled with remarks'
           : isCoc
-            ? 'COC application rejected with remarks'
-            : 'Leave application rejected with remarks'
+            ? 'COC application disapproved with remarks'
+            : 'Leave application disapproved with remarks'
       $q.notify({ type: 'info', message: successMessage, position: 'top' })
       showDisapproveDialog.value = false
       await fetchApplications()

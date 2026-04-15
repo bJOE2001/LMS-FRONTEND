@@ -2,7 +2,7 @@
   <q-badge
     :color="color"
     :text-color="textColor"
-    :label="status"
+    :label="displayLabel"
     class="q-px-sm q-py-xs"
   />
 </template>
@@ -38,4 +38,11 @@ const color = computed(() => {
 })
 
 const textColor = computed(() => 'white')
+
+const displayLabel = computed(() => {
+  const rawLabel = String(props.status || '').trim()
+  if (!rawLabel) return ''
+
+  return rawLabel.replace(/rejected/gi, 'Disapproved')
+})
 </script>

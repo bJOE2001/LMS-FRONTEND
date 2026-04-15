@@ -390,7 +390,10 @@
               {{ application.endDate ? formatDate(application.endDate) : 'N/A' }}
             </div>
           </div>
-          <div v-if="!isCocApplication(application)" class="hr-application-details-item">
+          <div
+            v-if="!isCocApplication(application) && shouldShowDetailsRemarks(application)"
+            class="hr-application-details-item"
+          >
             <div class="text-caption text-grey-7">Remarks</div>
             <div v-if="getDetailsRemarksRows(application).length" class="hr-application-remarks-list">
               <div
@@ -606,6 +609,10 @@ const props = defineProps({
   getDetailsRemarksRows: {
     type: Function,
     default: () => [],
+  },
+  shouldShowDetailsRemarks: {
+    type: Function,
+    default: () => false,
   },
   canPrintCocCertificate: {
     type: Function,

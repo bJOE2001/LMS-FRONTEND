@@ -608,7 +608,7 @@
             </div>
 
             <div
-              v-if="hasPendingDateUpdate(selectedApp)"
+              v-if="shouldShowApplicationDetailsRemarks(selectedApp)"
               class="admin-application-details-item"
             >
               <div class="admin-application-details-label">Remarks</div>
@@ -864,6 +864,28 @@ function getApplicationDetailsReason(app) {
 function getApplicationDetailsRemarks(app) {
   const remarks = String(app?.remarks || '').trim()
   return remarks || 'N/A'
+}
+
+function shouldShowApplicationDetailsRemarks(app) {
+  if (!app || typeof app !== 'object') return false
+
+  const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+  const statusLabel = String(app?.displayStatus || getApplicationStatusLabel(app) || '')
+    .trim()
+    .toUpperCase()
+  const remarksText = String(app?.remarks || '').trim()
+
+  if (/^cancelled\b/i.test(remarksText)) return true
+  if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED' || rawStatus === 'RECALLED') {
+    return true
+  }
+
+  return (
+    statusLabel.includes('REJECT') ||
+    statusLabel.includes('DISAPPROV') ||
+    statusLabel.includes('CANCEL') ||
+    statusLabel.includes('RECALL')
+  )
 }
 
 function shouldScrollInclusiveDates(app) {

@@ -433,14 +433,18 @@ const timelineEntries = computed(() => {
     isEntryTitle(entry, 'Application Closed'),
   )
   const coreEntries = cleanedTimeline.filter((entry) => !isEntryTitle(entry, 'Application Closed'))
-
   const hasUpdateCycle = isUpdateRequestCycle.value
+  const cycleDisapprovedEntry = hasUpdateCycle
+    ? getCurrentCycleDisapprovedTimelineEntry(coreEntries)
+    : null
   const historicalReceivedEntry = hasUpdateCycle
     ? buildHistoricalReceivedTimelineEntry(existingReceivedApplicationEntry)
     : null
   const historicalReleasedEntry = hasUpdateCycle
     ? buildHistoricalReleasedTimelineEntry(existingReleasedApplicationEntry)
     : null
+  const shouldShowCurrentCycleReceivedEntry =
+    !cycleDisapprovedEntry || Boolean(historicalReceivedEntry || isReceivedState.value)
 
   const cycleReceivedSourceEntry = hasUpdateCycle
     ? existingUpdateReceivedEntry || existingReceivedApplicationEntry
@@ -450,12 +454,21 @@ const timelineEntries = computed(() => {
     : existingReleasedApplicationEntry || existingUpdateReleasedEntry
 
   const cycleReceivedEntry = buildReceivedTimelineEntry(cycleReceivedSourceEntry)
-  const cycleReleasedEntry = buildReleasedTimelineEntry(cycleReleasedSourceEntry)
-  const receivedInsertEntry = historicalReceivedEntry || cycleReceivedEntry
-  const receivedInsertIndex = getReceivedInsertionIndex(coreEntries)
-  coreEntries.splice(receivedInsertIndex, 0, receivedInsertEntry)
+  const cycleReleasedEntry = buildReleasedTimelineEntry(
+    cycleReleasedSourceEntry,
+    cycleDisapprovedEntry,
+  )
+  const receivedInsertEntry = historicalReceivedEntry ||
+    (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
+  if (receivedInsertEntry) {
+    const receivedInsertIndex = getReceivedInsertionIndex(coreEntries)
+    coreEntries.splice(receivedInsertIndex, 0, receivedInsertEntry)
+  }
 
-  const closedEntry = buildClosedTimelineEntry(existingClosedEntries[0] || null)
+  const closedEntry = buildClosedTimelineEntry(
+    existingClosedEntries[0] || null,
+    cycleDisapprovedEntry,
+  )
 
   const finalizedEntries = [...coreEntries]
   if (hasUpdateCycle) {
@@ -463,7 +476,7 @@ const timelineEntries = computed(() => {
       const historicalReleaseInsertIndex = getHistoricalReleasedInsertionIndex(finalizedEntries)
       finalizedEntries.splice(historicalReleaseInsertIndex, 0, historicalReleasedEntry)
     }
-    if (historicalReceivedEntry) {
+    if (historicalReceivedEntry && shouldShowCurrentCycleReceivedEntry) {
       const updateReceivedInsertIndex = getUpdateReceivedInsertionIndex(finalizedEntries)
       finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
     }
@@ -931,6 +944,11 @@ function getReleasedTimelineTitle() {
   return requestCycleDocumentLabel.value + ' Released'
 }
 
+function getDisapprovedDocumentTimelineTitle() {
+  if (!isUpdateRequestCycle.value) return 'Application Disapproved'
+  return requestCycleDocumentLabel.value + ' Disapproved'
+}
+
 function isHrPhaseEntry(entry) {
   const normalizedTitle = normalizeEntryTitle(entry)
   return (
@@ -942,8 +960,10 @@ function isHrPhaseEntry(entry) {
     normalizedTitle.includes('pending cancellation review (hr)') ||
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
+    normalizedTitle.includes('edit request disapproved') ||
     normalizedTitle.includes('cancellation request approved') ||
     normalizedTitle.includes('cancellation request rejected') ||
+    normalizedTitle.includes('cancellation request disapproved') ||
     normalizedTitle.includes('current status')
   )
 }
@@ -955,10 +975,31 @@ function isUpdateRequestTimelineEntry(entry) {
     normalizedTitle.includes('pending edit review') ||
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
+    normalizedTitle.includes('edit request disapproved') ||
     normalizedTitle.includes('cancellation request submitted') ||
     normalizedTitle.includes('pending cancellation review') ||
     normalizedTitle.includes('cancellation request approved') ||
-    normalizedTitle.includes('cancellation request rejected')
+    normalizedTitle.includes('cancellation request rejected') ||
+    normalizedTitle.includes('cancellation request disapproved')
+  )
+}
+
+function isDisapprovedUpdateRequestTimelineEntry(entry) {
+  const normalizedTitle = normalizeEntryTitle(entry)
+  return (
+    normalizedTitle.includes('edit request rejected') ||
+    normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('cancellation request rejected') ||
+    normalizedTitle.includes('cancellation request disapproved')
+  )
+}
+
+function getCurrentCycleDisapprovedTimelineEntry(entries) {
+  if (!Array.isArray(entries)) return null
+  return (
+    [...entries]
+      .reverse()
+      .find((entry) => isDisapprovedUpdateRequestTimelineEntry(entry)) || null
   )
 }
 
@@ -1133,12 +1174,27 @@ function adjustPendingHrReviewTimelineEntry(entry) {
   }
 }
 
-function buildReleasedTimelineEntry(existingEntry = null) {
+function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = null) {
   const entryTitle = getReleasedTimelineTitle()
   const isCompleted = isReleasedState.value
   const isUpdateCycle = isUpdateRequestCycle.value
   const isCancellationCycle = isCancellationRequestCycle.value
   const isCoc = isCocApplicationType.value
+
+  if (disapprovedEntry) {
+    return {
+      title: getDisapprovedDocumentTimelineTitle(),
+      subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Reviewed',
+      description:
+        String(disapprovedEntry?.description || '').trim() ||
+        (isCancellationCycle
+          ? 'Cancellation form release ended because the request was disapproved.'
+          : 'Update release ended because the request was disapproved.'),
+      icon: 'cancel',
+      color: 'negative',
+      actor: String(disapprovedEntry?.actor || '').trim() || undefined,
+    }
+  }
 
   if (!isCompleted) {
     const isCurrent = canReleaseState.value
@@ -1243,8 +1299,18 @@ function getDefaultClosedTimelineEntry() {
   }
 }
 
-function buildClosedTimelineEntry(existingEntry = null) {
+function buildClosedTimelineEntry(existingEntry = null, disapprovedEntry = null) {
   const baseEntry = existingEntry ? { ...existingEntry } : getDefaultClosedTimelineEntry()
+  if (disapprovedEntry) {
+    return {
+      ...baseEntry,
+      subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Completed',
+      description: 'Application workflow is complete.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: String(disapprovedEntry?.actor || '').trim() || undefined,
+    }
+  }
   if (isReleasedState.value) return baseEntry
 
   return {

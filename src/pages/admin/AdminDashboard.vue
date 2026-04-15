@@ -133,7 +133,7 @@
                   <q-icon name="cancel" size="28px" color="negative" />
                 </div>
                 <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                  Total Rejected
+                  Total Disapproved
                 </div>
               </div>
               <div class="stat-value text-negative dashboard-kpi-value">
@@ -2209,7 +2209,7 @@ function getApplicationStatusLabel(app) {
   if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
   if (app?.rawStatus === 'APPROVED') return 'Approved'
   if (app?.rawStatus === 'RECALLED') return 'Recalled'
-  if (app?.rawStatus === 'REJECTED') return 'Rejected'
+  if (app?.rawStatus === 'REJECTED') return 'Disapproved'
   return 'Unknown'
 }
 
@@ -3077,7 +3077,7 @@ function mapStatusAfterAction(app, type) {
   return {
     ...app,
     rawStatus: 'REJECTED',
-    status: 'Rejected',
+    status: 'Disapproved',
     remarks: app.remarks || remarks.value,
   }
 }
@@ -3166,8 +3166,8 @@ async function confirmDisapprove() {
           ? 'COC application cancelled with remarks'
           : 'Leave application cancelled with remarks'
         : isCoc
-          ? 'COC application rejected with remarks'
-          : 'Leave application rejected with remarks'
+          ? 'COC application disapproved with remarks'
+          : 'Leave application disapproved with remarks'
     $q.notify({ type: 'info', message: successMessage, position: 'top' })
     showDisapproveDialog.value = false
     await fetchDashboard()
