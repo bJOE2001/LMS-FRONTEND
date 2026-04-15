@@ -26,14 +26,6 @@
       <q-separator />
       <q-card-section class="application-timeline-content">
         <template v-if="loadingTimeline">
-          <div v-if="hasAttachmentState" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
-            <q-skeleton
-              type="rect"
-              class="application-timeline-skeleton-attachment"
-            />
-          </div>
-
           <div class="application-timeline-panel">
             <div
               v-for="index in 5"
@@ -62,19 +54,6 @@
         </template>
 
         <template v-else>
-          <div v-if="hasAttachmentState" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
-            <q-btn
-              flat
-              dense
-              no-caps
-              icon="attach_file"
-              color="primary"
-              label="View Attachment"
-              @click="handleViewAttachmentClick"
-            />
-          </div>
-
           <div class="application-timeline-panel">
             <div
               v-for="(entry, index) in timelineEntries"
@@ -557,14 +536,6 @@ const isReleasedState = computed(() => {
 //   return String(props.releasedSummary || '').trim()
 // })
 
-const hasAttachmentState = computed(() => {
-  if (typeof props.hasApplicationAttachment === 'function') {
-    return Boolean(props.hasApplicationAttachment(props.application))
-  }
-
-  return props.hasAttachment
-})
-
 function handleReceiveClick() {
   if (!props.application || !canReceiveState.value) return
 
@@ -578,11 +549,6 @@ function handleReleaseClick() {
   lastRequestedReleaseKey.value = applicationKey.value
   markLocalActionAsCompleted(localReleasedStateByKey, 'HR')
   emit('release', props.application)
-}
-
-function handleViewAttachmentClick() {
-  if (!props.application) return
-  emit('view-attachment', props.application)
 }
 
 function getBaseTimelineEntries() {

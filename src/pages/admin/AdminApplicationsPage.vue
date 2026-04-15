@@ -831,6 +831,18 @@ const {
 } = useAdminApplicationsPage()
 
 function getFinalStatusForStatusColumn(app) {
+  const resolvedStatus = String(app?.displayStatus || getApplicationStatusLabel(app) || '').trim()
+  const normalizedResolvedStatus = resolvedStatus.toUpperCase()
+
+  if (
+    normalizedResolvedStatus.includes('RECALL') ||
+    normalizedResolvedStatus.includes('REJECT') ||
+    normalizedResolvedStatus.includes('DISAPPROV') ||
+    normalizedResolvedStatus.includes('CANCEL')
+  ) {
+    return resolvedStatus
+  }
+
   const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
   if (updateRequestBadgeLabel) {
     return updateRequestBadgeLabel
@@ -841,7 +853,7 @@ function getFinalStatusForStatusColumn(app) {
     if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') return editRequestStatusLabel
   }
 
-  return app?.displayStatus || getApplicationStatusLabel(app)
+  return resolvedStatus
 }
 
 function getApplicationDetailsLeaveTypeLabel(app) {

@@ -19,11 +19,6 @@
       <q-separator />
       <q-card-section class="application-timeline-content">
         <template v-if="loadingTimeline">
-          <div v-if="canShowAttachment" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
-            <q-skeleton type="rect" class="application-timeline-skeleton-attachment" />
-          </div>
-
           <div class="application-timeline-panel">
             <div
               v-for="index in 5"
@@ -48,19 +43,6 @@
         </template>
 
         <template v-else>
-          <div v-if="canShowAttachment" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Attachment</div>
-            <q-btn
-              flat
-              dense
-              no-caps
-              icon="attach_file"
-              color="primary"
-              label="View Attachment"
-              @click="handleViewAttachment"
-            />
-          </div>
-
           <div class="application-timeline-panel">
             <div
               v-for="(entry, index) in timelineEntries"
@@ -104,8 +86,6 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-
 const props = defineProps({
   modelValue: {
     type: Boolean,
@@ -143,17 +123,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const canShowAttachment = computed(
-  () => !!props.selectedApp && props.hasApplicationAttachment(props.selectedApp),
-)
-
 function onDialogModelUpdate(value) {
   emit('update:modelValue', value)
-}
-
-function handleViewAttachment() {
-  if (!props.selectedApp || !props.viewApplicationAttachment) return
-  props.viewApplicationAttachment(props.selectedApp)
 }
 
 function resolveEntryTone(entry) {

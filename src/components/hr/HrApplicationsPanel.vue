@@ -879,10 +879,22 @@ export default defineComponent({
     }
 
     function getFinalStatusForStatusColumn(app) {
+      const resolvedStatus = String(app?.displayStatus || panel.getApplicationStatusLabel(app) || '').trim()
+      const normalizedResolvedStatus = resolvedStatus.toUpperCase()
+
+      if (
+        normalizedResolvedStatus.includes('RECALL') ||
+        normalizedResolvedStatus.includes('REJECT') ||
+        normalizedResolvedStatus.includes('DISAPPROV') ||
+        normalizedResolvedStatus.includes('CANCEL')
+      ) {
+        return resolvedStatus
+      }
+
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
       if (updateRequestBadgeLabel) return updateRequestBadgeLabel
 
-      return app?.displayStatus || panel.getApplicationStatusLabel(app)
+      return resolvedStatus
     }
 
     function canShowPendingReleaseAction(app) {

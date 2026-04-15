@@ -363,6 +363,50 @@ export function useAdminApplicationsPage() {
     await fetchApplications()
   }
 
+  async function fetchWorkflowDetailSnapshotsForStageSensitiveRows(applications = []) {
+    const stageSensitiveRows = (Array.isArray(applications) ? applications : []).filter((application) => {
+      if (!application || typeof application !== 'object') return false
+      if (isCocApplication(application)) return false
+      if (!hasAdminEditRequestSignal(application)) return false
+
+      const rawStatus = getApplicationRawStatus(application)
+      if (rawStatus !== 'PENDING_HR' && rawStatus !== 'APPROVED') return false
+
+      const id = String(
+        application?.id ??
+          application?.application_id ??
+          application?.leave_application_id ??
+          '',
+      ).trim()
+
+      return Boolean(id)
+    })
+
+    if (!stageSensitiveRows.length) return []
+
+    const detailRequests = stageSensitiveRows.map(async (application) => {
+      const id = String(
+        application?.id ??
+          application?.application_id ??
+          application?.leave_application_id ??
+          '',
+      ).trim()
+      if (!id) return null
+
+      try {
+        const response = await api.get(`/admin/leave-applications/${id}`)
+        const detailedApplication = extractSingleApplicationFromPayload(response?.data)
+        if (!detailedApplication || typeof detailedApplication !== 'object') return null
+        return normalizeAdminApplicationForDisplay(detailedApplication)
+      } catch {
+        return null
+      }
+    })
+
+    const detailRows = await Promise.all(detailRequests)
+    return detailRows.filter((application) => application && typeof application === 'object')
+  }
+
   async function fetchApplications() {
     loading.value = true
     try {
@@ -379,8 +423,22 @@ export function useAdminApplicationsPage() {
         localSubmittedApplicationOverrides.value,
       )
 
+      const normalizedMergedApplications = mergedApplications.map((application) =>
+        normalizeAdminApplicationForDisplay(application),
+      )
+
+      const workflowDetailSnapshots = await fetchWorkflowDetailSnapshotsForStageSensitiveRows(
+        normalizedMergedApplications,
+      )
+
+      const mergedApplicationsWithWorkflowSnapshots = workflowDetailSnapshots.length > 0
+        ? mergeApplications(normalizedMergedApplications, workflowDetailSnapshots)
+        : normalizedMergedApplications
+
       applicationRows.value = expandApplicationsForDisplay(
-        mergedApplications.map((application) => normalizeAdminApplicationForDisplay(application)),
+        mergedApplicationsWithWorkflowSnapshots.map((application) =>
+          normalizeAdminApplicationForDisplay(application),
+        ),
       )
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to load applications right now.')
@@ -716,7 +774,7 @@ export function useAdminApplicationsPage() {
 
   function createRecalledCompanionRow(app, index = 0) {
     if (!app || typeof app !== 'object' || isCocApplication(app)) return null
-    if (String(app?.raw_status || '').toUpperCase() !== 'APPROVED') return null
+    if (getApplicationRawStatus(app) !== 'APPROVED') return null
 
     const recalledDateKeys = getStoredRecallDateKeys(app)
     if (!recalledDateKeys.length) return null
@@ -728,8 +786,9 @@ export function useAdminApplicationsPage() {
       ...app,
       application_uid: `${baseKey}:recalled`,
       application_row_variant: 'recalled',
-      group_raw_status: app?.raw_status || 'APPROVED',
+      group_raw_status: 'RECALLED',
       status: 'Recalled',
+      rawStatus: 'RECALLED',
       raw_status: 'RECALLED',
       selected_dates: recalledDateKeys,
       recall_selected_dates: recalledDateKeys,
@@ -1251,12 +1310,44 @@ export function useAdminApplicationsPage() {
     assignBackendAliasIfMissing(normalized, 'queue_group_priority', 'queueGroupPriority')
     assignBackendAliasIfMissing(normalized, 'queue_stage_key', 'queueStageKey')
     assignBackendAliasIfMissing(normalized, 'queue_stage_priority', 'queueStagePriority')
+    assignBackendAliasIfMissing(normalized, 'recall_selected_dates', 'recallSelectedDates')
 
     return normalized
   }
 
   function getApplicationRawStatus(app) {
-    return String(app?.raw_status || '').trim().toUpperCase()
+    if (app?.application_row_variant === 'recalled') return 'RECALLED'
+
+    const normalizeStatusToken = (value) =>
+      String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_')
+
+    const groupedStatus = normalizeStatusToken(app?.group_raw_status)
+    if (groupedStatus === 'RECALLED') return 'RECALLED'
+
+    const candidates = [app?.raw_status, app?.rawStatus, app?.status]
+    for (const candidate of candidates) {
+      const normalized = normalizeStatusToken(candidate)
+      if (!normalized) continue
+
+      if (normalized === 'RECALLED' || normalized.includes('RECALL')) return 'RECALLED'
+      if (
+        normalized === 'REJECTED' ||
+        normalized === 'DISAPPROVED' ||
+        normalized.includes('DISAPPROV') ||
+        normalized.includes('REJECT')
+      ) {
+        return 'REJECTED'
+      }
+      if (normalized.startsWith('PENDING')) return normalized
+      if (normalized === 'APPROVED' || normalized.includes('APPROV')) return 'APPROVED'
+
+      return normalized
+    }
+
+    return groupedStatus
   }
 
   function getApplicationGroupedRawStatus(app) {
@@ -1838,22 +1929,52 @@ export function useAdminApplicationsPage() {
     return enumerateInclusiveDateRange(firstDate, lastDate)
   }
 
+  function hasApprovedUpdateAppliedAfterRecall(source) {
+    if (!source || typeof source !== 'object') return false
+
+    const latestUpdateStatus = normalizeAdminUpdateRequestStatus(
+      source?.latest_update_request_status ?? source?.latestUpdateRequestStatus,
+    )
+    if (latestUpdateStatus !== 'APPROVED') return false
+
+    const recallTimestamp = toComparableTimestamp(
+      source?.recall_action_at ?? source?.recallActionAt,
+    )
+    const latestUpdateReviewedTimestamp = toComparableTimestamp(
+      source?.latest_update_reviewed_at ??
+        source?.latestUpdateReviewedAt ??
+        source?.latest_update_requested_at ??
+        source?.latestUpdateRequestedAt,
+    )
+
+    if (Number.isNaN(recallTimestamp) || Number.isNaN(latestUpdateReviewedTimestamp)) return false
+
+    return latestUpdateReviewedTimestamp > recallTimestamp
+  }
+
   function getStoredRecallDateKeys(source) {
     if (!source || typeof source !== 'object') return []
 
-    const recalledDates = normalizeIsoDateList(
+    let recalledDates = normalizeIsoDateList(
       parseSelectedDatesValue(
-        source?.recall_selected_dates,
+        source?.recall_selected_dates ?? source?.recallSelectedDates,
       ),
     )
 
     if (!recalledDates.length) return []
 
     const selectedDates = resolveDateSetFromSource(source)
+    if (selectedDates.length && hasApprovedUpdateAppliedAfterRecall(source)) {
+      const selectedDateSet = new Set(selectedDates)
+      recalledDates = recalledDates.filter((dateKey) => !selectedDateSet.has(dateKey))
+    }
+
+    if (!recalledDates.length) return []
     if (!selectedDates.length) return recalledDates
 
     const selectedDateSet = new Set(selectedDates)
-    return recalledDates.filter((dateKey) => selectedDateSet.has(dateKey))
+    const intersectedDates = recalledDates.filter((dateKey) => selectedDateSet.has(dateKey))
+    return intersectedDates.length > 0 ? intersectedDates : recalledDates
   }
 
   function getVisibleDateSetForDisplay(app) {
@@ -2826,13 +2947,13 @@ export function useAdminApplicationsPage() {
     const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
     if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
 
-    if (app?.status) return app.status
-
+    if (rawStatus === 'RECALLED') return 'Recalled'
+    if (rawStatus === 'REJECTED') return 'Disapproved'
     if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
     if (rawStatus === 'PENDING_HR') return 'Pending HR'
     if (rawStatus === 'APPROVED') return 'Approved'
-    if (rawStatus === 'RECALLED') return 'Recalled'
-    if (rawStatus === 'REJECTED') return 'Disapproved'
+
+    if (app?.status) return app.status
     return 'Unknown'
   }
 
@@ -2867,6 +2988,16 @@ export function useAdminApplicationsPage() {
   }
 
   function getEditRequestBadgeLabel(app) {
+    const rawStatus = getApplicationRawStatus(app)
+    if (
+      isCancelledByUser(app) ||
+      rawStatus === 'RECALLED' ||
+      rawStatus === 'REJECTED' ||
+      rawStatus === 'DISAPPROVED'
+    ) {
+      return ''
+    }
+
     const status = getAdminEditRequestBadgeStatus(app)
     const labelPrefix = getAdminEditRequestLabelPrefix(app)
     const isCancelRequest = isAdminCancellationRequest(app)
@@ -3684,7 +3815,9 @@ export function useAdminApplicationsPage() {
       const recalledAt = formatDateTime(resolveRecallDateValue(app)) || 'Completed'
       const recalledBy = resolveRecallActor(app)
 
-      if (approvedAt || approvedBy !== 'Unknown') {
+      if (hasEditRequest && preEditHrApprovalEntry) {
+        entries.push(preEditHrApprovalEntry)
+      } else if (approvedAt || approvedBy !== 'Unknown') {
         entries.push({
           title: 'Approved by HR',
           subtitle: approvedAt || 'Completed',
@@ -3695,6 +3828,10 @@ export function useAdminApplicationsPage() {
         })
       }
 
+      if (hasEditRequest) {
+        entries.push(...editRequestEntries)
+      }
+
       entries.push({
         title: 'Recalled by HR',
         subtitle: recalledAt,
@@ -3703,7 +3840,6 @@ export function useAdminApplicationsPage() {
         color: 'warning',
         actor: recalledBy,
       })
-      entries.push(...editRequestEntries)
       entries.push({
         title: 'Application Closed',
         subtitle: recalledAt,
@@ -4867,52 +5003,29 @@ export function useAdminApplicationsPage() {
       const detailedApplication = extractSingleApplicationFromPayload(response?.data)
       if (!detailedApplication || typeof detailedApplication !== 'object') return
 
-      const mergedApplication = {
-        ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
-        ...detailedApplication,
-      }
-      const normalizedMergedApplication = normalizeAdminApplicationForDisplay(mergedApplication)
-
-      const targetRowUid = String(baseApplication?.application_uid || '').trim()
-      const targetRowId = String(
-        baseApplication?.id ??
-          baseApplication?.application_id ??
-          baseApplication?.leave_application_id ??
-          '',
-      ).trim()
-
-      applicationRows.value = applicationRows.value.map((row, rowIndex) => {
-        const rowUid = String(row?.application_uid || '').trim()
-        const rowId = String(row?.id ?? row?.application_id ?? row?.leave_application_id ?? '').trim()
-        const isRecalledCompanionRow =
-          String(row?.application_row_variant || '').trim().toLowerCase() === 'recalled'
-
-        const matchesByUid = targetRowUid && rowUid === targetRowUid
-        const matchesById = !matchesByUid && targetRowId && rowId === targetRowId && !isRecalledCompanionRow
-        if (!matchesByUid && !matchesById) return row
-
-        return normalizeAdminApplicationForDisplay({
-          ...row,
-          ...normalizedMergedApplication,
-          application_uid:
-            rowUid ||
-            normalizedMergedApplication?.application_uid ||
-            getApplicationRowKey(normalizedMergedApplication, rowIndex),
-        })
-      })
+      const normalizedDetail = normalizeAdminApplicationForDisplay(detailedApplication)
+      const normalizedBase = normalizeAdminApplicationForDisplay(baseApplication)
+      const detailPayload = normalizedDetail && typeof normalizedDetail === 'object' ? normalizedDetail : {}
+      const basePayload = normalizedBase && typeof normalizedBase === 'object' ? normalizedBase : {}
+      const isRecalledVariant =
+        String(basePayload?.application_row_variant || '').trim().toLowerCase() === 'recalled'
+      const mergedPayload = isRecalledVariant
+        ? { ...detailPayload, ...basePayload }
+        : { ...basePayload, ...detailPayload }
+      const normalizedMergedApplication = normalizeAdminApplicationForDisplay(mergedPayload)
 
       const activeDialogOpen = dialogType === 'timeline'
         ? showTimelineDialog.value
         : showDetailsDialog.value
       if (!activeDialogOpen) return
 
-      const selectedId = String(
-        selectedApp.value?.id ??
-          selectedApp.value?.application_id ??
-          selectedApp.value?.leave_application_id ??
-          '',
+      const expectedKey = String(
+        baseApplication?.application_uid || getApplicationRowKey(baseApplication),
       ).trim()
-      if (selectedId !== String(id).trim()) return
+      const selectedKey = String(
+        selectedApp.value?.application_uid || getApplicationRowKey(selectedApp.value),
+      ).trim()
+      if (selectedKey !== expectedKey) return
 
       selectedApp.value = normalizedMergedApplication
     } catch {
