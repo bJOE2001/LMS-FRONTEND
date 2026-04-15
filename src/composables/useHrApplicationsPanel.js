@@ -1299,6 +1299,70 @@ function getPendingUpdateReason(app) {
   return ''
 }
 
+function hasApplicationEditRequest(app) {
+  if (!app || typeof app !== 'object') return false
+  if (isCocApplication(app)) return false
+  return hasEditRequestSignal(app)
+}
+
+function isApplicationEditCancellationRequest(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  return isCancellationRequestAction(app)
+}
+
+function getApplicationEditRequestSectionTitle(app) {
+  return isApplicationEditCancellationRequest(app)
+    ? 'Cancellation Request Details'
+    : 'Requested Changes'
+}
+
+function shouldShowApplicationEditRequestDateComparison(app) {
+  return hasApplicationEditRequest(app) && !isApplicationEditCancellationRequest(app)
+}
+
+function shouldShowApplicationEditRequestSection(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  return getLatestUpdateRequestStatus(app) !== 'APPROVED'
+}
+
+function getApplicationEditRequestFromDates(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const inclusiveDateLines = getApplicationInclusiveDateLines(app)
+  return inclusiveDateLines.length ? inclusiveDateLines.join(', ') : 'N/A'
+}
+
+function getApplicationEditRequestToDates(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const requestedDateLines = getPendingUpdateInclusiveDateLines(app)
+  return requestedDateLines.length ? requestedDateLines.join(', ') : 'N/A'
+}
+
+function getApplicationEditRequestCurrentDuration(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+  return getApplicationDurationDisplay(app) || 'N/A'
+}
+
+function getApplicationEditRequestRequestedDuration(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+  return getRequestedDurationDisplay(app) || 'N/A'
+}
+
+function getApplicationEditRequestRequestedAt(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const requestedAt = app?.latest_update_requested_at || app?.updated_at || null
+  return formatDateTime(requestedAt) || 'N/A'
+}
+
+function getApplicationEditRequestReason(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const reason = String(getPendingUpdateReason(app) || '').trim()
+  return reason || 'N/A'
+}
+
 function getDetailsRemarksRows(app) {
   if (!app || typeof app !== 'object') return []
   if (!shouldShowDetailsRemarks(app)) return []
@@ -5211,6 +5275,13 @@ async function handleDialogMutationSuccess(payload = {}) {
     getActualRequestedDayCount,
     getApplicationDurationDisplay,
     getApplicationDurationLabel,
+    getApplicationEditRequestCurrentDuration,
+    getApplicationEditRequestFromDates,
+    getApplicationEditRequestReason,
+    getApplicationEditRequestRequestedAt,
+    getApplicationEditRequestRequestedDuration,
+    getApplicationEditRequestSectionTitle,
+    getApplicationEditRequestToDates,
     getCocBaseCreditableDisplay,
     getCocRawOvertimeDisplay,
     getCocCreditedHoursDisplay,
@@ -5237,6 +5308,8 @@ async function handleDialogMutationSuccess(payload = {}) {
     getCurrentLeaveBalanceDisplay,
     getCurrentLeaveBalanceValue,
     shouldShowCurrentLeaveBalance,
+    shouldShowApplicationEditRequestSection,
+    shouldShowApplicationEditRequestDateComparison,
     getCurrentLeaveTypeId,
     getCurrentLeaveTypeLabel,
     getCocNatureOfOvertimeLines,
@@ -5284,6 +5357,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     handleConfirmRequestReject,
     handleDialogMutationSuccess,
     hasApplicationAttachment,
+    hasApplicationEditRequest,
     hasEditRequestSignal,
     hasExplicitTimeComponent,
     hasMobileApplicationActions,
@@ -5294,6 +5368,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     hasPendingReasonUpdate,
     isApplicationReceivedByHr,
     isApplicationReleased,
+    isApplicationEditCancellationRequest,
     isCancelledByUser,
     isCocApplication,
     isCancellationRequestAction,

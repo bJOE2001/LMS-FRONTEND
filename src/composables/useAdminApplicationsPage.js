@@ -4871,6 +4871,35 @@ export function useAdminApplicationsPage() {
         ...(baseApplication && typeof baseApplication === 'object' ? baseApplication : {}),
         ...detailedApplication,
       }
+      const normalizedMergedApplication = normalizeAdminApplicationForDisplay(mergedApplication)
+
+      const targetRowUid = String(baseApplication?.application_uid || '').trim()
+      const targetRowId = String(
+        baseApplication?.id ??
+          baseApplication?.application_id ??
+          baseApplication?.leave_application_id ??
+          '',
+      ).trim()
+
+      applicationRows.value = applicationRows.value.map((row, rowIndex) => {
+        const rowUid = String(row?.application_uid || '').trim()
+        const rowId = String(row?.id ?? row?.application_id ?? row?.leave_application_id ?? '').trim()
+        const isRecalledCompanionRow =
+          String(row?.application_row_variant || '').trim().toLowerCase() === 'recalled'
+
+        const matchesByUid = targetRowUid && rowUid === targetRowUid
+        const matchesById = !matchesByUid && targetRowId && rowId === targetRowId && !isRecalledCompanionRow
+        if (!matchesByUid && !matchesById) return row
+
+        return normalizeAdminApplicationForDisplay({
+          ...row,
+          ...normalizedMergedApplication,
+          application_uid:
+            rowUid ||
+            normalizedMergedApplication?.application_uid ||
+            getApplicationRowKey(normalizedMergedApplication, rowIndex),
+        })
+      })
 
       const activeDialogOpen = dialogType === 'timeline'
         ? showTimelineDialog.value
@@ -4885,7 +4914,7 @@ export function useAdminApplicationsPage() {
       ).trim()
       if (selectedId !== String(id).trim()) return
 
-      selectedApp.value = normalizeAdminApplicationForDisplay(mergedApplication)
+      selectedApp.value = normalizedMergedApplication
     } catch {
       // Keep existing row payload when detail endpoint fails.
     }
@@ -5253,6 +5282,37 @@ export function useAdminApplicationsPage() {
       }
     } catch {
       // Ignore detail endpoint failures and print with the best available data.
+    }
+
+    try {
+      const departmentHeadResponse = await api.get('/admin/department-head')
+      const departmentHead =
+        departmentHeadResponse?.data?.department_head ||
+        departmentHeadResponse?.data?.departmentHead ||
+        null
+
+      if (departmentHead && typeof departmentHead === 'object') {
+        const departmentHeadFullName = String(
+          departmentHead?.full_name ||
+            departmentHead?.fullName ||
+            departmentHead?.name ||
+            '',
+        ).trim()
+
+        printableApplication = {
+          ...printableApplication,
+          departmentHead,
+          department_head: departmentHead,
+          ...(departmentHeadFullName
+            ? {
+                departmentHeadName: departmentHeadFullName,
+                department_head_name: departmentHeadFullName,
+              }
+            : {}),
+        }
+      }
+    } catch {
+      // Ignore department head endpoint failures and print with best available approver data.
     }
 
     return printableApplication

@@ -182,6 +182,34 @@ function getPendingUpdatePayload(app) {
 }
 
 function resolveDepartmentHeadName(source) {
+  const directName = normalizeText(
+    source?.departmentHeadName ||
+      source?.department_head_name ||
+      source?.departmentHeadFullName ||
+      source?.department_head_full_name ||
+      source?.approved_by ||
+      source?.approvedBy ||
+      source?.approver_name ||
+      source?.approverName ||
+      source?.admin_action_by ||
+      source?.adminActionBy ||
+      source?.processed_by ||
+      source?.processedBy ||
+      source?.raw?.departmentHeadName ||
+      source?.raw?.department_head_name ||
+      source?.raw?.departmentHeadFullName ||
+      source?.raw?.department_head_full_name ||
+      source?.raw?.approved_by ||
+      source?.raw?.approvedBy ||
+      source?.raw?.approver_name ||
+      source?.raw?.approverName ||
+      source?.raw?.admin_action_by ||
+      source?.raw?.adminActionBy ||
+      source?.raw?.processed_by ||
+      source?.raw?.processedBy,
+  )
+  if (directName) return directName
+
   const departmentHead =
     source?.departmentHead ||
     source?.department_head ||
@@ -189,12 +217,14 @@ function resolveDepartmentHeadName(source) {
     source?.raw?.department_head ||
     null
 
-  if (!departmentHead || typeof departmentHead !== 'object') return ''
+  if (!departmentHead) return ''
+  if (typeof departmentHead === 'string') return normalizeText(departmentHead)
+  if (typeof departmentHead !== 'object') return ''
 
-  const directName = normalizeText(
+  const departmentHeadObjectName = normalizeText(
     departmentHead?.full_name || departmentHead?.fullName || departmentHead?.name,
   )
-  if (directName) return directName
+  if (departmentHeadObjectName) return departmentHeadObjectName
 
   return [
     normalizeText(departmentHead?.firstname),
@@ -209,10 +239,17 @@ function formatRequestedDatesList(source) {
   const dateSet = resolveDateSetFromSource(source)
   if (!dateSet.length) return ''
 
+  return formatDateSetSummary(dateSet)
+}
+
+function formatDateSetSummary(dateSet = []) {
+  const normalizedDateSet = normalizeIsoDateList(dateSet)
+  if (!normalizedDateSet.length) return ''
+
   const grouped = new Map()
   const years = new Set()
 
-  dateSet.forEach((dateValue) => {
+  normalizedDateSet.forEach((dateValue) => {
     const parsed = new Date(`${dateValue}T12:00:00`)
     if (Number.isNaN(parsed.getTime())) return
 
@@ -272,8 +309,34 @@ function resolveRequestFormData(app) {
     source?.filed_by ||
     'Employee'
 
-  const fromValue = resolveFromDateValue(source)
-  const toValue = formatRequestedDatesList(payload)
+  const currentDateSet = resolveDateSetFromSource(source)
+  const requestedDateSet = resolveDateSetFromSource(payload)
+  const fallbackFromDateIso = toIsoDateString(
+    source?.start_date || source?.startDate || source?.end_date || source?.endDate || '',
+  )
+  const fromDateIso = currentDateSet[0] || fallbackFromDateIso || ''
+  const fromValue = fromDateIso ? formatDate(fromDateIso) : resolveFromDateValue(source)
+
+  let requestedDatesForTo = [...requestedDateSet]
+  if (currentDateSet.length && requestedDateSet.length) {
+    const currentDateLookup = new Set(currentDateSet)
+    const nonOverlappingRequestedDates = requestedDateSet.filter(
+      (dateValue) => !currentDateLookup.has(dateValue),
+    )
+    if (nonOverlappingRequestedDates.length) {
+      requestedDatesForTo = nonOverlappingRequestedDates
+    }
+  }
+  if (fromDateIso && requestedDatesForTo.length > 1) {
+    const toDatesWithoutFrom = requestedDatesForTo.filter((dateValue) => dateValue !== fromDateIso)
+    if (toDatesWithoutFrom.length) {
+      requestedDatesForTo = toDatesWithoutFrom
+    }
+  }
+
+  const toValue = requestedDatesForTo.length
+    ? formatDateSetSummary(requestedDatesForTo)
+    : formatRequestedDatesList(payload)
 
   const reason = normalizeText(
     app?.latest_update_request_reason ||

@@ -247,7 +247,6 @@
             </q-avatar>
             <div class="admin-application-details-header-copy">
               <div class="admin-application-details-title">Application Details</div>
-              <div class="admin-application-details-subtitle">{{ selectedApp.employeeName }}</div>
               <div class="row items-center admin-application-details-meta">
                 <q-badge
                   rounded
@@ -384,10 +383,8 @@
 
             <div class="row items-center q-col-gutter-md q-mt-sm">
               <div class="col-12 col-md-8 admin-application-requested-changes-meta">
-                <div><strong>{{ getApplicationEditRequestStatusFieldLabel(selectedApp) }}:</strong> {{ getApplicationEditRequestStatusLabel(selectedApp) }}</div>
                 <div><strong>Requested At:</strong> {{ getApplicationEditRequestRequestedAt(selectedApp) }}</div>
-                <div><strong>Requested By:</strong> {{ getApplicationEditRequestRequestedBy(selectedApp) }}</div>
-                <div><strong>Reason:</strong> {{ getApplicationEditRequestReason(selectedApp) }}</div>
+                <div><strong>Remarks:</strong> {{ getApplicationEditRequestReason(selectedApp) }}</div>
               </div>
             </div>
           </div>
@@ -792,12 +789,10 @@ const {
   getEditRequestBadgeLabel,
   hasApplicationEditRequest,
   getApplicationEditRequestStatusLabel,
-  getApplicationEditRequestStatusFieldLabel,
   getApplicationEditRequestApprovedBadgeLabel,
   getApplicationEditRequestSectionTitle,
   shouldShowApplicationEditRequestDateComparison,
   getApplicationEditRequestRequestedAt,
-  getApplicationEditRequestRequestedBy,
   getApplicationEditRequestReason,
   getApplicationEditRequestFromDates,
   getApplicationEditRequestToDates,
