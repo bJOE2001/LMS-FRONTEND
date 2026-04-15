@@ -107,7 +107,7 @@
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="cancel" size="28px" color="negative" class="stat-card-icon" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Rejected Applications</div>
+                <div class="text-caption text-weight-medium q-mt-sm">Disapproved Applications</div>
               </div>
               <div class="stat-value text-negative">
                 <q-spinner v-if="loading" size="32px" color="negative" />
@@ -420,7 +420,7 @@ function mergeStatus(app) {
     status.includes('REJECTED') ||
     status.includes('DISAPPROVED')
   ) {
-    return 'Rejected'
+    return 'Disapproved'
   }
 
   return app.status || ''
@@ -574,7 +574,7 @@ async function fetchDashboard() {
 
     const pendingFromApps = applications.filter((app) => mergeStatus(app) === 'Pending').length
     const approvedFromApps = applications.filter((app) => mergeStatus(app) === 'Approved').length
-    const rejectedFromApps = applications.filter((app) => mergeStatus(app) === 'Rejected').length
+    const rejectedFromApps = applications.filter((app) => mergeStatus(app) === 'Disapproved').length
     const recalledFromApps = applications.filter((app) => mergeStatus(app) === 'Recalled').length
 
     dashboardData.value = {

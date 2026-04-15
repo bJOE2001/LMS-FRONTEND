@@ -1301,6 +1301,7 @@ function getPendingUpdateReason(app) {
 
 function getDetailsRemarksRows(app) {
   if (!app || typeof app !== 'object') return []
+  if (!shouldShowDetailsRemarks(app)) return []
 
   const rows = []
   const pendingUpdateReason = getPendingUpdateReason(app)
@@ -1319,6 +1320,14 @@ function getDetailsRemarksRows(app) {
   }
 
   return rows
+}
+
+function shouldShowDetailsRemarks(app) {
+  if (!app || typeof app !== 'object' || isCocApplication(app)) return false
+  if (isCancelledByUser(app)) return true
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  return rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED' || rawStatus === 'RECALLED'
 }
 
 function formatWorkflowRemarksDisplay(value) {
@@ -2840,7 +2849,9 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
       ['EDIT_REQUEST_REJECTED', 'UPDATE_REQUEST_REJECTED', 'CANCELLATION_REQUEST_REJECTED', 'CANCEL_REQUEST_REJECTED']
         .includes(actionToken) ||
       stageToken.includes('edit request rejected') ||
+      stageToken.includes('edit request disapproved') ||
       stageToken.includes('cancellation request rejected') ||
+      stageToken.includes('cancellation request disapproved') ||
       stageToken.includes('cancel request rejected')
 
     if (targetDecision === 'APPROVED' && explicitApprovedSignal) return true
@@ -3666,7 +3677,11 @@ function buildApplicationTimeline(app) {
         .reverse()
         .find((entry) => {
           const title = String(entry?.title || '').toLowerCase()
-          return title.includes('request approved') || title.includes('request rejected')
+          return (
+            title.includes('request approved') ||
+            title.includes('request rejected') ||
+            title.includes('request disapproved')
+          )
         })
       const closedSubtitle = lastCompletedEditEntry?.subtitle || preEditHrApprovalEntry?.subtitle || 'Completed'
       const closedActor = lastCompletedEditEntry?.actor || preEditHrApprovalEntry?.actor || resolveHrActor(app)
@@ -5216,6 +5231,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getDateSearchValues,
     getDateSubsetTotalDays,
     getDetailsRemarksRows,
+    shouldShowDetailsRemarks,
     getEditRequestBadgeColor,
     getEditRequestBadgeLabel,
     getEditRequestStatusFieldLabel,

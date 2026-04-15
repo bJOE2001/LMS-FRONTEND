@@ -297,9 +297,32 @@
             </template>
             <template #body-cell-inclusive_date="props">
               <q-td :props="props" class="leave-history-table__inclusive-date-cell">
-                <span class="leave-history-table__inclusive-date-text">
-                  {{ buildLeaveHistoryInclusiveDateLabel(props.row) }}
-                </span>
+                <div class="row items-center justify-center no-wrap q-gutter-xs">
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    class="leave-history-table__inclusive-date-trigger"
+                    :disable="!canOpenLeaveHistoryCalendarPreview(props.row)"
+                    @click.stop="openLeaveHistoryCalendarPreview(props.row)"
+                  >
+                    <span class="leave-history-table__inclusive-date-text">
+                      {{ buildLeaveHistoryInclusiveDateLabel(props.row) }}
+                    </span>
+                  </q-btn>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="calendar_today"
+                    color="primary"
+                    :disable="!canOpenLeaveHistoryCalendarPreview(props.row)"
+                    @click.stop="openLeaveHistoryCalendarPreview(props.row)"
+                  >
+                    <q-tooltip>View calendar</q-tooltip>
+                  </q-btn>
+                </div>
               </q-td>
             </template>
             <template #body-cell-date_filed="props">
@@ -688,15 +711,34 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <AdminApplicationCalendarDialog
+      v-model="showCalendarPreviewDialog"
+      v-model:calendar-preview-model="calendarPreviewModel"
+      :calendar-preview-key="calendarPreviewKey"
+      :set-calendar-preview-ref="setCalendarPreviewRefElement"
+      :calendar-preview-year-month="calendarPreviewYearMonth"
+      :calendar-preview-employee-name="calendarPreviewEmployeeName"
+      :calendar-preview-state-counts="calendarPreviewStateCounts"
+      :calendar-preview-date-warning="calendarPreviewDateWarning"
+      :calendar-preview-warning-style="calendarPreviewWarningStyle"
+      :calendar-preview-warning-state="calendarPreviewWarningState"
+      :on-show="syncCalendarPreviewDecorations"
+      :on-navigation="onCalendarPreviewNavigation"
+      :on-calendar-model-change="handleCalendarPreviewModelUpdate"
+      :on-surface-pointer-down="handleCalendarPreviewSurfacePointerDown"
+      :on-surface-click="handleCalendarPreviewSurfaceClick"
+    />
   </q-page>
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { api } from 'src/boot/axios'
+import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -721,6 +763,18 @@ const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
 const leaveHistory = ref([])
 const leaveHistoryLoading = ref(false)
+const showCalendarPreviewDialog = ref(false)
+const calendarPreviewAnchorEntry = ref(null)
+const calendarPreviewModel = ref([])
+const calendarPreviewKey = ref(0)
+const calendarPreviewRef = ref(null)
+const calendarPreviewDateWarning = ref('')
+const calendarPreviewWarningDate = ref('')
+const calendarPreviewWarningStyle = ref({})
+const calendarPreviewView = ref({
+  year: String(new Date().getFullYear()),
+  month: String(new Date().getMonth() + 1).padStart(2, '0'),
+})
 const showLeaveCreditsLedgerDialog = ref(false)
 const leaveCreditsLedgerEmployee = ref(null)
 const leaveCreditsLedgerRows = ref([])
@@ -948,6 +1002,67 @@ const ledgerIdentityOfficeStyle = computed(() =>
 const ledgerEmployeeFirstDayOfService = computed(() => 'N/A')
 const ledgerIdentityServiceValueStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeFirstDayOfService.value),
+)
+const calendarPreviewYearMonth = computed(
+  () => `${calendarPreviewView.value.year}/${calendarPreviewView.value.month}`,
+)
+const calendarPreviewEmployeeName = computed(() => {
+  const employee = selectedEmployee.value
+  const fullName = [employee?.firstname, employee?.surname].filter(Boolean).join(' ').trim()
+  if (fullName) return fullName.toUpperCase()
+
+  const fallbackName = pickFirstDefined(calendarPreviewAnchorEntry.value, [
+    'employee_name',
+    'employeeName',
+    'name',
+  ])
+
+  return String(fallbackName || 'Employee').trim().toUpperCase()
+})
+const calendarPreviewDateStates = computed(() => {
+  const dateStates = new Map()
+
+  for (const entry of leaveHistory.value) {
+    const applicationState = getLeaveHistoryCalendarState(entry)
+    const requestUpdateDates = getLeaveHistoryRequestUpdateCalendarDates(entry)
+    const showRequestUpdateOnly = requestUpdateDates.length > 0
+
+    if (applicationState && !showRequestUpdateOnly) {
+      for (const date of getLeaveHistoryCalendarDates(entry)) {
+        if (!date) continue
+
+        const existingState = dateStates.get(date)
+        if (!existingState || applicationState === 'pending') {
+          dateStates.set(date, applicationState)
+        }
+      }
+    }
+
+    for (const date of requestUpdateDates) {
+      if (!date) continue
+      dateStates.set(date, 'request-update')
+    }
+  }
+
+  return dateStates
+})
+const calendarPreviewStateCounts = computed(() => {
+  const counts = {
+    pending: 0,
+    approved: 0,
+    requestUpdate: 0,
+  }
+
+  for (const state of calendarPreviewDateStates.value.values()) {
+    if (state === 'pending') counts.pending += 1
+    if (state === 'approved') counts.approved += 1
+    if (state === 'request-update') counts.requestUpdate += 1
+  }
+
+  return counts
+})
+const calendarPreviewWarningState = computed(
+  () => calendarPreviewDateStates.value.get(calendarPreviewWarningDate.value) || 'pending',
 )
 
 function statusBadgeColor(status) {
@@ -1560,10 +1675,35 @@ watch(activityFilter, () => {
   fetchData(1)
 })
 
+watch(showViewDialog, (isOpen) => {
+  if (isOpen) return
+  showCalendarPreviewDialog.value = false
+  calendarPreviewAnchorEntry.value = null
+  clearCalendarPreviewWarning()
+})
+
+watch(showCalendarPreviewDialog, (isOpen) => {
+  if (!isOpen) {
+    clearCalendarPreviewWarning()
+    return
+  }
+
+  syncCalendarPreviewDecorations()
+})
+
+watch(calendarPreviewDateStates, () => {
+  if (!showCalendarPreviewDialog.value) return
+  syncCalendarPreviewDecorations()
+})
+
 onMounted(() => {
   fetchDepartments()
   fetchCreditLeaveTypes()
   fetchData()
+})
+
+onBeforeUnmount(() => {
+  clearCalendarPreviewWarning()
 })
 
 function viewEmployee(emp) {
@@ -2414,13 +2554,13 @@ function buildLedgerInclusiveRangeText(entry) {
 }
 
 function resolveLeaveHistoryInclusiveDateParts(entry) {
-  const explicitDatesValue = pickFirstDefined(entry, [
+  const explicitDatesValue = parseInclusiveDatesValue(pickFirstDefined(entry, [
     'inclusive_dates',
     'inclusiveDates',
     'selected_dates',
     'selectedDates',
-  ])
-  if (Array.isArray(explicitDatesValue) && explicitDatesValue.length > 0) {
+  ]))
+  if (explicitDatesValue.length > 0) {
     const explicitParts = sortAndNormalizeLedgerDatePartsList(
       explicitDatesValue.map((value) => parseLedgerDateParts(value)).filter(Boolean),
     )
@@ -2487,6 +2627,439 @@ function buildLeaveHistoryInclusiveDateSortValue(entry) {
 
   const first = normalizedList[0]
   return `${String(first.year).padStart(4, '0')}-${String(first.month).padStart(2, '0')}-${String(first.day).padStart(2, '0')}`
+}
+
+function parseInclusiveDatesValue(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return []
+
+  const trimmed = value.trim()
+  if (!trimmed) return []
+
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      return []
+    }
+  }
+
+  return trimmed
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function buildCalendarPreviewIsoDate(parts) {
+  if (!parts) return ''
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+}
+
+function normalizeCalendarPreviewIsoDate(value) {
+  return buildCalendarPreviewIsoDate(parseLedgerDateParts(value))
+}
+
+function normalizeCalendarPreviewToken(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function getLeaveHistoryCalendarState(entry) {
+  const rawStatus = normalizeCalendarPreviewToken(
+    pickFirstDefined(entry, ['raw_status', 'rawStatus', 'status']),
+  )
+
+  if (rawStatus === 'APPROVED') return 'approved'
+  if (rawStatus.includes('PENDING')) return 'pending'
+  return ''
+}
+
+function getLeaveHistoryPendingUpdatePayload(entry) {
+  const candidates = [
+    entry?.pending_update,
+    entry?.latest_update_request_payload,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (candidate && typeof candidate === 'object') return candidate
+    if (typeof candidate !== 'string') continue
+
+    const trimmed = candidate.trim()
+    if (!trimmed) continue
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') return parsed
+    } catch {
+      // Ignore malformed payloads and continue scanning candidates.
+    }
+  }
+
+  return null
+}
+
+function getLeaveHistoryRequestUpdateStatus(entry) {
+  const payload = getLeaveHistoryPendingUpdatePayload(entry)
+  const candidates = [
+    entry?.latest_update_request_status,
+    entry?.pending_update_status,
+    payload?.status,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeCalendarPreviewToken(candidate)
+    if (normalized) return normalized
+  }
+
+  return payload ? 'PENDING' : ''
+}
+
+function getLeaveHistoryRequestActionType(entry) {
+  const payload = getLeaveHistoryPendingUpdatePayload(entry)
+  const candidates = [
+    entry?.pending_update_action_type,
+    entry?.latest_update_request_action_type,
+    payload?.action_type,
+    payload?.request_action_type,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeCalendarPreviewToken(candidate)
+    if (normalized) return normalized
+  }
+
+  if (payload) return 'REQUEST_UPDATE'
+  return ''
+}
+
+function getLeaveHistoryCalendarDates(entry) {
+  return resolveLeaveHistoryInclusiveDateParts(entry)
+    .map((parts) => buildCalendarPreviewIsoDate(parts))
+    .filter(Boolean)
+}
+
+function getLeaveHistoryRequestUpdateCalendarDates(entry) {
+  const payload = getLeaveHistoryPendingUpdatePayload(entry)
+  if (!payload) return []
+
+  const requestStatus = getLeaveHistoryRequestUpdateStatus(entry)
+  if (requestStatus && requestStatus !== 'PENDING') return []
+
+  const actionType = getLeaveHistoryRequestActionType(entry)
+  if (actionType.includes('CANCEL')) return []
+
+  return getLeaveHistoryCalendarDates(payload)
+}
+
+function canOpenLeaveHistoryCalendarPreview(entry) {
+  return (
+    getLeaveHistoryCalendarDates(entry).length > 0 ||
+    getLeaveHistoryRequestUpdateCalendarDates(entry).length > 0
+  )
+}
+
+function setCalendarPreviewRefElement(element) {
+  calendarPreviewRef.value = element
+}
+
+function setCalendarPreviewMonth(dateValue) {
+  const normalizedDate =
+    normalizeCalendarPreviewIsoDate(dateValue) || normalizeCalendarPreviewIsoDate(new Date())
+  const [year, month] = normalizedDate.split('-')
+
+  calendarPreviewView.value = {
+    year,
+    month,
+  }
+}
+
+const CALENDAR_PREVIEW_WARNING_WIDTH = 220
+const CALENDAR_PREVIEW_WARNING_TIMEOUT_MS = 7000
+let calendarPreviewWarningTimeoutId = null
+let calendarPreviewWarningPressedDate = ''
+let calendarPreviewWarningPressedAt = 0
+let calendarPreviewWarningPressedMessage = ''
+
+function clearCalendarPreviewWarningTimeout() {
+  if (calendarPreviewWarningTimeoutId) {
+    window.clearTimeout(calendarPreviewWarningTimeoutId)
+    calendarPreviewWarningTimeoutId = null
+  }
+}
+
+function releaseCalendarPreviewWarningDismiss() {
+  window.removeEventListener('pointerdown', handleCalendarPreviewDismissPointerDown, true)
+}
+
+function releaseCalendarPreviewPointer() {
+  window.removeEventListener('pointerup', handleCalendarPreviewGlobalPointerUp, true)
+  window.removeEventListener('pointercancel', handleCalendarPreviewGlobalPointerUp, true)
+}
+
+function clearCalendarPreviewWarning() {
+  clearCalendarPreviewWarningTimeout()
+  releaseCalendarPreviewWarningDismiss()
+  releaseCalendarPreviewPointer()
+
+  if (
+    !calendarPreviewDateWarning.value &&
+    !calendarPreviewWarningDate.value &&
+    Object.keys(calendarPreviewWarningStyle.value).length === 0
+  ) {
+    return
+  }
+
+  calendarPreviewDateWarning.value = ''
+  calendarPreviewWarningDate.value = ''
+  calendarPreviewWarningStyle.value = {}
+  syncCalendarPreviewDecorations()
+}
+
+function formatCalendarPreviewWarningDate(dateValue) {
+  const normalizedDate = normalizeCalendarPreviewIsoDate(dateValue)
+  if (!normalizedDate) return ''
+
+  return new Date(`${normalizedDate}T12:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function buildCalendarPreviewWarningMessage(dateValue) {
+  const normalizedDate = normalizeCalendarPreviewIsoDate(dateValue)
+  if (!normalizedDate) return ''
+
+  const state = calendarPreviewDateStates.value.get(normalizedDate)
+  if (!state) return ''
+
+  const formattedDate = formatCalendarPreviewWarningDate(normalizedDate)
+  if (!formattedDate) return ''
+
+  if (state === 'request-update') {
+    return `${formattedDate} is part of the requested update.`
+  }
+
+  if (state === 'approved') {
+    return `${formattedDate} leave application is already approved.`
+  }
+
+  return `${formattedDate} leave application is still pending.`
+}
+
+function showCalendarPreviewWarning(dateValue, options = {}) {
+  const { sticky = false, message = '' } = options
+  const normalizedDate = normalizeCalendarPreviewIsoDate(dateValue)
+  if (!normalizedDate) {
+    clearCalendarPreviewWarning()
+    return
+  }
+
+  const resolvedMessage = message || buildCalendarPreviewWarningMessage(normalizedDate)
+  if (!resolvedMessage) {
+    clearCalendarPreviewWarning()
+    return
+  }
+
+  clearCalendarPreviewWarningTimeout()
+  releaseCalendarPreviewWarningDismiss()
+
+  calendarPreviewDateWarning.value = resolvedMessage
+  calendarPreviewWarningDate.value = normalizedDate
+  syncCalendarPreviewDecorations()
+  window.addEventListener('pointerdown', handleCalendarPreviewDismissPointerDown, true)
+
+  if (!sticky) {
+    calendarPreviewWarningTimeoutId = window.setTimeout(() => {
+      clearCalendarPreviewWarning()
+    }, CALENDAR_PREVIEW_WARNING_TIMEOUT_MS)
+  }
+}
+
+function resolveCalendarPreviewDateFromEvent(event) {
+  const dayCell = event.target?.closest?.('.q-date__calendar-item')
+  if (!dayCell || dayCell.classList.contains('q-date__calendar-item--fill')) return ''
+
+  const dayMatch = String(dayCell.textContent || '').match(/\b([1-9]|[12]\d|3[01])\b/)
+  const day = dayMatch ? Number.parseInt(dayMatch[1], 10) : NaN
+  if (!Number.isInteger(day) || day < 1 || day > 31) return ''
+
+  return `${calendarPreviewView.value.year}-${calendarPreviewView.value.month}-${String(day).padStart(2, '0')}`
+}
+
+function handleCalendarPreviewModelUpdate() {
+  if (
+    (Array.isArray(calendarPreviewModel.value) && calendarPreviewModel.value.length > 0) ||
+    (!Array.isArray(calendarPreviewModel.value) && calendarPreviewModel.value)
+  ) {
+    calendarPreviewModel.value = []
+  }
+}
+
+function handleCalendarPreviewGlobalPointerUp() {
+  if (!calendarPreviewWarningPressedDate) return
+
+  const pressedDate = calendarPreviewWarningPressedDate
+  const pressedDuration = Date.now() - calendarPreviewWarningPressedAt
+  const pressedMessage = calendarPreviewWarningPressedMessage
+
+  calendarPreviewWarningPressedDate = ''
+  calendarPreviewWarningPressedAt = 0
+  calendarPreviewWarningPressedMessage = ''
+  releaseCalendarPreviewPointer()
+
+  if (pressedDuration >= 250) {
+    clearCalendarPreviewWarning()
+    return
+  }
+
+  showCalendarPreviewWarning(pressedDate, { message: pressedMessage })
+}
+
+function handleCalendarPreviewDismissPointerDown() {
+  clearCalendarPreviewWarning()
+}
+
+function handleCalendarPreviewSurfacePointerDown(event) {
+  const clickedDate = resolveCalendarPreviewDateFromEvent(event)
+  const warningMessage = clickedDate ? buildCalendarPreviewWarningMessage(clickedDate) : ''
+
+  if (!clickedDate) {
+    calendarPreviewWarningPressedDate = ''
+    calendarPreviewWarningPressedAt = 0
+    calendarPreviewWarningPressedMessage = ''
+    releaseCalendarPreviewPointer()
+    clearCalendarPreviewWarning()
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
+
+  if (!warningMessage) {
+    calendarPreviewWarningPressedDate = ''
+    calendarPreviewWarningPressedAt = 0
+    calendarPreviewWarningPressedMessage = ''
+    releaseCalendarPreviewPointer()
+    clearCalendarPreviewWarning()
+    return
+  }
+
+  calendarPreviewWarningPressedDate = clickedDate
+  calendarPreviewWarningPressedAt = Date.now()
+  calendarPreviewWarningPressedMessage = warningMessage
+  showCalendarPreviewWarning(clickedDate, { sticky: true, message: warningMessage })
+  releaseCalendarPreviewPointer()
+  window.addEventListener('pointerup', handleCalendarPreviewGlobalPointerUp, true)
+  window.addEventListener('pointercancel', handleCalendarPreviewGlobalPointerUp, true)
+}
+
+function handleCalendarPreviewSurfaceClick(event) {
+  const clickedDate = resolveCalendarPreviewDateFromEvent(event)
+  if (!clickedDate) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
+}
+
+function syncCalendarPreviewDecorations() {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const calendarRoot = calendarPreviewRef.value
+      if (!calendarRoot) return
+
+      const calendarRect = calendarRoot.getBoundingClientRect()
+      const calendarWidth = calendarRoot.clientWidth || calendarRect.width || 0
+      let nextWarningStyle = {}
+
+      const dayCells = calendarRoot.querySelectorAll('.q-date__calendar-item')
+      dayCells.forEach((cell) => {
+        cell.classList.remove('leave-date-calendar__day--locked')
+        cell.classList.remove('leave-date-calendar__day--locked-pending')
+        cell.classList.remove('leave-date-calendar__day--locked-approved')
+        cell.classList.remove('leave-date-calendar__day--locked-request-update')
+        cell.classList.remove('leave-date-calendar__day--warning')
+
+        if (cell.classList.contains('q-date__calendar-item--fill')) return
+
+        const dayMatch = String(cell.textContent || '').match(/\b([1-9]|[12]\d|3[01])\b/)
+        const day = dayMatch ? Number.parseInt(dayMatch[1], 10) : NaN
+        if (!Number.isInteger(day) || day < 1 || day > 31) return
+
+        const date = `${calendarPreviewView.value.year}-${calendarPreviewView.value.month}-${String(day).padStart(2, '0')}`
+        const lockedState = calendarPreviewDateStates.value.get(date)
+        if (!lockedState) return
+
+        cell.classList.add('leave-date-calendar__day--locked')
+        cell.classList.add(`leave-date-calendar__day--locked-${lockedState}`)
+
+        if (calendarPreviewWarningDate.value === date && calendarPreviewDateWarning.value) {
+          cell.classList.add('leave-date-calendar__day--warning')
+
+          const cellRect = cell.getBoundingClientRect()
+          const popupWidth = Math.max(
+            160,
+            Math.min(CALENDAR_PREVIEW_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)),
+          )
+          const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+          const popupLeft = Math.max(
+            8,
+            Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8),
+          )
+          const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
+          const arrowLeft = Math.max(
+            16,
+            Math.min(cellCenter - popupLeft - 6, popupWidth - 18),
+          )
+
+          nextWarningStyle = {
+            width: `${popupWidth}px`,
+            left: `${popupLeft}px`,
+            top: `${popupTop}px`,
+            '--leave-date-warning-arrow-left': `${arrowLeft}px`,
+          }
+        }
+      })
+
+      calendarPreviewWarningStyle.value = nextWarningStyle
+    })
+  })
+}
+
+function onCalendarPreviewNavigation({ year, month }) {
+  calendarPreviewView.value = {
+    year: String(year),
+    month: String(month).padStart(2, '0'),
+  }
+  clearCalendarPreviewWarning()
+  syncCalendarPreviewDecorations()
+}
+
+function openLeaveHistoryCalendarPreview(entry) {
+  if (!canOpenLeaveHistoryCalendarPreview(entry)) return
+
+  const previewDates = [
+    ...getLeaveHistoryRequestUpdateCalendarDates(entry),
+    ...getLeaveHistoryCalendarDates(entry),
+  ].filter(Boolean)
+  const anchorDate =
+    previewDates[0] ||
+    normalizeCalendarPreviewIsoDate(entry?.date_filed) ||
+    normalizeCalendarPreviewIsoDate(new Date())
+
+  calendarPreviewAnchorEntry.value = entry
+  calendarPreviewModel.value = []
+  clearCalendarPreviewWarning()
+  setCalendarPreviewMonth(anchorDate)
+  calendarPreviewKey.value += 1
+  showCalendarPreviewDialog.value = true
 }
 
 function normalizeLedgerRow(entry, index) {
@@ -3587,6 +4160,15 @@ async function saveLeaveCredits() {
   line-height: 1.35;
   white-space: pre-line;
   text-align: center;
+}
+
+.leave-history-table :deep(.leave-history-table__inclusive-date-trigger) {
+  min-height: auto;
+  padding: 4px 8px;
+}
+
+.leave-history-table :deep(.leave-history-table__inclusive-date-trigger .q-btn__content) {
+  white-space: normal;
 }
 
 @media (max-width: 900px) {
