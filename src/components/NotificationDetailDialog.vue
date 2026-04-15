@@ -327,7 +327,7 @@ function isApplicationNotificationType(type) {
 function statusFromNotificationType(type) {
   const statusMap = {
     leave_approved: 'Approved',
-    leave_rejected: 'Rejected',
+    leave_rejected: 'Disapproved',
     leave_cancelled: 'Cancelled',
     leave_edit_requested: 'Edit Requested',
     leave_request: 'Pending Review',
@@ -335,7 +335,7 @@ function statusFromNotificationType(type) {
     coc_request: 'Pending Admin',
     coc_pending: 'Pending HR',
     coc_approved: 'Approved',
-    coc_rejected: 'Rejected',
+    coc_rejected: 'Disapproved',
   }
   return statusMap[type] || ''
 }
@@ -379,7 +379,7 @@ function parseApplicationFromMessage(notif) {
     const hrDecision = message.match(/^COC application for\s+(.+?)\s+was\s+(approved|rejected)\s+by HR/i)
     if (hrDecision) {
       parsed.applicant_name = parsed.applicant_name || hrDecision[1]?.trim()
-      parsed.status = hrDecision[2]?.toLowerCase() === 'approved' ? 'Approved' : 'Rejected'
+      parsed.status = hrDecision[2]?.toLowerCase() === 'approved' ? 'Approved' : 'Disapproved'
     }
 
     const creditedDays = message.match(/CTO credited:\s*([^.]*)/i)
