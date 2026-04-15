@@ -2112,7 +2112,21 @@ const officeColumn = {
 const leaveTypeColumn = {
   name: 'leaveType',
   label: 'Leave Type',
-  field: (row) => (row.is_monetization ? `${row.leaveType} (Monetization)` : row.leaveType),
+  field: (row) => {
+    const rawLabel = String(row?.leaveType || '').trim()
+    if (!rawLabel) return 'N/A'
+
+    const prefixMatch = rawLabel.match(/^monetization\s*\((.*)\)\s*$/i)
+    const suffixMatch = /\(monetization\)\s*$/i.test(rawLabel)
+    const normalizedLeaveType = (prefixMatch ? prefixMatch[1] : rawLabel)
+      .replace(/\s*\(monetization\)\s*$/i, '')
+      .trim()
+
+    if (!normalizedLeaveType) return 'N/A'
+    if (row?.is_monetization || prefixMatch || suffixMatch) return `Monetization(${normalizedLeaveType})`
+
+    return normalizedLeaveType
+  },
   align: 'left',
 }
 const dateFiledColumn = {

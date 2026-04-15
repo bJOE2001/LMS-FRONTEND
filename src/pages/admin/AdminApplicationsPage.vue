@@ -599,22 +599,12 @@
               </div>
             </div>
 
-            <div class="admin-application-details-item admin-application-details-item--reason">
-              <div class="admin-application-details-label">
-                {{ isCocApplication(selectedApp) ? 'Nature of Overtime' : 'Reason' }}
-              </div>
-              <div v-if="isCocApplication(selectedApp)">
-                <template v-if="getCocNatureOfOvertimeLines(selectedApp).length">
-                  <div
-                    v-for="(line, index) in getCocNatureOfOvertimeLines(selectedApp)"
-                    :key="`admin-coc-nature-${index}`"
-                  >
-                    {{ line }}
-                  </div>
-                </template>
-                <template v-else>N/A</template>
-              </div>
-              <div v-else>{{ getApplicationDetailsReason(selectedApp) }}</div>
+            <div
+              v-if="!isCocApplication(selectedApp)"
+              class="admin-application-details-item admin-application-details-item--reason"
+            >
+              <div class="admin-application-details-label">Reason</div>
+              <div>{{ getApplicationDetailsReason(selectedApp) }}</div>
             </div>
 
             <div
@@ -871,17 +861,6 @@ function getApplicationDetailsReason(app) {
   return reason || 'N/A'
 }
 
-function getCocNatureOfOvertimeLines(app) {
-  if (!isCocApplication(app)) return []
-
-  const rows = Array.isArray(app?.rows) ? app.rows : []
-  const lines = rows
-    .map((row) => String(row?.nature_of_overtime ?? row?.natureOfOvertime ?? '').trim())
-    .filter(Boolean)
-
-  return [...new Set(lines)]
-}
-
 function getApplicationDetailsRemarks(app) {
   const remarks = String(app?.remarks || '').trim()
   return remarks || 'N/A'
@@ -892,16 +871,16 @@ function shouldScrollInclusiveDates(app) {
 
   if (hasPendingDateUpdate(app)) {
     return (
-      getSelectedDateIndicatorRows(app).length + getPendingUpdateDateIndicatorRows(app).length >= 5
+      getSelectedDateIndicatorRows(app).length + getPendingUpdateDateIndicatorRows(app).length > 3
     )
   }
 
   const dateIndicatorRows = getSelectedDateIndicatorRows(app)
   if (dateIndicatorRows.length) {
-    return dateIndicatorRows.length >= 5
+    return dateIndicatorRows.length > 3
   }
 
-  return getApplicationInclusiveDateLines(app).length >= 5
+  return getApplicationInclusiveDateLines(app).length > 3
 }
 
 function setCalendarPreviewRefElement(element) {
@@ -1206,8 +1185,9 @@ function setCalendarPreviewRefElement(element) {
 }
 
 .admin-application-details-scroll-area {
-  max-height: 198px;
+  max-height: 78px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 2px;
 }
 
@@ -1305,7 +1285,7 @@ function setCalendarPreviewRefElement(element) {
   }
 
   .admin-application-details-scroll-area {
-    max-height: 172px;
+    max-height: 72px;
   }
 
   .admin-application-duration-columns {

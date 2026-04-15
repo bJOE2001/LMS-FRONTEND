@@ -1192,7 +1192,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const normalizedSickDetail = normalizeSickDetailValue(sickDetail)
     const resolvedSickSpecify = sickSpecify
     const showWithinPhilippines = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
-    const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
+    const showAbroad = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Abroad'
     const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
     const showOutPatient = isSick && normalizedSickDetail === 'Out Patient'
     const showMastersDegree = isStudy && studyDetail === 'Masters Degree'

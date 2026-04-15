@@ -96,7 +96,7 @@ export function useAdminApplicationsPage() {
       label: 'Leave Type',
       field: (row) => {
         const leaveTypeLabel = formatApplicationLeaveTypeLabel(row?.leaveType)
-        return row.is_monetization ? `${leaveTypeLabel} (Monetization)` : leaveTypeLabel
+        return formatMonetizationLeaveTypeLabel(leaveTypeLabel, row?.is_monetization)
       },
       align: 'left',
     },
@@ -1298,6 +1298,21 @@ export function useAdminApplicationsPage() {
     if (!label) return ''
     if (label === 'Special Privilege Leave') return 'Special Privilege Leave(MC06)'
     return label
+  }
+
+  function formatMonetizationLeaveTypeLabel(value, isMonetization = false) {
+    const rawLabel = String(value || '').trim()
+    const prefixMatch = rawLabel.match(/^monetization\s*\((.*)\)\s*$/i)
+    const suffixMatch = /\(monetization\)\s*$/i.test(rawLabel)
+
+    const normalizedLeaveType = (prefixMatch ? prefixMatch[1] : rawLabel)
+      .replace(/\s*\(monetization\)\s*$/i, '')
+      .trim()
+
+    if (!normalizedLeaveType) return 'N/A'
+    if (isMonetization || prefixMatch || suffixMatch) return `Monetization(${normalizedLeaveType})`
+
+    return normalizedLeaveType
   }
 
   function toLeaveBalanceAcronym(value) {

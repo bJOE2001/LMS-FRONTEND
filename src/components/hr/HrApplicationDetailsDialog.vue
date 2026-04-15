@@ -151,20 +151,6 @@
               }}
             </div>
           </div>
-          <div v-if="isCocApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Nature of Overtime</div>
-            <div>
-              <template v-if="getCocNatureOfOvertimeLines(application).length">
-                <div
-                  v-for="(line, index) in getCocNatureOfOvertimeLines(application)"
-                  :key="`hr-coc-nature-${index}`"
-                >
-                  {{ line }}
-                </div>
-              </template>
-              <template v-else>N/A</template>
-            </div>
-          </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Duration</div>
             <template v-if="hasPendingDurationUpdate(application)">
@@ -223,7 +209,11 @@
             </div>
             <div
               v-else-if="hasPendingDateUpdate(application)"
-              class="text-weight-medium hr-application-date-change-preview"
+              :class="[
+                'text-weight-medium',
+                'hr-application-date-change-preview',
+                { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
+              ]"
             >
               <div class="text-caption text-grey-7">Current</div>
               <template v-if="getSelectedDatePayStatusRows(application).length">
@@ -329,7 +319,11 @@
             </div>
             <div
               v-else-if="getSelectedDatePayStatusRows(application).length"
-              class="text-weight-medium hr-application-duration-columns"
+              :class="[
+                'text-weight-medium',
+                'hr-application-duration-columns',
+                { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
+              ]"
             >
               <div
                 v-for="(column, columnIndex) in getSelectedDatePayStatusColumns(application)"
@@ -365,7 +359,11 @@
             </div>
             <div
               v-else-if="application.selected_dates && application.selected_dates.length"
-              class="text-weight-medium hr-application-duration-columns"
+              :class="[
+                'text-weight-medium',
+                'hr-application-duration-columns',
+                { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
+              ]"
             >
               <div
                 v-for="(column, columnIndex) in getSelectedDateColumns(application.selected_dates)"
@@ -381,7 +379,13 @@
                 </div>
               </div>
             </div>
-            <div v-else class="text-weight-medium">
+            <div
+              v-else
+              :class="[
+                'text-weight-medium',
+                { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
+              ]"
+            >
               {{ application.startDate ? formatDate(application.startDate) : 'N/A' }} -
               {{ application.endDate ? formatDate(application.endDate) : 'N/A' }}
             </div>
@@ -559,10 +563,6 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
-  getCocNatureOfOvertimeLines: {
-    type: Function,
-    default: () => [],
-  },
   getCurrentReasonDisplay: {
     type: Function,
     default: () => '',
@@ -647,6 +647,33 @@ const shouldShowFooterActions = computed(() => {
     props.canPrintCocCertificate(app) || (props.isMobile && props.hasMobileApplicationActions(app))
   )
 })
+
+function getCurrentInclusiveDateEntryCount(app) {
+  const currentPayStatusRows = props.getSelectedDatePayStatusRows(app)
+  if (currentPayStatusRows.length) return currentPayStatusRows.length
+
+  const selectedDates = Array.isArray(app?.selected_dates) ? app.selected_dates : []
+  if (selectedDates.length) return selectedDates.length
+
+  return props.getApplicationInclusiveDateLines(app).length
+}
+
+function getRequestedInclusiveDateEntryCount(app) {
+  const pendingPayStatusRows = props.getPendingUpdateDatePayStatusRows(app)
+  if (pendingPayStatusRows.length) return pendingPayStatusRows.length
+
+  return props.getPendingUpdateInclusiveDateLines(app).length
+}
+
+function shouldScrollInclusiveDates(app) {
+  if (!app || app.is_monetization) return false
+
+  if (props.hasPendingDateUpdate(app)) {
+    return getCurrentInclusiveDateEntryCount(app) + getRequestedInclusiveDateEntryCount(app) > 3
+  }
+
+  return getCurrentInclusiveDateEntryCount(app) > 3
+}
 
 function handleViewAttachment() {
   if (!props.application) return
@@ -910,6 +937,13 @@ function handlePrintCertificate() {
   width: 100%;
 }
 
+.hr-application-details-scroll-area {
+  max-height: 78px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
 .hr-application-duration-column {
   display: flex;
   flex-direction: column;
@@ -1000,6 +1034,10 @@ function handlePrintCertificate() {
 
   .hr-application-duration-columns {
     gap: 5px;
+  }
+
+  .hr-application-details-scroll-area {
+    max-height: 72px;
   }
 
   .hr-application-duration-date {

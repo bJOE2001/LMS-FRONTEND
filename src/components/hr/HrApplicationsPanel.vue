@@ -80,18 +80,18 @@
             <template v-if="hasPendingLeaveTypeUpdate(props.row)">
               <span class="text-caption text-grey-7 block">Current</span>
               <span class="text-weight-medium text-grey-9 block">{{
-                getCurrentLeaveTypeLabel(props.row)
+                formatMonetizationLeaveTypeLabel(getCurrentLeaveTypeLabel(props.row))
               }}</span>
               <span class="text-caption text-deep-purple-8 block application-date-change-label"
                 >Requested</span
               >
               <span class="text-weight-medium text-deep-purple-8 block">{{
-                getRequestedLeaveTypeLabel(props.row)
+                formatMonetizationLeaveTypeLabel(getRequestedLeaveTypeLabel(props.row))
               }}</span>
             </template>
             <template v-else>
               <span class="text-weight-medium text-grey-9 block">{{
-                getCurrentLeaveTypeLabel(props.row)
+                formatMonetizationLeaveTypeLabel(getCurrentLeaveTypeLabel(props.row))
               }}</span>
             </template>
           </div>
@@ -455,12 +455,29 @@ export default defineComponent({
       return panel.canPrintCocCertificate(app) && panel.isApplicationReceivedByHr(app)
     }
 
+    function formatMonetizationLeaveTypeLabel(value) {
+      const rawLabel = String(value || '').trim()
+      if (!rawLabel) return 'N/A'
+
+      const prefixMatch = rawLabel.match(/^monetization\s*\((.*)\)\s*$/i)
+      const suffixMatch = /\(monetization\)\s*$/i.test(rawLabel)
+      const normalizedLeaveType = (prefixMatch ? prefixMatch[1] : rawLabel)
+        .replace(/\s*\(monetization\)\s*$/i, '')
+        .trim()
+
+      if (!normalizedLeaveType) return 'N/A'
+      if (prefixMatch || suffixMatch) return `Monetization(${normalizedLeaveType})`
+
+      return normalizedLeaveType
+    }
+
     return {
       ...panel,
       canShowCocCertificatePrintAction,
       canShowPendingReleaseAction,
       canShowPendingReceiveAction,
       canShowHrReviewDecisionActions,
+      formatMonetizationLeaveTypeLabel,
       getFinalStatusForStatusColumn,
       isCocOnlyView,
     }
