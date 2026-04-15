@@ -381,9 +381,27 @@
                   <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">Cancel Leave</span>
                 </div>
               </div>
+              <div class="admin-application-requested-changes-item">
+                <div class="admin-application-requested-changes-title">Request Details</div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Requested At:</span>
+                  <span class="admin-application-requested-changes-value">{{
+                    getApplicationEditRequestRequestedAt(selectedApp)
+                  }}</span>
+                </div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">Remarks:</span>
+                  <span class="admin-application-requested-changes-value">{{
+                    getApplicationEditRequestReason(selectedApp)
+                  }}</span>
+                </div>
+              </div>
             </div>
 
-            <div class="row items-center q-col-gutter-md q-mt-sm">
+            <div
+              v-if="shouldShowApplicationEditRequestDateComparison(selectedApp)"
+              class="row items-center q-col-gutter-md q-mt-sm"
+            >
               <div class="col-12 col-md-8 admin-application-requested-changes-meta">
                 <div><strong>Requested At:</strong> {{ getApplicationEditRequestRequestedAt(selectedApp) }}</div>
                 <div><strong>Remarks:</strong> {{ getApplicationEditRequestReason(selectedApp) }}</div>
@@ -422,7 +440,7 @@
 
             <div class="admin-application-details-item">
               <div class="admin-application-details-label">Application Status</div>
-              <StatusBadge :status="getDisplayApplicationStatusLabel(selectedApp)" />
+              <StatusBadge :status="getFinalStatusForStatusColumn(selectedApp)" />
             </div>
 
             <div

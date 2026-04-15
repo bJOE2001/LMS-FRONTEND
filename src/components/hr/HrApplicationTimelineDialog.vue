@@ -580,13 +580,7 @@ const isReleasedState = computed(() => {
 //   return String(props.releasedSummary || '').trim()
 // })
 
-const hasAttachmentState = computed(() => {
-  if (typeof props.hasApplicationAttachment === 'function') {
-    return Boolean(props.hasApplicationAttachment(props.application))
-  }
-
-  return props.hasAttachment
-})
+const hasAttachmentState = computed(() => false)
 
 function handleReceiveClick() {
   if (!props.application || !canReceiveState.value) return

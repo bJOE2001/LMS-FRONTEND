@@ -356,6 +356,7 @@
     :has-mobile-application-actions="hasMobileApplicationActions"
     :can-edit-application="canEditApplication"
     :can-recall-application="canRecallApplication"
+    :get-final-status-for-status-column="getFinalStatusForStatusColumn"
     @view-attachment="viewApplicationAttachment"
     @open-edit="openEdit"
     @open-action-confirm="openActionConfirm"

@@ -143,9 +143,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const canShowAttachment = computed(
-  () => !!props.selectedApp && props.hasApplicationAttachment(props.selectedApp),
-)
+const canShowAttachment = computed(() => false)
 
 function onDialogModelUpdate(value) {
   emit('update:modelValue', value)
