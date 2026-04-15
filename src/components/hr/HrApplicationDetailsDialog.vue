@@ -65,6 +65,86 @@
         </div>
       </q-card-section>
       <q-card-section class="q-gutter-y-sm hr-application-details-content">
+        <div
+          v-if="shouldShowApplicationEditRequestSection(application)"
+          class="hr-application-requested-changes-section"
+        >
+          <div class="row items-center justify-between q-gutter-sm">
+            <div class="hr-application-details-label">
+              {{ getApplicationEditRequestSectionTitle(application) }}
+            </div>
+          </div>
+          <div
+            v-if="shouldShowApplicationEditRequestDateComparison(application)"
+            class="hr-application-requested-changes-grid"
+          >
+            <div class="hr-application-requested-changes-item">
+              <div class="hr-application-requested-changes-title">Inclusive Dates</div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Current:</span>
+                <span class="hr-application-requested-changes-value">{{
+                  getApplicationEditRequestFromDates(application)
+                }}</span>
+              </div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span
+                  class="
+                    hr-application-requested-changes-value
+                    hr-application-requested-changes-value--requested
+                  "
+                  >{{ getApplicationEditRequestToDates(application) }}</span
+                >
+              </div>
+            </div>
+            <div class="hr-application-requested-changes-item">
+              <div class="hr-application-requested-changes-title">Duration</div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Current:</span>
+                <span class="hr-application-requested-changes-value">{{
+                  getApplicationEditRequestCurrentDuration(application)
+                }}</span>
+              </div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span
+                  class="
+                    hr-application-requested-changes-value
+                    hr-application-requested-changes-value--requested
+                  "
+                  >{{ getApplicationEditRequestRequestedDuration(application) }}</span
+                >
+              </div>
+            </div>
+          </div>
+          <div v-else class="hr-application-requested-changes-grid">
+            <div class="hr-application-requested-changes-item">
+              <div class="hr-application-requested-changes-title">Changes</div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span
+                  class="
+                    hr-application-requested-changes-value
+                    hr-application-requested-changes-value--requested
+                  "
+                  >Cancel Leave</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="row items-center q-col-gutter-md q-mt-sm">
+            <div class="col-12 col-md-8 hr-application-requested-changes-meta">
+              <div>
+                <strong>Requested At:</strong>
+                {{ getApplicationEditRequestRequestedAt(application) }}
+              </div>
+              <div>
+                <strong>Remarks:</strong>
+                {{ getApplicationEditRequestReason(application) }}
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="hr-application-details-grid">
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Employee</div>
@@ -99,25 +179,8 @@
             </div>
           </div>
           <div class="hr-application-details-item">
-            <div
-              class="hr-application-status-pair"
-              :class="{ 'hr-application-status-pair--single': !getEditRequestStatusLabel(application) }"
-            >
-              <div class="hr-application-status-pair__item">
-                <div class="text-caption text-grey-7">Application Status</div>
-                <StatusBadge :status="application.displayStatus" />
-              </div>
-              <div v-if="getEditRequestStatusLabel(application)" class="hr-application-status-pair__item">
-                <div class="text-caption text-grey-7">{{ getEditRequestStatusFieldLabel(application) }}</div>
-                <q-badge
-                  :color="getEditRequestBadgeColor(application)"
-                  text-color="white"
-                  rounded
-                  class="text-weight-medium q-pa-xs status-edit-request-badge"
-                  :label="getEditRequestStatusLabel(application)"
-                />
-              </div>
-            </div>
+            <div class="text-caption text-grey-7">Application Status</div>
+            <StatusBadge class="self-start" :status="application.displayStatus" />
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Office</div>
@@ -150,28 +213,6 @@
                 formatDate(application.certificateIssuedAt || application.certificate_issued_at) || 'N/A'
               }}
             </div>
-          </div>
-          <div class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Duration</div>
-            <template v-if="hasPendingDurationUpdate(application)">
-              <div class="hr-application-duration-pair">
-                <div class="hr-application-duration-pair__item">
-                  <div class="text-caption text-grey-7">Current</div>
-                  <div class="text-weight-medium">{{ getApplicationDurationDisplay(application) }}</div>
-                </div>
-                <div class="hr-application-duration-pair__item">
-                  <div class="text-caption text-deep-purple-8">Requested</div>
-                  <div class="text-weight-medium text-deep-purple-8">
-                    {{ getRequestedDurationDisplay(application) }}
-                  </div>
-                </div>
-              </div>
-            </template>
-            <template v-else>
-              <div class="text-weight-medium">
-                {{ getApplicationDurationDisplay(application) }}
-              </div>
-            </template>
           </div>
           <div v-if="!isCocApplication(application)" class="hr-application-details-item">
             <div class="text-caption text-grey-7">Reason</div>
@@ -545,6 +586,46 @@ const props = defineProps({
   getEditRequestBadgeColor: {
     type: Function,
     default: () => 'grey-6',
+  },
+  hasApplicationEditRequest: {
+    type: Function,
+    default: () => false,
+  },
+  shouldShowApplicationEditRequestSection: {
+    type: Function,
+    default: () => false,
+  },
+  getApplicationEditRequestSectionTitle: {
+    type: Function,
+    default: () => 'Requested Changes',
+  },
+  shouldShowApplicationEditRequestDateComparison: {
+    type: Function,
+    default: () => false,
+  },
+  getApplicationEditRequestFromDates: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestToDates: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestCurrentDuration: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestRequestedDuration: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestRequestedAt: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestReason: {
+    type: Function,
+    default: () => 'N/A',
   },
   getApplicationDurationDisplay: {
     type: Function,
@@ -924,6 +1005,66 @@ function handlePrintCertificate() {
   color: #829ab1;
 }
 
+.hr-application-requested-changes-section {
+  border: 1px solid #d9e8f2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(236, 247, 255, 0.55);
+}
+
+.hr-application-requested-changes-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.hr-application-requested-changes-item {
+  border: 1px dashed #b5cee2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.hr-application-requested-changes-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #4b6b85;
+  margin-bottom: 6px;
+}
+
+.hr-application-requested-changes-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.hr-application-requested-changes-key {
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hr-application-requested-changes-value {
+  color: #1f2937;
+  font-size: 0.78rem;
+}
+
+.hr-application-requested-changes-value--requested {
+  color: #4c1d95;
+}
+
+.hr-application-requested-changes-meta {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #374151;
+}
+
 .hr-application-details-actions {
   flex: 0 0 auto;
   padding: 0 14px 14px;
@@ -1037,6 +1178,10 @@ function handlePrintCertificate() {
   .hr-application-details-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+
+  .hr-application-requested-changes-grid {
+    grid-template-columns: 1fr;
   }
 
   .hr-application-duration-columns {
