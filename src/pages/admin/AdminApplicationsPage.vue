@@ -268,6 +268,11 @@
                       'Pending Update HR Review',
                       'Pending Update Admin Review',
                       'Pending Update Release',
+                      'Cancel Request Pending',
+                      'Cancel Request Pending Admin',
+                      'Cancel Request Pending HR',
+                      'Cancel Request Pending Receive',
+                      'Cancel Request Pending Release',
                       'Pending Admin',
                     ].includes(getDisplayApplicationStatusLabel(selectedApp))
                   "
