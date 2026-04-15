@@ -123,7 +123,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const canShowAttachment = computed(() => false)
 function onDialogModelUpdate(value) {
   emit('update:modelValue', value)
 }
