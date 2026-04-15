@@ -131,8 +131,26 @@
                 >
               </div>
             </div>
+            <div class="hr-application-requested-changes-item">
+              <div class="hr-application-requested-changes-title">Request Details</div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Requested At:</span>
+                <span class="hr-application-requested-changes-value">{{
+                  getApplicationEditRequestRequestedAt(application)
+                }}</span>
+              </div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">Remarks:</span>
+                <span class="hr-application-requested-changes-value">{{
+                  getApplicationEditRequestReason(application)
+                }}</span>
+              </div>
+            </div>
           </div>
-          <div class="row items-center q-col-gutter-md q-mt-sm">
+          <div
+            v-if="shouldShowApplicationEditRequestDateComparison(application)"
+            class="row items-center q-col-gutter-md q-mt-sm"
+          >
             <div class="col-12 col-md-8 hr-application-requested-changes-meta">
               <div>
                 <strong>Requested At:</strong>
@@ -180,7 +198,7 @@
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Application Status</div>
-            <StatusBadge class="self-start" :status="application.displayStatus" />
+            <StatusBadge class="self-start" :status="getFinalStatusForStatusColumn(application)" />
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Office</div>
@@ -217,21 +235,7 @@
           <div v-if="!isCocApplication(application)" class="hr-application-details-item">
             <div class="text-caption text-grey-7">Reason</div>
             <div>
-              <template v-if="hasPendingReasonUpdate(application)">
-                <div class="hr-application-reason-pair">
-                  <div class="hr-application-reason-pair__item">
-                    <div class="text-caption text-grey-7">Current</div>
-                    <div>{{ getCurrentReasonDisplay(application) }}</div>
-                  </div>
-                  <div class="hr-application-reason-pair__item">
-                    <div class="text-caption text-deep-purple-8">Requested</div>
-                    <div class="text-deep-purple-8">{{ getRequestedReasonDisplay(application) }}</div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                {{ getCurrentReasonDisplay(application) }}
-              </template>
+              {{ getCurrentReasonDisplay(application) }}
             </div>
           </div>
           <div class="hr-application-details-item">
@@ -710,6 +714,10 @@ const props = defineProps({
   canRecallApplication: {
     type: Function,
     default: () => false,
+  },
+  getFinalStatusForStatusColumn: {
+    type: Function,
+    default: (app) => String(app?.displayStatus || '').trim(),
   },
 })
 

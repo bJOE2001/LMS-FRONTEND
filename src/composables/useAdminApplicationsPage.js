@@ -3115,24 +3115,12 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestStatusLabel(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
+    const badgeLabel = getEditRequestBadgeLabel(app)
+    if (badgeLabel) return badgeLabel
+
     const status = getAdminEditRequestBadgeStatus(app)
-    const isCancelRequest = isApplicationEditCancellationRequest(app)
     if (status === 'APPROVED') return 'Approved'
     if (status === 'REJECTED') return 'Disapproved'
-    if (status === 'PENDING_HR') {
-      if (isCancelRequest) return 'Pending HR Review'
-      const stageStatus = getLeaveWorkflowStageStatus(app)
-      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
-        return stageStatus
-      }
-      return 'Pending Update HR Review'
-    }
-    if (status === 'PENDING_ADMIN') {
-      return isCancelRequest ? 'Pending Admin Review' : 'Pending Update Admin Review'
-    }
-    if (status === 'PENDING') {
-      return isCancelRequest ? 'Pending Review' : 'Pending Update HR Review'
-    }
     return 'Pending'
   }
 
