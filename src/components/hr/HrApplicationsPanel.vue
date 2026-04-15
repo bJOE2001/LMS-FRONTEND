@@ -356,6 +356,7 @@
     :has-mobile-application-actions="hasMobileApplicationActions"
     :can-edit-application="canEditApplication"
     :can-recall-application="canRecallApplication"
+    :get-final-status-for-status-column="getFinalStatusForStatusColumn"
     @view-attachment="viewApplicationAttachment"
     @open-edit="openEdit"
     @open-action-confirm="openActionConfirm"
@@ -460,6 +461,9 @@ export default defineComponent({
     HrApplicationRecallDialog,
   },
   setup(props) {
+    const normalizeDisapprovedStatusLabel = (statusValue) =>
+      String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+
     const panel = useHrApplicationsPanel({
       applicationType: props.applicationType,
       applicationSource: props.applicationSource,
@@ -892,12 +896,16 @@ export default defineComponent({
       }
 
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
-      if (updateRequestBadgeLabel) return updateRequestBadgeLabel
+      if (updateRequestBadgeLabel) return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
 
-      return resolvedStatus
+      return normalizeDisapprovedStatusLabel(
+        app?.displayStatus || panel.getApplicationStatusLabel(app),
+      )
     }
 
     function canShowPendingReleaseAction(app) {
+      if (panel.getLatestUpdateRequestStatus(app) === 'REJECTED') return false
+
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
         (stageStatus === 'Pending Release' || stageStatus === 'Pending Update Release') &&

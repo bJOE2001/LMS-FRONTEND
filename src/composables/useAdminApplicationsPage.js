@@ -440,6 +440,17 @@ export function useAdminApplicationsPage() {
           normalizeAdminApplicationForDisplay(application),
         ),
       )
+
+      const selectedRowKey = getApplicationRowKey(selectedApp.value)
+      const selectedId = Number(selectedApp.value?.id)
+      const refreshedSelectedApp = selectedRowKey
+        ? applicationRows.value.find((application) => getApplicationRowKey(application) === selectedRowKey)
+        : Number.isFinite(selectedId)
+          ? applicationRows.value.find((application) => Number(application?.id) === selectedId)
+          : null
+      if (refreshedSelectedApp) {
+        selectedApp.value = refreshedSelectedApp
+      }
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to load applications right now.')
       $q.notify({ type: 'negative', message, position: 'top' })
@@ -1141,11 +1152,19 @@ export function useAdminApplicationsPage() {
       app?.latest_update_request_status ??
         '',
     )
-
-    if (explicitStatus) return explicitStatus
-
     const historyDecisionStatus = resolveAdminUpdateRequestStatusFromHistory(app)
-    if (historyDecisionStatus) return historyDecisionStatus
+
+    if (explicitStatus === 'REJECTED' || historyDecisionStatus === 'REJECTED') {
+      return 'REJECTED'
+    }
+
+    if (explicitStatus === 'APPROVED' || historyDecisionStatus === 'APPROVED') {
+      return 'APPROVED'
+    }
+
+    if (explicitStatus || historyDecisionStatus) {
+      return explicitStatus || historyDecisionStatus
+    }
 
     return isAdminEditUpdateRequest(app) ? 'PENDING' : ''
   }
@@ -1164,6 +1183,13 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveAdminUpdateRequestStatusFromHistory(app) {
+    const hasUpdateRequestContext = Boolean(
+      app?.latest_update_requested_at ||
+        app?.latest_update_request_payload ||
+        app?.pending_update ||
+        app?.latest_update_request_action_type ||
+        app?.pending_update_action_type,
+    )
     const entries = getStatusHistoryEntries(app)
     for (let index = entries.length - 1; index >= 0; index -= 1) {
       const entry = entries[index] || {}
@@ -1193,6 +1219,23 @@ export function useAdminApplicationsPage() {
           'REQUEST_UPDATE_REJECTED',
           'REQUEST_CANCEL_REJECTED',
         ].includes(actionToken)
+      ) {
+        return 'REJECTED'
+      }
+
+      if (
+        ['ADMIN_REJECTED', 'HR_REJECTED'].includes(actionToken) &&
+        (
+          hasUpdateRequestContext ||
+          stageToken.includes('edit request') ||
+          stageToken.includes('request update') ||
+          stageToken.includes('cancellation request') ||
+          stageToken.includes('cancel request') ||
+          remarksToken.includes('edit request') ||
+          remarksToken.includes('request update') ||
+          remarksToken.includes('cancellation request') ||
+          remarksToken.includes('cancel request')
+        )
       ) {
         return 'REJECTED'
       }
@@ -3203,24 +3246,12 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestStatusLabel(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
+    const badgeLabel = getEditRequestBadgeLabel(app)
+    if (badgeLabel) return badgeLabel
+
     const status = getAdminEditRequestBadgeStatus(app)
-    const isCancelRequest = isApplicationEditCancellationRequest(app)
     if (status === 'APPROVED') return 'Approved'
     if (status === 'REJECTED') return 'Disapproved'
-    if (status === 'PENDING_HR') {
-      if (isCancelRequest) return 'Pending HR Review'
-      const stageStatus = getLeaveWorkflowStageStatus(app)
-      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
-        return stageStatus
-      }
-      return 'Pending Update HR Review'
-    }
-    if (status === 'PENDING_ADMIN') {
-      return isCancelRequest ? 'Pending Admin Review' : 'Pending Update Admin Review'
-    }
-    if (status === 'PENDING') {
-      return isCancelRequest ? 'Pending Review' : 'Pending Update HR Review'
-    }
     return 'Pending'
   }
 
@@ -3405,18 +3436,90 @@ export function useAdminApplicationsPage() {
     }
   }
 
+  function resolveAdminEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
+    return findLatestStatusHistoryEntry(app, (entry) => {
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+      const updateRequestSignal =
+        stageToken.includes('edit request') ||
+        stageToken.includes('request update') ||
+        remarksToken.includes('edit request') ||
+        remarksToken.includes('request update')
+      const cancelRequestSignal =
+        stageToken.includes('cancel request') ||
+        stageToken.includes('cancellation request') ||
+        remarksToken.includes('cancel request') ||
+        remarksToken.includes('cancellation request')
+
+      const targetDecision = String(decision || '').toUpperCase()
+      const explicitApprovedSignal =
+        [
+          'EDIT_REQUEST_APPROVED',
+          'UPDATE_REQUEST_APPROVED',
+          'CANCELLATION_REQUEST_APPROVED',
+          'CANCEL_REQUEST_APPROVED',
+        ].includes(actionToken) ||
+        stageToken.includes('edit request approved') ||
+        stageToken.includes('cancellation request approved') ||
+        stageToken.includes('cancel request approved')
+      const explicitRejectedSignal =
+        [
+          'EDIT_REQUEST_REJECTED',
+          'UPDATE_REQUEST_REJECTED',
+          'CANCELLATION_REQUEST_REJECTED',
+          'CANCEL_REQUEST_REJECTED',
+        ].includes(actionToken) ||
+        stageToken.includes('edit request rejected') ||
+        stageToken.includes('edit request disapproved') ||
+        stageToken.includes('cancellation request rejected') ||
+        stageToken.includes('cancellation request disapproved') ||
+        stageToken.includes('cancel request rejected')
+
+      if (targetDecision === 'APPROVED' && explicitApprovedSignal) return true
+      if (targetDecision === 'REJECTED' && explicitRejectedSignal) return true
+
+      const expectedDecisionActions = targetDecision === 'REJECTED'
+        ? ['ADMIN_REJECTED', 'HR_REJECTED']
+        : ['HR_APPROVED']
+      if (!expectedDecisionActions.includes(actionToken)) return false
+
+      if (updateRequestSignal || cancelRequestSignal) return true
+
+      const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+      if (!cycleStart) return true
+
+      return isTimestampOnOrAfter(resolveStatusHistoryTimestamp(entry), cycleStart)
+    })
+  }
+
+  function resolveAdminEditRequestReviewRole(decisionHistoryEntry) {
+    const actionToken = normalizeAdminStatusHistoryActionToken(decisionHistoryEntry?.action)
+    if (actionToken === 'ADMIN_REJECTED') return 'ADMIN'
+    if (actionToken === 'HR_REJECTED' || actionToken === 'HR_APPROVED') return 'HR'
+
+    const performerType = String(decisionHistoryEntry?.performed_by_type || '')
+      .trim()
+      .toUpperCase()
+    if (performerType === 'ADMIN') return 'ADMIN'
+    if (performerType === 'HR') return 'HR'
+
+    return ''
+  }
+
   function resolveAdminEditRequestApprovalMeta(app) {
     const latestStatus = getAdminLatestUpdateRequestStatus(app)
     if (latestStatus !== 'APPROVED') return null
 
-    const reviewedAt =
-      app?.latest_update_reviewed_at ||
-      resolveFinalApprovalDateValue(app)
-    const reviewedBy = String(resolveHrActor(app) || 'Unknown').trim() || 'Unknown'
+    const decisionHistoryEntry = resolveAdminEditRequestDecisionHistoryEntry(app, 'APPROVED')
+    const reviewedByRole = resolveAdminEditRequestReviewRole(decisionHistoryEntry)
+    const reviewedAt = app?.latest_update_reviewed_at || null
+    const reviewedBy = String(decisionHistoryEntry?.actor_name || '').trim()
 
     return {
       reviewedAt,
       reviewedBy,
+      reviewedByRole,
     }
   }
 
@@ -3424,20 +3527,17 @@ export function useAdminApplicationsPage() {
     const latestStatus = getAdminLatestUpdateRequestStatus(app)
     if (latestStatus !== 'REJECTED') return null
 
-    const reviewedAt =
-      app?.latest_update_reviewed_at ||
-      resolveDisapprovedDateValue(app)
-    const reviewedBy = String(resolveDisapprovalActor(app) || 'Unknown').trim() || 'Unknown'
-    const reviewRemarks = String(
-      app?.latest_update_review_remarks ??
-        app?.remarks ??
-        '',
-    ).trim()
+    const decisionHistoryEntry = resolveAdminEditRequestDecisionHistoryEntry(app, 'REJECTED')
+    const reviewedByRole = resolveAdminEditRequestReviewRole(decisionHistoryEntry)
+    const reviewedAt = app?.latest_update_reviewed_at || null
+    const reviewedBy = String(decisionHistoryEntry?.actor_name || '').trim()
+    const reviewRemarks = String(app?.latest_update_review_remarks || '').trim()
 
     return {
       reviewedAt,
       reviewedBy,
       reviewRemarks,
+      reviewedByRole,
     }
   }
 
@@ -3469,6 +3569,9 @@ export function useAdminApplicationsPage() {
       adminApprovedTitle: isCancelRequest
         ? 'Cancellation Request Approved by Admin'
         : 'Edit Request Approved by Admin',
+      adminRejectedTitle: isCancelRequest
+        ? 'Cancellation Request Disapproved by Admin'
+        : 'Edit Request Disapproved by Admin',
       approvedTitle: isCancelRequest ? 'Cancellation Request Approved' : 'Edit Request Approved',
       rejectedTitle: isCancelRequest ? 'Cancellation Request Disapproved' : 'Edit Request Disapproved',
       pendingHrTitle: isCancelRequest
@@ -3483,6 +3586,9 @@ export function useAdminApplicationsPage() {
       adminApprovedDescription: isCancelRequest
         ? 'Department admin completed the cancellation-request review.'
         : 'Department admin completed the edit-request review.',
+      adminRejectedDescription: isCancelRequest
+        ? 'Department admin disapproved the cancellation request.'
+        : 'Department admin disapproved the edit request.',
       approvedDescription: isCancelRequest
         ? 'Requested cancellation was reviewed and approved.'
         : 'Requested edits were reviewed and approved.',
@@ -3513,6 +3619,8 @@ export function useAdminApplicationsPage() {
     const rawStatus = getApplicationRawStatus(app)
     const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
     const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
+    const isRejectedByAdmin =
+      rejectionMeta && String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN'
 
     entries.push({
       title: terminology.submittedTitle,
@@ -3533,6 +3641,16 @@ export function useAdminApplicationsPage() {
         icon: 'pending_actions',
         color: 'warning',
       })
+    } else if (isRejectedByAdmin && rejectionMeta) {
+      entries.push({
+        title: terminology.adminRejectedTitle,
+        subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
+        description: rejectionMeta.reviewRemarks || terminology.adminRejectedDescription,
+        icon: 'cancel',
+        color: 'negative',
+        actor: rejectionMeta.reviewedBy,
+      })
+      return entries
     } else {
       entries.push({
         title: terminology.adminApprovedTitle,
@@ -3887,6 +4005,8 @@ export function useAdminApplicationsPage() {
     const cycleDisapprovedEntry = hasUpdateCycle
       ? getCurrentCycleDisapprovedTimelineEntry(cleanedTimeline)
       : null
+    const isAdminDisapprovedUpdateCycle = hasUpdateCycle &&
+      isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
     const historicalReceivedEntry = hasUpdateCycle
       ? buildHistoricalReceivedTimelineEntry(app, existingReceivedEntry)
       : null
@@ -3894,7 +4014,7 @@ export function useAdminApplicationsPage() {
       ? buildHistoricalReleasedTimelineEntry(app, existingReleasedEntry)
       : null
     const shouldShowCurrentCycleReceivedEntry =
-      !cycleDisapprovedEntry || Boolean(historicalReceivedEntry || isApplicationReceivedByHr(app))
+      !cycleDisapprovedEntry || isApplicationReceivedByHr(app)
 
     const cycleReceivedEntry = buildReceivedTimelineEntry(app, existingReceivedEntry)
     const cycleReleasedEntry = buildReleasedTimelineEntry(
@@ -3922,7 +4042,9 @@ export function useAdminApplicationsPage() {
           getUpdateReceivedTimelineInsertionIndex(finalizedEntries)
         finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
       }
-      finalizedEntries.push(cycleReleasedEntry)
+      if (!isAdminDisapprovedUpdateCycle) {
+        finalizedEntries.push(cycleReleasedEntry)
+      }
     } else {
       finalizedEntries.push(cycleReleasedEntry)
     }
@@ -4030,6 +4152,13 @@ export function useAdminApplicationsPage() {
       normalizedTitle.includes('cancellation request rejected') ||
       normalizedTitle.includes('cancellation request disapproved')
     )
+  }
+
+  function isAdminDisapprovedUpdateRequestTimelineEntry(entry) {
+    if (!entry) return false
+    if (!isDisapprovedUpdateRequestTimelineEntry(entry)) return false
+    const normalizedTitle = normalizeTimelineEntryTitle(entry)
+    return normalizedTitle.includes('by admin')
   }
 
   function getCurrentCycleDisapprovedTimelineEntry(entries) {
@@ -4703,6 +4832,10 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationQueueGroupStatus(app) {
+    if (!isCocApplication(app) && getAdminLatestUpdateRequestStatus(app) === 'REJECTED') {
+      return 'REJECTED'
+    }
+
     const explicitQueueGroupStatus = normalizeQueueGroupStatusToken(
       app?.queue_group_status ?? app?.queueGroupStatus,
     )

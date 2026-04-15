@@ -120,7 +120,7 @@
             class="application-timeline-footer-button application-timeline-footer-button--completed"
           />
           <q-btn
-            v-if="canReleaseState"
+            v-if="!isRejectedUpdateRequestCycle && canReleaseState"
             unelevated
             dense
             no-caps
@@ -133,7 +133,7 @@
             @click="handleReleaseClick"
           />
           <q-btn
-            v-else-if="isReleasedState"
+            v-else-if="!isRejectedUpdateRequestCycle && isReleasedState"
             flat
             dense
             no-caps
@@ -154,6 +154,18 @@ import { computed, ref, watch } from 'vue'
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+
+function normalizeUpdateRequestStatusToken(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+  if (normalized === 'PENDING') return 'PENDING'
+  if (normalized === 'APPROVED') return 'APPROVED'
+  if (normalized === 'REJECTED') return 'REJECTED'
+  return ''
+}
 
 function normalizeLeaveRequestActionTypeToken(value) {
   const normalized = String(value || '')
@@ -349,6 +361,12 @@ const currentUpdateRequestCycleStartAt = computed(() =>
   resolveCurrentUpdateRequestCycleStartAt(props.application),
 )
 const isUpdateRequestCycle = computed(() => Boolean(currentUpdateRequestCycleStartAt.value))
+const currentUpdateRequestStatus = computed(() =>
+  normalizeUpdateRequestStatusToken(props.application?.latest_update_request_status),
+)
+const isRejectedUpdateRequestCycle = computed(
+  () => isUpdateRequestCycle.value && currentUpdateRequestStatus.value === 'REJECTED',
+)
 const currentRequestActionType = computed(() => resolveLeaveRequestActionType(props.application))
 const isCancellationRequestCycle = computed(
   () => isUpdateRequestCycle.value && currentRequestActionType.value === REQUEST_ACTION_CANCEL,
@@ -416,6 +434,8 @@ const timelineEntries = computed(() => {
   const cycleDisapprovedEntry = hasUpdateCycle
     ? getCurrentCycleDisapprovedTimelineEntry(coreEntries)
     : null
+  const isAdminDisapprovedUpdateCycle = hasUpdateCycle &&
+    isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
   const historicalReceivedEntry = hasUpdateCycle
     ? buildHistoricalReceivedTimelineEntry(existingReceivedApplicationEntry)
     : null
@@ -423,7 +443,7 @@ const timelineEntries = computed(() => {
     ? buildHistoricalReleasedTimelineEntry(existingReleasedApplicationEntry)
     : null
   const shouldShowCurrentCycleReceivedEntry =
-    !cycleDisapprovedEntry || Boolean(historicalReceivedEntry || isReceivedState.value)
+    !cycleDisapprovedEntry || isReceivedState.value
 
   const cycleReceivedSourceEntry = hasUpdateCycle
     ? existingUpdateReceivedEntry || existingReceivedApplicationEntry
@@ -459,7 +479,9 @@ const timelineEntries = computed(() => {
       const updateReceivedInsertIndex = getUpdateReceivedInsertionIndex(finalizedEntries)
       finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
     }
-    finalizedEntries.push(cycleReleasedEntry)
+    if (!isAdminDisapprovedUpdateCycle) {
+      finalizedEntries.push(cycleReleasedEntry)
+    }
   } else {
     finalizedEntries.push(cycleReleasedEntry)
   }
@@ -489,6 +511,7 @@ const isReceivedState = computed(() => {
 const canReleaseState = computed(() => {
   if (!props.application) return false
   if (isReleasedState.value) return false
+  if (isRejectedUpdateRequestCycle.value) return false
 
   if (typeof props.canReleaseApplication === 'function') {
     return Boolean(props.canReleaseApplication(props.application))
@@ -536,6 +559,7 @@ const isReleasedState = computed(() => {
 //   return String(props.releasedSummary || '').trim()
 // })
 
+const hasAttachmentState = computed(() => false)
 function handleReceiveClick() {
   if (!props.application || !canReceiveState.value) return
 
@@ -958,6 +982,13 @@ function isDisapprovedUpdateRequestTimelineEntry(entry) {
     normalizedTitle.includes('cancellation request rejected') ||
     normalizedTitle.includes('cancellation request disapproved')
   )
+}
+
+function isAdminDisapprovedUpdateRequestTimelineEntry(entry) {
+  if (!entry) return false
+  if (!isDisapprovedUpdateRequestTimelineEntry(entry)) return false
+  const normalizedTitle = normalizeEntryTitle(entry)
+  return normalizedTitle.includes('by admin')
 }
 
 function getCurrentCycleDisapprovedTimelineEntry(entries) {

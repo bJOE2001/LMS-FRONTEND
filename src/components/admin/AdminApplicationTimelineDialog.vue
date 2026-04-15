@@ -70,8 +70,8 @@
                 <div class="application-timeline-title">
                   {{ entry.title }}
                 </div>
-                <div v-if="entry.actor" class="application-timeline-actor">
-                  Action by: {{ entry.actor }}
+                <div v-if="resolveEntryActor(entry)" class="application-timeline-actor">
+                  Action by: {{ resolveEntryActor(entry) }}
                 </div>
                 <div v-else-if="entry.description" class="application-timeline-actor">
                   {{ entry.description }}
@@ -123,6 +123,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+const canShowAttachment = computed(() => false)
 function onDialogModelUpdate(value) {
   emit('update:modelValue', value)
 }
@@ -133,6 +134,13 @@ function resolveEntryTone(entry) {
 
 function resolveEntryIcon(entry) {
   return props.getTimelineEntryIcon(entry) || 'schedule'
+}
+
+function resolveEntryActor(entry) {
+  const actor = String(entry?.actor || '').trim()
+  if (!actor) return ''
+  if (actor.toLowerCase() === 'unknown') return ''
+  return actor
 }
 </script>
 
