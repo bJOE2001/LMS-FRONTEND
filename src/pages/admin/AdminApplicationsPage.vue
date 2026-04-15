@@ -157,6 +157,7 @@
               </q-btn>
               <template v-if="tableProps.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
+                  v-if="!hasApplicationEditRequest(tableProps.row)"
                   flat
                   dense
                   round
@@ -192,6 +193,7 @@
               </template>
               <template v-else-if="tableProps.row.rawStatus === 'PENDING_HR'">
                 <q-btn
+                  v-if="!hasApplicationEditRequest(tableProps.row)"
                   flat
                   dense
                   round
@@ -267,14 +269,14 @@
                       'Pending Update Admin Review',
                       'Pending Update Release',
                       'Pending Admin',
-                    ].includes(getApplicationStatusLabel(selectedApp))
+                    ].includes(getDisplayApplicationStatusLabel(selectedApp))
                   "
                   rounded
-                  :color="getApplicationStatusColor(selectedApp)"
+                  :color="getDisplayApplicationStatusColor(selectedApp)"
                   text-color="white"
                   class="admin-application-details-meta-chip admin-application-details-meta-chip--status"
                 >
-                  {{ getApplicationStatusLabel(selectedApp) }}
+                  {{ getDisplayApplicationStatusLabel(selectedApp) }}
                 </q-badge>
                 <q-badge
                   rounded
@@ -420,7 +422,7 @@
 
             <div class="admin-application-details-item">
               <div class="admin-application-details-label">Application Status</div>
-              <StatusBadge :status="selectedApp.displayStatus || getApplicationStatusLabel(selectedApp)" />
+              <StatusBadge :status="getDisplayApplicationStatusLabel(selectedApp)" />
             </div>
 
             <div
@@ -636,6 +638,7 @@
           />
           <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
             <q-btn
+              v-if="!hasApplicationEditRequest(selectedApp)"
               unelevated
               no-caps
               color="warning"
@@ -659,6 +662,7 @@
           </template>
           <template v-else-if="selectedApp.rawStatus === 'PENDING_HR'">
             <q-btn
+              v-if="!hasApplicationEditRequest(selectedApp)"
               unelevated
               no-caps
               color="warning"
@@ -830,18 +834,42 @@ const {
   shouldShowCurrentLeaveBalance,
 } = useAdminApplicationsPage()
 
+const DISAPPROVED_STATUS_COLOR = 'red'
+
+function normalizeDisapprovedStatusLabel(statusValue) {
+  return String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+}
+
+function getDisplayApplicationStatusLabel(app) {
+  const statusLabel = String(app?.displayStatus || getApplicationStatusLabel(app) || '').trim()
+  return normalizeDisapprovedStatusLabel(statusLabel)
+}
+
+function getDisplayApplicationStatusColor(app) {
+  const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+  const statusLabel = getDisplayApplicationStatusLabel(app).toUpperCase()
+  if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return DISAPPROVED_STATUS_COLOR
+  if (statusLabel.includes('DISAPPROV') || statusLabel.includes('REJECT')) {
+    return DISAPPROVED_STATUS_COLOR
+  }
+
+  return getApplicationStatusColor(app)
+}
+
 function getFinalStatusForStatusColumn(app) {
   const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
   if (updateRequestBadgeLabel) {
-    return updateRequestBadgeLabel
+    return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
   }
 
   if (hasApplicationEditRequest(app)) {
     const editRequestStatusLabel = getApplicationEditRequestStatusLabel(app)
-    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') return editRequestStatusLabel
+    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') {
+      return normalizeDisapprovedStatusLabel(editRequestStatusLabel)
+    }
   }
 
-  return app?.displayStatus || getApplicationStatusLabel(app)
+  return getDisplayApplicationStatusLabel(app)
 }
 
 function getApplicationDetailsLeaveTypeLabel(app) {

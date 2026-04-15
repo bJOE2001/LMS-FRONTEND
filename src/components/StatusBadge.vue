@@ -17,6 +17,8 @@ const props = defineProps({
   },
 })
 
+const DISAPPROVED_STATUS_COLOR = 'red'
+
 const color = computed(() => {
   const normalized = String(props.status || '').trim().toUpperCase()
   if (!normalized) return 'grey'
@@ -29,7 +31,9 @@ const color = computed(() => {
   if (normalized.includes('PENDING RELEASE')) return 'indigo-6'
   if (normalized.includes('PENDING RECEIVE')) return 'teal-6'
   if (normalized.includes('PENDING')) return 'warning'
-  if (normalized.includes('REJECTED') || normalized.includes('DISAPPROVED')) return 'negative'
+  if (normalized.includes('REJECTED') || normalized.includes('DISAPPROVED')) {
+    return DISAPPROVED_STATUS_COLOR
+  }
   if (normalized.includes('RELEASED')) return 'positive'
   if (normalized.includes('APPROVED')) return 'positive'
   if (normalized.includes('RECALLED')) return 'blue-grey-7'
