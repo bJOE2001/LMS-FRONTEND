@@ -5,6 +5,7 @@ import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { generateCocCertificatePdf } from 'src/utils/coc-certificate-pdf'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
 export function useHrApplicationsPanel(options = {}) {
 
@@ -29,18 +30,6 @@ const applicationSourceFilter = String(options?.applicationSource || '')
   .toLowerCase()
 const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'disapproved', 'recalled'])
 const queueGroupRenderOrder = ['PENDING', 'APPROVED', 'REJECTED', 'RECALLED', 'OTHER']
-const DEPARTMENT_STOP_WORDS = new Set([
-  'A',
-  'AN',
-  'AND',
-  'FOR',
-  'IN',
-  'OF',
-  'OFFICE',
-  'ON',
-  'THE',
-  'TO',
-])
 const EMPLOYMENT_TYPE_FILTER_LABELS = {
   elective: 'Elective',
   co_terminous: 'Co-term',
@@ -781,32 +770,6 @@ function normalizeSearchToken(token) {
   if (!token) return ''
   if (/^\d+$/.test(token)) return String(Number(token))
   return token
-}
-
-function toDepartmentCode(value) {
-  const source = String(value || '').trim()
-  if (!source) return ''
-
-  // Keep existing compact uppercase codes (e.g., CICTMO) unchanged.
-  if (!/\s/.test(source) && source === source.toUpperCase()) {
-    return source
-  }
-
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
-  )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source
 }
 
 function tokenizeSearchValue(value) {
@@ -2487,7 +2450,7 @@ async function fetchApplications() {
           application_type: getApplicationType(normalized),
           application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
           employeeName: normalized?.employeeName || 'Unknown',
-          officeShort: toDepartmentCode(normalized?.office),
+          officeShort: resolveOfficeAcronymLabel(normalized),
           displayStatus: mergeStatus(normalized),
         }
       })
@@ -2522,7 +2485,7 @@ async function fetchApplications() {
         application_type: getApplicationType(normalized),
         application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
         employeeName: normalized?.employeeName || 'Unknown',
-        officeShort: toDepartmentCode(normalized?.office),
+        officeShort: resolveOfficeAcronymLabel(normalized),
         displayStatus: mergeStatus(normalized),
       }
     })
@@ -4801,7 +4764,7 @@ function applyLeaveApplicationUpdate(updatedApplication) {
       application_uid:
         row?.application_uid || mergedRow?.application_uid || getApplicationRowKey(mergedRow),
       employeeName: mergedRow?.employeeName || row?.employeeName || 'Unknown',
-      officeShort: toDepartmentCode(mergedRow?.office || row?.office),
+      officeShort: resolveOfficeAcronymLabel({ ...row, ...mergedRow }),
       displayStatus: mergeStatus(mergedRow),
     }
   })
@@ -4836,9 +4799,10 @@ function applyCocApplicationUpdate(updatedApplication) {
         getApplicationRowKey(normalizedSelectedApplication),
       employeeName:
         normalizedSelectedApplication?.employeeName || selectedApp.value?.employeeName || 'Unknown',
-      officeShort: toDepartmentCode(
-        normalizedSelectedApplication?.office || selectedApp.value?.office,
-      ),
+      officeShort: resolveOfficeAcronymLabel({
+        ...(selectedApp.value && typeof selectedApp.value === 'object' ? selectedApp.value : {}),
+        ...normalizedSelectedApplication,
+      }),
       displayStatus: mergeStatus(normalizedSelectedApplication),
     }
   }
@@ -4867,7 +4831,7 @@ function applyCocApplicationUpdate(updatedApplication) {
       application_uid:
         row?.application_uid || mergedRow?.application_uid || getApplicationRowKey(mergedRow),
       employeeName: mergedRow?.employeeName || row?.employeeName || 'Unknown',
-      officeShort: toDepartmentCode(mergedRow?.office || row?.office),
+      officeShort: resolveOfficeAcronymLabel({ ...row, ...mergedRow }),
       displayStatus: mergeStatus(mergedRow),
     }
   })
@@ -5407,7 +5371,6 @@ async function handleDialogMutationSuccess(payload = {}) {
 }
 
   return {
-    DEPARTMENT_STOP_WORDS,
     EMPLOYMENT_TYPE_FILTER_LABELS,
     applicationTableColumns,
     applications,
@@ -5639,7 +5602,6 @@ async function handleDialogMutationSuccess(payload = {}) {
     timelineLoading,
     statusSearch,
     tablePagination,
-    toDepartmentCode,
     toIsoDate,
     toIsoDateString,
     toSelectedDateCoverageMap,

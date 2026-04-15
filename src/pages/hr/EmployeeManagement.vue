@@ -240,7 +240,7 @@
               <div class="employee-details-header__meta-item">
                 <div class="text-caption text-grey-6">Office</div>
                 <div class="text-body2 text-weight-medium employee-details-header__meta-value">
-                  {{ toDepartmentCode(selectedEmployee.office) }}
+                  {{ resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-' }}
                 </div>
               </div>
               <div class="employee-details-header__meta-item">
@@ -740,6 +740,7 @@ import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { api } from 'src/boot/axios'
 import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
@@ -816,7 +817,7 @@ const employeeColumns = [
     name: 'office',
     label: 'Office',
     align: 'left',
-    field: (row) => toDepartmentCode(row.office),
+    field: (row) => resolveOfficeAcronymLabel(row),
     sortable: true,
   },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
@@ -1267,7 +1268,7 @@ function formatLedgerHeadingName(value) {
 
 function formatLedgerHeadingOffice(employee) {
   const office = getLedgerEmployeeOffice(employee)
-  const officeCode = toDepartmentCode(office)
+  const officeCode = resolveOfficeAcronymLabel(employee)
   return (officeCode && officeCode !== '-' ? officeCode : office) || 'N/A'
 }
 
@@ -1457,7 +1458,7 @@ function buildCreditEmployeeOption(employee) {
   const surname = String(employee?.surname ?? '').trim()
   const designation = String(employee?.designation ?? '').trim()
   const department = String(employee?.office ?? '').trim()
-  const officeCode = toDepartmentCode(department)
+  const officeCode = resolveOfficeAcronymLabel(employee)
   const displayName = [surname, firstname].filter(Boolean).join(', ')
   const fullName = [firstname, surname].filter(Boolean).join(' ')
   const captionParts = []

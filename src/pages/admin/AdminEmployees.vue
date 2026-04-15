@@ -521,6 +521,7 @@ import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/auth-store'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
 
 const $q = useQuasar()
@@ -538,20 +539,6 @@ const selectedEmployeeOption = ref(null)
 const employeePickerOptions = ref([])
 const employeePickerLoading = ref(false)
 let employeePickerRequestId = 0
-
-const DEPARTMENT_STOP_WORDS = new Set([
-  'OF',
-  'THE',
-  'AND',
-  'CITY',
-  'OFFICE',
-  'FOR',
-  'ON',
-  'AT',
-  'TO',
-  'IN',
-  'MANAGEMENT',
-])
 
 const selectedEmployee = ref(null)
 const employees = ref([])
@@ -1037,27 +1024,6 @@ function isDepartmentReassigned(employee) {
   return employee?.is_department_reassigned === true
 }
 
-function toOfficeAcronym(value) {
-  const source = String(value || '').trim()
-  if (!source) return ''
-
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
-  )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source.toUpperCase()
-}
-
 function toEmployeePickerOption(employee) {
   if (!employee || typeof employee !== 'object') return null
 
@@ -1067,7 +1033,7 @@ function toEmployeePickerOption(employee) {
   const controlNo = String(employee.control_no || '').trim()
   const currentOffice = String(employee.office || '').trim()
   const hrisOffice = String(employee.hris_office || employee.office || '').trim()
-  const officeAcronym = String(employee.officeAcronym || '').trim()
+  const officeAcronym = resolveOfficeAcronymLabel(employee)
   const designation = String(employee.designation || '').trim()
   const fullName = [surname, firstname, middlename].filter(Boolean).join(', ').replace(', ,', ',')
 
@@ -1082,8 +1048,8 @@ function toEmployeePickerOption(employee) {
     designation,
     office: currentOffice,
     hris_office: hrisOffice,
-    officeAcronym: officeAcronym || toOfficeAcronym(currentOffice || hrisOffice),
-    office_acronym: officeAcronym || toOfficeAcronym(currentOffice || hrisOffice),
+    officeAcronym: officeAcronym || currentOffice || hrisOffice,
+    office_acronym: officeAcronym || currentOffice || hrisOffice,
   }
 }
 
