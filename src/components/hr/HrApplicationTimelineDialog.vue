@@ -480,10 +480,12 @@ const timelineEntries = computed(() => {
       finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
     }
     if (!isAdminDisapprovedUpdateCycle) {
-      finalizedEntries.push(cycleReleasedEntry)
+      const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
+      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
     }
   } else {
-    finalizedEntries.push(cycleReleasedEntry)
+    const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
+    finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
   }
 
   if (closedEntry) {
@@ -559,7 +561,6 @@ const isReleasedState = computed(() => {
 //   return String(props.releasedSummary || '').trim()
 // })
 
-const hasAttachmentState = computed(() => false)
 function handleReceiveClick() {
   if (!props.application || !canReceiveState.value) return
 
@@ -1075,6 +1076,20 @@ function getUpdateReceivedInsertionIndex(entries) {
   return entries.length
 }
 
+function getReleasedInsertionIndex(entries) {
+  const recalledIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Recalled by HR'),
+  )
+  if (recalledIndex >= 0) return recalledIndex
+
+  const closedIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Application Closed'),
+  )
+  if (closedIndex >= 0) return closedIndex
+
+  return entries.length
+}
+
 function buildReceivedTimelineEntry(existingEntry = null) {
   const entryTitle = getReceivedTimelineTitle()
   const isCompleted = isReceivedState.value
@@ -1339,9 +1354,13 @@ function formatDateTime(value) {
 }
 
 function getTimelineEntryTone(entry) {
+  const title = String(entry?.title || '').trim().toLowerCase()
   const color = String(entry?.color || '').toLowerCase()
   const icon = String(entry?.icon || '').toLowerCase()
 
+  if (title.includes('recalled by hr') || icon.includes('undo') || icon.includes('reply')) {
+    return 'recalled'
+  }
   if (color.includes('negative') || icon.includes('cancel')) return 'negative'
   if (color.includes('warning') || icon.includes('pending')) return 'warning'
   if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
@@ -1350,6 +1369,7 @@ function getTimelineEntryTone(entry) {
 
 function getTimelineEntryIcon(entry) {
   const tone = getTimelineEntryTone(entry)
+  if (tone === 'recalled') return 'undo'
   if (tone === 'negative') return 'close'
   if (tone === 'warning') return 'schedule'
   if (tone === 'neutral') return 'radio_button_unchecked'
@@ -1504,6 +1524,10 @@ watch(
   background: #f59e0b;
 }
 
+.application-timeline-marker--recalled {
+  background: #2563eb;
+}
+
 .application-timeline-marker--negative {
   background: #ef4444;
 }
@@ -1527,6 +1551,10 @@ watch(
 
 .application-timeline-line--warning {
   background: #f59e0b;
+}
+
+.application-timeline-line--recalled {
+  background: #2563eb;
 }
 
 .application-timeline-line--negative {
