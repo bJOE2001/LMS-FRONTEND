@@ -221,6 +221,10 @@ function resolveEntryActor(entry) {
   background: #f59e0b;
 }
 
+.application-timeline-marker--recalled {
+  background: #2563eb;
+}
+
 .application-timeline-marker--negative {
   background: #ef4444;
 }
@@ -244,6 +248,10 @@ function resolveEntryActor(entry) {
 
 .application-timeline-line--warning {
   background: #f59e0b;
+}
+
+.application-timeline-line--recalled {
+  background: #2563eb;
 }
 
 .application-timeline-line--negative {

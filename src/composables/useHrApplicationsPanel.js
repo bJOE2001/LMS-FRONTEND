@@ -3446,6 +3446,32 @@ function getReceivedApplicationTimelineEntry(app) {
   }
 }
 
+function getReleasedApplicationTimelineEntry(app) {
+  if (!isApplicationReleased(app)) return null
+
+  const releasedAt = formatDateTime(resolveReleasedDateValue(app)) || 'Completed'
+  const releasedBy = resolveReleasedActor(app)
+  const cycleDocumentLabel = hasEditRequestSignal(app)
+    ? (isCancellationRequestAction(app) ? 'Cancellation Form' : 'Update')
+    : ''
+  const description = isCocApplication(app)
+    ? 'COC application has been finalized and released.'
+    : cycleDocumentLabel
+      ? cycleDocumentLabel === 'Cancellation Form'
+        ? 'Cancellation form has been released.'
+        : 'Updated leave document has been released.'
+      : 'Physical leave document has been released.'
+
+  return {
+    title: cycleDocumentLabel ? `${cycleDocumentLabel} Released` : 'Released Application',
+    subtitle: releasedAt,
+    description,
+    icon: 'outbox',
+    color: 'positive',
+    actor: releasedBy,
+  }
+}
+
 function resolveReleasedHistoryEntry(app) {
   return findLatestStatusHistoryEntry(app, (entry) => {
     const action = String(entry?.action || '')
@@ -3939,6 +3965,7 @@ function buildApplicationTimeline(app) {
     const approvedBy = resolveHrActor(app)
     const recalledAt = formatDateTime(resolveRecallDateValue(app)) || 'Completed'
     const recalledBy = resolveRecallActor(app)
+    const releasedTimelineEntry = getReleasedApplicationTimelineEntry(app)
 
     if (hasEditRequest && preEditHrApprovalEntry) {
       entries.push(preEditHrApprovalEntry)
@@ -3955,6 +3982,10 @@ function buildApplicationTimeline(app) {
 
     if (hasEditRequest) {
       entries.push(...editRequestEntries)
+    }
+
+    if (releasedTimelineEntry) {
+      entries.push(releasedTimelineEntry)
     }
 
     entries.push({

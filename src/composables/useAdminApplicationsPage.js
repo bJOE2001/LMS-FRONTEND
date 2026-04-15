@@ -4044,10 +4044,12 @@ export function useAdminApplicationsPage() {
         finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
       }
       if (!isAdminDisapprovedUpdateCycle) {
-        finalizedEntries.push(cycleReleasedEntry)
+        const cycleReleaseInsertIndex = getReleasedTimelineInsertionIndex(finalizedEntries)
+        finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
       }
     } else {
-      finalizedEntries.push(cycleReleasedEntry)
+      const cycleReleaseInsertIndex = getReleasedTimelineInsertionIndex(finalizedEntries)
+      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
     }
 
     const closedEntry = buildClosedTimelineEntry(
@@ -4242,6 +4244,20 @@ export function useAdminApplicationsPage() {
 
     const updateTimelineIndex = entries.findIndex((entry) => isUpdateRequestTimelineEntry(entry))
     if (updateTimelineIndex >= 0) return updateTimelineIndex
+
+    return entries.length
+  }
+
+  function getReleasedTimelineInsertionIndex(entries) {
+    const recalledIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Recalled by HR'),
+    )
+    if (recalledIndex >= 0) return recalledIndex
+
+    const closedIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Application Closed'),
+    )
+    if (closedIndex >= 0) return closedIndex
 
     return entries.length
   }
@@ -4653,9 +4669,13 @@ export function useAdminApplicationsPage() {
   }
 
   function getTimelineEntryTone(entry) {
+    const title = normalizeTimelineEntryTitle(entry)
     const color = String(entry?.color || '').toLowerCase()
     const icon = String(entry?.icon || '').toLowerCase()
 
+    if (title.includes('recalled by hr') || icon.includes('undo') || icon.includes('reply')) {
+      return 'recalled'
+    }
     if (color.includes('negative') || icon.includes('cancel')) return 'negative'
     if (color.includes('warning') || icon.includes('pending')) return 'warning'
     if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
@@ -4664,6 +4684,7 @@ export function useAdminApplicationsPage() {
 
   function getTimelineEntryIcon(entry) {
     const tone = getTimelineEntryTone(entry)
+    if (tone === 'recalled') return 'undo'
     if (tone === 'negative') return 'close'
     if (tone === 'warning') return 'schedule'
     if (tone === 'neutral') return 'radio_button_unchecked'
