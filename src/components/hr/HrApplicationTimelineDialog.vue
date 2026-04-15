@@ -229,7 +229,9 @@ function resolveLeaveRequestActionType(application = null) {
   )
   if (explicitActionType) return explicitActionType
 
-  const payloadType = resolveLeaveRequestActionTypeFromPayload(parsePendingUpdatePayload(application))
+  const payloadType = resolveLeaveRequestActionTypeFromPayload(
+    parsePendingUpdatePayload(application),
+  )
   if (payloadType) return payloadType
 
   const remarksToken = String(application?.remarks || '').toLowerCase()
@@ -376,24 +378,16 @@ const requestCycleDocumentLabel = computed(() => {
   return isCancellationRequestCycle.value ? 'Cancellation Form' : 'Update'
 })
 const receiveActionLabel = computed(() =>
-  requestCycleDocumentLabel.value
-    ? 'Receive ' + requestCycleDocumentLabel.value
-    : 'Receive',
+  requestCycleDocumentLabel.value ? 'Receive ' + requestCycleDocumentLabel.value : 'Receive',
 )
 const receivedActionLabel = computed(() =>
-  requestCycleDocumentLabel.value
-    ? requestCycleDocumentLabel.value + ' Received'
-    : 'Received',
+  requestCycleDocumentLabel.value ? requestCycleDocumentLabel.value + ' Received' : 'Received',
 )
 const releaseActionLabel = computed(() =>
-  requestCycleDocumentLabel.value
-    ? 'Release ' + requestCycleDocumentLabel.value
-    : 'Released',
+  requestCycleDocumentLabel.value ? 'Release ' + requestCycleDocumentLabel.value : 'Released',
 )
 const releasedActionLabel = computed(() =>
-  requestCycleDocumentLabel.value
-    ? requestCycleDocumentLabel.value + ' Released'
-    : 'Released',
+  requestCycleDocumentLabel.value ? requestCycleDocumentLabel.value + ' Released' : 'Released',
 )
 
 const isCocApplicationType = computed(() => {
@@ -414,14 +408,16 @@ const timelineEntries = computed(() => {
   const existingReceivedApplicationEntry = baseTimeline.find((entry) =>
     isEntryTitle(entry, 'Received Application'),
   )
-  const existingUpdateReceivedEntry = baseTimeline.find((entry) =>
-    isEntryTitle(entry, 'Update Received') || isEntryTitle(entry, 'Cancellation Form Received'),
+  const existingUpdateReceivedEntry = baseTimeline.find(
+    (entry) =>
+      isEntryTitle(entry, 'Update Received') || isEntryTitle(entry, 'Cancellation Form Received'),
   )
   const existingReleasedApplicationEntry = baseTimeline.find((entry) =>
     isEntryTitle(entry, 'Released Application'),
   )
-  const existingUpdateReleasedEntry = baseTimeline.find((entry) =>
-    isEntryTitle(entry, 'Update Released') || isEntryTitle(entry, 'Cancellation Form Released'),
+  const existingUpdateReleasedEntry = baseTimeline.find(
+    (entry) =>
+      isEntryTitle(entry, 'Update Released') || isEntryTitle(entry, 'Cancellation Form Released'),
   )
   const cleanedTimeline = baseTimeline.filter(
     (entry) => !isReceivedTimelineEntryTitle(entry) && !isReleasedTimelineEntryTitle(entry),
@@ -434,16 +430,15 @@ const timelineEntries = computed(() => {
   const cycleDisapprovedEntry = hasUpdateCycle
     ? getCurrentCycleDisapprovedTimelineEntry(coreEntries)
     : null
-  const isAdminDisapprovedUpdateCycle = hasUpdateCycle &&
-    isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
+  const isAdminDisapprovedUpdateCycle =
+    hasUpdateCycle && isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
   const historicalReceivedEntry = hasUpdateCycle
     ? buildHistoricalReceivedTimelineEntry(existingReceivedApplicationEntry)
     : null
   const historicalReleasedEntry = hasUpdateCycle
     ? buildHistoricalReleasedTimelineEntry(existingReleasedApplicationEntry)
     : null
-  const shouldShowCurrentCycleReceivedEntry =
-    !cycleDisapprovedEntry || isReceivedState.value
+  const shouldShowCurrentCycleReceivedEntry = !cycleDisapprovedEntry || isReceivedState.value
 
   const cycleReceivedSourceEntry = hasUpdateCycle
     ? existingUpdateReceivedEntry || existingReceivedApplicationEntry
@@ -457,8 +452,8 @@ const timelineEntries = computed(() => {
     cycleReleasedSourceEntry,
     cycleDisapprovedEntry,
   )
-  const receivedInsertEntry = historicalReceivedEntry ||
-    (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
+  const receivedInsertEntry =
+    historicalReceivedEntry || (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
   if (receivedInsertEntry) {
     const receivedInsertIndex = getReceivedInsertionIndex(coreEntries)
     coreEntries.splice(receivedInsertIndex, 0, receivedInsertEntry)
@@ -559,14 +554,14 @@ const isReleasedState = computed(() => {
 //   return String(props.releasedSummary || '').trim()
 // })
 
-const hasAttachmentState = computed(() => false)
-function handleReceiveClick() {
-  if (!props.application || !canReceiveState.value) return
+// const hasAttachmentState = computed(() => false)
+// function handleReceiveClick() {
+//   if (!props.application || !canReceiveState.value) return
 
-  lastRequestedReceiveKey.value = applicationKey.value
-  markLocalActionAsCompleted(localReceivedStateByKey, 'HR')
-  emit('receive', props.application)
-}
+//   lastRequestedReceiveKey.value = applicationKey.value
+//   markLocalActionAsCompleted(localReceivedStateByKey, 'HR')
+//   emit('receive', props.application)
+// }
 
 function handleReleaseClick() {
   if (!props.application || !canReleaseState.value) return
@@ -631,9 +626,7 @@ function resolveStatusHistoryActor(entry) {
 function resolveCurrentUpdateRequestCycleStartAt(application) {
   if (!application || typeof application !== 'object') return null
 
-  const explicitValue = String(
-    application?.latest_update_requested_at ?? '',
-  ).trim()
+  const explicitValue = String(application?.latest_update_requested_at ?? '').trim()
   if (explicitValue) return explicitValue
 
   const requestActionType = resolveLeaveRequestActionType(application)
@@ -644,22 +637,20 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
-    const isUpdateRequestAction =
-      [
-        'REQUEST_UPDATE',
-        'UPDATE_REQUESTED',
-        'EDIT_REQUEST_SUBMITTED',
-        'REQUESTED_UPDATE',
-        'EDIT_REQUESTED',
-      ].includes(actionToken)
-    const isCancelRequestAction =
-      [
-        'REQUEST_CANCEL',
-        'CANCEL_REQUESTED',
-        'CANCELLATION_REQUEST_SUBMITTED',
-        'REQUESTED_CANCELLATION',
-        'REQUEST_CANCELLATION',
-      ].includes(actionToken)
+    const isUpdateRequestAction = [
+      'REQUEST_UPDATE',
+      'UPDATE_REQUESTED',
+      'EDIT_REQUEST_SUBMITTED',
+      'REQUESTED_UPDATE',
+      'EDIT_REQUESTED',
+    ].includes(actionToken)
+    const isCancelRequestAction = [
+      'REQUEST_CANCEL',
+      'CANCEL_REQUESTED',
+      'CANCELLATION_REQUEST_SUBMITTED',
+      'REQUESTED_CANCELLATION',
+      'REQUEST_CANCELLATION',
+    ].includes(actionToken)
 
     if (requestActionType === REQUEST_ACTION_CANCEL) {
       if (isCancelRequestAction) return resolveStatusHistoryTimestamp(entry)
@@ -689,7 +680,11 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       continue
     }
 
-    if (requestActionType !== REQUEST_ACTION_CANCEL && !remarksHasUpdateSignal && !remarksHasCancelSignal) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      !remarksHasUpdateSignal &&
+      !remarksHasCancelSignal
+    ) {
       continue
     }
 
@@ -837,19 +832,20 @@ function resolveCurrentReleasedMeta(application) {
   const cycleStart = currentUpdateRequestCycleStartAt.value
   const historyEntry = cycleStart
     ? findLatestStatusHistoryEntryOnOrAfter(
-      application,
-      (entry) => isReleasedStatusHistoryEntry(entry),
-      cycleStart,
-    )
-    : getStatusHistoryEntries(application).find((entry) => isReleasedStatusHistoryEntry(entry)) || null
+        application,
+        (entry) => isReleasedStatusHistoryEntry(entry),
+        cycleStart,
+      )
+    : getStatusHistoryEntries(application).find((entry) => isReleasedStatusHistoryEntry(entry)) ||
+      null
   const at = pickPreferredReleaseDateValue(application, historyEntry)
   if (!at) return null
 
   const actor = String(
     application?.released_by ||
-    application?.hr_released_by ||
-    resolveStatusHistoryActor(historyEntry) ||
-    '',
+      application?.hr_released_by ||
+      resolveStatusHistoryActor(historyEntry) ||
+      '',
   ).trim()
 
   return {
@@ -994,24 +990,21 @@ function isAdminDisapprovedUpdateRequestTimelineEntry(entry) {
 function getCurrentCycleDisapprovedTimelineEntry(entries) {
   if (!Array.isArray(entries)) return null
   return (
-    [...entries]
-      .reverse()
-      .find((entry) => isDisapprovedUpdateRequestTimelineEntry(entry)) || null
+    [...entries].reverse().find((entry) => isDisapprovedUpdateRequestTimelineEntry(entry)) || null
   )
 }
 
 function getReceivedInsertionIndex(entries) {
   if (isCocApplicationType.value) {
-    const pendingHrIndex = entries.findIndex((entry) =>
-      isEntryTitle(entry, 'Pending HR Review') ||
-      isEntryTitle(entry, 'Pending Edit Review (HR)') ||
-      isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
+    const pendingHrIndex = entries.findIndex(
+      (entry) =>
+        isEntryTitle(entry, 'Pending HR Review') ||
+        isEntryTitle(entry, 'Pending Edit Review (HR)') ||
+        isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
     )
     if (pendingHrIndex >= 0) return pendingHrIndex + 1
 
-    const approvedByHrIndex = entries.findIndex((entry) =>
-      isEntryTitle(entry, 'Approved by HR'),
-    )
+    const approvedByHrIndex = entries.findIndex((entry) => isEntryTitle(entry, 'Approved by HR'))
     if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
   }
 
@@ -1045,27 +1038,31 @@ function getHistoricalReleasedInsertionIndex(entries) {
 }
 
 function getUpdateReceivedInsertionIndex(entries) {
-  const pendingAdminReviewIndex = entries.findIndex((entry) =>
-    isEntryTitle(entry, 'Pending Edit Review (Admin)') ||
-    isEntryTitle(entry, 'Pending Cancellation Review (Admin)'),
+  const pendingAdminReviewIndex = entries.findIndex(
+    (entry) =>
+      isEntryTitle(entry, 'Pending Edit Review (Admin)') ||
+      isEntryTitle(entry, 'Pending Cancellation Review (Admin)'),
   )
   if (pendingAdminReviewIndex >= 0) return pendingAdminReviewIndex + 1
 
-  const adminApprovedIndex = entries.findIndex((entry) =>
-    isEntryTitle(entry, 'Edit Request Approved by Admin') ||
-    isEntryTitle(entry, 'Cancellation Request Approved by Admin'),
+  const adminApprovedIndex = entries.findIndex(
+    (entry) =>
+      isEntryTitle(entry, 'Edit Request Approved by Admin') ||
+      isEntryTitle(entry, 'Cancellation Request Approved by Admin'),
   )
   if (adminApprovedIndex >= 0) return adminApprovedIndex + 1
 
-  const pendingHrReviewIndex = entries.findIndex((entry) =>
-    isEntryTitle(entry, 'Pending Edit Review (HR)') ||
-    isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
+  const pendingHrReviewIndex = entries.findIndex(
+    (entry) =>
+      isEntryTitle(entry, 'Pending Edit Review (HR)') ||
+      isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
   )
   if (pendingHrReviewIndex >= 0) return pendingHrReviewIndex
 
-  const requestSubmittedIndex = entries.findIndex((entry) =>
-    isEntryTitle(entry, 'Edit Request Submitted') ||
-    isEntryTitle(entry, 'Cancellation Request Submitted'),
+  const requestSubmittedIndex = entries.findIndex(
+    (entry) =>
+      isEntryTitle(entry, 'Edit Request Submitted') ||
+      isEntryTitle(entry, 'Cancellation Request Submitted'),
   )
   if (requestSubmittedIndex >= 0) return requestSubmittedIndex + 1
 
@@ -1222,8 +1219,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
   const resolvedReleasedMeta = resolveCurrentReleasedMeta(props.application)
   const existingSubtitle = String(existingEntry?.subtitle || '').trim()
   const shouldKeepExistingSubtitle =
-    Boolean(existingSubtitle) &&
-    existingSubtitle.toLowerCase() !== 'completed'
+    Boolean(existingSubtitle) && existingSubtitle.toLowerCase() !== 'completed'
   const subtitle =
     (shouldKeepExistingSubtitle ? existingSubtitle : '') ||
     formatDateTime(resolvedReleasedMeta?.at) ||
