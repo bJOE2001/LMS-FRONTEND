@@ -1905,6 +1905,10 @@ function normalizeQueueGroupStatusToken(value) {
 }
 
 function resolveQueueGroupStatusForDisplay(app) {
+  if (!isCocApplication(app) && getLatestUpdateRequestStatus(app) === 'REJECTED') {
+    return 'REJECTED'
+  }
+
   const explicitQueueGroupStatus = normalizeQueueGroupStatusToken(
     app?.queue_group_status ?? app?.queueGroupStatus,
   )
@@ -2851,6 +2855,16 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
+    const updateRequestSignal =
+      stageToken.includes('edit request') ||
+      stageToken.includes('request update') ||
+      remarksToken.includes('edit request') ||
+      remarksToken.includes('request update')
+    const cancelRequestSignal =
+      stageToken.includes('cancel request') ||
+      stageToken.includes('cancellation request') ||
+      remarksToken.includes('cancel request') ||
+      remarksToken.includes('cancellation request')
 
     const targetDecision = String(decision || '').toUpperCase()
     const explicitApprovedSignal =
@@ -2871,23 +2885,35 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
     if (targetDecision === 'APPROVED' && explicitApprovedSignal) return true
     if (targetDecision === 'REJECTED' && explicitRejectedSignal) return true
 
-    const expectedHrAction = targetDecision === 'REJECTED' ? 'HR_REJECTED' : 'HR_APPROVED'
-    if (actionToken !== expectedHrAction) return false
+    const expectedDecisionActions = targetDecision === 'REJECTED'
+      ? ['ADMIN_REJECTED', 'HR_REJECTED']
+      : ['HR_APPROVED']
+    if (!expectedDecisionActions.includes(actionToken)) return false
 
-    const updateRequestSignal =
-      stageToken.includes('edit request') ||
-      stageToken.includes('request update') ||
-      remarksToken.includes('edit request') ||
-      remarksToken.includes('request update')
-    const cancelRequestSignal =
-      stageToken.includes('cancel request') ||
-      stageToken.includes('cancellation request') ||
-      remarksToken.includes('cancel request') ||
-      remarksToken.includes('cancellation request')
+    if (requestActionType === REQUEST_ACTION_CANCEL && cancelRequestSignal) return true
+    if (requestActionType !== REQUEST_ACTION_CANCEL && (updateRequestSignal || cancelRequestSignal)) {
+      return true
+    }
 
-    if (requestActionType === REQUEST_ACTION_CANCEL) return cancelRequestSignal
-    return updateRequestSignal || cancelRequestSignal
+    const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+    if (!cycleStart) return true
+
+    return isTimestampOnOrAfter(resolveStatusHistoryTimestamp(entry), cycleStart)
   })
+}
+
+function resolveEditRequestReviewRole(decisionHistoryEntry) {
+  const actionToken = normalizeStatusHistoryActionToken(decisionHistoryEntry?.action)
+  if (actionToken === 'ADMIN_REJECTED') return 'ADMIN'
+  if (actionToken === 'HR_REJECTED' || actionToken === 'HR_APPROVED') return 'HR'
+
+  const performerType = String(decisionHistoryEntry?.performed_by_type || '')
+    .trim()
+    .toUpperCase()
+  if (performerType === 'ADMIN') return 'ADMIN'
+  if (performerType === 'HR') return 'HR'
+
+  return ''
 }
 
 function resolveEditRequestSubmittedMeta(app) {
@@ -2923,23 +2949,15 @@ function resolveEditRequestApprovalMeta(app) {
   if (latestStatus !== 'APPROVED') return null
 
   const decisionHistoryEntry = resolveEditRequestDecisionHistoryEntry(app, 'APPROVED')
+  const reviewedByRole = resolveEditRequestReviewRole(decisionHistoryEntry)
 
-  const reviewedAt = pickFirstDefinedValue(
-    app?.latest_update_reviewed_at,
-    resolveStatusHistoryTimestamp(decisionHistoryEntry),
-    resolveFinalApprovalDateValue(app),
-  )
-  const reviewedBy = String(
-    pickFirstDefinedValue(
-      resolveStatusHistoryActor(decisionHistoryEntry),
-      resolveHrActor(app),
-      'Unknown',
-    ) || 'Unknown',
-  ).trim() || 'Unknown'
+  const reviewedAt = app?.latest_update_reviewed_at || null
+  const reviewedBy = String(decisionHistoryEntry?.actor_name || '').trim()
 
   return {
     reviewedAt,
     reviewedBy,
+    reviewedByRole,
   }
 }
 
@@ -2948,32 +2966,17 @@ function resolveEditRequestRejectionMeta(app) {
   if (latestStatus !== 'REJECTED') return null
 
   const decisionHistoryEntry = resolveEditRequestDecisionHistoryEntry(app, 'REJECTED')
+  const reviewedByRole = resolveEditRequestReviewRole(decisionHistoryEntry)
 
-  const reviewedAt = pickFirstDefinedValue(
-    app?.latest_update_reviewed_at,
-    resolveStatusHistoryTimestamp(decisionHistoryEntry),
-    resolveDisapprovedDateValue(app),
-  )
-  const reviewedBy = String(
-    pickFirstDefinedValue(
-      resolveStatusHistoryActor(decisionHistoryEntry),
-      resolveDisapprovalActor(app),
-      'Unknown',
-    ) || 'Unknown',
-  ).trim() || 'Unknown'
-  const reviewRemarks = String(
-    pickFirstDefinedValue(
-      app?.latest_update_review_remarks,
-      decisionHistoryEntry?.remarks,
-      app?.remarks,
-      '',
-    ) || '',
-  ).trim()
+  const reviewedAt = app?.latest_update_reviewed_at || null
+  const reviewedBy = String(decisionHistoryEntry?.actor_name || '').trim()
+  const reviewRemarks = String(app?.latest_update_review_remarks || '').trim()
 
   return {
     reviewedAt,
     reviewedBy,
     reviewRemarks,
+    reviewedByRole,
   }
 }
 
@@ -3007,6 +3010,9 @@ function getEditRequestTimelineTerminology(app) {
     adminApprovedTitle: isCancelRequest
       ? 'Cancellation Request Approved by Admin'
       : 'Edit Request Approved by Admin',
+    adminRejectedTitle: isCancelRequest
+      ? 'Cancellation Request Disapproved by Admin'
+      : 'Edit Request Disapproved by Admin',
     approvedTitle: isCancelRequest ? 'Cancellation Request Approved' : 'Edit Request Approved',
     rejectedTitle: isCancelRequest ? 'Cancellation Request Disapproved' : 'Edit Request Disapproved',
     pendingHrTitle: isCancelRequest
@@ -3021,6 +3027,9 @@ function getEditRequestTimelineTerminology(app) {
     adminApprovedDescription: isCancelRequest
       ? 'Department admin completed the cancellation-request review.'
       : 'Department admin completed the edit-request review.',
+    adminRejectedDescription: isCancelRequest
+      ? 'Department admin disapproved the cancellation request.'
+      : 'Department admin disapproved the edit request.',
     approvedDescription: isCancelRequest
       ? 'Requested cancellation was reviewed and approved.'
       : 'Requested edits were reviewed and approved.',
@@ -3051,6 +3060,8 @@ function getEditRequestTimelineEntries(app) {
   const rawStatus = getApplicationRawStatusKey(app)
   const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
   const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
+  const isRejectedByAdmin =
+    rejectionMeta && String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN'
 
   entries.push({
     title: terminology.submittedTitle,
@@ -3071,6 +3082,16 @@ function getEditRequestTimelineEntries(app) {
       icon: 'pending_actions',
       color: 'warning',
     })
+  } else if (isRejectedByAdmin && rejectionMeta) {
+    entries.push({
+      title: terminology.adminRejectedTitle,
+      subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
+      description: rejectionMeta.reviewRemarks || terminology.adminRejectedDescription,
+      icon: 'cancel',
+      color: 'negative',
+      actor: rejectionMeta.reviewedBy,
+    })
+    return entries
   } else {
     entries.push({
       title: terminology.adminApprovedTitle,
@@ -3291,6 +3312,7 @@ function isApplicationReleased(app) {
 function canReleaseApplication(app) {
   if (!app) return false
   if (isApplicationReleased(app)) return false
+  if (getLatestUpdateRequestStatus(app) === 'REJECTED') return false
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (isCocApplication(app)) {

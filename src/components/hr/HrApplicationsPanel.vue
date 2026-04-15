@@ -448,6 +448,9 @@ export default defineComponent({
     HrApplicationRecallDialog,
   },
   setup(props) {
+    const normalizeDisapprovedStatusLabel = (statusValue) =>
+      String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+
     const panel = useHrApplicationsPanel({
       applicationType: props.applicationType,
       applicationSource: props.applicationSource,
@@ -868,12 +871,16 @@ export default defineComponent({
 
     function getFinalStatusForStatusColumn(app) {
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
-      if (updateRequestBadgeLabel) return updateRequestBadgeLabel
+      if (updateRequestBadgeLabel) return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
 
-      return app?.displayStatus || panel.getApplicationStatusLabel(app)
+      return normalizeDisapprovedStatusLabel(
+        app?.displayStatus || panel.getApplicationStatusLabel(app),
+      )
     }
 
     function canShowPendingReleaseAction(app) {
+      if (panel.getLatestUpdateRequestStatus(app) === 'REJECTED') return false
+
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
         (stageStatus === 'Pending Release' || stageStatus === 'Pending Update Release') &&
