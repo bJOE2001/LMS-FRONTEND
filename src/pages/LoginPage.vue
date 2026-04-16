@@ -75,15 +75,8 @@
                 </q-input>
               </div>
 
-              <div class="row items-center justify-between q-mt-sm">
+              <div class="row items-center q-mt-sm">
                 <q-checkbox v-model="remember" label="Remember me" dense color="primary" />
-                <a
-                  href="#"
-                  class="text-primary text-body2 text-weight-medium forgot-link"
-                  @click.prevent="forgotPasswordDialog = true"
-                >
-                  Forgot password?
-                </a>
               </div>
 
               <q-btn
@@ -98,106 +91,6 @@
               />
             </q-form>
 
-            <div class="text-center q-mt-lg">
-              <p class="text-grey-6 text-body2 q-mb-none">
-                Don't have an account?
-                <a
-                  href="#"
-                  class="text-primary text-weight-medium forgot-link"
-                  @click.prevent="contactAdminDialog = true"
-                >
-                Please go to the HR Office 
-                </a>
-              </p>
-            </div>
-
-            <!-- Forgot password info (UI only) -->
-            <q-dialog v-model="forgotPasswordDialog" persistent>
-              <q-card style="width: 520px; max-width: 92vw; border-radius: 12px">
-                <q-card-section class="row items-center q-pb-none">
-                  <div class="text-h6 text-weight-bold">Password reset</div>
-                  <q-space />
-                  <q-btn icon="close" flat round dense v-close-popup aria-label="Close" />
-                </q-card-section>
-
-                <q-card-section class="q-pt-sm">
-                  <div class="text-body1 text-grey-9">
-                    Online password reset is not available for this system.
-                  </div>
-                  <div class="text-body2 text-grey-7 q-mt-sm">
-                    To reset your password, please go to the <span class="text-weight-medium">HR Office</span>.
-                  </div>
-
-                  <q-separator class="q-my-md" />
-
-                  <div class="text-body2 text-grey-8">
-                    You may need the following:
-                    <ul class="q-mt-sm q-mb-none">
-                      <li>Your employee ID / company ID</li>
-                      <li>A valid government or company-issued ID (if required)</li>
-                      <li>Your department / position details (if requested)</li>
-                    </ul>
-                  </div>
-
-                  <div class="text-body2 text-grey-8 q-mt-md">
-                    HR Office details (edit as needed):
-                    <ul class="q-mt-sm q-mb-none">
-                      <li><span class="text-weight-medium">Location:</span> HR Office (Building/Room: ________)</li>
-                      <li><span class="text-weight-medium">Office hours:</span> ________</li>
-                      <li><span class="text-weight-medium">Contact:</span> ________</li>
-                    </ul>
-                  </div>
-                </q-card-section>
-
-                <q-card-actions align="right">
-                  <q-btn color="primary" unelevated no-caps label="OK" v-close-popup />
-                </q-card-actions>
-              </q-card>
-            </q-dialog>
-
-            <!-- Contact administrator info (UI only) -->
-            <q-dialog v-model="contactAdminDialog" persistent>
-              <q-card style="width: 520px; max-width: 92vw; border-radius: 12px">
-                <q-card-section class="row items-center q-pb-none">
-                  <div class="text-h6 text-weight-bold">Request login credentials</div>
-                  <q-space />
-                  <q-btn icon="close" flat round dense v-close-popup aria-label="Close" />
-                </q-card-section>
-
-                <q-card-section class="q-pt-sm">
-                  <div class="text-body1 text-grey-9">
-                    Account creation / credential generation is handled by HR.
-                  </div>
-                  <div class="text-body2 text-grey-7 q-mt-sm">
-                    Please go to the <span class="text-weight-medium">HR Office</span> and request your login credentials.
-                  </div>
-
-                  <q-separator class="q-my-md" />
-
-                  <div class="text-body2 text-grey-8">
-                    You may need the following:
-                    <ul class="q-mt-sm q-mb-none">
-                      <li>Your full name and employee ID / company ID</li>
-                      <li>Your department / position</li>
-                      <li>A valid government or company-issued ID (if required)</li>
-                    </ul>
-                  </div>
-
-                  <div class="text-body2 text-grey-8 q-mt-md">
-                    HR Office details (edit as needed):
-                    <ul class="q-mt-sm q-mb-none">
-                      <li><span class="text-weight-medium">Location:</span> HR Office (Building/Room: ________)</li>
-                      <li><span class="text-weight-medium">Office hours:</span> ________</li>
-                      <li><span class="text-weight-medium">Contact:</span> ________</li>
-                    </ul>
-                  </div>
-                </q-card-section>
-
-                <q-card-actions align="right">
-                  <q-btn color="primary" unelevated no-caps label="OK" v-close-popup />
-                </q-card-actions>
-              </q-card>
-            </q-dialog>
           </div>
         </div>
       </div>
@@ -229,8 +122,6 @@ const password = ref('')
 const remember = ref(false)
 const showPassword = ref(false)
 const loading = ref(false)
-const forgotPasswordDialog = ref(false)
-const contactAdminDialog = ref(false)
 
 async function onSubmit() {
   loading.value = true

@@ -1,89 +1,65 @@
 <template>
-  <q-page class="dev-team-page">
-    <!-- Hero section -->
-    <section class="hero">
-      <div class="hero-bg" />
-      <div class="hero-content">
-        <q-btn
-          flat
-          round
-          dense
-          icon="arrow_back"
-          class="back-btn"
-          aria-label="Back to login"
-          :to="{ name: 'login' }"
-        />
-        <div class="hero-text">
-          <h1 class="hero-title">Development Team</h1>
-          <p class="hero-subtitle">Davao Del Norte State College</p>
-          <p class="hero-tagline">Leave Monitoring System — built by our interns</p>
+  <q-page class="development-page">
+    <section id="team-directory" class="directory-section">
+      <div class="page-shell">
+        <div class="section-heading">
+          <h2 class="section-title">Project Team Members</h2>
+          <p class="section-copy">
+            The following individuals contributed to the planning, implementation, and supporting
+            documentation of the Leave Monitoring System.
+          </p>
         </div>
-      </div>
-    </section>
 
-    <!-- Team grid -->
-    <section class="team-section">
-      <div class="section-inner">
-        <h2 class="section-title">Meet the Interns</h2>
         <div class="team-grid">
-          <div
-            v-for="member in members"
-            :key="member.name"
-            class="member-card"
-          >
-            <div class="card-glow" :style="{ '--glow': member.glow }" />
+          <article v-for="member in members" :key="member.name" class="member-card">
             <div
-              class="card-media"
-              :class="{ 'card-media-interactive': !!member.hoverPhoto }"
+              class="member-photo-wrap"
+              :class="{ 'has-hover-photo': !!member.hoverPhoto }"
               @mouseenter="setHoveredMember(member)"
               @mouseleave="clearHoveredMember(member)"
-              @click="toggleClickedMember(member)"
             >
               <img
                 v-if="member.photo"
                 :src="getMemberPhoto(member)"
                 :alt="`Photo of ${member.name}`"
                 class="member-photo"
-              >
-              <div
-                v-else
-                class="member-photo member-photo-fallback"
-                :style="{ background: member.gradient }"
-              >
+              />
+              <div v-else class="member-photo member-photo-fallback">
                 <span>{{ member.initials }}</span>
               </div>
             </div>
-            <div class="card-footer">
-              <div class="member-text">
-                <h3 class="member-name">{{ member.name }}</h3>
-                <p class="member-role">{{ member.role }}</p>
-                <p class="member-program">{{ member.program }}</p>
-              </div>
-              <div class="member-links">
-                <q-btn
+
+            <div class="member-body">
+              <p class="member-role">{{ member.role }}</p>
+              <h3 class="member-name">{{ member.name }}</h3>
+              <p class="member-program">{{ member.program }}</p>
+
+              <div v-if="member.links.length" class="member-links">
+                <a
                   v-for="link in member.links"
                   :key="`${member.name}-${link.label}`"
                   :href="link.href"
-                  :icon="link.icon"
                   target="_blank"
                   rel="noopener noreferrer"
-                  round
-                  flat
-                  dense
-                  class="member-link-btn"
+                  class="member-link"
                 >
-                  <q-tooltip>{{ link.label }}</q-tooltip>
-                </q-btn>
+                  <q-icon :name="link.icon" size="16px" />
+                  <span>{{ link.label }}</span>
+                </a>
               </div>
             </div>
-          </div>
+          </article>
         </div>
       </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="dev-footer">
-      <p class="footer-copy">&copy; {{ new Date().getFullYear() }} Leave Monitoring System · DNSC Interns</p>
+    <footer class="page-footer">
+      <div class="page-shell footer-inner">
+        <p class="footer-title">Leave Monitoring System</p>
+        <p class="footer-copy">
+          &copy; {{ currentYear }} City Government of Tagum. Development team profile page.
+        </p>
+      </div>
     </footer>
   </q-page>
 </template>
@@ -91,55 +67,65 @@
 <script setup>
 import { ref } from 'vue'
 
+const currentYear = new Date().getFullYear()
 const hoveredMemberName = ref(null)
-const clickedMemberName = ref(null)
 
-const getMemberPhoto = (member) => {
+function getMemberPhoto(member) {
   if (!member.hoverPhoto) return member.photo
 
-  const isActive =
-    hoveredMemberName.value === member.name || clickedMemberName.value === member.name
-
-  return isActive ? member.hoverPhoto : member.photo
+  return hoveredMemberName.value === member.name ? member.hoverPhoto : member.photo
 }
 
-const setHoveredMember = (member) => {
+function setHoveredMember(member) {
   if (!member.hoverPhoto) return
   hoveredMemberName.value = member.name
 }
 
-const clearHoveredMember = (member) => {
-  if (!member.hoverPhoto) return
-  if (hoveredMemberName.value === member.name) hoveredMemberName.value = null
+function clearHoveredMember(member) {
+  if (hoveredMemberName.value === member.name) {
+    hoveredMemberName.value = null
+  }
 }
 
-const toggleClickedMember = (member) => {
-  if (!member.hoverPhoto) return
-  clickedMemberName.value = clickedMemberName.value === member.name ? null : member.name
+function normalizeLink(link) {
+  if (!link?.href) return null
+
+  const trimmedHref = String(link.href).trim()
+  if (!trimmedHref) return null
+
+  const isGenericPlaceholder = ['https://github.com/', 'https://facebook.com/'].includes(
+    trimmedHref,
+  )
+  if (isGenericPlaceholder) return null
+
+  const isEmail = link.icon === 'mail' || trimmedHref.includes('@')
+  const normalizedHref =
+    isEmail && !trimmedHref.startsWith('mailto:') ? `mailto:${trimmedHref}` : trimmedHref
+
+  return {
+    ...link,
+    href: normalizedHref,
+  }
 }
 
-const members = [
+const rawMembers = [
   {
     name: 'Belly Joe B. Basadre',
-    initials: 'I1',
-    role: 'Backend Developer',
+    initials: 'BB',
+    role: 'FULL-STACK DEVELOPER',
     program: 'BS Information Technology',
-    gradient: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
-    glow: '#2e7d32',
-    photo: null,
+    photo: '/developers/belly.png',
     links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://github.com/' },
-      { label: 'Facebook', icon: 'public', href: 'https://facebook.com/' },
+      { label: 'Portfolio', icon: 'language', href: 'https://www.bellyjoebasadre.dev/' },
       { label: 'Email', icon: 'mail', href: 'mailto:bellyjoe@example.com' },
+      { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/bellyjoe.official' },
     ],
   },
   {
-    name: 'Christian Faith Mestola',
-    initials: 'I2',
-    role: 'Frontend Developer',
+    name: 'Christian Faith M. Mestola',
+    initials: 'CM',
+    role: 'FULL-STACK DEVELOPER',
     program: 'BS Information Technology',
-    gradient: 'linear-gradient(135deg, #388e3c 0%, #2e7d32 100%)',
-    glow: '#388e3c',
     photo: '/developers/christian.png',
     hoverPhoto: '/developers/christian%20hover.png',
     links: [
@@ -150,295 +136,465 @@ const members = [
   },
   {
     name: 'Jake Baranada',
-    initials: 'I3',
-    role: 'Backend Developer',
+    initials: 'JB',
+    role: 'FRONTEND DEVELOPER',
     program: 'BS Information Technology',
-    gradient: 'linear-gradient(135deg, #43a047 0%, #388e3c 100%)',
-    glow: '#43a047',
-    photo: null,
+    photo: '/developers/jake.png',
     links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://github.com/' },
-      { label: 'Facebook', icon: 'public', href: 'https://facebook.com/' },
       { label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' },
+      { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/Jake.Baranda8' },
+      { label: 'Email', icon: 'mail', href: 'baranda.jake@dnsc.edu.ph' },
     ],
   },
   {
     name: 'Kenneth Andallaza',
-    initials: 'I4',
-    role: 'Frontend Developer & Project Manager',
+    initials: 'KA',
+    role: 'FRONTEND DEVELOPER',
     program: 'BS Information Technology',
-    gradient: 'linear-gradient(135deg, #4caf50 0%, #43a047 100%)',
-    glow: '#4caf50',
     photo: null,
-    links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://github.com/' },
-      { label: 'Facebook', icon: 'public', href: 'https://facebook.com/' },
-      { label: 'Email', icon: 'mail', href: 'mailto:kenneth@example.com' },
-    ],
+    links: [{ label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' }],
   },
   {
-    name: 'Sherly Al-os',
-    initials: 'I5',
-    role: 'UI designer & Documentation Specialist',
+    name: 'Sherly Ann Al-os',
+    initials: 'SA',
+    role: 'AFK NPC',
     program: 'BS Information Technology',
-    gradient: 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)',
-    glow: '#66bb6a',
-    photo: null,
-    links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://github.com/' },
-      { label: 'Facebook', icon: 'public', href: 'https://facebook.com/' },
-      { label: 'Email', icon: 'mail', href: 'mailto:sherly@example.com' },
-    ],
+    photo: '/developers/alsos.jpg',
+    links: [{ label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' }],
   },
   {
-    name: 'Janlyn Dos',
-    initials: 'I6',
-    role: 'System Analyst & Documentation Specialist',
+    name: 'Janlyn Baulite',
+    initials: 'JB',
+    role: 'AKF NPC',
     program: 'BS Information Technology',
-    gradient: 'linear-gradient(135deg, #81c784 0%, #66bb6a 100%)',
-    glow: '#81c784',
-    photo: null,
-    links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://github.com/' },
-      { label: 'Facebook', icon: 'public', href: 'https://facebook.com/' },
-      { label: 'Email', icon: 'mail', href: 'mailto:janlyn@example.com' },
-    ],
+    photo: '/developers/janlyn.jpg',
+    links: [{ label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' }],
   },
 ]
+
+const members = rawMembers.map((member) => ({
+  ...member,
+  links: member.links.map(normalizeLink).filter(Boolean),
+}))
 </script>
 
-<style lang="scss" scoped>
-.dev-team-page {
+<style scoped>
+.development-page {
   min-height: 100vh;
-  background: #0a1410;
-  padding-bottom: 80px;
+  background: #f4f7f4;
+  color: #173526;
 }
 
-/* ---- Hero ---- */
-.hero {
-  position: relative;
-  min-height: 280px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(160deg, rgba(56, 142, 60, 0.4) 0%, rgba(27, 94, 32, 0.45) 50%, rgba(10, 20, 16, 0.98) 100%),
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(56, 142, 60, 0.3) 0%, transparent 60%);
-  pointer-events: none;
-}
-
-.hero-content {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 900px;
-  padding: 24px;
-  text-align: center;
-}
-
-.back-btn {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  color: rgba(255, 255, 255, 0.9);
-  &:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-  }
-}
-
-.hero-title {
-  margin: 0;
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.02em;
-}
-
-.hero-subtitle {
-  margin: 8px 0 4px;
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.85);
-  font-weight: 500;
-}
-
-.hero-tagline {
-  margin: 0;
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* ---- Team section ---- */
-.team-section {
-  padding: 48px 24px 24px;
-}
-
-.section-inner {
-  max-width: 1100px;
+.page-shell {
+  width: min(1160px, calc(100% - 48px));
   margin: 0 auto;
 }
 
-.section-title {
-  margin: 0 0 32px;
-  font-size: 1.5rem;
+.hero-section {
+  padding: 32px 0 44px;
+  background: linear-gradient(180deg, #eef5ef 0%, #f4f7f4 100%);
+  border-bottom: 1px solid rgba(23, 53, 38, 0.08);
+}
+
+.back-button {
+  margin-bottom: 22px;
+  padding-inline: 4px;
+  color: #28553f;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.hero-copy,
+.hero-panel,
+.overview-card,
+.member-card {
+  border: 1px solid rgba(23, 53, 38, 0.08);
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(18, 45, 31, 0.06);
+}
+
+.hero-copy {
+  padding: 38px;
+  border-radius: 24px;
+}
+
+.hero-kicker,
+.overview-label,
+.panel-label,
+.panel-status {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-kicker,
+.overview-label,
+.panel-label {
+  color: #2e7a55;
+}
+
+.hero-title {
+  margin: 14px 0 8px;
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  line-height: 1.02;
+  font-weight: 800;
+  color: #163423;
+}
+
+.hero-subtitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #244a36;
+}
+
+.hero-description,
+.section-copy,
+.overview-copy,
+.hero-note-copy,
+.footer-copy,
+.member-program,
+.member-role,
+.meta-label,
+.meta-value {
+  line-height: 1.7;
+}
+
+.hero-description {
+  max-width: 640px;
+  margin: 18px 0 0;
+  color: #4d6859;
+  font-size: 1rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.hero-primary,
+.hero-secondary {
+  min-height: 48px;
+  padding-inline: 12px;
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.hero-panel {
+  padding: 28px;
+  border-radius: 24px;
+}
+
+.hero-panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.panel-status {
+  color: #5f7a6b;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stat-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: #f6faf7;
+  border: 1px solid rgba(46, 122, 85, 0.1);
+}
+
+.stat-value {
+  display: block;
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  color: #1d5239;
+}
+
+.stat-label {
+  display: block;
+  margin-top: 8px;
+  color: #587062;
+  font-size: 0.92rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  text-align: center;
+}
+
+.hero-note {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: #173526;
+}
+
+.hero-note-title {
+  margin: 0 0 6px;
+  color: #dff5e6;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.hero-note-copy {
+  margin: 0;
+  color: rgba(239, 250, 243, 0.84);
+  font-size: 0.93rem;
+}
+
+.overview-section {
+  padding: 26px 0 12px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.overview-card {
+  padding: 24px;
+  border-radius: 22px;
+}
+
+.overview-title {
+  margin: 10px 0 8px;
+  font-size: 1.22rem;
+  line-height: 1.3;
+  color: #173526;
+}
+
+.overview-copy {
+  margin: 0;
+  font-size: 0.96rem;
+  color: #567061;
+}
+
+.directory-section {
+  padding: 28px 0 56px;
+}
+
+.section-heading {
+  max-width: 720px;
+  margin-bottom: 28px;
+}
+
+.section-title {
+  margin: 10px 0 10px;
+  font-size: clamp(1.8rem, 3vw, 5.4rem);
+  font-weight: 600;
+  line-height: 1.1;
+  color: #173526;
+}
+
+.section-copy {
+  margin: 0;
+  font-size: 1rem;
+  color: #587062;
 }
 
 .team-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  gap: 22px;
 }
 
 .member-card {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-
-  &:hover {
-    transform: translateY(-6px);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  }
-}
-
-.card-glow {
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 80px;
-  background: radial-gradient(ellipse at center, var(--glow, #667eea) 0%, transparent 70%);
-  opacity: 0.35;
-  pointer-events: none;
-  border-radius: 20px 20px 0 0;
-}
-
-.card-media {
-  position: relative;
-  height: 220px;
+  border-radius: 24px;
   overflow: hidden;
 }
 
-.card-media-interactive {
+.member-photo-wrap {
+  position: relative;
+  height: 240px;
+  background: #e8f1eb;
+  border-bottom: 1px solid rgba(23, 53, 38, 0.08);
+}
+
+.member-photo-wrap.has-hover-photo {
   cursor: pointer;
 }
 
 .member-photo {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
+  transition: transform 0.2s ease;
+}
+
+.member-photo-wrap.has-hover-photo:hover .member-photo {
+  transform: scale(1.02);
 }
 
 .member-photo-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 3rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  color: #2e7a55;
+  font-size: 2.3rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
-.card-footer {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 16px 18px;
-  background: linear-gradient(180deg, rgba(7, 13, 10, 0.8) 0%, rgba(7, 13, 10, 0.96) 100%);
-}
-
-.member-text {
-  min-width: 0;
-}
-
-.member-name {
-  margin: 0 0 4px;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  line-height: 1.3;
+.member-body {
+  padding: 22px;
+  background: var(--q-primary);
 }
 
 .member-role {
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.member-name {
   margin: 0;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.78);
-  font-weight: 500;
+  font-size: 1.18rem;
+  line-height: 1.35;
+  color: #ffffff;
 }
 
 .member-program {
-  margin: 3px 0 0;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.52);
+  margin: 8px 0 0;
+  font-size: 0.94rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.member-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.meta-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.meta-value {
+  color: #ffffff;
+  font-size: 0.94rem;
+  font-weight: 600;
 }
 
 .member-links {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
-.member-link-btn {
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(129, 199, 132, 0.32);
-  background: rgba(56, 142, 60, 0.12);
-
-  &:hover {
-    background: rgba(56, 142, 60, 0.25);
-    color: #d7ffd9;
-  }
-}
-
-/* ---- Footer ---- */
-.dev-footer {
-  margin-top: 48px;
-  padding: 24px;
-  text-align: center;
-}
-
-.footer-link {
+.member-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(56, 142, 60, 0.2);
-  color: #81c784;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
   text-decoration: none;
-  font-weight: 500;
-  transition: background 0.2s, color 0.2s;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
 
-  &:hover {
-    background: rgba(56, 142, 60, 0.35);
-    color: #a5d6a7;
-  }
+.member-link:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.page-footer {
+  padding: 0 0 36px;
+}
+
+.footer-inner {
+  padding-top: 22px;
+  border-top: 1px solid rgba(23, 53, 38, 0.08);
+}
+
+.footer-title {
+  margin: 0;
+  color: #173526;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .footer-copy {
-  margin: 16px 0 0;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.45);
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  color: #667f71;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 980px) {
+  .hero-grid,
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    width: min(100% - 32px, 1160px);
+  }
+
+  .hero-section {
+    padding-top: 20px;
+  }
+
+  .hero-copy,
+  .hero-panel,
+  .overview-card,
+  .member-body {
+    padding: 20px;
+  }
+
+  .hero-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-primary,
+  .hero-secondary {
+    width: 100%;
+  }
+
   .team-grid {
     grid-template-columns: 1fr;
   }
