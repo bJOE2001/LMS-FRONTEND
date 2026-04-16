@@ -28,49 +28,80 @@
             </q-chip>
           </q-card-section>
 
-          <q-card-section v-if="hasLoadedSchedules">
-            <div class="row q-col-gutter-md">
-              <div class="col-12 col-sm-6">
-                <q-input v-model="defaultScheduleForm.work_start_time" outlined dense type="time" label="Work Start *" />
+          <q-card-section v-if="hasLoadedSchedules" class="schedule-fields-shell">
+            <div class="schedule-fields-grid">
+              <div class="schedule-field">
+                <div class="schedule-field-label">Work Start</div>
+                <q-input
+                  v-model="defaultScheduleForm.work_start_time"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  type="time"
+                  aria-label="Work Start"
+                />
               </div>
-              <div class="col-12 col-sm-6">
-                <q-input v-model="defaultScheduleForm.work_end_time" outlined dense type="time" label="Work End *" />
+              <div class="schedule-field">
+                <div class="schedule-field-label">Work End</div>
+                <q-input
+                  v-model="defaultScheduleForm.work_end_time"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  type="time"
+                  aria-label="Work End"
+                />
               </div>
-              <div class="col-12 col-sm-6">
-                <q-input v-model="defaultScheduleForm.break_start_time" outlined dense type="time" label="Break Start" />
+              <div class="schedule-field">
+                <div class="schedule-field-label">Break Start</div>
+                <q-input
+                  v-model="defaultScheduleForm.break_start_time"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  type="time"
+                  aria-label="Break Start"
+                />
               </div>
-              <div class="col-12 col-sm-6">
-                <q-input v-model="defaultScheduleForm.break_end_time" outlined dense type="time" label="Break End" />
+              <div class="schedule-field">
+                <div class="schedule-field-label">Break End</div>
+                <q-input
+                  v-model="defaultScheduleForm.break_end_time"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  type="time"
+                  aria-label="Break End"
+                />
               </div>
-              <div class="col-12 col-sm-6">
+              <div class="schedule-field">
+                <div class="schedule-field-label">Whole Day Deduction</div>
                 <q-input
                   :model-value="formatDeductionValue(defaultWholeDayDeduction)"
                   outlined
                   dense
+                  hide-bottom-space
                   readonly
-                  label="Whole Day Leave Deduction *"
+                  aria-label="Whole Day Deduction"
                 />
               </div>
-              <div class="col-12 col-sm-6">
+              <div class="schedule-field">
+                <div class="schedule-field-label">Half Day Deduction</div>
                 <q-input
                   :model-value="formatDeductionValue(defaultHalfDayDeduction)"
                   outlined
                   dense
+                  hide-bottom-space
                   readonly
-                  label="Half Day Leave Deduction *"
+                  aria-label="Half Day Deduction"
                 />
               </div>
             </div>
           </q-card-section>
 
-          <q-card-section v-else class="q-pt-md">
-            <div class="row q-col-gutter-md">
-              <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
-              <div class="col-12 col-sm-6"><q-skeleton height="40px" bordered /></div>
+          <q-card-section v-else class="q-pt-md schedule-fields-shell">
+            <div class="schedule-fields-grid">
+              <q-skeleton v-for="index in 6" :key="index" height="40px" bordered />
             </div>
           </q-card-section>
 
@@ -207,7 +238,7 @@
           <q-btn flat round dense icon="close" v-close-popup :disable="savingOverride" />
         </q-card-section>
 
-        <q-card-section class="q-pt-md">
+        <q-card-section class="q-pt-md schedule-fields-shell">
           <div class="row q-col-gutter-md">
             <div v-if="!editingOverrideId" class="col-12">
               <q-select
@@ -256,35 +287,75 @@
               </q-banner>
             </div>
 
-            <div class="col-12 col-sm-6">
-              <q-input v-model="overrideForm.work_start_time" outlined dense type="time" label="Work Start *" />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-input v-model="overrideForm.work_end_time" outlined dense type="time" label="Work End *" />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-input v-model="overrideForm.break_start_time" outlined dense type="time" label="Break Start" />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-input v-model="overrideForm.break_end_time" outlined dense type="time" label="Break End" />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-input
-                :model-value="formatDeductionValue(overrideWholeDayDeduction)"
-                outlined
-                dense
-                readonly
-                label="Whole Day Leave Deduction *"
-              />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-input
-                :model-value="formatDeductionValue(overrideHalfDayDeduction)"
-                outlined
-                dense
-                readonly
-                label="Half Day Leave Deduction *"
-              />
+            <div class="col-12">
+              <div class="schedule-fields-grid">
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Work Start</div>
+                  <q-input
+                    v-model="overrideForm.work_start_time"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    type="time"
+                    aria-label="Work Start"
+                  />
+                </div>
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Work End</div>
+                  <q-input
+                    v-model="overrideForm.work_end_time"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    type="time"
+                    aria-label="Work End"
+                  />
+                </div>
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Break Start</div>
+                  <q-input
+                    v-model="overrideForm.break_start_time"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    type="time"
+                    aria-label="Break Start"
+                  />
+                </div>
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Break End</div>
+                  <q-input
+                    v-model="overrideForm.break_end_time"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    type="time"
+                    aria-label="Break End"
+                  />
+                </div>
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Whole Day Deduction</div>
+                  <q-input
+                    :model-value="formatDeductionValue(overrideWholeDayDeduction)"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    readonly
+                    aria-label="Whole Day Deduction"
+                  />
+                </div>
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Half Day Deduction</div>
+                  <q-input
+                    :model-value="formatDeductionValue(overrideHalfDayDeduction)"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    readonly
+                    aria-label="Half Day Deduction"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </q-card-section>
@@ -779,10 +850,44 @@ function formatDateTime(value) {
   border-radius: 18px;
 }
 
+.schedule-fields-shell {
+  container-type: inline-size;
+}
+
+.schedule-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.schedule-field {
+  min-width: 0;
+}
+
+.schedule-field-label {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5f6b7a;
+}
+
 .override-dialog {
-  width: min(860px, 96vw);
+  width: min(1180px, 96vw);
   max-width: 96vw;
   border-radius: 18px;
 }
-</style>
 
+@container (max-width: 960px) {
+  .schedule-fields-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 560px) {
+  .schedule-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

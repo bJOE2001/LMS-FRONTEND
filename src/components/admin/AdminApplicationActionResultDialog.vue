@@ -11,6 +11,9 @@
             The request update has been approved. You can print the leave form and request-change
             form now.
           </template>
+          <template v-else-if="isCocApprovedActionResult">
+            The application has been approved.
+          </template>
           <template v-else-if="actionResultType === 'cancelled'">
             The application has been cancelled.
           </template>
@@ -34,7 +37,7 @@
           @click="handlePrintRequestChanges"
         />
         <q-btn
-          v-if="actionResultType !== 'cancelled'"
+          v-if="showPrintButton"
           unelevated
           color="primary"
           icon="print"
@@ -99,6 +102,34 @@ const resultIconColor = computed(() => {
   if (props.actionResultType === 'cancelled') return 'warning'
   return 'negative'
 })
+
+const getApplicationType = (application) => {
+  const explicitType = String(
+    application?.application_type ?? application?.applicationType ?? application?.type ?? '',
+  )
+    .trim()
+    .toUpperCase()
+
+  if (explicitType === 'COC') return 'COC'
+  if (explicitType === 'LEAVE') return 'LEAVE'
+
+  const leaveTypeName = String(
+    application?.leaveType ?? application?.leave_type ?? application?.leaveTypeName ?? application?.leave_type_name ?? '',
+  )
+    .trim()
+    .toLowerCase()
+
+  if (leaveTypeName === 'coc application' || leaveTypeName === 'coc') return 'COC'
+  return 'LEAVE'
+}
+
+const isCocApprovedActionResult = computed(
+  () => props.actionResultType === 'approved' && getApplicationType(props.actionResultApp) === 'COC',
+)
+
+const showPrintButton = computed(
+  () => props.actionResultType !== 'cancelled' && !isCocApprovedActionResult.value,
+)
 
 function onDialogModelUpdate(value) {
   emit('update:modelValue', value)
