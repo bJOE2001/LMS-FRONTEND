@@ -161,7 +161,7 @@
                 <q-tooltip>{{
                   isDepartmentReassigned(props.row)
                     ? 'Remove from this department'
-                    : 'Only LMS-assigned employees can be removed'
+                    : 'Only re-assigned office employees can be removed'
                 }}</q-tooltip>
               </q-btn>
               <q-btn flat dense round icon="description" color="green-8" size="sm" @click="applyLeaveFor(props.row)">
