@@ -722,14 +722,26 @@ function getEditRequestBadgeLabel(app) {
 
   const status = getLatestUpdateRequestStatus(app)
   const labelPrefix = getEditRequestLabelPrefix(app)
+  const stageStatus = getLeaveWorkflowStageStatus(app)
   if (status === 'PENDING') {
+    if (isCancellationRequestAction(app)) {
+      if (rawStatus === 'PENDING_ADMIN') return labelPrefix + ' Pending Admin'
+      if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+      if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+      if (stageStatus === 'Pending Update Review') return labelPrefix + ' Pending HR'
+      return labelPrefix + ' Pending'
+    }
     if (!isCancellationRequestAction(app)) {
       if (rawStatus === 'PENDING_ADMIN') return 'Pending Update Admin Review'
       return 'Pending Update HR Review'
     }
-    return labelPrefix + ' Pending'
   }
-  if (status === 'APPROVED') return labelPrefix + ' Approved'
+  if (status === 'APPROVED') {
+    if (isCancellationRequestAction(app) && stageStatus === 'Pending Update Release') {
+      return labelPrefix + ' Pending Release'
+    }
+    return labelPrefix + ' Approved'
+  }
   if (status === 'REJECTED') return labelPrefix + ' Disapproved'
   return ''
 }
@@ -743,6 +755,9 @@ function getEditRequestBadgeColor(app) {
 }
 
 function getEditRequestStatusLabel(app) {
+  const badgeLabel = getEditRequestBadgeLabel(app)
+  if (badgeLabel) return badgeLabel
+
   const status = getLatestUpdateRequestStatus(app)
   if (status === 'PENDING') {
     const rawStatus = getApplicationRawStatusKey(app)

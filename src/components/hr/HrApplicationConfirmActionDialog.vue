@@ -344,9 +344,23 @@ const formatReviewDate = (value) => {
   })
 }
 
+const formatReviewTimeValue = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return 'N/A'
+
+  const match = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/)
+  if (!match) return raw
+
+  const hours24 = Number(match[1])
+  const minutes = Number(match[2])
+  const period = hours24 >= 12 ? 'PM' : 'AM'
+  const hours12 = hours24 % 12 || 12
+  return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
 const formatReviewTimeRange = (timeFrom, timeTo) => {
-  const fromText = String(timeFrom || '').trim() || 'N/A'
-  const toText = String(timeTo || '').trim() || 'N/A'
+  const fromText = formatReviewTimeValue(timeFrom)
+  const toText = formatReviewTimeValue(timeTo)
   return `${fromText} - ${toText}`
 }
 

@@ -3045,22 +3045,36 @@ export function useAdminApplicationsPage() {
     const status = getAdminEditRequestBadgeStatus(app)
     const labelPrefix = getAdminEditRequestLabelPrefix(app)
     const isCancelRequest = isAdminCancellationRequest(app)
+    const stageStatus = getLeaveWorkflowStageStatus(app)
 
     if (status === 'PENDING_ADMIN') {
       return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Pending Update Admin Review'
     }
     if (status === 'PENDING_HR') {
-      if (isCancelRequest) return labelPrefix + ' Pending HR'
-      const stageStatus = getLeaveWorkflowStageStatus(app)
+      if (isCancelRequest) {
+        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+        return labelPrefix + ' Pending HR'
+      }
       if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
         return stageStatus
       }
       return 'Pending Update HR Review'
     }
     if (status === 'PENDING') {
-      return isCancelRequest ? labelPrefix + ' Pending' : 'Pending Update HR Review'
+      if (isCancelRequest) {
+        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+        return labelPrefix + ' Pending'
+      }
+      return 'Pending Update HR Review'
     }
-    if (status === 'APPROVED') return labelPrefix + ' Approved'
+    if (status === 'APPROVED') {
+      if (isCancelRequest && stageStatus === 'Pending Update Release') {
+        return labelPrefix + ' Pending Release'
+      }
+      return labelPrefix + ' Approved'
+    }
     if (status === 'REJECTED') return labelPrefix + ' Disapproved'
     return ''
   }

@@ -676,8 +676,13 @@
         </q-card-section>
         <q-card-section class="q-pt-none">
           <div class="text-body2 text-grey-8">
-            The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
-            finalized form now.
+            <template v-if="isCocApprovedActionResult">
+              The application has been approved.
+            </template>
+            <template v-else>
+              The application has been {{ getActionResultVerb(actionResultType) }}. You can print the
+              finalized form now.
+            </template>
           </div>
           <div v-if="actionResultApp" class="text-caption text-grey-7 q-mt-sm">
             {{ actionResultApp.employeeName }} - {{ actionResultApp.leaveType }}
@@ -685,6 +690,7 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn
+            v-if="actionResultType !== 'cancelled' && !isCocApprovedActionResult"
             unelevated
             color="primary"
             icon="print"
@@ -990,6 +996,9 @@ const rejectionDialogTitle = computed(() =>
 )
 const rejectionDialogLabel = computed(() =>
   rejectionMode.value === 'cancel' ? 'Reason for cancellation' : 'Reason for disapproval',
+)
+const isCocApprovedActionResult = computed(
+  () => actionResultType.value === 'approved' && isCocApplication(actionResultApp.value),
 )
 
 watch(statusSearch, () => {

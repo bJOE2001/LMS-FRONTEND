@@ -268,6 +268,11 @@
                       'Pending Update HR Review',
                       'Pending Update Admin Review',
                       'Pending Update Release',
+                      'Cancel Request Pending',
+                      'Cancel Request Pending Admin',
+                      'Cancel Request Pending HR',
+                      'Cancel Request Pending Receive',
+                      'Cancel Request Pending Release',
                       'Pending Admin',
                     ].includes(getDisplayApplicationStatusLabel(selectedApp))
                   "
@@ -346,13 +351,13 @@
                 <div class="admin-application-requested-changes-line">
                   <span class="admin-application-requested-changes-key">Current:</span>
                   <span class="admin-application-requested-changes-value">{{
-                    getApplicationEditRequestFromDates(selectedApp)
+                    formatInclusiveDateSummary(getApplicationEditRequestFromDates(selectedApp))
                   }}</span>
                 </div>
                 <div class="admin-application-requested-changes-line">
                   <span class="admin-application-requested-changes-key">Requested:</span>
                   <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">{{
-                    getApplicationEditRequestToDates(selectedApp)
+                    formatInclusiveDateSummary(getApplicationEditRequestToDates(selectedApp))
                   }}</span>
                 </div>
               </div>
@@ -520,7 +525,9 @@
                   :key="`${selectedApp.application_uid || selectedApp.id}-details-current-indicator-${entry.dateKey}`"
                   class="admin-application-duration-date-row"
                 >
-                  <span class="text-caption admin-application-duration-date">{{ entry.dateText }}</span>
+                  <span class="text-caption admin-application-duration-date">{{
+                    formatInclusiveDateEntry(entry)
+                  }}</span>
                   <q-badge
                     dense
                     rounded
@@ -546,7 +553,7 @@
                   class="admin-application-duration-date-row"
                 >
                   <span class="text-caption text-deep-purple-8 admin-application-duration-date">
-                    {{ entry.dateText }}
+                    {{ formatInclusiveDateEntry(entry) }}
                   </span>
                   <q-badge
                     dense
@@ -579,7 +586,9 @@
                   :key="`${selectedApp.application_uid || selectedApp.id}-details-indicator-${entry.dateKey}`"
                   class="admin-application-duration-date-row"
                 >
-                  <span class="text-caption admin-application-duration-date">{{ entry.dateText }}</span>
+                  <span class="text-caption admin-application-duration-date">{{
+                    formatInclusiveDateEntry(entry)
+                  }}</span>
                   <q-badge
                     dense
                     rounded
@@ -611,7 +620,7 @@
                   :key="`${selectedApp.application_uid || selectedApp.id}-details-inclusive-${index}`"
                   class="text-weight-medium text-grey-9 block"
                 >
-                  {{ line }}
+                  {{ formatInclusiveDateSummary(line) }}
                 </span>
               </div>
             </div>
@@ -853,9 +862,49 @@ const {
 } = useAdminApplicationsPage()
 
 const DISAPPROVED_STATUS_COLOR = 'red'
+const inclusiveDatePatterns = [
+  /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/g,
+  /\b[A-Z][a-z]{2}\s+\d{1,2}\s+\d{4}\b/g,
+]
 
 function normalizeDisapprovedStatusLabel(statusValue) {
   return String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+}
+
+function formatInclusiveDateLabel(value) {
+  const normalizedValue = String(value || '').trim()
+  if (!normalizedValue) return ''
+
+  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)
+    ? new Date(`${normalizedValue}T00:00:00`)
+    : new Date(normalizedValue)
+
+  if (Number.isNaN(parsedDate.getTime())) return normalizedValue
+
+  return parsedDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatInclusiveDateSummary(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+
+  return inclusiveDatePatterns.reduce(
+    (formattedText, pattern) =>
+      formattedText.replace(pattern, (dateText) => formatInclusiveDateLabel(dateText)),
+    text,
+  )
+}
+
+function formatInclusiveDateEntry(entry) {
+  const dateValue = String(entry?.dateKey || entry?.dateText || '').trim()
+  if (!dateValue) return ''
+
+  return formatInclusiveDateLabel(dateValue)
 }
 
 function getDisplayApplicationStatusLabel(app) {
