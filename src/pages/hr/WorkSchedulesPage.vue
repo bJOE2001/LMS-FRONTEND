@@ -2,7 +2,7 @@
   <q-page class="work-schedules-page q-pa-md">
     <div class="page-header q-mb-md">
       <div>
-        <div class="text-h4 text-weight-bold">Work Schedule & Leave Rules</div>
+        <div class="text-h4 text-weight-bold">Work Schedule</div>
       </div>
     </div>
 
