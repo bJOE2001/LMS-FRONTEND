@@ -603,7 +603,7 @@
             <template #avatar>
               <q-icon name="info" color="blue-8" />
             </template>
-            This sets the employee's balances for all credit-based leave types.
+            This sets the employee's balances for allowed credit-based leave types.
           </q-banner>
 
           <div class="row q-col-gutter-md">
@@ -651,7 +651,7 @@
             </div>
             <div class="col-12">
               <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
-              <div class="text-caption text-grey-6">Fill all leave type balances.</div>
+              <div class="text-caption text-grey-6">Fill all allowed leave type balances.</div>
             </div>
             <template v-if="loadingCreditLeaveTypes">
               <div class="col-12">
@@ -684,7 +684,7 @@
             </template>
             <div v-else class="col-12">
               <q-banner dense rounded class="bg-orange-1 text-orange-9">
-                No credit-based leave types available.
+                {{ creditLeaveTypesEmptyMessage }}
               </q-banner>
             </div>
           </div>
@@ -800,6 +800,7 @@ const CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH = 2
 const creditEmployeeLookupCache = new Map()
 let creditEmployeeLookupSequence = 0
 let creditEmployeeAbortController = null
+let creditLeaveTypesLookupSequence = 0
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -837,6 +838,14 @@ const creditEmployeeNoOptionMessage = computed(() => {
   }
 
   return 'No matching employees found.'
+})
+const creditLeaveTypesEmptyMessage = computed(() => {
+  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  if (!selectedControlNo) {
+    return 'Select an employee to load allowed leave types.'
+  }
+
+  return 'No credit-based leave types available for this employee.'
 })
 
 const historyColumns = [
@@ -1352,20 +1361,51 @@ async function fetchData(page = 1) {
   }
 }
 
-async function fetchCreditLeaveTypes() {
+async function fetchCreditLeaveTypes(employeeControlNo = '') {
+  const lookupSequence = ++creditLeaveTypesLookupSequence
+  const selectedControlNo = String(employeeControlNo ?? '').trim()
+
   loadingCreditLeaveTypes.value = true
   try {
-    const { data } = await api.get('/hr/leave-types')
-    const leaveTypes = Array.isArray(data.leave_types) ? data.leave_types : []
+    if (!selectedControlNo) {
+      creditLeaveTypes.value = []
+      leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
+      return
+    }
+
+    const { data } = await api.get('/hr/leave-balances/available-types', {
+      params: {
+        employee_control_no: selectedControlNo,
+      },
+    })
+    if (lookupSequence !== creditLeaveTypesLookupSequence) {
+      return
+    }
+
+    const leaveTypes = Array.isArray(data?.leave_types) ? data.leave_types : []
     creditLeaveTypes.value = sortCreditLeaveTypesForDisplay(
-      leaveTypes.filter((type) => isManualAddLeaveCreditType(type)),
+      leaveTypes
+        .map((leaveType) => ({
+          ...leaveType,
+          // available-types endpoint already returns credit-based types; keep compatibility with existing checks.
+          is_credit_based: leaveType?.is_credit_based ?? true,
+        }))
+        .filter((type) => isManualAddLeaveCreditType(type)),
     )
     leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
   } catch (err) {
+    if (lookupSequence !== creditLeaveTypesLookupSequence) {
+      return
+    }
+
+    creditLeaveTypes.value = []
+    leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
     const msg = resolveApiErrorMessage(err, 'Unable to load leave types right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
-    loadingCreditLeaveTypes.value = false
+    if (lookupSequence === creditLeaveTypesLookupSequence) {
+      loadingCreditLeaveTypes.value = false
+    }
   }
 }
 
@@ -1699,9 +1739,18 @@ watch(calendarPreviewDateStates, () => {
 
 onMounted(() => {
   fetchDepartments()
-  fetchCreditLeaveTypes()
   fetchData()
 })
+
+watch(
+  () => String(leaveCreditForm.value.employee_control_no ?? '').trim(),
+  (selectedControlNo, previousControlNo) => {
+    if (!showLeaveCreditsDialog.value) return
+    if (selectedControlNo === previousControlNo) return
+
+    void fetchCreditLeaveTypes(selectedControlNo)
+  },
+)
 
 onBeforeUnmount(() => {
   clearCalendarPreviewWarning()
@@ -3585,6 +3634,9 @@ function defaultLeaveCreditForm() {
 }
 
 function resetLeaveCreditForm() {
+  creditLeaveTypesLookupSequence += 1
+  loadingCreditLeaveTypes.value = false
+  creditLeaveTypes.value = []
   creditEmployeeLookupSequence += 1
   if (creditEmployeeAbortController) {
     creditEmployeeAbortController.abort()
@@ -3603,6 +3655,7 @@ function openLeaveCreditsDialog(employee = null) {
     upsertCreditEmployeeOption(employee)
   }
   showLeaveCreditsDialog.value = true
+  void fetchCreditLeaveTypes(leaveCreditForm.value.employee_control_no)
 }
 
 function buildLeaveCreditBalanceState(existingBalances = {}) {

@@ -161,7 +161,7 @@
                 <q-tooltip>{{
                   isDepartmentReassigned(props.row)
                     ? 'Remove from this department'
-                    : 'Only LMS-assigned employees can be removed'
+                    : 'Only re-assigned employees office can be removed'
                 }}</q-tooltip>
               </q-btn>
               <q-btn flat dense round icon="description" color="green-8" size="sm" @click="applyLeaveFor(props.row)">
@@ -1251,7 +1251,7 @@ function confirmDelete(employee) {
   if (!isDepartmentReassigned(employee)) {
     $q.notify({
       type: 'info',
-      message: 'Original HRIS employees cannot be removed here. Only LMS-assigned employees can be removed from this department.',
+      message: 'Original HRIS employees cannot be removed here. Only re-assigned employees office can be removed from this department.',
       position: 'top',
     })
     return
