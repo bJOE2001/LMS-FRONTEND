@@ -681,7 +681,7 @@ export function useAdminApplicationsPage() {
   function formatLeaveBalanceValue(value) {
     const numericValue = Number(value)
     if (!Number.isFinite(numericValue)) return ''
-    return Number.isInteger(numericValue) ? String(numericValue) : numericValue.toFixed(2)
+    return numericValue.toFixed(3)
   }
 
   function extractApplicationsFromPayload(payload) {

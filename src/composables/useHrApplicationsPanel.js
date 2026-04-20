@@ -840,6 +840,12 @@ function formatDayValue(value) {
   return Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
 }
 
+function formatBalanceValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return '0.000'
+  return numericValue.toFixed(3)
+}
+
 function normalizeDurationUnit(value) {
   const normalized = String(value || '')
     .trim()
@@ -1638,7 +1644,7 @@ function getCurrentLeaveBalanceValue(app) {
 
 function getCurrentLeaveBalanceDisplay(app) {
   const value = getCurrentLeaveBalanceValue(app)
-  return value !== null ? `${formatDayValue(value)} day(s)` : 'N/A (non-credit)'
+  return value !== null ? `${formatBalanceValue(value)} day(s)` : 'N/A (non-credit)'
 }
 
 function getCurrentLeaveBalanceClass(app) {
@@ -1727,7 +1733,7 @@ function getCurrentCtoAvailableHoursValue(app) {
 
 function getCurrentCtoAvailableHoursDisplay(app) {
   const availableHours = getCurrentCtoAvailableHoursValue(app)
-  return availableHours !== null ? `${formatDayValue(availableHours)} hour(s)` : 'N/A'
+  return availableHours !== null ? `${formatBalanceValue(availableHours)} hour(s)` : 'N/A'
 }
 
 function getCtoDeductedHoursDisplay(app) {

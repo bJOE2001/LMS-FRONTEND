@@ -674,7 +674,7 @@
                   type="number"
                   min="0"
                   :max="resolveLeaveTypeMaxDays(leaveType) ?? undefined"
-                  step="0.01"
+                  step="0.001"
                   :label="`${getLeaveTypeDisplayName(leaveType)} *`"
                   :hint="formatLeaveTypeInputHint(leaveType)"
                   :rules="leaveCreditBalanceRules(leaveType)"

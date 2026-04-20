@@ -392,7 +392,7 @@ function formatCredit(val) {
   if (val == null || val === '') return ''
   const n = Number(val)
   if (Number.isNaN(n)) return ''
-  return n % 1 === 0 ? String(Math.round(n)) : n.toFixed(2)
+  return n.toFixed(3)
 }
 
 function toFiniteNumber(value) {
