@@ -308,6 +308,9 @@ function normalizeBackendApplicationShape(application, index = 0) {
   const normalizedHasHrReleased = normalizeOptionalBackendFlag(
     application?.has_hr_released,
   )
+  const normalizedCancelled = normalizeOptionalBackendFlag(
+    application?.cancelled,
+  )
   const normalizedReceivedBy = pickFirstDefinedValue(
     application?.received_by,
   )
@@ -334,6 +337,8 @@ function normalizeBackendApplicationShape(application, index = 0) {
     recall_action_by: application?.recall_action_by ?? null,
     disapproved_by: application?.disapproved_by ?? null,
     cancelled_by: application?.cancelled_by ?? null,
+    ...(normalizedCancelled === null ? {} : { cancelled: normalizedCancelled }),
+    cancellation_reason: application?.cancellation_reason ?? null,
     processed_by: application?.processed_by ?? null,
     reviewed_at: application?.reviewed_at ?? null,
     admin_action_at: application?.admin_action_at ?? null,

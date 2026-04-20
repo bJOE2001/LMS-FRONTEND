@@ -103,13 +103,6 @@
                     label="Dept. Head"
                     rounded
                   />
-                  <q-badge
-                    v-if="isDepartmentReassigned(props.row)"
-                    color="blue-7"
-                    text-color="white"
-                    label="LMS Assigned"
-                    rounded
-                  />
                 </div>
                 <div class="employee-designation text-grey-6 text-left">{{ props.row.designation || '-' }}</div>
               </div>
@@ -155,13 +148,12 @@
                 icon="delete"
                 color="negative"
                 size="sm"
-                :disable="!isDepartmentReassigned(props.row)"
                 @click="confirmDelete(props.row)"
               >
                 <q-tooltip>{{
-                  isDepartmentReassigned(props.row)
-                    ? 'Remove from this department'
-                    : 'Only re-assigned employees office can be removed'
+                  isDepartmentHeadRecord(props.row)
+                    ? 'Remove Department Head'
+                    : 'Remove from this department'
                 }}</q-tooltip>
               </q-btn>
               <q-btn flat dense round icon="description" color="green-8" size="sm" @click="applyLeaveFor(props.row)">
@@ -258,15 +250,14 @@
               <div class="text-body2 text-weight-medium">{{ selectedEmployee.designation || '-' }}</div>
             </div>
             <div class="col-12">
-              <div class="text-caption text-grey-6">Office</div>
-              <div class="text-caption text-grey-6">Office</div>
+              <div class="text-caption text-grey-6">Assigned Office</div>
               <div class="text-body2 text-weight-medium">{{ selectedEmployee.office || '-' }}</div>
             </div>
             <div
               v-if="selectedEmployee.hris_office && selectedEmployee.hris_office !== selectedEmployee.office"
               class="col-12"
             >
-              <div class="text-caption text-grey-6">HRIS Main Office</div>
+              <div class="text-caption text-grey-6">Main Office</div>
               <div class="text-body2 text-weight-medium">{{ selectedEmployee.hris_office }}</div>
             </div>
             <div class="col-12">
@@ -432,6 +423,8 @@
                   clearable
                   input-debounce="250"
                   label="Select Employee *"
+                  hint="Type at least 2 characters to search employees."
+                  persistent-hint
                   option-label="label"
                   :loading="employeePickerLoading"
                   :rules="[() => !!employeeForm.control_no || 'Employee is required.']"
@@ -450,6 +443,17 @@
                       </q-item-section>
                     </q-item>
                   </template>
+                  <template #no-option>
+                    <q-item>
+                      <q-item-section class="text-grey-7">
+                        {{
+                          employeePickerSearchTerm.length < EMPLOYEE_PICKER_MIN_CHARS
+                            ? `Type at least ${EMPLOYEE_PICKER_MIN_CHARS} characters to search employees.`
+                            : 'No employees found.'
+                        }}
+                      </q-item-section>
+                    </q-item>
+                  </template>
                 </q-select>
               </div>
 
@@ -460,7 +464,7 @@
                 <q-input v-model="employeeForm.status" outlined dense label="Status" readonly />
               </div>
               <div class="col-12 col-md-4">
-                <q-input :model-value="adminDepartmentName" outlined dense label="Assign To Office" readonly />
+                <q-input :model-value="adminDepartmentName" outlined dense label="Assinged To" readonly />
               </div>
 
               <div class="col-12 col-md-4">
@@ -487,13 +491,13 @@
               </div>
 
               <div class="col-12 col-md-6">
-                <q-input v-model="employeeForm.office" outlined dense label="Employee Current Office" readonly />
+                <q-input v-model="employeeForm.office" outlined dense label="Main Office" readonly />
               </div>
               <div
                 v-if="employeeForm.hris_office && employeeForm.hris_office !== employeeForm.office"
                 class="col-12 col-md-6"
               >
-                <q-input v-model="employeeForm.hris_office" outlined dense label="HRIS Main Office" readonly />
+                <q-input v-model="employeeForm.hris_office" outlined dense label="Main Office" readonly />
               </div>
             </div>
           </q-card-section>
@@ -538,7 +542,9 @@ const formRef = ref(null)
 const selectedEmployeeOption = ref(null)
 const employeePickerOptions = ref([])
 const employeePickerLoading = ref(false)
+const employeePickerSearchTerm = ref('')
 let employeePickerRequestId = 0
+const EMPLOYEE_PICKER_MIN_CHARS = 2
 
 const selectedEmployee = ref(null)
 const employees = ref([])
@@ -1006,7 +1012,8 @@ function openCreateDialog() {
 
   resetForm()
   showFormDialog.value = true
-  fetchEmployeePickerOptions('', true)
+  employeePickerOptions.value = []
+  employeePickerSearchTerm.value = ''
 }
 
 function toNullableString(value) {
@@ -1018,10 +1025,6 @@ function toNullableNumber(value) {
   if (value === '' || value === null || value === undefined) return null
   const num = Number(value)
   return Number.isFinite(num) ? num : null
-}
-
-function isDepartmentReassigned(employee) {
-  return employee?.is_department_reassigned === true
 }
 
 function toEmployeePickerOption(employee) {
@@ -1074,6 +1077,16 @@ function applySelectedEmployeeToForm(employee) {
 
 async function fetchEmployeePickerOptions(searchTerm = '', force = false) {
   if (!adminDepartmentId.value) return
+  const normalizedSearchTerm = String(searchTerm || '').trim()
+  employeePickerSearchTerm.value = normalizedSearchTerm
+
+  if (normalizedSearchTerm.length < EMPLOYEE_PICKER_MIN_CHARS) {
+    employeePickerRequestId++
+    employeePickerOptions.value = []
+    employeePickerLoading.value = false
+    return
+  }
+
   if (!force && employeePickerLoading.value) return
 
   const requestId = ++employeePickerRequestId
@@ -1082,7 +1095,7 @@ async function fetchEmployeePickerOptions(searchTerm = '', force = false) {
   try {
     const { data } = await api.get('/admin/employee-options', {
       params: {
-        search: String(searchTerm || '').trim(),
+        search: normalizedSearchTerm,
         limit: 20,
       },
     })
@@ -1111,6 +1124,13 @@ async function fetchEmployeePickerOptions(searchTerm = '', force = false) {
 
 function filterEmployeeOptions(value, update) {
   update(async () => {
+    const normalizedValue = String(value || '').trim()
+    if (normalizedValue.length < EMPLOYEE_PICKER_MIN_CHARS) {
+      employeePickerSearchTerm.value = normalizedValue
+      employeePickerOptions.value = []
+      return
+    }
+
     await fetchEmployeePickerOptions(value, true)
   })
 }
@@ -1121,12 +1141,14 @@ function handleSelectedEmployeeOption(option) {
 
 function clearSelectedEmployeeOption() {
   selectedEmployeeOption.value = null
+  employeePickerSearchTerm.value = ''
+  employeePickerOptions.value = []
   applySelectedEmployeeToForm(null)
 }
 
 function handleEmployeePickerPopupShow() {
-  if (employeePickerOptions.value.length > 0) return
-  fetchEmployeePickerOptions('', true)
+  employeePickerSearchTerm.value = ''
+  employeePickerOptions.value = []
 }
 
 function buildEmployeePayload() {
@@ -1244,15 +1266,6 @@ function confirmDelete(employee) {
         const msg = resolveApiErrorMessage(err, 'Unable to remove department head right now.')
         $q.notify({ type: 'negative', message: msg, position: 'top' })
       }
-    })
-    return
-  }
-
-  if (!isDepartmentReassigned(employee)) {
-    $q.notify({
-      type: 'info',
-      message: 'Original HRIS employees cannot be removed here. Only re-assigned employees office can be removed from this department.',
-      position: 'top',
     })
     return
   }

@@ -408,6 +408,8 @@ function syncPendingReminderNotification(pendingCount) {
 }
 
 function mergeStatus(app) {
+  if (isCancelledApplication(app)) return 'Cancelled'
+
   const raw = String(app.rawStatus || '').toUpperCase()
   const status = String(app.status || '').toUpperCase()
 
@@ -424,6 +426,25 @@ function mergeStatus(app) {
   }
 
   return app.status || ''
+}
+
+function isCancelledApplication(app) {
+  const explicitCancelled = app?.cancelled
+  if (explicitCancelled === true || explicitCancelled === 1) return true
+  if (typeof explicitCancelled === 'string') {
+    const normalized = explicitCancelled.trim().toLowerCase()
+    if (normalized === '1' || normalized === 'true' || normalized === 'yes') return true
+  }
+
+  if (app?.cancelled_at || app?.cancelled_by) return true
+
+  const statusCandidates = [app?.status, app?.displayStatus]
+  if (statusCandidates.some((value) => /\bcancelled\b/i.test(String(value || '').trim()))) {
+    return true
+  }
+
+  const remarksCandidates = [app?.remarks, app?.cancellation_reason, app?.rejection_reason]
+  return remarksCandidates.some((value) => /^cancelled\b/i.test(String(value || '').trim()))
 }
 
 function toIsoDate(value) {
@@ -568,17 +589,18 @@ async function fetchDashboard() {
   try {
     const { data } = await api.get('/hr/dashboard')
     const applications = Array.isArray(data.applications) ? data.applications : []
-    dashboardApplications.value = applications
+    const visibleApplications = applications.filter((application) => !isCancelledApplication(application))
+    dashboardApplications.value = visibleApplications
 
     activeEmployeeCount.value = Number(data?.active_employees || 0)
 
-    const pendingFromApps = applications.filter((app) => mergeStatus(app) === 'Pending').length
-    const approvedFromApps = applications.filter((app) => mergeStatus(app) === 'Approved').length
-    const rejectedFromApps = applications.filter((app) => mergeStatus(app) === 'Disapproved').length
-    const recalledFromApps = applications.filter((app) => mergeStatus(app) === 'Recalled').length
+    const pendingFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Pending').length
+    const approvedFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Approved').length
+    const rejectedFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Disapproved').length
+    const recalledFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Recalled').length
 
     dashboardData.value = {
-      total_count: Number(data.total_count ?? applications.length ?? 0),
+      total_count: Number(data.total_count ?? visibleApplications.length ?? 0),
       pending_count: Number(data.pending_count ?? pendingFromApps),
       approved_count: Number(data.approved_count ?? approvedFromApps),
       rejected_count: Number(data.rejected_count ?? rejectedFromApps),
@@ -588,7 +610,7 @@ async function fetchDashboard() {
           ? normalizeDashboardAnalytics(data.analytics)
           : null,
       kpi_breakdown: data?.kpi_breakdown ?? {
-        total: buildEmploymentBreakdown(applications),
+        total: buildEmploymentBreakdown(visibleApplications),
       },
     }
 

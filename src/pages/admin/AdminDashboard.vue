@@ -906,6 +906,8 @@ const dashboardData = ref({
 
 function countRejectedApplications(applications) {
   return applications.filter((app) => {
+    if (isCancelledByUser(app)) return false
+
     const rawStatus = String(app?.rawStatus || '').toUpperCase()
     if (rawStatus === 'REJECTED') return true
 
