@@ -165,6 +165,7 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="q-gutter-xs">
             <q-btn
+              v-if="canShowAddLeaveCreditsAction(props.row)"
               flat
               dense
               round
@@ -1233,6 +1234,16 @@ function resolveEmployeeSearch(value) {
 
 function isDepartmentHeadRecord(row) {
   return row?.is_department_head_record === true
+}
+
+function hasManualLeaveCreditsUsage(row) {
+  if (!row || typeof row !== 'object') return false
+
+  return row.has_manual_leave_credits === true || row.hasManualLeaveCredits === true
+}
+
+function canShowAddLeaveCreditsAction(row) {
+  return !hasManualLeaveCreditsUsage(row)
 }
 
 function getEmployeeFullName(employee) {
@@ -3775,6 +3786,32 @@ function leaveCreditValidationError() {
   return ''
 }
 
+function markEmployeeManualLeaveCreditsUsed(controlNo) {
+  const normalizeControlNo = (value) => {
+    const raw = String(value ?? '').trim()
+    if (!raw) return ''
+    if (!/^\d+$/.test(raw)) return raw
+
+    const normalized = raw.replace(/^0+/, '')
+    return normalized || '0'
+  }
+
+  const targetControlNo = normalizeControlNo(controlNo)
+  if (!targetControlNo) return
+
+  employees.value = employees.value.map((employee) => {
+    const employeeControlNo = normalizeControlNo(employee?.control_no)
+    if (employeeControlNo !== targetControlNo) {
+      return employee
+    }
+
+    return {
+      ...employee,
+      has_manual_leave_credits: true,
+    }
+  })
+}
+
 async function saveLeaveCredits() {
   const validationError = leaveCreditValidationError()
   if (validationError) {
@@ -3805,6 +3842,7 @@ async function saveLeaveCredits() {
       position: 'top',
     })
 
+    markEmployeeManualLeaveCreditsUsed(employeeControlNo)
     showLeaveCreditsDialog.value = false
     resetLeaveCreditForm()
   } catch (err) {

@@ -206,89 +206,114 @@
     </q-dialog>
 
     <q-dialog v-model="showViewDialog" persistent class="employee-view-dialog">
-      <q-card class="rounded-borders dialog-card employee-view-dialog-card">
-        <q-card-section class="row items-center q-pb-none employee-view-dialog-header">
-          <div class="row items-center no-wrap q-gutter-sm employee-view-dialog-header-main">
-            <div class="text-h6">Employee Details</div>
-          </div>
+      <q-card class="rounded-borders employee-details-dialog">
+        <q-card-section class="row items-center q-pb-none employee-details-dialog__toolbar">
+          <div class="text-h6">Employee Details</div>
           <q-space />
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
-
-        <q-card-section v-if="selectedEmployee" class="employee-view-dialog-body">
-          <div class="row q-col-gutter-md">
-            <div class="col-12 text-center q-mb-sm">
-              <q-avatar size="64px" color="primary" text-color="white" class="text-h5">
-                {{ (selectedEmployee.firstname || '').charAt(0) }}{{ (selectedEmployee.surname || '').charAt(0) }}
-              </q-avatar>
-              <div class="text-h6 q-mt-sm">{{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}</div>
-              <div class="text-caption text-grey-6">{{ selectedEmployee.designation || '-' }}</div>
+        <q-card-section v-if="selectedEmployee" class="employee-details-dialog__content">
+          <div class="employee-details-header">
+            <div class="employee-details-header__profile">
+              <div class="employee-details-header__identity">
+                <div class="text-h6 employee-details-header__name">
+                  {{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}
+                </div>
+                <div class="text-caption text-grey-6 employee-details-header__designation">
+                  {{ selectedEmployee.designation || '-' }}
+                </div>
+              </div>
             </div>
 
-            <div class="col-6">
-              <div class="text-caption text-grey-6">Control No</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.control_no }}</div>
-            </div>
-            <div class="col-6">
-              <div class="text-caption text-grey-6">Status</div>
-              <q-badge :color="statusBadgeColor(selectedEmployee.status)" :label="selectedEmployee.status" rounded />
-            </div>
-            <div class="col-6">
-              <div class="text-caption text-grey-6">Surname</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.surname || '-' }}</div>
-            </div>
-            <div class="col-6">
-              <div class="text-caption text-grey-6">Firstname</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.firstname || '-' }}</div>
-            </div>
-            <div class="col-12">
-              <div class="text-caption text-grey-6">Middlename</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.middlename || '-' }}</div>
-            </div>
-            <div class="col-12">
-              <div class="text-caption text-grey-6">Designation</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.designation || '-' }}</div>
-            </div>
-            <div class="col-12">
-              <div class="text-caption text-grey-6">Assigned Office</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.office || '-' }}</div>
-            </div>
-            <div
-              v-if="selectedEmployee.hris_office && selectedEmployee.hris_office !== selectedEmployee.office"
-              class="col-12"
-            >
-              <div class="text-caption text-grey-6">Main Office</div>
-              <div class="text-body2 text-weight-medium">{{ selectedEmployee.hris_office }}</div>
-            </div>
-            <div class="col-12">
-              <div class="text-caption text-grey-6">Rate / Month</div>
-              <div class="text-body2 text-weight-medium">{{ formatMoney(selectedEmployee.rate_mon) }}</div>
+            <div class="employee-details-header__meta">
+              <div
+                v-if="shouldShowAssignedOffice(selectedEmployee)"
+                class="employee-details-header__meta-item"
+              >
+                <div class="text-caption text-grey-6">Assigned Office</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ resolveAssignedOfficeLabel(selectedEmployee) || '-' }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Main Office</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ resolveMainOfficeLabel(selectedEmployee) || '-' }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Status</div>
+                <q-badge
+                  :color="statusBadgeColor(selectedEmployee.status)"
+                  :label="selectedEmployee.status"
+                  rounded
+                />
+              </div>
             </div>
           </div>
         </q-card-section>
-
-        <q-card-actions class="q-pa-md employee-view-actions employee-view-dialog-actions" align="right">
-          <q-btn
+        <q-separator />
+        <q-card-section>
+          <div class="row items-center q-mb-sm">
+            <div class="text-subtitle2 text-weight-medium">Leave History</div>
+            <q-space />
+            <q-spinner v-if="leaveHistoryLoading" color="primary" size="20px" />
+          </div>
+          <q-table
+            class="leave-history-table"
             flat
             dense
-            no-caps
-            :label="departmentHeadActionLabel"
-            color="secondary"
-            :icon="departmentHeadActionIcon"
-            class="employee-view-actions__btn"
-            :disable="!selectedEmployee || loadingDepartmentHead || savingDepartmentHead || isDepartmentHeadRecord(selectedEmployee)"
-            @click="reassignDepartmentHeadFromView"
-          />
-          <q-btn
-            unelevated
-            dense
-            no-caps
-            label="Apply Leave"
-            color="green-8"
-            class="employee-view-actions__btn"
-            @click="applyLeaveFor(selectedEmployee); showViewDialog = false"
-          />
-        </q-card-actions>
+            :rows="leaveHistory"
+            :columns="historyColumns"
+            row-key="id"
+            :rows-per-page-options="[5, 10, 20]"
+            :loading="leaveHistoryLoading"
+            table-style="table-layout: fixed; width: 100%"
+          >
+            <template #header-cell="props">
+              <q-th :props="props" class="leave-history-table__header-cell">
+                <span class="leave-history-table__header-label">
+                  {{ props.col.label }}
+                </span>
+              </q-th>
+            </template>
+            <template #body-cell-status="props">
+              <q-td :props="props" class="leave-history-table__status-cell">
+                <q-badge
+                  :color="leaveStatusColor(props.row.raw_status)"
+                  :label="props.row.status"
+                  rounded
+                />
+              </q-td>
+            </template>
+            <template #body-cell-leave_type="props">
+              <q-td :props="props" class="leave-history-table__leave-type-cell">
+                <span class="leave-history-table__leave-type-text">
+                  {{ props.row.leave_type || '-' }}
+                </span>
+              </q-td>
+            </template>
+            <template #body-cell-inclusive_date="props">
+              <q-td :props="props" class="leave-history-table__inclusive-date-cell">
+                <span class="leave-history-table__inclusive-date-text">
+                  {{ buildLeaveHistoryInclusiveDateLabel(props.row) }}
+                </span>
+              </q-td>
+            </template>
+            <template #body-cell-date_filed="props">
+              <q-td :props="props">{{ formatDate(props.row.date_filed) }}</q-td>
+            </template>
+            <template #no-data>
+              <div class="full-width text-center q-pa-md text-grey-6">
+                <template v-if="leaveHistoryLoading">
+                  <q-spinner color="primary" size="24px" class="q-mr-sm" />
+                  <span>Loading leave history...</span>
+                </template>
+                <template v-else> No leave history found for this employee. </template>
+              </div>
+            </template>
+          </q-table>
+        </q-card-section>
       </q-card>
     </q-dialog>
 
@@ -547,6 +572,8 @@ let employeePickerRequestId = 0
 const EMPLOYEE_PICKER_MIN_CHARS = 2
 
 const selectedEmployee = ref(null)
+const leaveHistory = ref([])
+const leaveHistoryLoading = ref(false)
 const employees = ref([])
 const fullEmployeeRows = ref([])
 const fullEmployeeRowsCacheKey = ref('')
@@ -603,15 +630,6 @@ const statusOptions = [
 
 const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
 const adminDepartmentName = computed(() => authStore.user?.department?.name ?? '-')
-const hasAssignedDepartmentHead = computed(() =>
-  !!departmentHeadId.value && normalizeControlNo(departmentHeadForm.value.control_no) !== '',
-)
-const departmentHeadActionLabel = computed(() =>
-  hasAssignedDepartmentHead.value ? 'Reassign' : 'Assign',
-)
-const departmentHeadActionIcon = computed(() =>
-  hasAssignedDepartmentHead.value ? 'badge' : 'person_add',
-)
 
 const noDataMessage = computed(() => {
   if (!adminDepartmentId.value) return 'Select or set your department to view employees.'
@@ -646,6 +664,61 @@ const columns = [
   { name: 'name', label: 'Employee', align: 'left', field: row => `${row.surname}, ${row.firstname}`, sortable: true },
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
   { name: 'actions', label: 'Actions', align: 'center' },
+]
+const historyColumns = [
+  {
+    name: 'date_filed',
+    label: 'Date Filed',
+    align: 'center',
+    field: 'date_filed',
+    sortable: true,
+    style: 'width: 15%; white-space: nowrap;',
+    headerStyle: 'width: 15%; white-space: nowrap;',
+  },
+  {
+    name: 'leave_type',
+    label: 'Leave Type',
+    align: 'center',
+    field: 'leave_type',
+    sortable: true,
+    classes: 'leave-history-table__leave-type-cell',
+    headerClasses: 'leave-history-table__leave-type-cell',
+    style: 'white-space: normal;',
+    headerStyle: 'white-space: normal;',
+  },
+  {
+    name: 'inclusive_date',
+    label: 'Inclusive Date',
+    align: 'center',
+    field: row => buildLeaveHistoryInclusiveDateSortValue(row),
+    sortable: true,
+    classes: 'leave-history-table__inclusive-date-cell',
+    headerClasses: 'leave-history-table__inclusive-date-cell',
+    style: 'width: 29%; white-space: normal;',
+    headerStyle: 'width: 29%; white-space: normal;',
+  },
+  {
+    name: 'total_days',
+    label: 'Days',
+    align: 'center',
+    field: 'total_days',
+    sortable: true,
+    classes: 'leave-history-table__days-cell',
+    headerClasses: 'leave-history-table__days-cell',
+    style: 'width: 10%; white-space: nowrap;',
+    headerStyle: 'width: 10%; white-space: nowrap;',
+  },
+  {
+    name: 'status',
+    label: 'Status',
+    align: 'center',
+    field: 'status',
+    sortable: true,
+    classes: 'leave-history-table__status-cell',
+    headerClasses: 'leave-history-table__status-cell',
+    style: 'width: 21%; white-space: nowrap;',
+    headerStyle: 'width: 21%; white-space: nowrap;',
+  },
 ]
 const visibleColumns = computed(() =>
   $q.screen.lt.sm
@@ -874,10 +947,74 @@ function statusBadgeColor(status) {
   return colorMap[normalizedStatus] ?? 'blue-9'
 }
 
+function leaveStatusColor(status) {
+  const map = {
+    PENDING_ADMIN: 'orange-8',
+    PENDING_HR: 'amber-8',
+    APPROVED: 'positive',
+    REJECTED: 'negative',
+    RECALLED: 'purple-8',
+  }
+  return map[String(status || '').trim()] ?? 'grey-7'
+}
+
+function resolveOfficeAcronymValue(...candidates) {
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim()
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
+function resolveAssignedOfficeLabel(employee) {
+  if (!employee || typeof employee !== 'object') return ''
+
+  return resolveOfficeAcronymValue(
+    employee.assignedDepartmentAcronym,
+    employee.assigned_department_acronym,
+    employee.officeAcronym,
+    employee.office_acronym,
+  )
+}
+
+function resolveMainOfficeLabel(employee) {
+  if (!employee || typeof employee !== 'object') return ''
+
+  return resolveOfficeAcronymValue(
+    employee.hrisOfficeAcronym,
+    employee.hris_office_acronym,
+    employee.officeAcronym,
+    employee.office_acronym,
+  )
+}
+
+function shouldShowAssignedOffice(employee) {
+  if (!employee || typeof employee !== 'object') return false
+
+  const assignedOfficeLabel = String(resolveAssignedOfficeLabel(employee) || '').trim().toUpperCase()
+  const mainOfficeLabel = String(resolveMainOfficeLabel(employee) || '').trim().toUpperCase()
+  const assignedOfficeName = String(employee.assigned_department_name || '').trim().toUpperCase()
+  const mainOfficeName = String(employee.hris_office || employee.office || '').trim().toUpperCase()
+
+  if (!assignedOfficeLabel && !assignedOfficeName) return false
+  if (assignedOfficeLabel && mainOfficeLabel && assignedOfficeLabel !== mainOfficeLabel) return true
+  if (assignedOfficeName && mainOfficeName && assignedOfficeName !== mainOfficeName) return true
+
+  return false
+}
+
 function formatResponsiveStatusLabel(status) {
   const normalizedStatus = normalizeStatus(status)
   if (!normalizedStatus) return '-'
   return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
+}
+
+function formatDate(value) {
+  if (!value) return '-'
+  const parsedDate = new Date(value)
+  if (Number.isNaN(parsedDate.getTime())) return value
+  return parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function formatMoney(value) {
@@ -885,6 +1022,30 @@ function formatMoney(value) {
   const num = Number(value)
   if (Number.isNaN(num)) return '-'
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function buildLeaveHistoryInclusiveDateLabel(entry) {
+  if (!entry || typeof entry !== 'object') return '-'
+
+  const startDate = String(entry.start_date || '').trim()
+  const endDate = String(entry.end_date || '').trim()
+  if (!startDate && !endDate) return '-'
+
+  const normalizedStartDate = startDate || endDate
+  const normalizedEndDate = endDate || startDate
+  if (!normalizedStartDate || !normalizedEndDate) return '-'
+
+  if (normalizedStartDate === normalizedEndDate) {
+    return formatDate(normalizedStartDate)
+  }
+
+  return `${formatDate(normalizedStartDate)} - ${formatDate(normalizedEndDate)}`
+}
+
+function buildLeaveHistoryInclusiveDateSortValue(entry) {
+  const startDate = String(entry?.start_date || '').trim()
+  const endDate = String(entry?.end_date || '').trim()
+  return startDate || endDate || ''
 }
 
 function resetForm() {
@@ -1451,15 +1612,38 @@ function onRequest(props) {
   fetchEmployees(page)
 }
 
+async function fetchEmployeeLeaveHistory(controlNo) {
+  const normalizedControlNo = String(controlNo || '').trim()
+  if (!normalizedControlNo) {
+    leaveHistory.value = []
+    return
+  }
+
+  leaveHistoryLoading.value = true
+  try {
+    const { data } = await api.get(`/admin/employees/${encodeURIComponent(normalizedControlNo)}/leave-history`)
+    leaveHistory.value = Array.isArray(data?.applications) ? data.applications : []
+    if (data?.employee) {
+      selectedEmployee.value = {
+        ...selectedEmployee.value,
+        ...data.employee,
+      }
+    }
+  } catch (err) {
+    leaveHistory.value = []
+    const statusCode = Number(err?.response?.status || 0)
+    if (statusCode === 404) return
+    const msg = resolveApiErrorMessage(err, 'Unable to load employee leave history right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  } finally {
+    leaveHistoryLoading.value = false
+  }
+}
+
 function viewEmployee(employee) {
   selectedEmployee.value = employee
   showViewDialog.value = true
-}
-
-function reassignDepartmentHeadFromView() {
-  if (!selectedEmployee.value || isDepartmentHeadRecord(selectedEmployee.value)) return
-  showViewDialog.value = false
-  confirmAssignDepartmentHead(selectedEmployee.value)
+  void fetchEmployeeLeaveHistory(employee?.control_no)
 }
 
 function applyLeaveFor(employee) {
@@ -1476,6 +1660,12 @@ function closeApplyLeaveDialog() {
 function handleApplyLeaveSubmitted() {
   showApplyLeaveDialog.value = false
 }
+
+watch(showViewDialog, (isOpen) => {
+  if (isOpen) return
+  leaveHistory.value = []
+  leaveHistoryLoading.value = false
+})
 
 watch(adminDepartmentId, (id) => {
   if (id) {
@@ -1571,62 +1761,120 @@ watch(adminDepartmentId, (id) => {
   letter-spacing: 0.01em;
 }
 
-.employee-view-dialog-card {
-  width: min(90vw, 520px);
-  max-width: 520px;
-  max-height: calc(100vh - 24px);
-  overflow: hidden;
+.employee-details-dialog {
+  width: min(860px, 90vw);
+  max-width: 90vw;
 }
 
-.employee-view-dialog-header {
-  flex: 0 0 auto;
-  padding: 16px 16px 0;
+.employee-details-dialog__toolbar {
+  padding-bottom: 0;
 }
 
-.employee-view-dialog-header-main {
+.employee-details-dialog__content {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.employee-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.employee-details-header__profile {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.employee-details-header__identity {
   min-width: 0;
 }
 
-.employee-view-dialog-edit-btn {
-  flex-shrink: 0;
+.employee-details-header__name {
+  margin: 0;
+  line-height: 1.15;
 }
 
-.employee-view-dialog-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
+.employee-details-header__designation {
+  margin-top: 2px;
+  line-height: 1.3;
 }
 
-.employee-view-actions {
+.employee-details-header__meta {
   display: flex;
-  flex-wrap: nowrap;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.employee-details-header__meta-item {
+  min-width: 110px;
+}
+
+.employee-details-header__meta-value {
+  line-height: 1.25;
+}
+
+.leave-history-table :deep(.q-table__middle) {
+  overflow-x: auto;
+}
+
+.leave-history-table :deep(table) {
+  table-layout: fixed;
   width: 100%;
 }
 
-.employee-view-dialog-actions {
-  flex: 0 0 auto;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  background: #fff;
-  padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
-}
-
-.employee-view-actions__btn {
-  flex: 1 1 0;
-  min-width: 0;
-  margin: 0;
-}
-
-.employee-view-actions__btn :deep(.q-btn__content) {
-  justify-content: center;
-  flex-wrap: nowrap;
+.leave-history-table :deep(th),
+.leave-history-table :deep(td) {
   white-space: nowrap;
-  gap: 6px;
+  text-align: center;
+}
+
+.leave-history-table :deep(th.leave-history-table__header-cell) {
+  position: relative;
+  vertical-align: middle;
+}
+
+.leave-history-table :deep(.leave-history-table__header-label) {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.leave-history-table :deep(th.leave-history-table__header-cell .q-table__sort-icon) {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.leave-history-table :deep(th.leave-history-table__header-cell.sort-desc .q-table__sort-icon) {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.leave-history-table :deep(td.leave-history-table__leave-type-cell),
+.leave-history-table :deep(th.leave-history-table__leave-type-cell),
+.leave-history-table :deep(td.leave-history-table__inclusive-date-cell),
+.leave-history-table :deep(th.leave-history-table__inclusive-date-cell) {
+  white-space: normal;
+}
+
+.leave-history-table :deep(.leave-history-table__leave-type-text) {
+  display: block;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.leave-history-table :deep(.leave-history-table__inclusive-date-text) {
+  display: block;
+  line-height: 1.35;
+  white-space: pre-line;
+  text-align: center;
 }
 
 .apply-leave-dialog-card {
@@ -1775,48 +2023,27 @@ watch(adminDepartmentId, (id) => {
     min-width: 200px;
   }
 
-  .employee-view-actions {
-    gap: 6px;
-    padding-top: 8px !important;
-  }
-
   .employee-view-dialog :deep(.q-dialog__inner--minimized) {
     padding: 4px;
   }
 
-  .employee-view-dialog-card {
-    width: calc(100vw - 16px);
-    max-width: calc(100vw - 16px);
-    max-height: calc(100vh - 8px);
-    border-radius: 10px;
+  .employee-details-dialog {
+    width: min(96vw, 96vw);
+    max-width: 96vw;
   }
 
-  .employee-view-dialog-header {
-    padding: 12px 12px 0;
+  .employee-details-header__profile {
+    align-items: flex-start;
   }
 
-  .employee-view-dialog-header-main {
-    gap: 6px;
+  .employee-details-header__meta {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .employee-view-dialog-edit-btn {
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 0.8rem;
-  }
-
-  .employee-view-dialog-body {
-    padding: 12px;
-  }
-
-  .employee-view-dialog-actions {
-    padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
-  }
-
-  .employee-view-actions__btn {
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 0.8rem;
+  .employee-details-header__meta-item {
+    min-width: 0;
   }
 
   .apply-leave-dialog-card {
