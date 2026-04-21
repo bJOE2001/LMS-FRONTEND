@@ -4,10 +4,6 @@
       <div class="page-shell">
         <div class="section-heading">
           <h2 class="section-title">Project Team Members</h2>
-          <p class="section-copy">
-            The following individuals contributed to the planning, implementation, and supporting
-            documentation of the Leave Monitoring System.
-          </p>
         </div>
 
         <div class="team-grid">
@@ -55,7 +51,7 @@
 
     <footer class="page-footer">
       <div class="page-shell footer-inner">
-        <p class="footer-title">Leave Monitoring System</p>
+        <p class="footer-title">Leave Management System</p>
         <p class="footer-copy">
           &copy; {{ currentYear }} City Government of Tagum. Development team profile page.
         </p>
@@ -116,8 +112,8 @@ const rawMembers = [
     program: 'BS Information Technology',
     photo: '/developers/belly.png',
     links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://www.bellyjoebasadre.dev/' },
-      { label: 'Email', icon: 'mail', href: 'mailto:bellyjoe@example.com' },
+      { label: 'Portfolio', icon: 'language', href: 'https://bellyjoe-dev.vercel.app/' },
+      { label: 'Email', icon: 'mail', href: 'basadre.bellyjoe@gmail.com' },
       { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/bellyjoe.official' },
     ],
   },
@@ -129,7 +125,11 @@ const rawMembers = [
     photo: '/developers/christian.png',
     hoverPhoto: '/developers/christian%20hover.png',
     links: [
-      { label: 'Portfolio', icon: 'language', href: 'https://www.christianfaithmestola.dev/' },
+      {
+        label: 'Portfolio',
+        icon: 'language',
+        href: 'https://christianfaithmestola-portfolio.vercel.app/',
+      },
       { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/christian.mestola.7' },
       { label: 'Email', icon: 'mail', href: 'christianfaithmestola.github@gmail.com' },
     ],
@@ -141,9 +141,8 @@ const rawMembers = [
     program: 'BS Information Technology',
     photo: '/developers/jake.png',
     links: [
-      { label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' },
+      { label: 'Email', icon: 'mail', href: 'jakebaranda3@gmail.com' },
       { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/Jake.Baranda8' },
-      { label: 'Email', icon: 'mail', href: 'baranda.jake@dnsc.edu.ph' },
     ],
   },
   {
@@ -151,8 +150,11 @@ const rawMembers = [
     initials: 'KA',
     role: 'FRONTEND DEVELOPER',
     program: 'BS Information Technology',
-    photo: null,
-    links: [{ label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' }],
+    photo: '/developers/andallaza.jpeg',
+    links: [
+      { label: 'Email', icon: 'mail', href: 'andallazawrk@gmail.com' },
+      { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/Kenneth.Keeen?' },
+    ],
   },
   {
     name: 'Sherly Ann Al-os',
@@ -160,7 +162,7 @@ const rawMembers = [
     role: 'AFK NPC',
     program: 'BS Information Technology',
     photo: '/developers/alsos.jpg',
-    links: [{ label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' }],
+    links: [{ label: 'Email', icon: 'mail', href: 'shirleyannalos@gmail.com' }],
   },
   {
     name: 'Janlyn Baulite',
@@ -168,7 +170,10 @@ const rawMembers = [
     role: 'AKF NPC',
     program: 'BS Information Technology',
     photo: '/developers/janlyn.jpg',
-    links: [{ label: 'Email', icon: 'mail', href: 'mailto:jake@example.com' }],
+    links: [
+      { label: 'Email', icon: 'mail', href: 'baulitejanlyn1504@gmail.com ' },
+      { label: 'Facebook', icon: 'public', href: 'https://www.facebook.com/Kenneth.Keeen?' },
+    ],
   },
 ]
 
