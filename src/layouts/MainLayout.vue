@@ -58,16 +58,6 @@
           aria-label="Menu"
         />
         <q-space />
-        <q-btn
-          flat
-          round
-          dense
-          :icon="isDark ? 'light_mode' : 'dark_mode'"
-          @click="toggleDarkMode"
-          :color="isDark ? 'amber' : 'grey-7'"
-        >
-          <q-tooltip>{{ isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode' }}</q-tooltip>
-        </q-btn>
         <q-btn flat round dense icon="help" to="/help">
           <q-tooltip>Help</q-tooltip>
         </q-btn>
@@ -207,26 +197,8 @@ function closeNotifMenu() {
   notifMenuRef.value?.hide()
 }
 
-// Dark mode
 const isDark = computed(() => $q.dark.isActive)
 const isNotificationsPage = computed(() => route.name === 'notifications')
-
-function toggleDarkMode() {
-  $q.dark.toggle()
-  localStorage.setItem('lms-dark-mode', $q.dark.isActive ? '1' : '0')
-}
-
-// Initialize dark mode from localStorage
-function initDarkMode() {
-  const saved = localStorage.getItem('lms-dark-mode')
-  if (saved === '1') {
-    $q.dark.set(true)
-  } else if (saved === '0') {
-    $q.dark.set(false)
-  }
-  // If no preference saved, keep Quasar default (light)
-}
-initDarkMode()
 
 watch(
   () => $q.screen.gt.sm,
