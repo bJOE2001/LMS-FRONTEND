@@ -412,7 +412,7 @@ export function useAdminApplicationsPage() {
     loading.value = true
     try {
       const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
-        api.get('/admin/dashboard'),
+        api.get('/admin/dashboard').catch(() => null),
         api.get('/admin/leave-applications').catch(() => null),
         api.get('/admin/coc-applications').catch(() => null),
       ])
@@ -2961,6 +2961,7 @@ export function useAdminApplicationsPage() {
       return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'Pending HR Review'
     }
     if (queueStageKey === 'PENDING_RELEASE') {
+      if (isApplicationReleased(app)) return 'Approved'
       return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
     }
 
