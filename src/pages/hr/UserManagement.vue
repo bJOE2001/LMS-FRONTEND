@@ -10,7 +10,7 @@
           no-caps
           color="primary"
           icon="person_add"
-          label="Create Admin Account"
+          label="Create Account"
           @click="openCreateDialog"
         />
       </div>
@@ -36,7 +36,7 @@
             <div class="row items-center no-wrap">
               <q-icon name="badge" size="md" color="green-8" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">HR Accounts</div>
+                <div class="text-caption text-weight-medium">HR Admin</div>
                 <div class="text-h4 text-green-8">{{ hrAccounts }}</div>
               </div>
             </div>
@@ -49,7 +49,7 @@
             <div class="row items-center no-wrap">
               <q-icon name="supervisor_account" size="md" color="orange-8" class="q-mr-sm" />
               <div>
-                <div class="text-caption text-weight-medium">Office Admin Accounts</div>
+                <div class="text-caption text-weight-medium">Office Admin</div>
                 <div class="text-h4 text-orange-8">{{ departmentAdminAccounts }}</div>
               </div>
             </div>
@@ -94,18 +94,18 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
             <q-btn
-              v-if="isDepartmentAdmin(props.row) && canDeleteDepartmentAdmin(props.row)"
+              v-if="(isDepartmentAdmin(props.row) && canDeleteDepartmentAdmin(props.row)) || (isHrAdmin(props.row) && canDeleteHrAdmin(props.row))"
               flat
               dense
               round
               icon="delete"
               color="negative"
-              :loading="deletingId === props.row.account_id"
+              :loading="deletingRowKey === props.row.row_key"
               @click="confirmRemoveAccount(props.row)"
             >
-              <q-tooltip>Remove Office Admin Account</q-tooltip>
+              <q-tooltip>{{ isHrAdmin(props.row) ? 'Remove HR Admin Account' : 'Remove Office Admin Account' }}</q-tooltip>
             </q-btn>
-            <span v-else-if="isDepartmentAdmin(props.row)" class="text-grey-6">Protected</span>
+            <span v-else-if="isDepartmentAdmin(props.row) || isHrAdmin(props.row)" class="text-grey-6">Protected</span>
             <span v-else class="text-grey-6">-</span>
           </q-td>
         </template>
@@ -119,12 +119,6 @@
         <template #body-cell-position="props">
           <q-td :props="props">
             {{ props.row.position || '-' }}
-          </q-td>
-        </template>
-
-        <template #body-cell-employee_control_no="props">
-          <q-td :props="props">
-            {{ props.row.employee_control_no || '-' }}
           </q-td>
         </template>
 
@@ -146,7 +140,7 @@
     <q-dialog v-model="showCreateDialog" persistent>
       <q-card style="width: 95vw; max-width: 720px" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Create Admin Account</div>
+          <div class="text-h6">Create Account</div>
           <q-space />
           <q-btn icon="close" flat round dense :disable="creatingAccount" v-close-popup />
         </q-card-section>
@@ -155,6 +149,25 @@
           <q-card-section class="q-pt-sm">
             <div class="row q-col-gutter-md">
               <div class="col-12">
+                <div class="row items-center q-gutter-x-lg q-gutter-y-sm">
+                  <q-checkbox
+                    v-model="createForm.is_office_admin"
+                    color="primary"
+                    label="Office Admin"
+                    :disable="creatingAccount"
+                    @update:model-value="handleOfficeAdminToggle"
+                  />
+                  <q-checkbox
+                    v-model="createForm.is_hr_admin"
+                    color="primary"
+                    label="HR Admin"
+                    :disable="creatingAccount"
+                    @update:model-value="handleHrAdminToggle"
+                  />
+                </div>
+              </div>
+
+              <div v-if="!createForm.is_hr_admin" class="col-12">
                 <q-select
                   v-model="createForm.department_id"
                   :options="departmentOptions"
@@ -167,7 +180,7 @@
                 label="Office *"
                 :loading="loadingDepartments"
                 :disable="creatingAccount || loadingDepartments"
-                :rules="[requiredRule('Office')]"
+                :rules="[officeRequiredRule]"
                 @filter="filterDepartments"
                 @update:model-value="handleDepartmentChange"
               >
@@ -256,7 +269,7 @@
               <div class="col-12">
                 <q-banner class="bg-amber-1 text-amber-10 rounded-borders">
                   <template v-if="createForm.is_guest">
-                    Guest account password will use your manually entered value.
+                    Guest account password will use your manually entered value and must be changed on first login.
                   </template>
                   <template v-else>
                     Default password will be the selected employee birthdate in <strong>MMDDYY</strong> format.
@@ -292,7 +305,7 @@ import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 const $q = useQuasar()
 
 const loading = ref(false)
-const deletingId = ref(null)
+const deletingRowKey = ref('')
 const creatingAccount = ref(false)
 const loadingDepartments = ref(false)
 const loadingEligibleEmployees = ref(false)
@@ -331,13 +344,6 @@ const columns = [
     sortable: true,
   },
   { name: 'position', label: 'Position', field: 'position', align: 'left', sortable: true },
-  {
-    name: 'employee_control_no',
-    label: 'Employee ID',
-    field: 'employee_control_no',
-    align: 'left',
-    sortable: true,
-  },
   { name: 'actions', label: 'Action', field: 'actions', align: 'center' },
 ]
 
@@ -401,6 +407,8 @@ onMounted(fetchAccounts)
 
 function defaultCreateForm() {
   return {
+    is_office_admin: true,
+    is_hr_admin: false,
     department_id: null,
     is_guest: false,
     employee_control_no: '',
@@ -477,12 +485,25 @@ function isDepartmentAdmin(row) {
   return String(row?.role || '').trim().toUpperCase() === 'DEPARTMENT_ADMIN'
 }
 
+function isHrAdmin(row) {
+  return String(row?.role || '').trim().toUpperCase() === 'HR'
+}
+
 function canDeleteDepartmentAdmin(row) {
+  return Boolean(row?.can_delete ?? true)
+}
+
+function canDeleteHrAdmin(row) {
   return Boolean(row?.can_delete ?? true)
 }
 
 function requiredRule(label) {
   return (value) => String(value ?? '').trim() !== '' || `${label} is required.`
+}
+
+function officeRequiredRule(value) {
+  if (createForm.value.is_hr_admin) return true
+  return String(value ?? '').trim() !== '' || 'Office is required.'
 }
 
 function employeeRequiredRule(value) {
@@ -666,6 +687,29 @@ async function handleDepartmentChange() {
   createForm.value.employee_control_no = ''
 }
 
+function handleHrAdminToggle(enabled) {
+  if (enabled) {
+    createForm.value.is_office_admin = false
+    createForm.value.department_id = null
+    return
+  }
+
+  if (!createForm.value.is_office_admin) {
+    createForm.value.is_office_admin = true
+  }
+}
+
+function handleOfficeAdminToggle(enabled) {
+  if (enabled) {
+    createForm.value.is_hr_admin = false
+    return
+  }
+
+  if (!createForm.value.is_hr_admin) {
+    createForm.value.is_office_admin = true
+  }
+}
+
 function handleGuestToggle(enabled) {
   if (enabled) {
     createForm.value.employee_control_no = ''
@@ -684,9 +728,14 @@ async function createAdminAccount() {
 
   creatingAccount.value = true
   try {
+    const creatingHrAdmin = Boolean(createForm.value.is_hr_admin)
     const isGuest = Boolean(createForm.value.is_guest)
     const payload = {
-      department_id: Number(createForm.value.department_id),
+      is_hr_admin: creatingHrAdmin,
+      department_id:
+        !creatingHrAdmin && createForm.value.department_id !== null
+          ? Number(createForm.value.department_id)
+          : null,
       is_guest: isGuest,
       employee_control_no: isGuest
         ? null
@@ -696,11 +745,14 @@ async function createAdminAccount() {
     }
 
     const { data } = await api.post('/hr/user-management/department-admins', payload)
+    const successFallback = creatingHrAdmin
+      ? (isGuest ? 'Guest HR account created successfully.' : 'HR account created successfully.')
+      : 'Office admin account created successfully.'
     $q.notify({
       type: 'positive',
-      message: replaceDepartmentWithOffice(
-        data?.message || 'Office admin account created successfully.',
-      ),
+      message: creatingHrAdmin
+        ? (data?.message || successFallback)
+        : replaceDepartmentWithOffice(data?.message || successFallback),
       position: 'top',
     })
 
@@ -710,13 +762,16 @@ async function createAdminAccount() {
     eligibleEmployeeOptions.value = []
     await fetchAccounts()
   } catch (err) {
+    const creatingHrAdmin = Boolean(createForm.value.is_hr_admin)
     const message = resolveApiErrorMessage(
       err,
-      'Unable to create office admin account right now.',
+      creatingHrAdmin
+        ? 'Unable to create HR account right now.'
+        : 'Unable to create office admin account right now.',
     )
     $q.notify({
       type: 'negative',
-      message: replaceDepartmentWithOffice(message),
+      message: creatingHrAdmin ? message : replaceDepartmentWithOffice(message),
       position: 'top',
     })
   } finally {
@@ -725,15 +780,19 @@ async function createAdminAccount() {
 }
 
 function confirmRemoveAccount(row) {
-  if (!isDepartmentAdmin(row)) return
-  if (!canDeleteDepartmentAdmin(row)) return
+  const rowIsHrAdmin = isHrAdmin(row)
+  const rowIsDepartmentAdmin = isDepartmentAdmin(row)
+  if (!rowIsDepartmentAdmin && !rowIsHrAdmin) return
+  if (rowIsDepartmentAdmin && !canDeleteDepartmentAdmin(row)) return
+  if (rowIsHrAdmin && !canDeleteHrAdmin(row)) return
 
   const accountId = Number(row?.account_id || 0)
   if (!accountId) return
+  const accountLabel = rowIsHrAdmin ? 'HR Admin' : 'Office Admin'
 
   $q.dialog({
-    title: 'Remove Office Admin',
-    message: `Remove ${row.full_name} as Office Admin account?`,
+    title: `Remove ${accountLabel}`,
+    message: `Remove ${row.full_name} as ${accountLabel} account?`,
     cancel: {
       label: 'Cancel',
       color: 'grey-7',
@@ -748,24 +807,35 @@ function confirmRemoveAccount(row) {
     },
     persistent: true,
   }).onOk(async () => {
-    deletingId.value = accountId
+    deletingRowKey.value = String(row?.row_key || '')
     try {
-      const { data } = await api.delete(`/hr/user-management/department-admins/${accountId}`)
+      const endpoint = rowIsHrAdmin
+        ? `/hr/user-management/hr-accounts/${accountId}`
+        : `/hr/user-management/department-admins/${accountId}`
+      const { data } = await api.delete(endpoint)
+      const successMessage = data?.message || (rowIsHrAdmin
+        ? 'HR admin removed successfully.'
+        : 'Office admin removed successfully.')
       $q.notify({
         type: 'positive',
-        message: replaceDepartmentWithOffice(data?.message || 'Office admin removed successfully.'),
+        message: rowIsHrAdmin ? successMessage : replaceDepartmentWithOffice(successMessage),
         position: 'top',
       })
       await fetchAccounts()
     } catch (err) {
-      const message = resolveApiErrorMessage(err, 'Unable to remove office admin right now.')
+      const message = resolveApiErrorMessage(
+        err,
+        rowIsHrAdmin
+          ? 'Unable to remove HR admin right now.'
+          : 'Unable to remove office admin right now.',
+      )
       $q.notify({
         type: 'negative',
-        message: replaceDepartmentWithOffice(message),
+        message: rowIsHrAdmin ? message : replaceDepartmentWithOffice(message),
         position: 'top',
       })
     } finally {
-      deletingId.value = null
+      deletingRowKey.value = ''
     }
   })
 }

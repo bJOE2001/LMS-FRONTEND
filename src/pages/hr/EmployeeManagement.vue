@@ -1660,6 +1660,65 @@ function normalizeLedgerWithPayDeductionValue(value) {
   return `-${formatLedgerNumber(Math.abs(numericValue))}`
 }
 
+function parseLedgerSignedQuantityValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  const text = String(value ?? '').trim()
+  if (!text) return null
+
+  const normalized = text.replace(/,/g, '')
+  if (!/^[+-]?\d+(?:\.\d+)?$/.test(normalized)) return null
+
+  const numericValue = Number(normalized)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+function roundLedgerNumericValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 0
+  return Math.round((numericValue + Number.EPSILON) * 1000) / 1000
+}
+
+function normalizeOtherLedgerBalances(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return Array.isArray(rows) ? rows : []
+
+  const trackedOtherCodes = ['WL', 'MCO6']
+  const runningBalancesByCode = {
+    WL: 0,
+    MCO6: 0,
+  }
+
+  return rows.map((row) => {
+    const leaveCode = normalizeLedgerLeaveCode(row?.leaveTypeCode || row?.particulars)
+    if (!trackedOtherCodes.includes(leaveCode)) return row
+
+    const earnedAmount = parseLedgerSignedQuantityValue(row?.otherEarned) ?? 0
+    const withPayAmount = parseLedgerSignedQuantityValue(row?.otherAbsUndWp) ?? 0
+    const delta = roundLedgerNumericValue(earnedAmount + withPayAmount)
+    const nextFromDelta = roundLedgerNumericValue((runningBalancesByCode[leaveCode] ?? 0) + delta)
+
+    const existingCombinedBalance = parseLedgerSignedQuantityValue(row?.otherBalance)
+    let nextBalance = nextFromDelta
+
+    if (existingCombinedBalance !== null) {
+      const otherTypeBalanceTotal = trackedOtherCodes.reduce(
+        (total, code) => (code === leaveCode ? total : total + (runningBalancesByCode[code] ?? 0)),
+        0,
+      )
+      nextBalance = roundLedgerNumericValue(existingCombinedBalance - otherTypeBalanceTotal)
+    }
+
+    runningBalancesByCode[leaveCode] = nextBalance
+
+    return {
+      ...row,
+      otherBalance: normalizeLedgerQuantityValue(nextBalance),
+    }
+  })
+}
+
 function buildLedgerRowsForPaper(rows, preset, options = {}) {
   const normalizedRows = Array.isArray(rows)
     ? rows.map((entry, index) => ({
@@ -3534,7 +3593,8 @@ async function openLeaveCreditsLedgerDialog(employee) {
     const normalizedRows = extractLedgerRows(payload).map((entry, index) =>
       normalizeLedgerRow(entry, index),
     )
-    leaveCreditsLedgerRows.value = orderLedgerRowsOldestFirst(normalizedRows)
+    const orderedRows = orderLedgerRowsOldestFirst(normalizedRows)
+    leaveCreditsLedgerRows.value = normalizeOtherLedgerBalances(orderedRows)
   } catch (err) {
     const message = err?.isMissingLedgerEndpoint
       ? 'Leave credits ledger is not available right now.'
