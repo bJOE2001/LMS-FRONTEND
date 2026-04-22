@@ -177,6 +177,18 @@
               <q-tooltip>Add Leave Credits</q-tooltip>
             </q-btn>
             <q-btn
+              v-if="canShowEditLeaveCreditsAction(props.row)"
+              flat
+              dense
+              round
+              icon="edit_note"
+              color="orange-9"
+              size="sm"
+              @click.stop="openLeaveCreditsEditDialog(props.row)"
+            >
+              <q-tooltip>Edit Leave Credits</q-tooltip>
+            </q-btn>
+            <q-btn
               flat
               dense
               round
@@ -368,8 +380,8 @@
     <q-dialog v-model="showLeaveCreditsDialog" persistent>
       <q-card class="rounded-borders leave-credit-dialog">
         <q-card-section class="row items-center q-pb-none">
-          <q-icon name="add_card" size="sm" color="secondary" class="q-mr-sm" />
-          <div class="text-h6">Add Leave Credits</div>
+          <q-icon :name="leaveCreditDialogIcon" size="sm" color="secondary" class="q-mr-sm" />
+          <div class="text-h6">{{ leaveCreditDialogTitle }}</div>
           <q-space />
           <q-btn icon="close" flat round dense v-close-popup :disable="savingLeaveCredits" />
         </q-card-section>
@@ -379,7 +391,7 @@
             <template #avatar>
               <q-icon name="info" color="blue-8" />
             </template>
-            This sets the employee's balances for allowed credit-based leave types.
+            {{ leaveCreditDialogDescription }}
           </q-banner>
 
           <div class="row q-col-gutter-md">
@@ -403,6 +415,7 @@
                 label="Employee Name *"
                 hint="Type at least 2 characters, e.g. CICTMO Juan"
                 :loading="loadingCreditEmployees"
+                :disable="isLeaveCreditsEditMode"
                 @filter="filterCreditEmployeeOptions"
                 @update:input-value="onCreditEmployeeInputValue"
               >
@@ -478,9 +491,9 @@
           <q-btn
             unelevated
             no-caps
-            label="Save Leave Credits"
+            :label="leaveCreditDialogSaveLabel"
             color="secondary"
-            icon="save"
+            :icon="isLeaveCreditsEditMode ? 'edit' : 'save'"
             :loading="savingLeaveCredits"
             @click="saveLeaveCredits"
           />
@@ -563,6 +576,9 @@ const ledgerPaperSize = ref('A4')
 
 // Manual leave credit state
 const showLeaveCreditsDialog = ref(false)
+const LEAVE_CREDIT_DIALOG_MODE_ADD = 'add'
+const LEAVE_CREDIT_DIALOG_MODE_EDIT = 'edit'
+const leaveCreditDialogMode = ref(LEAVE_CREDIT_DIALOG_MODE_ADD)
 const savingLeaveCredits = ref(false)
 const loadingCreditEmployees = ref(false)
 const loadingCreditLeaveTypes = ref(false)
@@ -578,6 +594,24 @@ const creditEmployeeLookupCache = new Map()
 let creditEmployeeLookupSequence = 0
 let creditEmployeeAbortController = null
 let creditLeaveTypesLookupSequence = 0
+
+const isLeaveCreditsEditMode = computed(
+  () => leaveCreditDialogMode.value === LEAVE_CREDIT_DIALOG_MODE_EDIT,
+)
+const leaveCreditDialogTitle = computed(() =>
+  isLeaveCreditsEditMode.value ? 'Edit Leave Credits' : 'Add Leave Credits',
+)
+const leaveCreditDialogIcon = computed(() =>
+  isLeaveCreditsEditMode.value ? 'edit_note' : 'add_card',
+)
+const leaveCreditDialogDescription = computed(() =>
+  isLeaveCreditsEditMode.value
+    ? "Update only the employee's initial manual leave credits."
+    : "This sets the employee's balances for allowed credit-based leave types.",
+)
+const leaveCreditDialogSaveLabel = computed(() =>
+  isLeaveCreditsEditMode.value ? 'Update Leave Credits' : 'Save Leave Credits',
+)
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -1023,6 +1057,10 @@ function canShowAddLeaveCreditsAction(row) {
   return !hasManualLeaveCreditsUsage(row)
 }
 
+function canShowEditLeaveCreditsAction(row) {
+  return hasManualLeaveCreditsUsage(row)
+}
+
 function getEmployeeFullName(employee) {
   if (!employee) return 'N/A'
 
@@ -1149,9 +1187,10 @@ async function fetchData(page = 1) {
   }
 }
 
-async function fetchCreditLeaveTypes(employeeControlNo = '') {
+async function fetchCreditLeaveTypes(employeeControlNo = '', options = {}) {
   const lookupSequence = ++creditLeaveTypesLookupSequence
   const selectedControlNo = String(employeeControlNo ?? '').trim()
+  const prefillFromCurrentBalances = options?.prefillFromCurrentBalances === true
 
   loadingCreditLeaveTypes.value = true
   try {
@@ -1180,7 +1219,28 @@ async function fetchCreditLeaveTypes(employeeControlNo = '') {
         }))
         .filter((type) => isManualAddLeaveCreditType(type)),
     )
-    leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
+    if (prefillFromCurrentBalances) {
+      const balances = {}
+
+      for (const leaveType of creditLeaveTypes.value) {
+        const balanceKey = String(leaveType.id)
+        const editableBalance = Number(
+          leaveType?.editable_balance ??
+            leaveType?.editableBalance ??
+            leaveType?.current_balance ??
+            leaveType?.currentBalance ??
+            0,
+        )
+
+        balances[balanceKey] = Number.isFinite(editableBalance)
+          ? roundLedgerNumericValue(editableBalance).toFixed(3)
+          : '0.000'
+      }
+
+      leaveCreditForm.value.balances = buildLeaveCreditBalanceState(balances)
+    } else {
+      leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
+    }
   } catch (err) {
     if (lookupSequence !== creditLeaveTypesLookupSequence) {
       return
@@ -1536,7 +1596,9 @@ watch(
     if (!showLeaveCreditsDialog.value) return
     if (selectedControlNo === previousControlNo) return
 
-    void fetchCreditLeaveTypes(selectedControlNo)
+    void fetchCreditLeaveTypes(selectedControlNo, {
+      prefillFromCurrentBalances: isLeaveCreditsEditMode.value,
+    })
   },
 )
 
@@ -3626,18 +3688,32 @@ function resetLeaveCreditForm() {
   }
   loadingCreditEmployees.value = false
   leaveCreditForm.value = defaultLeaveCreditForm()
+  leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_ADD
   creditEmployeeFilter.value = ''
   setCreditEmployeeOptions([])
 }
 
 function openLeaveCreditsDialog(employee = null) {
   resetLeaveCreditForm()
+  leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_ADD
   if (employee?.control_no) {
     leaveCreditForm.value.employee_control_no = String(employee.control_no)
     upsertCreditEmployeeOption(employee)
   }
   showLeaveCreditsDialog.value = true
   void fetchCreditLeaveTypes(leaveCreditForm.value.employee_control_no)
+}
+
+function openLeaveCreditsEditDialog(employee = null) {
+  const controlNo = String(employee?.control_no ?? '').trim()
+  if (!controlNo) return
+
+  resetLeaveCreditForm()
+  leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_EDIT
+  leaveCreditForm.value.employee_control_no = controlNo
+  upsertCreditEmployeeOption(employee)
+  showLeaveCreditsDialog.value = true
+  void fetchCreditLeaveTypes(controlNo, { prefillFromCurrentBalances: true })
 }
 
 function buildLeaveCreditBalanceState(existingBalances = {}) {
@@ -3750,7 +3826,7 @@ function leaveCreditValidationError() {
     }
   }
 
-  if (!hasPositiveBalance) {
+  if (!hasPositiveBalance && !isLeaveCreditsEditMode.value) {
     return 'At least one leave type must be greater than 0.'
   }
 
@@ -3794,6 +3870,7 @@ async function saveLeaveCredits() {
   try {
     const employeeControlNo = String(leaveCreditForm.value.employee_control_no).trim()
     const entries = getEnteredLeaveCreditEntries()
+    const isEditMode = isLeaveCreditsEditMode.value
     const payload = {
       employee_control_no: employeeControlNo,
       balances: entries.map((entry) => ({
@@ -3802,14 +3879,18 @@ async function saveLeaveCredits() {
       })),
     }
 
-    const { data } = await api.post('/hr/leave-balances', payload)
-    const savedCount = Number(data?.saved_count)
-    const normalizedSavedCount =
-      Number.isFinite(savedCount) && savedCount > 0 ? savedCount : entries.length
+    const { data } = isEditMode
+      ? await api.put('/hr/leave-balances', payload)
+      : await api.post('/hr/leave-balances', payload)
+    const touchedCount = Number(data?.updated_count ?? data?.saved_count)
+    const normalizedTouchedCount =
+      Number.isFinite(touchedCount) && touchedCount >= 0 ? touchedCount : entries.length
 
     $q.notify({
       type: 'positive',
-      message: `${normalizedSavedCount} leave balance(s) saved successfully.`,
+      message: isEditMode
+        ? `${normalizedTouchedCount} leave balance(s) updated successfully.`
+        : `${normalizedTouchedCount} leave balance(s) saved successfully.`,
       position: 'top',
     })
 
