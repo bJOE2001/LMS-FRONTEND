@@ -967,14 +967,39 @@ function resolveOfficeAcronymValue(...candidates) {
   return ''
 }
 
+function resolveStrictOfficeAcronymValue(candidates = [], excludedLabels = []) {
+  const excluded = excludedLabels
+    .map((label) => String(label || '').trim().toUpperCase())
+    .filter(Boolean)
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim()
+    if (!normalized) continue
+
+    const normalizedCandidate = normalized.toUpperCase()
+    if (excluded.includes(normalizedCandidate)) continue
+
+    return normalized
+  }
+
+  return ''
+}
+
 function resolveAssignedOfficeLabel(employee) {
   if (!employee || typeof employee !== 'object') return ''
 
-  return resolveOfficeAcronymValue(
-    employee.assignedDepartmentAcronym,
-    employee.assigned_department_acronym,
-    employee.officeAcronym,
-    employee.office_acronym,
+  return resolveStrictOfficeAcronymValue(
+    [
+      employee.assignedDepartmentAcronym,
+      employee.assigned_department_acronym,
+      employee.officeAcronym,
+      employee.office_acronym,
+    ],
+    [
+      employee.assigned_department_name,
+      employee.office,
+      employee.hris_office,
+    ],
   )
 }
 
@@ -997,7 +1022,7 @@ function shouldShowAssignedOffice(employee) {
   const assignedOfficeName = String(employee.assigned_department_name || '').trim().toUpperCase()
   const mainOfficeName = String(employee.hris_office || employee.office || '').trim().toUpperCase()
 
-  if (!assignedOfficeLabel && !assignedOfficeName) return false
+  if (!assignedOfficeLabel) return false
   if (assignedOfficeLabel && mainOfficeLabel && assignedOfficeLabel !== mainOfficeLabel) return true
   if (assignedOfficeName && mainOfficeName && assignedOfficeName !== mainOfficeName) return true
 
@@ -1212,8 +1237,8 @@ function toEmployeePickerOption(employee) {
     designation,
     office: currentOffice,
     hris_office: hrisOffice,
-    officeAcronym: officeAcronym || currentOffice || hrisOffice,
-    office_acronym: officeAcronym || currentOffice || hrisOffice,
+    officeAcronym,
+    office_acronym: officeAcronym,
   }
 }
 
