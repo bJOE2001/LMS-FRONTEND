@@ -6,7 +6,7 @@
  */
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from './department-head-signature'
+import { enrichAppWithDepartmentHead, getRecommendationSignatory } from './department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
 
 // pdfmake v0.3.x font initialization
@@ -1179,7 +1179,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const inclusiveDates = `${fmtDate(app.startDate)} - ${fmtDate(app.endDate)}`
     const b = 0.5 // border width
     const name = parseName(app)
-    const departmentHeadSignature = getDepartmentHeadSignature(app)
+    const recommendationSignatory = getRecommendationSignatory(app)
     const leaveDetails = resolveConfirmedLeaveDetails(app)
     const vacationDetail = resolveVacationDetailValue(leaveDetails.vacation_detail)
     const vacationSpecify = resolveVacationSpecifyValue(leaveDetails.vacation_specify)
@@ -1512,7 +1512,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                         table: {
                                             widths: ['*'],
                                             body: [[{
-                                                text: departmentHeadSignature.fullName || ' ',
+                                                text: recommendationSignatory.fullName || ' ',
                                                 fontSize: 8,
                                                 bold: true,
                                                 alignment: 'center',
@@ -1531,7 +1531,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                             paddingBottom: () => 0,
                                         },
                                     },
-                                    { text: departmentHeadSignature.designation, fontSize: 7, alignment: 'center', margin: [0, 2, 0, 4] },
+                                    { text: recommendationSignatory.designation, fontSize: 7, alignment: 'center', margin: [0, 2, 0, 4] },
                                 ],
                                 border: [false, false, true, true],
                             },

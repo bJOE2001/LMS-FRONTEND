@@ -94,7 +94,19 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
             <q-btn
-              v-if="(isDepartmentAdmin(props.row) && canDeleteDepartmentAdmin(props.row)) || (isHrAdmin(props.row) && canDeleteHrAdmin(props.row))"
+              v-if="isDepartmentAdmin(props.row) && canReactivateDepartmentAdmin(props.row)"
+              flat
+              dense
+              round
+              icon="restart_alt"
+              color="positive"
+              :loading="reactivatingRowKey === props.row.row_key"
+              @click="openReactivateDialog(props.row)"
+            >
+              <q-tooltip>Reactivate Office Admin Account</q-tooltip>
+            </q-btn>
+            <q-btn
+              v-else-if="(isDepartmentAdmin(props.row) && canDeleteDepartmentAdmin(props.row)) || (isHrAdmin(props.row) && canDeleteHrAdmin(props.row))"
               flat
               dense
               round
@@ -103,7 +115,7 @@
               :loading="deletingRowKey === props.row.row_key"
               @click="confirmRemoveAccount(props.row)"
             >
-              <q-tooltip>{{ isHrAdmin(props.row) ? 'Remove HR Admin Account' : 'Remove Office Admin Account' }}</q-tooltip>
+              <q-tooltip>{{ isHrAdmin(props.row) ? 'Remove HR Admin Account' : 'Deactivate Office Admin Account' }}</q-tooltip>
             </q-btn>
             <span v-else-if="isDepartmentAdmin(props.row) || isHrAdmin(props.row)" class="text-grey-6">Protected</span>
             <span v-else class="text-grey-6">-</span>
@@ -293,6 +305,80 @@
         </q-form>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="showReactivateDialog" persistent>
+      <q-card style="width: 95vw; max-width: 640px" class="rounded-borders">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Reactivate Office Admin</div>
+          <q-space />
+          <q-btn icon="close" flat round dense :disable="reactivatingAccount" v-close-popup />
+        </q-card-section>
+
+        <q-form ref="reactivateFormRef" @submit.prevent="submitReactivateAccount">
+          <q-card-section class="q-pt-sm">
+            <div class="row q-col-gutter-md">
+              <div class="col-12">
+                <q-banner class="bg-green-1 text-green-10 rounded-borders">
+                  Reactivating will restore login access and reset the default password to employee birthdate (MMDDYY).
+                </q-banner>
+              </div>
+
+              <div class="col-12">
+                <q-select
+                  v-model="reactivateForm.employee_control_no"
+                  :options="eligibleEmployeeOptions"
+                  :display-value="selectedReactivateEmployeeDisplay"
+                  emit-value
+                  map-options
+                  use-input
+                  input-debounce="300"
+                  outlined
+                  dense
+                  label="Employee *"
+                  hint="Type at least 2 characters to search employees."
+                  :loading="loadingEligibleEmployees"
+                  :disable="reactivatingAccount"
+                  :rules="[requiredRule('Employee')]"
+                  @filter="filterEligibleEmployees"
+                  @popup-show="handleEligibleEmployeePopupShow"
+                >
+                  <template #no-option>
+                    <q-item>
+                      <q-item-section class="text-grey-6">
+                        {{ eligibleEmployeeNoOptionMessage }}
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
+              </div>
+
+              <div class="col-12">
+                <q-input
+                  v-model="reactivateForm.username"
+                  outlined
+                  dense
+                  label="Username *"
+                  :disable="reactivatingAccount"
+                  :rules="[requiredRule('Username')]"
+                />
+              </div>
+            </div>
+          </q-card-section>
+
+          <q-card-actions align="right" class="q-pa-md">
+            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="reactivatingAccount" v-close-popup />
+            <q-btn
+              unelevated
+              no-caps
+              color="positive"
+              label="Reactivate"
+              :loading="reactivatingAccount"
+              type="submit"
+            />
+          </q-card-actions>
+        </q-form>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -306,11 +392,15 @@ const $q = useQuasar()
 
 const loading = ref(false)
 const deletingRowKey = ref('')
+const reactivatingRowKey = ref('')
 const creatingAccount = ref(false)
+const reactivatingAccount = ref(false)
 const loadingDepartments = ref(false)
 const loadingEligibleEmployees = ref(false)
 const showCreateDialog = ref(false)
+const showReactivateDialog = ref(false)
 const createFormRef = ref(null)
+const reactivateFormRef = ref(null)
 const showGuestPassword = ref(false)
 const MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH = 2
 
@@ -331,6 +421,8 @@ const summary = ref({
 })
 
 const createForm = ref(defaultCreateForm())
+const reactivateForm = ref(defaultReactivateForm())
+const reactivatingAccountRow = ref(null)
 
 const columns = [
   { name: 'full_name', label: 'Name', field: 'full_name', align: 'left', sortable: true },
@@ -391,6 +483,17 @@ const selectedCreateEmployeeDisplay = computed(() => {
   return selected ? formatEmployeeOptionLabel(selected) : ''
 })
 
+const selectedReactivateEmployeeDisplay = computed(() => {
+  const selectedControlNo = String(reactivateForm.value.employee_control_no || '').trim()
+  if (!selectedControlNo) return ''
+
+  const selected =
+    eligibleEmployeeDirectory.value[selectedControlNo] ||
+    eligibleEmployees.value.find((employee) => String(employee.control_no || '').trim() === selectedControlNo)
+
+  return selected ? formatEmployeeOptionLabel(selected) : ''
+})
+
 const eligibleEmployeeNoOptionMessage = computed(() => {
   if (loadingEligibleEmployees.value) {
     return 'Searching employees...'
@@ -414,6 +517,13 @@ function defaultCreateForm() {
     employee_control_no: '',
     username: '',
     password: '',
+  }
+}
+
+function defaultReactivateForm() {
+  return {
+    employee_control_no: '',
+    username: '',
   }
 }
 
@@ -491,6 +601,10 @@ function isHrAdmin(row) {
 
 function canDeleteDepartmentAdmin(row) {
   return Boolean(row?.can_delete ?? true)
+}
+
+function canReactivateDepartmentAdmin(row) {
+  return Boolean(row?.can_reactivate ?? false)
 }
 
 function canDeleteHrAdmin(row) {
@@ -656,6 +770,7 @@ async function fetchEligibleEmployees(searchTerm = '', { silent = false } = {}) 
       params: {
         search: normalizedSearch || undefined,
         limit: 20,
+        department_id: Number(reactivatingAccountRow.value?.department_id || 0) || undefined,
       },
     })
 
@@ -680,6 +795,53 @@ async function fetchEligibleEmployees(searchTerm = '', { silent = false } = {}) 
     if (requestId === eligibleEmployeesRequestId) {
       loadingEligibleEmployees.value = false
     }
+  }
+}
+
+async function openReactivateDialog(row) {
+  if (!isDepartmentAdmin(row) || !canReactivateDepartmentAdmin(row)) return
+  reactivatingAccountRow.value = row
+  reactivateForm.value = defaultReactivateForm()
+  eligibleEmployeeSearch.value = ''
+  eligibleEmployees.value = []
+  eligibleEmployeeOptions.value = []
+  showReactivateDialog.value = true
+}
+
+async function submitReactivateAccount() {
+  const valid = await reactivateFormRef.value?.validate?.()
+  if (!valid) return
+
+  const accountId = Number(reactivatingAccountRow.value?.account_id || 0)
+  if (!accountId) return
+
+  reactivatingAccount.value = true
+  reactivatingRowKey.value = String(reactivatingAccountRow.value?.row_key || '')
+  try {
+    const payload = {
+      employee_control_no: String(reactivateForm.value.employee_control_no || '').trim(),
+      username: String(reactivateForm.value.username || '').trim(),
+    }
+    const { data } = await api.post(`/hr/user-management/department-admins/${accountId}/reactivate`, payload)
+    $q.notify({
+      type: 'positive',
+      message: replaceDepartmentWithOffice(data?.message || 'Office admin account reactivated successfully.'),
+      position: 'top',
+    })
+    showReactivateDialog.value = false
+    reactivateForm.value = defaultReactivateForm()
+    reactivatingAccountRow.value = null
+    await fetchAccounts()
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to reactivate office admin right now.')
+    $q.notify({
+      type: 'negative',
+      message: replaceDepartmentWithOffice(message),
+      position: 'top',
+    })
+  } finally {
+    reactivatingAccount.value = false
+    reactivatingRowKey.value = ''
   }
 }
 
@@ -789,10 +951,11 @@ function confirmRemoveAccount(row) {
   const accountId = Number(row?.account_id || 0)
   if (!accountId) return
   const accountLabel = rowIsHrAdmin ? 'HR Admin' : 'Office Admin'
+  const actionVerb = rowIsHrAdmin ? 'Remove' : 'Deactivate'
 
   $q.dialog({
-    title: `Remove ${accountLabel}`,
-    message: `Remove ${row.full_name} as ${accountLabel} account?`,
+    title: `${actionVerb} ${accountLabel}`,
+    message: `${actionVerb} ${row.full_name} as ${accountLabel} account?`,
     cancel: {
       label: 'Cancel',
       color: 'grey-7',
@@ -800,7 +963,7 @@ function confirmRemoveAccount(row) {
       noCaps: true,
     },
     ok: {
-      label: 'Remove',
+      label: actionVerb,
       color: 'negative',
       noCaps: true,
       unelevated: true,
@@ -815,7 +978,7 @@ function confirmRemoveAccount(row) {
       const { data } = await api.delete(endpoint)
       const successMessage = data?.message || (rowIsHrAdmin
         ? 'HR admin removed successfully.'
-        : 'Office admin removed successfully.')
+        : 'Office admin deactivated successfully.')
       $q.notify({
         type: 'positive',
         message: rowIsHrAdmin ? successMessage : replaceDepartmentWithOffice(successMessage),
@@ -827,7 +990,7 @@ function confirmRemoveAccount(row) {
         err,
         rowIsHrAdmin
           ? 'Unable to remove HR admin right now.'
-          : 'Unable to remove office admin right now.',
+          : 'Unable to deactivate office admin right now.',
       )
       $q.notify({
         type: 'negative',

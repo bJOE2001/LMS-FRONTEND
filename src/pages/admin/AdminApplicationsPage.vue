@@ -3,20 +3,38 @@
     <div class="row items-center q-mb-lg applications-page-header">
       <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Applications</h1>
       <q-space />
+      <div class="row items-center q-gutter-sm">
+        <q-btn
+          unelevated
+          color="green-8"
+          icon="description"
+          label="Apply Leave"
+          class="applications-page-cta"
+          @click="openApplyLeaveDialog"
+        />
       <q-btn
+        v-if="canAdminApplySelfCoc"
         unelevated
         color="green-8"
-        icon="description"
-        label="Apply Leave"
+        icon="schedule_send"
+        label="Apply COC"
         class="applications-page-cta"
-        @click="openApplyLeaveDialog"
-      />
+          @click="showApplyCocDialog = true"
+        />
+      </div>
     </div>
 
     <AdminApplyLeaveDialog
       v-model="showApplyLeaveDialog"
       :existing-applications="leaveApplicationRows"
       @cancel="closeApplyLeaveDialog"
+      @submitted="handleApplyLeaveSubmitted"
+    />
+
+    <AdminApplyCocDialog
+      v-model="showApplyCocDialog"
+      draft-key-suffix="self"
+      :submit-handler="submitAdminSelfCocApplication"
       @submitted="handleApplyLeaveSubmitted"
     />
 
@@ -759,7 +777,21 @@ import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicatio
 import AdminApplicationConfirmActionDialog from 'src/components/admin/AdminApplicationConfirmActionDialog.vue'
 import AdminApplicationDisapproveDialog from 'src/components/admin/AdminApplicationDisapproveDialog.vue'
 import AdminApplicationActionResultDialog from 'src/components/admin/AdminApplicationActionResultDialog.vue'
+import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
+import { api } from 'src/boot/axios'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
+import { computed, onMounted, ref } from 'vue'
+import { useAuthStore } from 'stores/auth-store'
+
+const showApplyCocDialog = ref(false)
+const authStore = useAuthStore()
+const adminEmploymentStatus = ref(String(authStore.user?.status || '').trim().toUpperCase())
+
+const canAdminApplySelfCoc = computed(() => {
+  const status = String(adminEmploymentStatus.value || authStore.user?.status || '').trim().toUpperCase()
+  if (!status) return true
+  return !status.includes('CONTRACTUAL') && !status.includes('HONORARIUM')
+})
 
 const {
   $q,
@@ -1010,6 +1042,32 @@ function shouldScrollInclusiveDates(app) {
 function setCalendarPreviewRefElement(element) {
   calendarPreviewRef.value = element
 }
+
+async function submitAdminSelfCocApplication(payload) {
+  const { data } = await api.post('/admin/coc-applications/self', payload)
+  return data
+}
+
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/admin/leave-credits')
+    const resolvedStatus = String(data?.employment_status || '').trim().toUpperCase()
+    if (resolvedStatus) {
+      adminEmploymentStatus.value = resolvedStatus
+      if (authStore.user) {
+        authStore.setAuth({
+          token: authStore.token,
+          user: {
+            ...authStore.user,
+            status: resolvedStatus,
+          },
+        })
+      }
+    }
+  } catch {
+    // Keep fallback status from auth store.
+  }
+})
 </script>
 
 <style scoped>

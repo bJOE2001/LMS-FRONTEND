@@ -2784,10 +2784,7 @@ function getApplicationStatusColor(app) {
 }
 
 function resolveFiledByActor(app) {
-  if (isCocApplication(app)) {
-    return app?.employee_name || 'Unknown'
-  }
-  return app?.filed_by || 'Unknown'
+  return app?.filed_by || app?.employee_name || 'Unknown'
 }
 
 function resolveFiledDateValue(app) {
@@ -3694,7 +3691,7 @@ function buildApplicationTimeline(app) {
         formatDateTime(resolveFiledDateValue(app)) ||
         formatDate(app?.filed_at || app?.created_at) ||
         'Date unavailable',
-      description: `${app?.employee_name || 'Employee'} submitted this leave request.`,
+      description: `${resolveFiledByActor(app) || 'Employee'} submitted this leave request.`,
       icon: 'check_circle',
       color: 'positive',
       actor: resolveFiledByActor(app),

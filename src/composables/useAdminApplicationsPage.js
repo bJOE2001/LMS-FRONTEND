@@ -3436,7 +3436,7 @@ export function useAdminApplicationsPage() {
       app?.latest_update_requested_at ||
       app?.updated_at ||
       null
-    const submittedBy = String(app?.employee_name || resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
+    const submittedBy = String(resolveFiledByActor(app) || app?.employee_name || 'Unknown').trim() || 'Unknown'
     const submittedReason = String(
       app?.latest_update_request_reason ??
         app?.pending_update_reason ??
@@ -3731,7 +3731,7 @@ export function useAdminApplicationsPage() {
           formatDateTime(resolveFiledDateValue(app)) ||
           formatDate(app.filed_at || app.created_at) ||
           'Date unavailable',
-        description: `${app.employee_name || 'Employee'} submitted this leave request.`,
+        description: `${resolveFiledByActor(app) || 'Employee'} submitted this leave request.`,
         icon: 'check_circle',
         color: 'positive',
         actor: resolveFiledByActor(app),
@@ -4707,10 +4707,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveFiledByActor(app) {
-    if (isCocApplication(app)) {
-      return app?.employee_name || 'Unknown'
-    }
-    return app?.filed_by || 'Unknown'
+    return app?.filed_by || app?.employee_name || 'Unknown'
   }
 
   function resolveFiledDateValue(app) {

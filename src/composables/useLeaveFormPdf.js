@@ -2,7 +2,7 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import {
   enrichAppWithDepartmentHead,
-  getDepartmentHeadSignature,
+  getRecommendationSignatory,
 } from 'src/utils/department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 
@@ -1292,7 +1292,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const days = printableApp.days || ''
   const commutation = printableApp.commutation || 'Not Requested'
   const status = printableApp.status || ''
-  const departmentHeadSignature = getDepartmentHeadSignature(printableApp)
+  const recommendationSignatory = getRecommendationSignatory(printableApp)
   const approvedForSection = resolveApprovedForSectionValues(printableApp)
   const cert =
     printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
@@ -1648,7 +1648,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
           body: [
             [
               {
-                text: departmentHeadSignature.fullName || ' ',
+                text: recommendationSignatory.fullName || ' ',
                 alignment: 'center',
                 fontSize: 8,
                 bold: true,
@@ -1670,7 +1670,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
         },
       },
       {
-        text: departmentHeadSignature.designation,
+        text: recommendationSignatory.designation,
         alignment: 'center',
         fontSize: 7,
         margin: [0, 2, 0, 0],

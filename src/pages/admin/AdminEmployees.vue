@@ -159,6 +159,18 @@
               <q-btn flat dense round icon="description" color="green-8" size="sm" @click="applyLeaveFor(props.row)">
                 <q-tooltip>Apply Leave</q-tooltip>
               </q-btn>
+              <q-btn
+                v-if="!isCocRestrictedStatus(props.row?.status)"
+                flat
+                dense
+                round
+                icon="schedule_send"
+                color="green-8"
+                size="sm"
+                @click="applyCocFor(props.row)"
+              >
+                <q-tooltip>Apply COC</q-tooltip>
+              </q-btn>
             </div>
           </q-td>
         </template>
@@ -204,6 +216,14 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <AdminApplyCocDialog
+      v-model="showApplyCocDialog"
+      :employee-control-no="applyCocEmployee?.control_no || ''"
+      :draft-key-suffix="`emp-${applyCocEmployee?.control_no || 'none'}`"
+      :submit-handler="submitAdminEmployeeCocApplication"
+      @submitted="handleApplyCocSubmitted"
+    />
 
     <q-dialog v-model="showViewDialog" persistent class="employee-view-dialog">
       <q-card class="rounded-borders employee-details-dialog">
@@ -552,12 +572,14 @@ import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
+import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
 
 const search = ref('')
 const showApplyLeaveDialog = ref(false)
+const showApplyCocDialog = ref(false)
 const showViewDialog = ref(false)
 const showDepartmentHeadDialog = ref(false)
 const showFormDialog = ref(false)
@@ -587,6 +609,7 @@ const departmentHeadId = ref(null)
 const departmentHeadDialogMode = ref('add')
 const applyLeaveEmployee = ref(null)
 const applyLeaveDialogKey = ref(0)
+const applyCocEmployee = ref(null)
 
 const pagination = ref({
   page: 1,
@@ -663,7 +686,14 @@ const columns = [
   { name: 'control_no', label: 'Control No', align: 'left', field: 'control_no', sortable: true },
   { name: 'name', label: 'Employee', align: 'left', field: row => `${row.surname}, ${row.firstname}`, sortable: true },
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
-  { name: 'actions', label: 'Actions', align: 'center' },
+  {
+    name: 'actions',
+    label: 'Actions',
+    align: 'center',
+    headerClasses: 'text-center',
+    style: 'width: 130px; min-width: 130px; padding-left: 6px; padding-right: 6px;',
+    headerStyle: 'width: 130px; min-width: 130px; padding-left: 6px; padding-right: 6px;',
+  },
 ]
 const historyColumns = [
   {
@@ -1678,6 +1708,37 @@ function applyLeaveFor(employee) {
   showApplyLeaveDialog.value = true
 }
 
+function applyCocFor(employee) {
+  if (isCocRestrictedStatus(employee?.status)) return
+  applyCocEmployee.value = employee || null
+  showApplyCocDialog.value = true
+}
+
+function isCocRestrictedStatus(status) {
+  const normalizedStatus = String(status || '').trim().toUpperCase()
+  return normalizedStatus.includes('CONTRACTUAL') || normalizedStatus.includes('HONORARIUM')
+}
+
+function handleApplyCocSubmitted() {
+  showApplyCocDialog.value = false
+  applyCocEmployee.value = null
+}
+
+async function submitAdminEmployeeCocApplication(payload) {
+  const targetControlNo = String(applyCocEmployee.value?.control_no || payload?.employee_control_no || '').trim()
+  if (!targetControlNo) {
+    throw new Error('Employee control number is required.')
+  }
+
+  const requestPayload = {
+    ...payload,
+    employee_control_no: targetControlNo,
+  }
+
+  const { data } = await api.post('/admin/coc-applications', requestPayload)
+  return data
+}
+
 function closeApplyLeaveDialog() {
   showApplyLeaveDialog.value = false
 }
@@ -2044,8 +2105,10 @@ watch(adminDepartmentId, (id) => {
 
   .employee-records-table :deep(th:last-child),
   .employee-records-table :deep(td:last-child) {
-    width: 200px;
-    min-width: 200px;
+    width: 150px;
+    min-width: 150px;
+    padding-right: 8px !important;
+    padding-left: 8px !important;
   }
 
   .employee-view-dialog :deep(.q-dialog__inner--minimized) {
