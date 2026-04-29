@@ -420,11 +420,12 @@ function createEmptyCertificationEntry(label) {
     }
 }
 
-function createCertificationEntry(label, value) {
+function createCertificationEntry(label, value, options = {}) {
     const normalizedLabel = prettifyLeaveBalanceLabel(label)
     if (!normalizedLabel) return null
 
     if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const inferMissingTotalFromBalance = options?.inferMissingTotalFromBalance !== false
         let totalEarned =
             value.total_earned ??
             value.total_credits
@@ -445,7 +446,7 @@ function createCertificationEntry(label, value) {
         const fallbackBalanceNumber = toCreditNumber(fallbackBalance)
 
         // Some non-VL/SL payloads only provide current balance. Infer missing totals so 7.A remains complete.
-        if (totalEarnedNumber === null && fallbackBalanceNumber !== null) {
+        if (inferMissingTotalFromBalance && totalEarnedNumber === null && fallbackBalanceNumber !== null) {
             if (lessThisApplicationNumber !== null) {
                 totalEarned = fallbackBalanceNumber + lessThisApplicationNumber
             } else {
@@ -490,13 +491,13 @@ function mergeCertificationEntry(existing, next) {
     }
 }
 
-function collectCertificationEntries(map, source, fallbackLabel = '') {
+function collectCertificationEntries(map, source, fallbackLabel = '', options = {}) {
     if (!source) return
 
     if (typeof source === 'string') {
         const parsedSource = parseCertificationSourceCandidate(source)
         if (parsedSource !== null) {
-            collectCertificationEntries(map, parsedSource, fallbackLabel)
+            collectCertificationEntries(map, parsedSource, fallbackLabel, options)
         }
         return
     }
@@ -507,6 +508,7 @@ function collectCertificationEntries(map, source, fallbackLabel = '') {
             const entry = createCertificationEntry(
                 item.leave_type_name || fallbackLabel,
                 item,
+                options,
             )
             if (!entry) continue
             const key = getLeaveBalanceTypeKey(entry.label)
@@ -516,7 +518,7 @@ function collectCertificationEntries(map, source, fallbackLabel = '') {
     }
 
     if (typeof source !== 'object') {
-        const entry = createCertificationEntry(fallbackLabel, source)
+        const entry = createCertificationEntry(fallbackLabel, source, options)
         if (!entry) return
         const key = getLeaveBalanceTypeKey(entry.label)
         map.set(key, mergeCertificationEntry(map.get(key), entry))
@@ -527,6 +529,7 @@ function collectCertificationEntries(map, source, fallbackLabel = '') {
         const entry = createCertificationEntry(
             source.leave_type_name || fallbackLabel,
             source,
+            options,
         )
         if (!entry) return
         const key = getLeaveBalanceTypeKey(entry.label)
@@ -541,22 +544,23 @@ function collectCertificationEntries(map, source, fallbackLabel = '') {
             value && typeof value === 'object' && !Array.isArray(value)
                 ? value.leave_type_name || key
                 : key
-        const entry = createCertificationEntry(entryLabel, value)
+        const entry = createCertificationEntry(entryLabel, value, options)
         if (!entry) continue
         const typeKey = getLeaveBalanceTypeKey(entry.label)
         map.set(typeKey, mergeCertificationEntry(map.get(typeKey), entry))
     }
 }
 
-function buildCertificationEntryMap(app) {
+function buildCertificationEntryMap(app, options = {}) {
     const entries = new Map()
 
-    collectCertificationEntries(entries, app?.certificationLeaveCredits)
+    collectCertificationEntries(entries, app?.certificationLeaveCredits, '', options)
 
     if (!entries.size) {
         const fallbackEntry = createCertificationEntry(
             app?.leave_type_name || 'Leave Credits',
             app?.leaveBalance,
+            options,
         )
         if (fallbackEntry) {
             entries.set(getLeaveBalanceTypeKey(fallbackEntry.label), fallbackEntry)
@@ -566,8 +570,8 @@ function buildCertificationEntryMap(app) {
     return entries
 }
 
-function buildCertificationColumns(app) {
-    const entryMap = buildCertificationEntryMap(app)
+function buildCertificationColumns(app, options = {}) {
+    const entryMap = buildCertificationEntryMap(app, options)
     const selectedLabel = prettifyLeaveBalanceLabel(app?.leave_type_name || 'Leave Credits')
     const selectedKey = getLeaveBalanceTypeKey(selectedLabel)
     const vacationKey = getLeaveBalanceTypeKey('Vacation Leave')
@@ -590,12 +594,18 @@ function buildCertificationColumns(app) {
     return [mergedSelectedEntry || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
 }
 
-function applyCertificationLessThisApplicationOverride(columns, selectedLeaveType, lessThisApplicationDays) {
+function applyCertificationLessThisApplicationOverride(
+    columns,
+    selectedLeaveType,
+    lessThisApplicationDays,
+    options = {},
+) {
     if (!Array.isArray(columns) || columns.length === 0) return columns
 
     const normalizedLessThisApplicationDays = toFiniteNumber(lessThisApplicationDays)
     if (normalizedLessThisApplicationDays === null) return columns
 
+    const preserveExistingBalance = options?.preserveExistingBalance === true
     const selectedLeaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveType)
     if (!selectedLeaveTypeKey) return columns
 
@@ -611,20 +621,28 @@ function applyCertificationLessThisApplicationOverride(columns, selectedLeaveTyp
             ...column,
             lessThisApplication: fmtCredit(normalizedLessThisApplicationDays),
         }
-
-        const resolvedTotalEarnedNumber =
-            existingTotalEarnedNumber !== null
-                ? existingTotalEarnedNumber
-                : existingBalanceNumber !== null
-                  ? existingBalanceNumber + normalizedLessThisApplicationDays
-                  : null
-
-        if (resolvedTotalEarnedNumber !== null && !nextColumn.totalEarned) {
-            nextColumn.totalEarned = fmtCredit(resolvedTotalEarnedNumber)
+        // For approved reprints, keep persisted balance values to avoid double deduction.
+        if (preserveExistingBalance && existingBalanceNumber !== null) {
+            if (
+                existingTotalEarnedNumber !== null &&
+                normalizedLessThisApplicationDays > 0 &&
+                existingTotalEarnedNumber <= existingBalanceNumber + 1e-9
+            ) {
+                nextColumn.totalEarned = fmtCredit(existingBalanceNumber + normalizedLessThisApplicationDays)
+            }
+            return nextColumn
         }
 
-        if (resolvedTotalEarnedNumber !== null) {
-            const computedBalance = resolvedTotalEarnedNumber - normalizedLessThisApplicationDays
+        if (existingTotalEarnedNumber !== null) {
+            const computedBalance = existingTotalEarnedNumber - normalizedLessThisApplicationDays
+            const normalizedBalance = Math.max(computedBalance, 0)
+            nextColumn.balance = fmtCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
+            return nextColumn
+        }
+
+        if (existingBalanceNumber !== null) {
+            nextColumn.totalEarned = fmtCredit(existingBalanceNumber)
+            const computedBalance = existingBalanceNumber - normalizedLessThisApplicationDays
             const normalizedBalance = Math.max(computedBalance, 0)
             nextColumn.balance = fmtCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
         }
@@ -1098,6 +1116,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const isCommutationRequested = String(app.commutation || '').toLowerCase().trim() === 'requested'
     const isCommutationRequestedForPrint = isMonetization || isCommutationRequested
     const isForApproval = rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED' || statusLabel === 'APPROVED' || statusLabel === 'PENDING HR'
+    const isApproved = rawStatus === 'APPROVED' || statusLabel === 'APPROVED'
     const isForDisapproval = rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED' || statusLabel === 'REJECTED' || statusLabel === 'DISAPPROVED'
     const disapprovalReason = isForDisapproval
         ? (app.remarks || app.reason || '________________')
@@ -1109,9 +1128,14 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const certificationLessThisApplicationDays =
         pickFirstFiniteNumber(app?.deductible_days) ?? approvedForSection.withPayDays
     const certificationColumns = applyCertificationLessThisApplicationOverride(
-        buildCertificationColumns(app),
+        buildCertificationColumns(app, {
+            inferMissingTotalFromBalance: !isApproved,
+        }),
         resolvedLeaveType,
         certificationLessThisApplicationDays,
+        {
+            preserveExistingBalance: isApproved,
+        },
     )
 
     const inclusiveDates = resolveInclusiveDatesLabel(app)

@@ -973,34 +973,71 @@ function confirmResetPassword(row) {
   const accountId = Number(row?.account_id || 0)
   if (!accountId) return
 
-  $q.dialog({
-    title: 'Reset Password',
-    message: `Reset password for ${row.full_name} to the default employee birthdate (MMDDYY)?`,
-    cancel: {
-      label: 'Cancel',
-      color: 'grey-7',
-      flat: true,
-      noCaps: true,
-    },
-    ok: {
-      label: 'Reset',
-      color: 'warning',
-      noCaps: true,
-      unelevated: true,
-    },
-    persistent: true,
-  }).onOk(async () => {
+  const rowIsHrAdmin = isHrAdmin(row)
+
+  const resetDialog = rowIsHrAdmin
+    ? $q.dialog({
+      title: 'Reset Password',
+      message: `Enter a temporary password for ${row.full_name}. They must change this after login.`,
+      prompt: {
+        model: '',
+        type: 'password',
+        isValid: (value) => {
+          const text = String(value ?? '').trim()
+          return text.length >= 8
+        },
+        attrs: {
+          autofocus: true,
+          autocomplete: 'new-password',
+        },
+      },
+      cancel: {
+        label: 'Cancel',
+        color: 'grey-7',
+        flat: true,
+        noCaps: true,
+      },
+      ok: {
+        label: 'Reset',
+        color: 'warning',
+        noCaps: true,
+        unelevated: true,
+      },
+      persistent: true,
+    })
+    : $q.dialog({
+      title: 'Reset Password',
+      message: `Reset password for ${row.full_name} to the default employee birthdate (MMDDYY)?`,
+      cancel: {
+        label: 'Cancel',
+        color: 'grey-7',
+        flat: true,
+        noCaps: true,
+      },
+      ok: {
+        label: 'Reset',
+        color: 'warning',
+        noCaps: true,
+        unelevated: true,
+      },
+      persistent: true,
+    })
+
+  resetDialog.onOk(async (promptValue) => {
     resettingRowKey.value = String(row?.row_key || '')
     try {
-      const endpoint = isHrAdmin(row)
+      const endpoint = rowIsHrAdmin
         ? `/hr/user-management/hr-accounts/${accountId}/reset-password`
         : `/hr/user-management/department-admins/${accountId}/reset-password`
-      const { data } = await api.post(endpoint)
+      const payload = rowIsHrAdmin
+        ? { password: String(promptValue ?? '').trim() }
+        : {}
+      const { data } = await api.post(endpoint, payload)
       $q.notify({
         type: 'positive',
         message: replaceDepartmentWithOffice(
-          data?.message || (isHrAdmin(row)
-            ? 'HR account password reset successfully. Default password is employee birthdate (MMDDYY).'
+          data?.message || (rowIsHrAdmin
+            ? 'HR account password reset successfully. Temporary password is now active and must be changed after login.'
             : 'Office admin password reset successfully. Default password is employee birthdate (MMDDYY).'),
         ),
         position: 'top',
