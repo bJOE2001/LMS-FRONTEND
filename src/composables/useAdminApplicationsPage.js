@@ -1958,11 +1958,49 @@ export function useAdminApplicationsPage() {
     ].sort((left, right) => Date.parse(left) - Date.parse(right))
   }
 
+  function extractIsoDateKeysFromMap(valueMap = {}) {
+    if (!valueMap || typeof valueMap !== 'object') return []
+
+    const dateKeys = []
+    for (const rawKey of Object.keys(valueMap)) {
+      const key = String(rawKey || '').trim()
+      if (!key || /^\d+$/.test(key)) continue
+
+      const isoKey = toIsoDateString(key)
+      if (isoKey) dateKeys.push(isoKey)
+    }
+
+    return normalizeIsoDateList(dateKeys)
+  }
+
   function resolveDateSetFromSource(source) {
     if (!source || typeof source !== 'object') return []
 
     const selectedDates = normalizeIsoDateList(parseSelectedDatesValue(source?.selected_dates))
     if (selectedDates.length > 0) return selectedDates
+
+    const payStatusDateKeys = extractIsoDateKeysFromMap(
+      toSelectedDatePayStatusMap(source?.selected_date_pay_status ?? source?.selectedDatePayStatus),
+    )
+    const coverageDateKeys = extractIsoDateKeysFromMap(
+      toSelectedDateCoverageMap(source?.selected_date_coverage ?? source?.selectedDateCoverage),
+    )
+    const halfDayPortionDateKeys = extractIsoDateKeysFromMap(
+      toSelectedDateHalfDayPortionMap(
+        source?.selected_date_half_day_portion ??
+          source?.selectedDateHalfDayPortion ??
+          source?.selected_date_half_day_period ??
+          source?.selectedDateHalfDayPeriod ??
+          source?.selected_date_halfday_period,
+      ),
+    )
+
+    const mappedDateKeys = normalizeIsoDateList([
+      ...payStatusDateKeys,
+      ...coverageDateKeys,
+      ...halfDayPortionDateKeys,
+    ])
+    if (mappedDateKeys.length > 0) return mappedDateKeys
 
     const startDate = source?.startDate || source?.start_date || null
     const endDate = source?.endDate || source?.end_date || null
@@ -2562,6 +2600,9 @@ export function useAdminApplicationsPage() {
     if (indicatorRows.length && indicatorRows.some((entry) => entry?.coverageLabel?.startsWith('Half Day'))) {
       return indicatorRows.map((entry) => {
         const dateText = String(entry?.dateText || '').trim()
+        const coverageLabel = String(entry?.coverageLabel || '').trim()
+        if (!coverageLabel.startsWith('Half Day')) return dateText
+
         const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
         return halfDayPortion === 'AM' || halfDayPortion === 'PM'
           ? `${dateText} (${halfDayPortion})`
@@ -3373,6 +3414,9 @@ export function useAdminApplicationsPage() {
       return requestedIndicatorRows
         .map((entry) => {
           const dateText = String(entry?.dateText || '').trim()
+          const coverageLabel = String(entry?.coverageLabel || '').trim()
+          if (!coverageLabel.startsWith('Half Day')) return dateText
+
           const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
           return halfDayPortion === 'AM' || halfDayPortion === 'PM'
             ? `${dateText} (${halfDayPortion})`

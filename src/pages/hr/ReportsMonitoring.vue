@@ -568,7 +568,7 @@ const reportConfigs = {
         name: 'totalNoLeave',
         label: 'Total No. Leave',
         field: 'totalNoLeave',
-        align: 'right',
+        align: 'center',
       },
       { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' },
     ],
