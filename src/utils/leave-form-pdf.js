@@ -611,20 +611,23 @@ function applyCertificationLessThisApplicationOverride(columns, selectedLeaveTyp
             ...column,
             lessThisApplication: fmtCredit(normalizedLessThisApplicationDays),
         }
+        // Keep existing balances as-is to avoid double-deducting on reprints.
+        if (existingBalanceNumber !== null) {
+            if (existingTotalEarnedNumber === null) {
+                nextColumn.totalEarned = fmtCredit(existingBalanceNumber + normalizedLessThisApplicationDays)
+                return nextColumn
+            }
 
-        const resolvedTotalEarnedNumber =
-            existingTotalEarnedNumber !== null
-                ? existingTotalEarnedNumber
-                : existingBalanceNumber !== null
-                  ? existingBalanceNumber + normalizedLessThisApplicationDays
-                  : null
+            const hasSameTotalAndBalance = Math.abs(existingTotalEarnedNumber - existingBalanceNumber) < 1e-9
+            if (hasSameTotalAndBalance && normalizedLessThisApplicationDays > 0) {
+                nextColumn.totalEarned = fmtCredit(existingBalanceNumber + normalizedLessThisApplicationDays)
+            }
 
-        if (resolvedTotalEarnedNumber !== null && !nextColumn.totalEarned) {
-            nextColumn.totalEarned = fmtCredit(resolvedTotalEarnedNumber)
+            return nextColumn
         }
 
-        if (resolvedTotalEarnedNumber !== null) {
-            const computedBalance = resolvedTotalEarnedNumber - normalizedLessThisApplicationDays
+        if (existingTotalEarnedNumber !== null) {
+            const computedBalance = existingTotalEarnedNumber - normalizedLessThisApplicationDays
             const normalizedBalance = Math.max(computedBalance, 0)
             nextColumn.balance = fmtCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
         }

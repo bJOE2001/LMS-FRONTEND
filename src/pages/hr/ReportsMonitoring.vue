@@ -926,7 +926,8 @@ const statusOptions = computed(() => {
 const filteredRows = computed(() => {
   const search = String(filters.employeeName || '').toLowerCase()
 
-  return selectedReportRows.value.filter((row) => {
+  return selectedReportRows.value
+    .filter((row) => {
     const rowMonths = resolveRowMonths(row)
     const rowYears = resolveRowYears(row)
     const rowPeriodKeys = resolveRowPeriodKeys(row)
@@ -944,6 +945,14 @@ const filteredRows = computed(() => {
     if (search && !String(row?.name || '').toLowerCase().includes(search)) return false
     return true
   })
+    .sort((a, b) => {
+      const aName = String(a?.name || '').trim()
+      const bName = String(b?.name || '').trim()
+      const nameComparison = aName.localeCompare(bName, undefined, { sensitivity: 'base' })
+      if (nameComparison !== 0) return nameComparison
+
+      return Number(a?.no || 0) - Number(b?.no || 0)
+    })
 })
 
 watch(selectedReportType, () => {
