@@ -94,6 +94,19 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
             <q-btn
+              v-if="canResetPassword(props.row)"
+              flat
+              dense
+              round
+              icon="lock_reset"
+              color="warning"
+              class="q-mr-xs"
+              :loading="resettingRowKey === props.row.row_key"
+              @click="confirmResetPassword(props.row)"
+            >
+              <q-tooltip>Reset Password to Default</q-tooltip>
+            </q-btn>
+            <q-btn
               v-if="isDepartmentAdmin(props.row) && canReactivateDepartmentAdmin(props.row)"
               flat
               dense
@@ -393,6 +406,7 @@ const $q = useQuasar()
 const loading = ref(false)
 const deletingRowKey = ref('')
 const reactivatingRowKey = ref('')
+const resettingRowKey = ref('')
 const creatingAccount = ref(false)
 const reactivatingAccount = ref(false)
 const loadingDepartments = ref(false)
@@ -609,6 +623,18 @@ function canReactivateDepartmentAdmin(row) {
 
 function canDeleteHrAdmin(row) {
   return Boolean(row?.can_delete ?? true)
+}
+
+function canResetPassword(row) {
+  if (isDepartmentAdmin(row)) {
+    return Boolean(row?.can_reset_password ?? (row?.is_active && String(row?.employee_control_no || '').trim()))
+  }
+
+  if (isHrAdmin(row)) {
+    return Boolean(row?.can_reset_password ?? true)
+  }
+
+  return false
 }
 
 function requiredRule(label) {
@@ -939,6 +965,58 @@ async function createAdminAccount() {
   } finally {
     creatingAccount.value = false
   }
+}
+
+function confirmResetPassword(row) {
+  if (!canResetPassword(row)) return
+
+  const accountId = Number(row?.account_id || 0)
+  if (!accountId) return
+
+  $q.dialog({
+    title: 'Reset Password',
+    message: `Reset password for ${row.full_name} to the default employee birthdate (MMDDYY)?`,
+    cancel: {
+      label: 'Cancel',
+      color: 'grey-7',
+      flat: true,
+      noCaps: true,
+    },
+    ok: {
+      label: 'Reset',
+      color: 'warning',
+      noCaps: true,
+      unelevated: true,
+    },
+    persistent: true,
+  }).onOk(async () => {
+    resettingRowKey.value = String(row?.row_key || '')
+    try {
+      const endpoint = isHrAdmin(row)
+        ? `/hr/user-management/hr-accounts/${accountId}/reset-password`
+        : `/hr/user-management/department-admins/${accountId}/reset-password`
+      const { data } = await api.post(endpoint)
+      $q.notify({
+        type: 'positive',
+        message: replaceDepartmentWithOffice(
+          data?.message || (isHrAdmin(row)
+            ? 'HR account password reset successfully. Default password is employee birthdate (MMDDYY).'
+            : 'Office admin password reset successfully. Default password is employee birthdate (MMDDYY).'),
+        ),
+        position: 'top',
+      })
+      await fetchAccounts()
+    } catch (err) {
+      const message = resolveApiErrorMessage(err, 'Unable to reset password right now.')
+      $q.notify({
+        type: 'negative',
+        message: replaceDepartmentWithOffice(message),
+        position: 'top',
+      })
+    } finally {
+      resettingRowKey.value = ''
+    }
+  })
 }
 
 function confirmRemoveAccount(row) {
