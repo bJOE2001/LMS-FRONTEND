@@ -1938,7 +1938,12 @@ export function useAdminApplicationsPage() {
       dayRanges.push([rangeStart, rangeEnd])
 
       const rangeLabels = dayRanges.map(([startDay, endDay]) => {
-        const dayLabel = startDay === endDay ? String(startDay) : `${startDay}-${endDay}`
+        let dayLabel = String(startDay)
+        if (endDay > startDay) {
+          dayLabel = endDay === startDay + 1
+            ? `${startDay}, ${endDay}`
+            : `${startDay}-${endDay}`
+        }
         return `${group.monthName} ${dayLabel}`
       })
 
