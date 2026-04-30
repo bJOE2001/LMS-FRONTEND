@@ -2397,12 +2397,11 @@ const leaveDateOptions = computed(() => {
   return (date) => {
     const dashDate = normalizeIsoDate(date)
 
-    // Maternity/Paternity Leave allows weekends/holidays (continuous)
+    // Maternity/Paternity Leave stays continuous and can still include locked-date checks.
     if (isMaternityLeave.value || isPaternityLeave.value) {
       return isLockedDateSelection(dashDate) === false
     }
 
-    if (!isWeekday(date)) return false
     if (blockedDates.has(dashDate) && selected.includes(dashDate) === false) return false
 
     return true
@@ -2545,11 +2544,6 @@ watch(selectedDateTotalDays, (total) => {
 // Date limitation logic as per employee form
 function toSlash(dateStr) {
   return dateStr ? dateStr.replace(/-/g, '/') : ''
-}
-function isWeekday(dateStr) {
-  const [y, m, d] = dateStr.split('/').map(Number)
-  const day = new Date(y, m - 1, d).getDay()
-  return day !== 0 && day !== 6
 }
 
 

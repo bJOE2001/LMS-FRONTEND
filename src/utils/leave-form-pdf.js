@@ -6,7 +6,11 @@
  */
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import { enrichAppWithDepartmentHead, getRecommendationSignatory } from './department-head-signature'
+import {
+    enrichAppWithDepartmentHead,
+    getChrmoLeaveInChargeSignatory,
+    getRecommendationSignatory,
+} from './department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
 
 // pdfmake v0.3.x font initialization
@@ -248,6 +252,18 @@ function fmtCredit(val) {
     return n.toFixed(3)
 }
 
+/** Format leave credit number for 7.A table without rounding off values. */
+function fmtCertificationCredit(val) {
+    if (val == null || val === '') return ''
+    const n = Number(val)
+    if (!Number.isFinite(n)) return ''
+    const scaled = n * 1000
+    const adjustedScaled = scaled >= 0 ? scaled + Number.EPSILON : scaled - Number.EPSILON
+    const truncated = Math.trunc(adjustedScaled) / 1000
+    const normalized = Math.abs(truncated) < 1e-9 ? 0 : truncated
+    return normalized.toFixed(3)
+}
+
 function toCreditNumber(val) {
     if (val == null || val === '') return null
     const n = Number(val)
@@ -266,16 +282,16 @@ function computeCertificationBalance(totalEarned, lessThisApplication, fallbackB
         const computedBalance = totalEarnedNumber - (normalizedLessThisApplication ?? 0)
         const normalizedBalance = Math.max(computedBalance, 0)
         return {
-            totalEarned: fmtCredit(totalEarnedNumber),
-            lessThisApplication: fmtCredit(normalizedLessThisApplication),
-            balance: fmtCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance),
+            totalEarned: fmtCertificationCredit(totalEarnedNumber),
+            lessThisApplication: fmtCertificationCredit(normalizedLessThisApplication),
+            balance: fmtCertificationCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance),
         }
     }
 
     return {
-        totalEarned: fmtCredit(totalEarned),
-        lessThisApplication: fmtCredit(normalizedLessThisApplication ?? lessThisApplication),
-        balance: fmtCredit(fallbackBalance),
+        totalEarned: fmtCertificationCredit(totalEarned),
+        lessThisApplication: fmtCertificationCredit(normalizedLessThisApplication ?? lessThisApplication),
+        balance: fmtCertificationCredit(fallbackBalance),
     }
 }
 
@@ -475,7 +491,7 @@ function createCertificationEntry(label, value, options = {}) {
         label: normalizedLabel,
         totalEarned: '',
         lessThisApplication: '',
-        balance: fmtCredit(value),
+        balance: fmtCertificationCredit(value),
     }
 }
 
@@ -619,7 +635,7 @@ function applyCertificationLessThisApplicationOverride(
         const existingBalanceNumber = toCreditNumber(column?.balance)
         const nextColumn = {
             ...column,
-            lessThisApplication: fmtCredit(normalizedLessThisApplicationDays),
+            lessThisApplication: fmtCertificationCredit(normalizedLessThisApplicationDays),
         }
         // For approved reprints, keep persisted balance values to avoid double deduction.
         if (preserveExistingBalance && existingBalanceNumber !== null) {
@@ -628,7 +644,7 @@ function applyCertificationLessThisApplicationOverride(
                 normalizedLessThisApplicationDays > 0 &&
                 existingTotalEarnedNumber <= existingBalanceNumber + 1e-9
             ) {
-                nextColumn.totalEarned = fmtCredit(existingBalanceNumber + normalizedLessThisApplicationDays)
+                nextColumn.totalEarned = fmtCertificationCredit(existingBalanceNumber + normalizedLessThisApplicationDays)
             }
             return nextColumn
         }
@@ -636,15 +652,15 @@ function applyCertificationLessThisApplicationOverride(
         if (existingTotalEarnedNumber !== null) {
             const computedBalance = existingTotalEarnedNumber - normalizedLessThisApplicationDays
             const normalizedBalance = Math.max(computedBalance, 0)
-            nextColumn.balance = fmtCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
+            nextColumn.balance = fmtCertificationCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
             return nextColumn
         }
 
         if (existingBalanceNumber !== null) {
-            nextColumn.totalEarned = fmtCredit(existingBalanceNumber)
+            nextColumn.totalEarned = fmtCertificationCredit(existingBalanceNumber)
             const computedBalance = existingBalanceNumber - normalizedLessThisApplicationDays
             const normalizedBalance = Math.max(computedBalance, 0)
-            nextColumn.balance = fmtCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
+            nextColumn.balance = fmtCertificationCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
         }
 
         return nextColumn
@@ -918,6 +934,37 @@ function toDateKeyMap(value) {
     return {}
 }
 
+function toDateFromIsoKey(dateKey) {
+    const match = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!match) return null
+
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    if (Number.isNaN(date.getTime())) return null
+    return date
+}
+
+function isContinuousDateRange(dateKeys) {
+    if (!Array.isArray(dateKeys) || dateKeys.length <= 1) return true
+
+    for (let index = 1; index < dateKeys.length; index += 1) {
+        const previousDate = toDateFromIsoKey(dateKeys[index - 1])
+        const currentDate = toDateFromIsoKey(dateKeys[index])
+        if (!previousDate || !currentDate) return false
+
+        const expectedNextDate = new Date(
+            previousDate.getFullYear(),
+            previousDate.getMonth(),
+            previousDate.getDate() + 1,
+        )
+
+        if (expectedNextDate.getTime() !== currentDate.getTime()) {
+            return false
+        }
+    }
+
+    return true
+}
+
 function resolveSelectedDateKeys(app) {
     const dateKeyMap = toDateKeyMap(app?.selected_dates)
 
@@ -947,6 +994,12 @@ function resolveInclusiveDatesLabel(app) {
             ? `${fmtDate(dateKey)} (${halfDayPortion})`
             : `${fmtDate(dateKey)} (Half Day)`
     })
+
+    const hasHalfDaySelection = formattedDates.some((label) => label.includes('(Half Day)') || label.includes('(AM)') || label.includes('(PM)'))
+    if (!hasHalfDaySelection && isContinuousDateRange(selectedDateKeys)) {
+        if (selectedDateKeys.length === 1) return fmtDate(selectedDateKeys[0])
+        return `${fmtDate(selectedDateKeys[0])} to ${fmtDate(selectedDateKeys[selectedDateKeys.length - 1])}`
+    }
 
     return formattedDates.join(', ')
 }
@@ -1142,6 +1195,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     const b = 0.5 // border width
     const name = parseName(app)
     const recommendationSignatory = getRecommendationSignatory(app)
+    const chrmoLeaveInChargeSignatory = getChrmoLeaveInChargeSignatory(app)
     const leaveDetails = resolveConfirmedLeaveDetails(app)
     const vacationDetail = resolveVacationDetailValue(leaveDetails.vacation_detail)
     const vacationSpecify = resolveVacationSpecifyValue(leaveDetails.vacation_specify)
@@ -1406,9 +1460,9 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                             {
                                 stack: [
                                     { text: '6.C  NUMBER OF WORKING DAYS APPLIED FOR', bold: true, fontSize: 8, margin: [4, 4, 0, 2] },
-                                    { text: `${app.total_days} ${app.total_days === 1 ? 'Day' : 'day(s)'}`, fontSize: 9, bold: true, decoration: 'underline', margin: [12, 2, 4, 4] },
+                                    { text: `${app.total_days} ${app.total_days === 1 ? 'Day' : 'day(s)'}`, fontSize: 9, bold: true, margin: [12, 2, 4, 4] },
                                     { text: 'INCLUSIVE DATES', bold: true, fontSize: 8, margin: [4, 4, 0, 2] },
-                                    { text: inclusiveDates, fontSize: 8, bold: true, decoration: 'underline', margin: [12, 2, 4, 4] },
+                                    { text: inclusiveDates, fontSize: 8, bold: true, margin: [12, 2, 4, 4] },
                                 ],
                                 border: [true, false, true, true],
                             },
@@ -1455,8 +1509,35 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                     { text: `        As of ${asOfDate || '_______________'}`, fontSize: 8, margin: [4, 2, 0, 6] },
                                     buildCertificationTable(certificationColumns),
                                     { text: ' ', fontSize: 8 },
-                                    { text: '________________________________________', fontSize: 8, alignment: 'center' },
-                                    { text: 'CHRMO Leave In-charge', fontSize: 7, alignment: 'center', margin: [0, 1, 0, 4] },
+                                    {
+                                        table: {
+                                            widths: ['*'],
+                                            body: [[{
+                                                text: chrmoLeaveInChargeSignatory.fullName || ' ',
+                                                fontSize: 8,
+                                                bold: true,
+                                                alignment: 'center',
+                                                margin: [0, 0, 0, 2],
+                                                border: [false, false, false, true],
+                                            }]],
+                                        },
+                                        margin: [36, 0, 36, 0],
+                                        layout: {
+                                            hLineWidth: () => 0.6,
+                                            vLineWidth: () => 0,
+                                            hLineColor: () => '#000',
+                                            paddingLeft: () => 0,
+                                            paddingRight: () => 0,
+                                            paddingTop: () => 0,
+                                            paddingBottom: () => 0,
+                                        },
+                                    },
+                                    {
+                                        text: 'CHRMO Leave In-charge',
+                                        fontSize: 7,
+                                        alignment: 'center',
+                                        margin: [0, 1, 0, 4],
+                                    },
                                 ],
                                 border: [true, false, true, true],
                             },

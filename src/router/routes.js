@@ -18,6 +18,7 @@ const routes = [
       { path: 'hr/employees', name: 'hr-employees', component: () => import('pages/hr/EmployeeManagement.vue') },
       { path: 'hr/coc-applications', name: 'hr-coc-applications', component: () => import('pages/hr/CocApplicationsPage.vue') },
       { path: 'hr/work-schedules', name: 'hr-work-schedules', component: () => import('pages/hr/WorkSchedulesPage.vue') },
+      { path: 'hr/signatories', name: 'hr-signatories', component: () => import('pages/hr/SignatoriesPage.vue') },
       { path: 'hr/leave-types', name: 'hr-leave-types', component: () => import('pages/hr/LeaveTypesPage.vue') },
       { path: 'hr/departments-library', name: 'hr-departments-library', component: () => import('pages/hr/DepartmentsLibraryPage.vue') },
       { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },

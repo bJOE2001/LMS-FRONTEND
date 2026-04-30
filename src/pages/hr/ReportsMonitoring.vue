@@ -393,6 +393,60 @@ function getStatusColumnValue(row) {
   return formatStatusLabel(row?.status)
 }
 
+function trimNullable(value) {
+  const normalized = String(value ?? '').trim()
+  return normalized !== '' ? normalized : ''
+}
+
+function formatNameFromParts(surname, firstname) {
+  const nameParts = [trimNullable(surname), trimNullable(firstname)].filter(Boolean)
+  return nameParts.join(', ')
+}
+
+function formatGivenNamesWithoutTrailingMiddle(givenNamesValue) {
+  const givenNameTokens = String(givenNamesValue ?? '')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+  if (!givenNameTokens.length) return ''
+  if (givenNameTokens.length === 1) return givenNameTokens[0]
+
+  return givenNameTokens.slice(0, -1).join(' ')
+}
+
+function formatExistingName(value) {
+  const rawName = trimNullable(value)
+  if (!rawName) return ''
+
+  if (rawName.includes(',')) {
+    const [rawSurname, ...rawGivenNames] = rawName.split(',')
+    const surname = trimNullable(rawSurname)
+    const givenNames = trimNullable(rawGivenNames.join(' ').replace(/\s+/g, ' '))
+    const firstname = trimNullable(formatGivenNamesWithoutTrailingMiddle(givenNames))
+    return formatNameFromParts(surname, firstname) || rawName
+  }
+
+  const nameTokens = rawName.split(/\s+/).filter(Boolean)
+  if (nameTokens.length < 2) return rawName
+
+  const surname = trimNullable(nameTokens.pop())
+  const firstname = trimNullable(formatGivenNamesWithoutTrailingMiddle(nameTokens.join(' ')))
+  return formatNameFromParts(surname, firstname) || rawName
+}
+
+function formatReportRowName(row) {
+  if (!row || typeof row !== 'object') return ''
+
+  const formattedFromParts = formatNameFromParts(
+    row?.surname ?? row?.last_name ?? row?.lastName,
+    row?.firstname ?? row?.first_name ?? row?.firstName,
+  )
+
+  if (formattedFromParts) return formattedFromParts
+  return formatExistingName(row?.name)
+}
+
 const leaveBalanceColumnGroupOptions = [
   { label: 'Running Balance of Earned Leave Credits', value: 'runningBalance' },
   { label: 'Annual Balance', value: 'annualBalance' },
@@ -816,7 +870,17 @@ const selectedReportRows = computed(() => {
   const rawRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
   if (!Array.isArray(rawRows)) return []
 
-  return rawRows.filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+  return rawRows
+    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+    .map((row) => {
+      const formattedName = formatReportRowName(row)
+      if (!formattedName || formattedName === row.name) return row
+
+      return {
+        ...row,
+        name: formattedName,
+      }
+    })
 })
 const isLeaveBalancesReport = computed(() => selectedReportType.value === 'leaveBalances')
 
