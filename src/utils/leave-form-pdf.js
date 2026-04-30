@@ -971,6 +971,63 @@ function resolveSelectedDateKeys(app) {
     return Object.keys(dateKeyMap).sort()
 }
 
+function formatGroupedSelectedDateRanges(dateKeys) {
+    if (!Array.isArray(dateKeys) || dateKeys.length === 0) return ''
+
+    const groupedByMonthYear = new Map()
+    const sortedKeys = [...new Set(dateKeys.filter(Boolean))].sort()
+
+    for (const dateKey of sortedKeys) {
+        const date = toDateFromIsoKey(dateKey)
+        if (!date) continue
+
+        const monthName = date.toLocaleDateString('en-US', { month: 'short' })
+        const year = date.getFullYear()
+        const day = date.getDate()
+        const groupKey = `${year}-${date.getMonth()}`
+
+        if (!groupedByMonthYear.has(groupKey)) {
+            groupedByMonthYear.set(groupKey, { monthName, year, days: [] })
+        }
+
+        groupedByMonthYear.get(groupKey).days.push(day)
+    }
+
+    return Array.from(groupedByMonthYear.values())
+        .map((group) => {
+            const uniqueDays = [...new Set(group.days)].sort((left, right) => left - right)
+            if (!uniqueDays.length) return ''
+
+            const dayRanges = []
+            let rangeStart = uniqueDays[0]
+            let rangeEnd = uniqueDays[0]
+
+            for (let index = 1; index < uniqueDays.length; index += 1) {
+                const currentDay = uniqueDays[index]
+                if (currentDay === rangeEnd + 1) {
+                    rangeEnd = currentDay
+                    continue
+                }
+
+                dayRanges.push([rangeStart, rangeEnd])
+                rangeStart = currentDay
+                rangeEnd = currentDay
+            }
+
+            dayRanges.push([rangeStart, rangeEnd])
+
+            const rangeLabels = dayRanges.map(([startDay, endDay]) => (
+                startDay === endDay
+                    ? `${group.monthName} ${startDay}`
+                    : `${group.monthName} ${startDay}-${endDay}`
+            ))
+
+            return `${rangeLabels.join(', ')} ${group.year}`
+        })
+        .filter(Boolean)
+        .join(', ')
+}
+
 function resolveInclusiveDatesLabel(app) {
     const selectedDateKeys = resolveSelectedDateKeys(app)
 
@@ -999,6 +1056,11 @@ function resolveInclusiveDatesLabel(app) {
     if (!hasHalfDaySelection && isContinuousDateRange(selectedDateKeys)) {
         if (selectedDateKeys.length === 1) return fmtDate(selectedDateKeys[0])
         return `${fmtDate(selectedDateKeys[0])} to ${fmtDate(selectedDateKeys[selectedDateKeys.length - 1])}`
+    }
+
+    if (!hasHalfDaySelection) {
+        const groupedDateRanges = formatGroupedSelectedDateRanges(selectedDateKeys)
+        if (groupedDateRanges) return groupedDateRanges
     }
 
     return formattedDates.join(', ')
@@ -1104,11 +1166,52 @@ function resolveApprovedForSectionValues(app) {
 
 function formatApprovedForDays(value) {
     const formatted = fmtCredit(value)
-    return formatted === '' ? '_______' : formatted
+    return formatted === '' ? '' : formatted
 }
 
 function formatApprovedForOthers(value) {
-    return String(value || '').trim() || '_______'
+    return String(value || '').trim()
+}
+
+function getApprovedForFieldWidth(value) {
+    const normalizedValue = String(value || '').trim()
+    const characterCount = normalizedValue ? normalizedValue.length : 5
+    const estimatedWidth = Math.round((characterCount * 4) + 2)
+    return Math.max(18, Math.min(90, estimatedWidth))
+}
+
+function buildApprovedForLine(value, label, margin = [4, 2]) {
+    const resolvedValue = String(value || '').trim()
+    const fieldWidth = getApprovedForFieldWidth(resolvedValue)
+    return {
+        columns: [
+            { text: '         ', width: 'auto' },
+            {
+                width: fieldWidth,
+                table: {
+                    widths: ['*'],
+                    body: [[{
+                        text: resolvedValue || ' ',
+                        fontSize: 8,
+                        margin: [0, 0, 0, 2],
+                        border: [false, false, false, true],
+                    }]],
+                },
+                layout: {
+                    hLineWidth: () => 0.6,
+                    vLineWidth: () => 0,
+                    hLineColor: () => '#000',
+                    paddingLeft: () => 0,
+                    paddingRight: () => 0,
+                    paddingTop: () => 0,
+                    paddingBottom: () => 0,
+                },
+            },
+            { text: ' ', width: 4 },
+            { text: label, width: '*', fontSize: 8, margin: [0, 2, 0, 0] },
+        ],
+        margin,
+    }
 }
 
 function openPdfDocument(pdfDocument, options = {}) {
@@ -1597,9 +1700,19 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                                             width: '50%',
                                             stack: [
                                                 { text: '7.C  APPROVED FOR:', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
-                                                { text: `         ${formatApprovedForDays(approvedForSection.withPayDays)} days with pay`, fontSize: 8, margin: [4, 2] },
-                                                { text: `         ${formatApprovedForDays(approvedForSection.withoutPayDays)} days without pay`, fontSize: 8, margin: [4, 2] },
-                                                { text: `         ${formatApprovedForOthers(approvedForSection.others)} others (Specify)`, fontSize: 8, margin: [4, 2, 0, 4] },
+                                                buildApprovedForLine(
+                                                    formatApprovedForDays(approvedForSection.withPayDays),
+                                                    'days with pay',
+                                                ),
+                                                buildApprovedForLine(
+                                                    formatApprovedForDays(approvedForSection.withoutPayDays),
+                                                    'days without pay',
+                                                ),
+                                                buildApprovedForLine(
+                                                    formatApprovedForOthers(approvedForSection.others),
+                                                    'others (Specify)',
+                                                    [4, 2, 0, 4],
+                                                ),
                                             ],
                                         },
                                         {
