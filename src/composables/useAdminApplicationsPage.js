@@ -1914,10 +1914,42 @@ export function useAdminApplicationsPage() {
       groupedByMonthYear.get(groupKey).days.push(day)
     }
 
-    return Array.from(groupedByMonthYear.values()).map((group) => {
+    return Array.from(groupedByMonthYear.values())
+      .map((group) => {
       const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
-      return `${group.monthName} ${uniqueDays.join(',')} ${group.year}`
+      if (!uniqueDays.length) return ''
+
+      const dayRanges = []
+      let rangeStart = uniqueDays[0]
+      let rangeEnd = uniqueDays[0]
+
+      for (let index = 1; index < uniqueDays.length; index += 1) {
+        const currentDay = uniqueDays[index]
+        if (currentDay === rangeEnd + 1) {
+          rangeEnd = currentDay
+          continue
+        }
+
+        dayRanges.push([rangeStart, rangeEnd])
+        rangeStart = currentDay
+        rangeEnd = currentDay
+      }
+
+      dayRanges.push([rangeStart, rangeEnd])
+
+      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+        let dayLabel = String(startDay)
+        if (endDay > startDay) {
+          dayLabel = endDay === startDay + 1
+            ? `${startDay}, ${endDay}`
+            : `${startDay}-${endDay}`
+        }
+        return `${group.monthName} ${dayLabel}`
+      })
+
+      return `${rangeLabels.join(', ')} ${group.year}`
     })
+      .filter(Boolean)
   }
 
   function parseSelectedDatesValue(value) {
@@ -2679,18 +2711,21 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationCalendarDates(application) {
-    const inclusiveDateMatches = parseInclusiveDateText(getApplicationInclusiveDateLines(application))
-    if (inclusiveDateMatches.length > 0) {
-      return [...new Set(inclusiveDateMatches.map((date) => normalizeIsoDate(date)).filter(Boolean))]
-    }
-
-    return [
+    const selectedDates = [
       ...new Set(
         getApplicationSelectedDates(application)
           .map((date) => normalizeIsoDate(date))
           .filter(Boolean),
       ),
     ]
+    if (selectedDates.length > 0) return selectedDates
+
+    const inclusiveDateMatches = parseInclusiveDateText(getApplicationInclusiveDateLines(application))
+    if (inclusiveDateMatches.length > 0) {
+      return [...new Set(inclusiveDateMatches.map((date) => normalizeIsoDate(date)).filter(Boolean))]
+    }
+
+    return []
   }
 
   function getApplicationRequestUpdateCalendarDates(application) {

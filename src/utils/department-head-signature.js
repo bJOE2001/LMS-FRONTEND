@@ -64,32 +64,125 @@ export function getMayorSignature() {
   }
 }
 
+export function getCityAdministratorSignature(app) {
+  const candidate =
+    app?.cityAdministrator ||
+    app?.city_administrator ||
+    app?.cityAdministratorSignatory ||
+    app?.city_administrator_signatory ||
+    {}
+
+  const fallbackName =
+    normalizeText(app?.cityAdministratorName || app?.city_administrator_name) || ''
+
+  return {
+    fullName: buildFullName(candidate) || fallbackName,
+    designation:
+      normalizeText(candidate?.designation || candidate?.position || app?.cityAdministratorPosition) ||
+      'City Administrator',
+  }
+}
+
+export function getChrmoLeaveInChargeSignatory(app) {
+  const candidate =
+    app?.chrmoLeaveInChargeSignatory ||
+    app?.chrmo_leave_in_charge_signatory ||
+    app?.chrmoLeaveInCharge ||
+    app?.chrmo_leave_in_charge ||
+    {}
+
+  const fallbackName =
+    normalizeText(app?.chrmoLeaveInChargeName || app?.chrmo_leave_in_charge_name) || ''
+
+  return {
+    fullName: buildFullName(candidate) || fallbackName,
+    designation:
+      normalizeText(candidate?.designation || candidate?.position || app?.chrmoLeaveInChargePosition) ||
+      'CHRMO Leave In-charge',
+  }
+}
+
 export function getRecommendationSignatory(app) {
-  return isDepartmentHeadApplicant(app) ? getMayorSignature() : getDepartmentHeadSignature(app)
+  return isDepartmentHeadApplicant(app)
+    ? getCityAdministratorSignature(app)
+    : getDepartmentHeadSignature(app)
 }
 
 export async function enrichAppWithDepartmentHead(app) {
   if (!app) return app
-  if (app.departmentHead || app.department_head) return app
+  const hasDepartmentHead = Boolean(app.departmentHead || app.department_head)
+  const hasCityAdministrator = Boolean(
+    app.cityAdministrator ||
+      app.city_administrator ||
+      app.cityAdministratorSignatory ||
+      app.city_administrator_signatory ||
+      app.cityAdministratorName ||
+      app.city_administrator_name,
+  )
+  const hasChrmoLeaveInCharge = Boolean(
+    app.chrmoLeaveInChargeSignatory ||
+      app.chrmo_leave_in_charge_signatory ||
+      app.chrmoLeaveInCharge ||
+      app.chrmo_leave_in_charge ||
+      app.chrmoLeaveInChargeName ||
+      app.chrmo_leave_in_charge_name,
+  )
+  if (hasDepartmentHead && hasCityAdministrator && hasChrmoLeaveInCharge) return app
 
-  const departmentId = app?.department_id ?? app?.departmentId ?? app?.department?.id ?? null
-  const departmentName = normalizeText(app?.office || app?.department_name || app?.department?.name)
+  let nextApp = app
 
-  try {
-    const params = {}
-    if (departmentId) params.department_id = departmentId
-    if (departmentName) params.department_name = departmentName
-    const requestConfig = Object.keys(params).length ? { params } : undefined
-    const { data } = await api.get('/admin/department-head', requestConfig)
-    const departmentHead = data?.department_head
+  if (!hasDepartmentHead) {
+    const departmentId = app?.department_id ?? app?.departmentId ?? app?.department?.id ?? null
+    const departmentName = normalizeText(app?.office || app?.department_name || app?.department?.name)
 
-    if (!departmentHead) return app
+    try {
+      const params = {}
+      if (departmentId) params.department_id = departmentId
+      if (departmentName) params.department_name = departmentName
+      const requestConfig = Object.keys(params).length ? { params } : undefined
+      const { data } = await api.get('/admin/department-head', requestConfig)
+      const departmentHead = data?.department_head
 
-    return {
-      ...app,
-      departmentHead,
+      if (departmentHead) {
+        nextApp = {
+          ...nextApp,
+          departmentHead,
+        }
+      }
+    } catch {
+      // Ignore lookup errors and keep existing app payload.
     }
-  } catch {
-    return app
   }
+
+  if (!hasCityAdministrator) {
+    try {
+      const { data } = await api.get('/city-administrator')
+      const cityAdministrator = data?.city_administrator
+      if (cityAdministrator) {
+        nextApp = {
+          ...nextApp,
+          cityAdministrator,
+        }
+      }
+    } catch {
+      // Ignore lookup errors and keep existing app payload.
+    }
+  }
+
+  if (!hasChrmoLeaveInCharge) {
+    try {
+      const { data } = await api.get('/settings/signatories')
+      const chrmoLeaveInCharge = data?.signatories?.chrmo_leave_in_charge
+      if (chrmoLeaveInCharge) {
+        nextApp = {
+          ...nextApp,
+          chrmoLeaveInChargeSignatory: chrmoLeaveInCharge,
+        }
+      }
+    } catch {
+      // Ignore lookup errors and keep existing app payload.
+    }
+  }
+
+  return nextApp
 }

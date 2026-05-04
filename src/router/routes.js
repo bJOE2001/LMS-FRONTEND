@@ -65,6 +65,11 @@ const routes = [
         component: () => import('pages/hr/WorkSchedulesPage.vue'),
       },
       {
+        path: 'hr/signatories',
+        name: 'hr-signatories',
+        component: () => import('pages/hr/SignatoriesPage.vue'),
+      },
+      {
         path: 'hr/leave-types',
         name: 'hr-leave-types',
         component: () => import('pages/hr/LeaveTypesPage.vue'),

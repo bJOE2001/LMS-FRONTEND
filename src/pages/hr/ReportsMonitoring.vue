@@ -363,6 +363,90 @@ function getOfficeColumnValue(row) {
   return toOfficeCode(row?.office)
 }
 
+const STATUS_SORT_SEQUENCE = [
+  'ELECTIVE',
+  'REGULAR',
+  'CASUAL',
+  'COTERMINOUS',
+  'CONTRACTUAL',
+  'HONORARIUM',
+]
+
+const STATUS_SORT_PRIORITY = new Map(
+  STATUS_SORT_SEQUENCE.map((status, index) => [status, index]),
+)
+
+function normalizeStatusSortKey(status) {
+  return String(status || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+}
+
+function formatStatusLabel(status) {
+  const normalizedStatus = String(status || '').trim()
+  if (normalizedStatus.toUpperCase() === 'HONORARIUM') return 'Honorarium'
+  return normalizedStatus
+}
+
+function getStatusColumnValue(row) {
+  return formatStatusLabel(row?.status)
+}
+
+function trimNullable(value) {
+  const normalized = String(value ?? '').trim()
+  return normalized !== '' ? normalized : ''
+}
+
+function formatNameFromParts(surname, firstname) {
+  const nameParts = [trimNullable(surname), trimNullable(firstname)].filter(Boolean)
+  return nameParts.join(', ')
+}
+
+function formatGivenNamesWithoutTrailingMiddle(givenNamesValue) {
+  const givenNameTokens = String(givenNamesValue ?? '')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+  if (!givenNameTokens.length) return ''
+  if (givenNameTokens.length === 1) return givenNameTokens[0]
+
+  return givenNameTokens.slice(0, -1).join(' ')
+}
+
+function formatExistingName(value) {
+  const rawName = trimNullable(value)
+  if (!rawName) return ''
+
+  if (rawName.includes(',')) {
+    const [rawSurname, ...rawGivenNames] = rawName.split(',')
+    const surname = trimNullable(rawSurname)
+    const givenNames = trimNullable(rawGivenNames.join(' ').replace(/\s+/g, ' '))
+    const firstname = trimNullable(formatGivenNamesWithoutTrailingMiddle(givenNames))
+    return formatNameFromParts(surname, firstname) || rawName
+  }
+
+  const nameTokens = rawName.split(/\s+/).filter(Boolean)
+  if (nameTokens.length < 2) return rawName
+
+  const surname = trimNullable(nameTokens.pop())
+  const firstname = trimNullable(formatGivenNamesWithoutTrailingMiddle(nameTokens.join(' ')))
+  return formatNameFromParts(surname, firstname) || rawName
+}
+
+function formatReportRowName(row) {
+  if (!row || typeof row !== 'object') return ''
+
+  const formattedFromParts = formatNameFromParts(
+    row?.surname ?? row?.last_name ?? row?.lastName,
+    row?.firstname ?? row?.first_name ?? row?.firstName,
+  )
+
+  if (formattedFromParts) return formattedFromParts
+  return formatExistingName(row?.name)
+}
+
 const leaveBalanceColumnGroupOptions = [
   { label: 'Running Balance of Earned Leave Credits', value: 'runningBalance' },
   { label: 'Annual Balance', value: 'annualBalance' },
@@ -422,7 +506,7 @@ const reportConfigs = {
     columns: [
       { name: 'name', label: 'Name', field: 'name', align: 'left' },
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
-      { name: 'status', label: 'Status', field: 'status', align: 'left' },
+      { name: 'status', label: 'Status', field: getStatusColumnValue, align: 'left' },
       {
         name: 'periodIncurred',
         label: 'Period Incurred',
@@ -467,7 +551,7 @@ const reportConfigs = {
         field: 'designation',
         align: 'left',
       },
-      { name: 'status', label: 'Status', field: 'status', align: 'left' },
+      { name: 'status', label: 'Status', field: getStatusColumnValue, align: 'left' },
       {
         name: 'runningBalanceVl',
         label: 'Running Balance VL',
@@ -601,7 +685,7 @@ const reportConfigs = {
         field: 'designation',
         align: 'left',
       },
-      { name: 'status', label: 'Status', field: 'status', align: 'left' },
+      { name: 'status', label: 'Status', field: getStatusColumnValue, align: 'left' },
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'totalDays', label: 'Total Days', field: 'totalDays', align: 'right' },
       { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' },
@@ -629,7 +713,7 @@ const reportConfigs = {
       {
         name: 'status',
         label: 'Employment Status',
-        field: 'status',
+        field: getStatusColumnValue,
         align: 'left',
       },
       {
@@ -688,7 +772,7 @@ const reportConfigs = {
         field: 'designation',
         align: 'left',
       },
-      { name: 'status', label: 'Status', field: 'status', align: 'left' },
+      { name: 'status', label: 'Status', field: getStatusColumnValue, align: 'left' },
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       {
         name: 'totalBalanceHours',
@@ -727,7 +811,7 @@ const reportConfigs = {
         field: 'designation',
         align: 'left',
       },
-      { name: 'status', label: 'Status', field: 'status', align: 'left' },
+      { name: 'status', label: 'Status', field: getStatusColumnValue, align: 'left' },
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'vlFl', label: 'VL/FL', field: 'vlFl', align: 'right' },
       { name: 'sl', label: 'SL', field: 'sl', align: 'right' },
@@ -786,7 +870,17 @@ const selectedReportRows = computed(() => {
   const rawRows = Array.isArray(rowsSource) ? rowsSource : unref(rowsSource)
   if (!Array.isArray(rawRows)) return []
 
-  return rawRows.filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+  return rawRows
+    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+    .map((row) => {
+      const formattedName = formatReportRowName(row)
+      if (!formattedName || formattedName === row.name) return row
+
+      return {
+        ...row,
+        name: formattedName,
+      }
+    })
 })
 const isLeaveBalancesReport = computed(() => selectedReportType.value === 'leaveBalances')
 
@@ -918,9 +1012,28 @@ const statusOptions = computed(() => {
         .map((row) => row?.status)
         .filter((status) => status != null && String(status).trim() !== ''),
     ),
-  ).sort()
+  ).sort((a, b) => {
+    const priorityA = STATUS_SORT_PRIORITY.get(normalizeStatusSortKey(a))
+    const priorityB = STATUS_SORT_PRIORITY.get(normalizeStatusSortKey(b))
+    const hasPriorityA = typeof priorityA === 'number'
+    const hasPriorityB = typeof priorityB === 'number'
 
-  return [{ label: 'All Statuses', value: null }, ...statuses.map((status) => ({ label: status, value: status }))]
+    if (hasPriorityA && hasPriorityB) return priorityA - priorityB
+    if (hasPriorityA) return -1
+    if (hasPriorityB) return 1
+
+    return formatStatusLabel(a).localeCompare(formatStatusLabel(b), undefined, {
+      sensitivity: 'base',
+    })
+  })
+
+  return [
+    { label: 'All Statuses', value: null },
+    ...statuses.map((status) => ({
+      label: formatStatusLabel(status),
+      value: status,
+    })),
+  ]
 })
 
 const filteredRows = computed(() => {

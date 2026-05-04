@@ -134,6 +134,77 @@ function expandDayToken(token, year, monthNumber) {
   return [`${year}-${monthNumber}-${padDatePart(day)}`]
 }
 
+function parseGroupedInclusiveDateSegments(source) {
+  const text = String(source || '')
+  if (!text.trim()) return []
+
+  const monthTokens = []
+  const monthPattern = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/gi
+  let monthMatch
+
+  while ((monthMatch = monthPattern.exec(text)) !== null) {
+    monthTokens.push({
+      index: monthMatch.index,
+      endIndex: monthPattern.lastIndex,
+      monthLabel: String(monthMatch[1] || '').trim(),
+    })
+  }
+
+  if (!monthTokens.length) return []
+
+  const discoveredYears = text.match(/\b\d{4}\b/g) || []
+  const fallbackYear = discoveredYears.length ? String(discoveredYears[discoveredYears.length - 1]).trim() : ''
+  const parsedDates = []
+
+  monthTokens.forEach((token, index) => {
+    const monthNumber = MONTH_NUMBER_BY_NAME[token.monthLabel.toLowerCase()]
+    if (!monthNumber) return
+
+    const nextToken = monthTokens[index + 1]
+    const segmentEndIndex = nextToken ? nextToken.index : text.length
+    const segment = text.slice(token.endIndex, segmentEndIndex)
+    const segmentYearMatch = segment.match(/\b(\d{4})\b/)
+    const segmentYear = segmentYearMatch ? String(segmentYearMatch[1]).trim() : fallbackYear
+    if (!segmentYear) return
+
+    const segmentWithoutYear = segment.replace(/\b\d{4}\b/g, ' ')
+    const dayTokens = segmentWithoutYear.match(/\b\d{1,2}(?:\s*-\s*\d{1,2})?\b/g) || []
+    dayTokens.forEach((dayToken) => {
+      expandDayToken(dayToken, segmentYear, monthNumber).forEach((date) => {
+        parsedDates.push(date)
+      })
+    })
+  })
+
+  return [...new Set(parsedDates.map((date) => normalizeIsoDate(date)).filter(Boolean))].sort()
+}
+
+function parseWrittenDateRangeSegments(source) {
+  const text = String(source || '')
+  if (!text.trim()) return []
+
+  const dateRangePattern = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\s*(?:to|-)\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\b/gi
+  const matchedRanges = text.match(dateRangePattern) || []
+  if (!matchedRanges.length) return []
+
+  const expandedDates = []
+
+  matchedRanges.forEach((rangeText) => {
+    const normalizedRangeText = String(rangeText || '').replace(/\s*-\s*/g, ' to ')
+    const splitRange = normalizedRangeText.split(/\s+to\s+/i).map((entry) => entry.trim()).filter(Boolean)
+    if (splitRange.length !== 2) return
+
+    const [startLabel, endLabel] = splitRange
+    const startDate = normalizeIsoDate(startLabel)
+    const endDate = normalizeIsoDate(endLabel)
+    if (!startDate || !endDate) return
+
+    enumerateInclusiveDates(startDate, endDate).forEach((date) => expandedDates.push(date))
+  })
+
+  return [...new Set(expandedDates.map((date) => normalizeIsoDate(date)).filter(Boolean))].sort()
+}
+
 export function parseInclusiveDateText(value) {
   const source = normalizeDateCollection(value)
     .map((entry) => String(entry || '').trim())
@@ -142,13 +213,21 @@ export function parseInclusiveDateText(value) {
 
   if (!source) return []
 
+  const writtenRangeDates = parseWrittenDateRangeSegments(source)
+  if (writtenRangeDates.length > 0) {
+    return writtenRangeDates
+  }
+
+  const groupedSegmentDates = parseGroupedInclusiveDateSegments(source)
+  if (groupedSegmentDates.length > 0) {
+    return groupedSegmentDates
+  }
+
   GROUPED_INCLUSIVE_DATES_PATTERN.lastIndex = 0
   const groupedDates = []
-  let matchedGroupedDates = false
   let match
 
   while ((match = GROUPED_INCLUSIVE_DATES_PATTERN.exec(source)) !== null) {
-    matchedGroupedDates = true
     const monthNumber = MONTH_NUMBER_BY_NAME[String(match[1] || '').trim().toLowerCase()]
     const year = String(match[3] || '').trim()
     if (!monthNumber || !year) continue
@@ -167,7 +246,7 @@ export function parseInclusiveDateText(value) {
     })
   }
 
-  if (matchedGroupedDates && groupedDates.length > 0) {
+  if (groupedDates.length > 0) {
     return [...new Set(groupedDates.map((date) => normalizeIsoDate(date)).filter(Boolean))].sort()
   }
 
