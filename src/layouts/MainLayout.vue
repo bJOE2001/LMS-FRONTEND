@@ -1,5 +1,12 @@
 <template>
-  <q-layout view="hHh lpR fFf" class="layout-no-scroll" :class="[isDark ? 'bg-dark-page' : 'bg-grey-2', { 'drawer-open': leftDrawer && $q.screen.gt.sm, 'layout-ready': layoutReady }]">
+  <q-layout
+    view="hHh lpR fFf"
+    class="layout-no-scroll"
+    :class="[
+      isDark ? 'bg-dark-page' : 'bg-grey-2',
+      { 'drawer-open': leftDrawer && $q.screen.gt.sm, 'layout-ready': layoutReady },
+    ]"
+  >
     <!-- Side panel - full height, left -->
     <q-drawer
       v-model="leftDrawer"
@@ -48,15 +55,12 @@
     <!-- Content area: header + page (only this area scrolls) -->
     <q-page-container class="layout-main-content" :class="isDark ? 'bg-dark-page' : 'bg-grey-2'">
       <!-- Header - sticky, only in content area to the right of side panel -->
-      <div ref="navbarRef" class="layout-content-header row items-center q-py-sm" :class="isDark ? 'bg-dark navbar-dark' : 'bg-white'">
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          @click="leftDrawer = !leftDrawer"
-          aria-label="Menu"
-        />
+      <div
+        ref="navbarRef"
+        class="layout-content-header row items-center q-py-sm"
+        :class="isDark ? 'bg-dark navbar-dark' : 'bg-white'"
+      >
+        <q-btn flat dense round icon="menu" @click="leftDrawer = !leftDrawer" aria-label="Menu" />
         <q-space />
         <q-btn flat round dense icon="help" to="/help">
           <q-tooltip>Help</q-tooltip>
@@ -138,18 +142,12 @@
           </q-avatar>
           <div class="text-h6 q-mt-md">Sign out of LMS?</div>
           <div class="text-subtitle2 text-grey-7 q-mt-xs">
-            You’ll be logged out from the Leave Management System.
-            You can sign back in anytime using your account.
+            You’ll be logged out from the Leave Management System. You can sign back in anytime
+            using your account.
           </div>
         </q-card-section>
         <q-card-actions align="around" class="q-pt-lg q-pb-md">
-          <q-btn
-            flat
-            color="grey-7"
-            label="Stay signed in"
-            class="q-px-md"
-            v-close-popup
-          />
+          <q-btn flat color="grey-7" label="Stay signed in" class="q-px-md" v-close-popup />
           <q-btn
             unelevated
             color="negative"
@@ -247,6 +245,7 @@ const adminNav = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/admin/applications', label: 'Applications', icon: 'assignment' },
   { path: '/admin/employees', label: 'Employee Management', icon: 'groups' },
+  { path: '/admin/attendance', label: 'Attendance Monitoring', icon: 'schedule' },
   // { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
 ]
 const hrNav = [
@@ -284,14 +283,13 @@ async function doLogout() {
   authStore.clearAuth()
   leaveStore.setUserRole(null)
   notifStore.clearAll()
-  $q.notify({ type: 'positive',
-  message: 'Logged out successfully!',
-  position: 'top',
-  timeout: 3000,
-  actions: [
-    { label: 'OK', color: 'white' }
-  ]
-})
+  $q.notify({
+    type: 'positive',
+    message: 'Logged out successfully!',
+    position: 'top',
+    timeout: 3000,
+    actions: [{ label: 'OK', color: 'white' }],
+  })
   router.push('/login')
 }
 </script>
@@ -314,7 +312,9 @@ async function doLogout() {
   padding-left: 16px;
   padding-right: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 .navbar-dark {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);

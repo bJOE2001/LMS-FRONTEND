@@ -7,29 +7,98 @@ const routes = [
       { path: '', redirect: '/login' },
 
       // Admin
-      { path: 'admin/dashboard', name: 'admin-dashboard', component: () => import('pages/admin/AdminDashboard.vue') },
-      { path: 'admin/applications', name: 'admin-applications', component: () => import('pages/admin/AdminApplicationsPage.vue') },
-      { path: 'admin/employees', name: 'admin-employees', component: () => import('pages/admin/AdminEmployees.vue') },
-      { path: 'admin/review/:id', name: 'admin-review', component: () => import('pages/admin/ApplicationReview.vue') },
-      { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
+      {
+        path: 'admin/dashboard',
+        name: 'admin-dashboard',
+        component: () => import('pages/admin/AdminDashboard.vue'),
+      },
+      {
+        path: 'admin/applications',
+        name: 'admin-applications',
+        component: () => import('pages/admin/AdminApplicationsPage.vue'),
+      },
+      {
+        path: 'admin/employees',
+        name: 'admin-employees',
+        component: () => import('pages/admin/AdminEmployees.vue'),
+      },
+      {
+        path: 'admin/review/:id',
+        name: 'admin-review',
+        component: () => import('pages/admin/ApplicationReview.vue'),
+      },
+      {
+        path: 'admin/reports',
+        name: 'admin-reports',
+        component: () => import('pages/admin/AdminReports.vue'),
+      },
+      {
+        path: 'admin/attendance',
+        name: 'admin-attendance',
+        component: () => import('pages/admin/AttendanceManagement.vue'),
+      },
+      {
+        path: 'admin/attendance/:employeeId',
+        name: 'admin-attendance-record',
+        component: () => import('pages/admin/AdminEmployeeAttendanceRecordPage.vue'),
+      },
 
       // HR
-      { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },
-      { path: 'hr/employees', name: 'hr-employees', component: () => import('pages/hr/EmployeeManagement.vue') },
-      { path: 'hr/coc-applications', name: 'hr-coc-applications', component: () => import('pages/hr/CocApplicationsPage.vue') },
-      { path: 'hr/work-schedules', name: 'hr-work-schedules', component: () => import('pages/hr/WorkSchedulesPage.vue') },
-      { path: 'hr/leave-types', name: 'hr-leave-types', component: () => import('pages/hr/LeaveTypesPage.vue') },
-      { path: 'hr/departments-library', name: 'hr-departments-library', component: () => import('pages/hr/DepartmentsLibraryPage.vue') },
-      { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
+      {
+        path: 'hr/dashboard',
+        name: 'hr-dashboard',
+        component: () => import('pages/hr/HRDashboard.vue'),
+      },
+      {
+        path: 'hr/employees',
+        name: 'hr-employees',
+        component: () => import('pages/hr/EmployeeManagement.vue'),
+      },
+      {
+        path: 'hr/coc-applications',
+        name: 'hr-coc-applications',
+        component: () => import('pages/hr/CocApplicationsPage.vue'),
+      },
+      {
+        path: 'hr/work-schedules',
+        name: 'hr-work-schedules',
+        component: () => import('pages/hr/WorkSchedulesPage.vue'),
+      },
+      {
+        path: 'hr/leave-types',
+        name: 'hr-leave-types',
+        component: () => import('pages/hr/LeaveTypesPage.vue'),
+      },
+      {
+        path: 'hr/departments-library',
+        name: 'hr-departments-library',
+        component: () => import('pages/hr/DepartmentsLibraryPage.vue'),
+      },
+      {
+        path: 'hr/applications',
+        name: 'hr-applications',
+        component: () => import('pages/hr/ApplicationsPage.vue'),
+      },
       { path: 'hr/calendar', redirect: '/hr/applications' },
-      { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
-      { path: 'hr/user-management', name: 'hr-user-management', component: () => import('pages/hr/UserManagement.vue') },
+      {
+        path: 'hr/reports',
+        name: 'hr-reports',
+        component: () => import('pages/hr/ReportsMonitoring.vue'),
+      },
+      {
+        path: 'hr/user-management',
+        name: 'hr-user-management',
+        component: () => import('pages/hr/UserManagement.vue'),
+      },
 
       // Common
-      { path: 'notifications', name: 'notifications', component: () => import('pages/NotificationsPage.vue') },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('pages/NotificationsPage.vue'),
+      },
       { path: 'settings', name: 'settings', component: () => import('pages/SettingsPage.vue') },
       { path: 'help', name: 'help', component: () => import('pages/HelpPage.vue') },
-
     ],
   },
 
@@ -37,9 +106,7 @@ const routes = [
   {
     path: '/login',
     component: () => import('layouts/EmptyLayout.vue'),
-    children: [
-      { path: '', name: 'login', component: () => import('pages/LoginPage.vue') },
-    ],
+    children: [{ path: '', name: 'login', component: () => import('pages/LoginPage.vue') }],
   },
 
   // Forgot Password
@@ -47,7 +114,11 @@ const routes = [
     path: '/forgot-password',
     component: () => import('layouts/EmptyLayout.vue'),
     children: [
-      { path: '', name: 'forgot-password', component: () => import('pages/ForgotPasswordPage.vue') },
+      {
+        path: '',
+        name: 'forgot-password',
+        component: () => import('pages/ForgotPasswordPage.vue'),
+      },
     ],
   },
 
@@ -69,7 +140,6 @@ const routes = [
       { path: '', name: 'development-team', component: () => import('pages/DevelopmentTeam.vue') },
     ],
   },
- 
 
   // Always leave this as last one
   {
