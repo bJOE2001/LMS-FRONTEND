@@ -1850,6 +1850,11 @@ function formatGroupedInclusiveDateLines(dateValues) {
       return `${group.monthName} ${dayLabel}`
     })
 
+    const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+    if (hasSingleDayOnly) {
+      return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
+    }
+
     return `${rangeLabels.join(', ')} ${group.year}`
   })
     .filter(Boolean)

@@ -350,6 +350,18 @@ function getLeaveBalanceTypeKey(value) {
   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
 }
 
+function resolveCertificationSelectedTypeKey(typeKey) {
+  const normalizedTypeKey = String(typeKey || '').trim().toLowerCase()
+  if (!normalizedTypeKey) return ''
+
+  const forcedLeaveKey = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
+  if (normalizedTypeKey === forcedLeaveKey) {
+    return getLeaveBalanceTypeKey('Vacation Leave')
+  }
+
+  return normalizedTypeKey
+}
+
 function normalizeCertificationTypeKey(value) {
   return String(value || '')
     .trim()
@@ -591,10 +603,14 @@ function buildCertificationEntryMap(app, options = {}) {
 function buildCertificationColumns(app, options = {}) {
   const entryMap = buildCertificationEntryMap(app, options)
   const selectedLabel = prettifyLeaveBalanceLabel(app?.leave_type_name || 'Leave Credits')
-  const selectedKey = getLeaveBalanceTypeKey(selectedLabel)
+  const rawSelectedKey = getLeaveBalanceTypeKey(selectedLabel)
+  const selectedKey = resolveCertificationSelectedTypeKey(rawSelectedKey)
   const vacationKey = getLeaveBalanceTypeKey('Vacation Leave')
   const sickKey = getLeaveBalanceTypeKey('Sick Leave')
-  const showDualColumns = selectedKey === vacationKey || selectedKey === sickKey
+  const forcedLeaveKey = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
+  const isForcedLeaveSelection = rawSelectedKey === forcedLeaveKey
+  const showDualColumns =
+    !isForcedLeaveSelection && (selectedKey === vacationKey || selectedKey === sickKey)
 
   if (showDualColumns) {
     return [
@@ -606,10 +622,14 @@ function buildCertificationColumns(app, options = {}) {
   const resolvedSelectedEntry =
     findCertificationEntryByTypeKey(entryMap, selectedKey) ||
     (entryMap.size === 1 ? entryMap.values().next().value : null)
-  const selectedFallbackEntry = buildSelectedCertificationFallbackEntry(app, selectedLabel)
+  const selectedFallbackLabel = selectedKey === vacationKey ? 'Vacation Leave' : selectedLabel
+  const selectedFallbackEntry = buildSelectedCertificationFallbackEntry(app, selectedFallbackLabel)
   const mergedSelectedEntry = mergeCertificationEntry(resolvedSelectedEntry, selectedFallbackEntry)
 
-  return [mergedSelectedEntry || createEmptyCertificationEntry(selectedLabel || 'Leave Credits')]
+  return [
+    mergedSelectedEntry ||
+      createEmptyCertificationEntry(selectedFallbackLabel || selectedLabel || 'Leave Credits'),
+  ]
 }
 
 function applyCertificationLessThisApplicationOverride(
@@ -624,7 +644,9 @@ function applyCertificationLessThisApplicationOverride(
   if (normalizedLessThisApplicationDays === null) return columns
 
   const preserveExistingBalance = options?.preserveExistingBalance === true
-  const selectedLeaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveType)
+  const selectedLeaveTypeKey = resolveCertificationSelectedTypeKey(
+    getLeaveBalanceTypeKey(selectedLeaveType),
+  )
   if (!selectedLeaveTypeKey) return columns
 
   return columns.map((column) => {
@@ -1134,16 +1156,20 @@ function resolveApprovedForSectionValues(app) {
 
   const totalDays = pickFirstFiniteNumber(app?.total_days)
 
-  let withPayDays = null
+  let withPayDays = pickFirstFiniteNumber(app?.with_pay_days, app?.withPayDays)
 
-  let withoutPayDays = null
+  let withoutPayDays = pickFirstFiniteNumber(app?.without_pay_days, app?.withoutPayDays)
   let derivedFromPayStatus = false
+
+  const deductibleDays = pickFirstFiniteNumber(app?.deductible_days)
+  const shouldDeriveFromPayStatus =
+    withPayDays === null && withoutPayDays === null && deductibleDays === null
 
   const payStatusMap = toStatusMap(app?.selected_date_pay_status)
 
   const coverageMap = toCoverageMap(app?.selected_date_coverage)
 
-  if (payStatusMap) {
+  if (shouldDeriveFromPayStatus && payStatusMap) {
     let computedWithPayDays = 0
     let computedWithoutPayDays = 0
     let hasComputedPayStatus = false
@@ -1169,10 +1195,9 @@ function resolveApprovedForSectionValues(app) {
     }
   }
 
-  const deductibleDays = pickFirstFiniteNumber(app?.deductible_days)
-  if (!derivedFromPayStatus && deductibleDays !== null) {
+  if (!derivedFromPayStatus && deductibleDays !== null && withPayDays === null) {
     withPayDays = deductibleDays
-    if (totalDays !== null) {
+    if (withoutPayDays === null && totalDays !== null) {
       withoutPayDays = Math.max(totalDays - deductibleDays, 0)
     }
   }
@@ -1183,7 +1208,7 @@ function resolveApprovedForSectionValues(app) {
 
   if (totalDays !== null && withPayDays !== null && withoutPayDays !== null) {
     const accountedDays = withPayDays + withoutPayDays
-    const missingDays = Math.round((totalDays - accountedDays) * 100) / 100
+    const missingDays = Math.round((totalDays - accountedDays) * 1000) / 1000
     if (missingDays > 0) {
       if (normalizedPayMode === 'WOP') {
         withoutPayDays += missingDays
@@ -1210,8 +1235,9 @@ function resolveApprovedForSectionValues(app) {
     withPayDays = totalDays - withoutPayDays
   }
 
-  if (withPayDays !== null) withPayDays = Math.max(0, Math.round(withPayDays * 100) / 100)
-  if (withoutPayDays !== null) withoutPayDays = Math.max(0, Math.round(withoutPayDays * 100) / 100)
+  if (withPayDays !== null) withPayDays = Math.max(0, Math.round(withPayDays * 1000) / 1000)
+  if (withoutPayDays !== null)
+    withoutPayDays = Math.max(0, Math.round(withoutPayDays * 1000) / 1000)
 
   const others =
     String(app?.approved_for_others || '').trim() || (app?.is_monetization ? 'Monetization' : '')
