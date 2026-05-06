@@ -242,6 +242,25 @@
                 <div class="text-caption text-grey-6 employee-details-header__designation">
                   {{ selectedEmployee.designation || '-' }}
                 </div>
+                <div
+                  v-if="employeeLeaveBalanceItems.length"
+                  class="employee-details-name__balances"
+                >
+                  <div class="text-caption text-grey-6">Leave Credits</div>
+                  <div class="employee-details-header__balance-list">
+                    <q-badge
+                      v-for="(item, index) in employeeLeaveBalanceItems"
+                      :key="`${selectedEmployee.control_no || selectedEmployee.id || 'employee'}-leave-credit-${index}`"
+                      color="grey-2"
+                      text-color="grey-7"
+                      rounded
+                      class="employee-details-header__balance-badge"
+                      :label="item.label"
+                    >
+                      <q-tooltip>{{ item.tooltip }}</q-tooltip>
+                    </q-badge>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -596,6 +615,7 @@ const EMPLOYEE_PICKER_MIN_CHARS = 2
 const selectedEmployee = ref(null)
 const leaveHistory = ref([])
 const leaveHistoryLoading = ref(false)
+const leaveBalanceRowsByControlNo = ref(new Map())
 const employees = ref([])
 const fullEmployeeRows = ref([])
 const fullEmployeeRowsCacheKey = ref('')
@@ -649,6 +669,25 @@ const statusOptions = [
   { label: 'Elective', value: 'ELECTIVE' },
   { label: 'Casual', value: 'CASUAL' },
   { label: 'Contractual', value: 'CONTRACTUAL' },
+]
+const REQUIRED_LEAVE_BALANCE_TYPES = [
+  'Vacation Leave',
+  'Sick Leave',
+  'CTO Leave',
+  'Mandatory / Forced Leave',
+  'Special Privilege Leave',
+  'Wellness Leave',
+]
+const EVENT_BASED_LEAVE_BALANCE_TYPES = [
+  'Maternity Leave',
+  'Paternity Leave',
+  'Solo Parent Leave',
+  'Study Leave',
+  '10-Day VAWC Leave',
+  'Rehabilitation Privilege',
+  'Special Leave Benefits for Women',
+  'Special Emergency (Calamity) Leave',
+  'Adoption Leave',
 ]
 
 const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
@@ -764,6 +803,7 @@ const statusCards = computed(() => [
   { key: 'CASUAL', label: 'Casual', value: statusCounts.value.CASUAL || 0, filterValue: 'CASUAL', icon: 'person_outline', hex: '#e65100', color: 'orange-9', bg: '#fff3e0' },
   { key: 'CONTRACTUAL', label: 'Contractual', value: statusCounts.value.CONTRACTUAL || 0, filterValue: 'CONTRACTUAL', icon: 'badge', hex: '#0d47a1', color: 'blue-9', bg: '#e3f2fd' },
 ])
+const employeeLeaveBalanceItems = computed(() => getLeaveBalanceTextItems(selectedEmployee.value))
 
 function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase()
@@ -986,6 +1026,169 @@ function leaveStatusColor(status) {
     RECALLED: 'purple-8',
   }
   return map[String(status || '').trim()] ?? 'grey-7'
+}
+
+function formatDayValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+  return numericValue.toFixed(3)
+}
+
+function formatLeaveBalanceValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return ''
+  return numericValue.toFixed(3)
+}
+
+function prettifyLeaveBalanceLabel(value) {
+  const label = String(value || '').trim()
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') {
+    return 'Mandatory / Forced Leave'
+  }
+  if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+  if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
+  if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
+  if (lower === 'vacation') return 'Vacation Leave'
+  if (lower === 'sick') return 'Sick Leave'
+  if (lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function toLeaveBalanceAcronym(value) {
+  const label = prettifyLeaveBalanceLabel(value)
+  if (!label) return ''
+
+  const lower = label.toLowerCase()
+  if (lower === 'cto leave') return 'CTO'
+  if (lower === 'mandatory / forced leave') return 'FL'
+  if (lower === 'special privilege leave') return 'MC06'
+  if (lower === 'sick leave') return 'SL'
+  if (lower === 'vacation leave') return 'VL'
+  if (lower === 'wellness leave') return 'WL'
+
+  const normalized = label
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+  if (!normalized.length) return ''
+  return normalized.map((part) => part[0]).join('')
+}
+
+function addLeaveBalanceEntry(entries, seen, label, value) {
+  const formattedValue = formatLeaveBalanceValue(value)
+  const formattedLabel = prettifyLeaveBalanceLabel(label)
+  if (!formattedLabel || formattedValue === '') return
+
+  const key = formattedLabel.toLowerCase()
+  if (seen.has(key)) return
+
+  seen.add(key)
+  entries.push({ label: formattedLabel, value: formattedValue })
+}
+
+function getLeaveBalanceTypeKey(value) {
+  return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function isEventBasedLeaveBalanceType(value) {
+  const typeKey = getLeaveBalanceTypeKey(value)
+  return EVENT_BASED_LEAVE_BALANCE_TYPES.some(
+    (label) => getLeaveBalanceTypeKey(label) === typeKey,
+  )
+}
+
+function getLeaveBalanceEntriesFromSnapshot(employee) {
+  const entries = []
+  const seen = new Set()
+  const source = Array.isArray(employee?.leave_balances) ? employee.leave_balances : []
+
+  for (const item of source) {
+    if (item == null || typeof item !== 'object') continue
+    addLeaveBalanceEntry(entries, seen, item.leave_type_name, item.balance)
+  }
+
+  return entries
+}
+
+function getLeaveBalanceEntries(employee) {
+  const snapshotEntries = getLeaveBalanceEntriesFromSnapshot(employee)
+  if (!snapshotEntries.length) return []
+
+  const resolvedEntries = snapshotEntries.filter(
+    (entry) => !isEventBasedLeaveBalanceType(entry.label),
+  )
+  const requiredTypeKeys = new Set(
+    REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label)),
+  )
+  const entriesByType = new Map(
+    resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]),
+  )
+
+  const orderedEntries = REQUIRED_LEAVE_BALANCE_TYPES.map((label) => {
+    const existingEntry = entriesByType.get(getLeaveBalanceTypeKey(label))
+    return existingEntry || { label, value: '0' }
+  })
+
+  for (const entry of resolvedEntries) {
+    const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+    if (requiredTypeKeys.has(leaveTypeKey)) continue
+    orderedEntries.push(entry)
+  }
+
+  return orderedEntries
+}
+
+function roundCtoHours(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue < 0) return null
+  return Math.round(numericValue * 100) / 100
+}
+
+function resolveCtoHoursFromDays(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue < 0) return null
+  return roundCtoHours(numericValue * 8)
+}
+
+function getLeaveBalanceTooltipText(entry) {
+  const label = String(entry?.label || '').trim()
+  if (!label) return ''
+
+  if (getLeaveBalanceTypeKey(label) === getLeaveBalanceTypeKey('CTO Leave')) {
+    const resolvedHours =
+      roundCtoHours(entry?.balance_hours ?? entry?.balanceHours) ??
+      resolveCtoHoursFromDays(entry?.value)
+
+    if (resolvedHours !== null) {
+      return `${label} • ${formatDayValue(resolvedHours)} hour(s)`
+    }
+  }
+
+  return label
+}
+
+function getLeaveBalanceTextItems(employee) {
+  return getLeaveBalanceEntries(employee).map((entry) => {
+    const acronym = toLeaveBalanceAcronym(entry.label)
+    return {
+      label: `${acronym || entry.label}: ${entry.value}`,
+      tooltip: getLeaveBalanceTooltipText(entry),
+    }
+  })
 }
 
 function resolveOfficeAcronymValue(...candidates) {
@@ -1695,10 +1898,51 @@ async function fetchEmployeeLeaveHistory(controlNo) {
   }
 }
 
+async function fetchDepartmentLeaveBalanceRows() {
+  if (leaveBalanceRowsByControlNo.value.size > 0) {
+    return leaveBalanceRowsByControlNo.value
+  }
+
+  const { data } = await api.get('/admin/employees-for-leave')
+  const rows = Array.isArray(data?.employees) ? data.employees : []
+  const nextLookup = new Map()
+
+  for (const row of rows) {
+    const rowControlNo = normalizeControlNo(row?.control_no)
+    if (!rowControlNo) continue
+    nextLookup.set(rowControlNo, row)
+  }
+
+  leaveBalanceRowsByControlNo.value = nextLookup
+  return leaveBalanceRowsByControlNo.value
+}
+
+async function hydrateSelectedEmployeeLeaveBalances(controlNo) {
+  const normalizedControlNo = normalizeControlNo(controlNo)
+  if (!normalizedControlNo) return
+
+  try {
+    const rowsByControlNo = await fetchDepartmentLeaveBalanceRows()
+    const matchedRow = rowsByControlNo.get(normalizedControlNo)
+    if (!matchedRow) return
+
+    if (normalizeControlNo(selectedEmployee.value?.control_no) !== normalizedControlNo) return
+
+    selectedEmployee.value = {
+      ...selectedEmployee.value,
+      leave_balances: Array.isArray(matchedRow.leave_balances) ? matchedRow.leave_balances : [],
+    }
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load employee leave credits right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  }
+}
+
 function viewEmployee(employee) {
   selectedEmployee.value = employee
   showViewDialog.value = true
   void fetchEmployeeLeaveHistory(employee?.control_no)
+  void hydrateSelectedEmployeeLeaveBalances(employee?.control_no)
 }
 
 function applyLeaveFor(employee) {
@@ -1866,6 +2110,7 @@ watch(adminDepartmentId, (id) => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .employee-details-header__profile {
@@ -1903,6 +2148,22 @@ watch(adminDepartmentId, (id) => {
 
 .employee-details-header__meta-value {
   line-height: 1.25;
+}
+
+.employee-details-name__balances {
+  margin-top: 10px;
+}
+
+.employee-details-header__balance-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.employee-details-header__balance-badge {
+  font-weight: 600;
 }
 
 .leave-history-table :deep(.q-table__middle) {
