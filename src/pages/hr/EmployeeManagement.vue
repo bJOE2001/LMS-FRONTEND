@@ -32,7 +32,7 @@
                   Total Employees
                 </div>
                 <div class="text-h4 text-primary summary-strip__value">
-                  <q-spinner v-if="loading" size="32px" color="primary" />
+                  <q-spinner v-if="loadingTotalEmployees" size="32px" color="primary" />
                   <template v-else>{{ totalEmployees }}</template>
                 </div>
               </div>
@@ -439,8 +439,23 @@
               </q-select>
             </div>
             <div class="col-12">
-              <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
-              <div class="text-caption text-grey-6">Fill all allowed leave type balances.</div>
+              <div class="row items-start justify-between q-col-gutter-sm">
+                <div class="col">
+                  <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
+                  <div class="text-caption text-grey-6">Fill all allowed leave type balances.</div>
+                </div>
+                <div class="col-auto">
+                  <q-btn
+                    flat
+                    no-caps
+                    label="COC Credits"
+                    color="primary"
+                    icon="event_available"
+                    :disable="!canOpenCocImportDialog || savingLeaveCredits"
+                    @click="openCocImportDialog"
+                  />
+                </div>
+              </div>
             </div>
             <template v-if="loadingCreditLeaveTypes">
               <div class="col-12">
@@ -501,6 +516,145 @@
       </q-card>
     </q-dialog>
 
+    <!-- COC Balance Import Dialog -->
+    <q-dialog v-model="showCocImportDialog" persistent>
+      <q-card class="rounded-borders coc-import-dialog">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="event_available" size="sm" color="primary" class="q-mr-sm" />
+          <div class="text-h6">Manage COC Entries</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup :disable="savingCocImport" />
+        </q-card-section>
+
+        <q-card-section class="q-pt-sm">
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12">
+              <q-input
+                :model-value="selectedCreditEmployeeLabel"
+                outlined
+                dense
+                readonly
+                label="Employee"
+              />
+            </div>
+          </div>
+
+          <div class="row q-col-gutter-md">
+            <div class="col-12">
+              <div class="row items-center justify-between">
+                <div class="text-subtitle2 text-weight-medium">COC Entries</div>
+                <div class="row items-center q-gutter-xs">
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    icon="add"
+                    color="primary"
+                    label="Add Row"
+                    :disable="savingCocImport || loadingCocImportEntries || cocImportForm.entries.length >= 200"
+                    @click="addCocImportEntry"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div v-if="loadingCocImportEntries" class="col-12">
+              <div class="row items-center q-gutter-sm text-grey-7">
+                <q-spinner color="primary" size="18px" />
+                <span>Loading existing COC entries...</span>
+              </div>
+            </div>
+
+            <template v-for="(entry, index) in cocImportForm.entries" :key="`coc-entry-${index}`">
+              <div class="col-12">
+                <div class="coc-import-entry">
+                  <div class="row items-center justify-between q-mb-sm">
+                    <div class="row items-center q-gutter-sm">
+                      <div class="text-subtitle2 text-weight-medium">Entry #{{ index + 1 }}</div>
+                      <q-badge v-if="isExistingCocImportEntry(entry)" color="blue-8" text-color="white" label="Saved" />
+                    </div>
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="delete"
+                      color="negative"
+                      :disable="
+                        savingCocImport ||
+                        loadingCocImportEntries ||
+                        cocImportForm.entries.length <= 1 ||
+                        isExistingCocImportEntry(entry)
+                      "
+                      @click="removeCocImportEntry(index)"
+                    >
+                      <q-tooltip>
+                        {{ isExistingCocImportEntry(entry) ? 'Saved entries cannot be removed here.' : 'Remove row' }}
+                      </q-tooltip>
+                    </q-btn>
+                  </div>
+
+                  <div class="row q-col-gutter-sm">
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model="entry.hours"
+                        outlined
+                        dense
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        label="COC Hours *"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model="entry.credited_at"
+                        outlined
+                        dense
+                        type="date"
+                        label="Earned Date *"
+                        @update:model-value="handleCocImportEntryEarnedDateChange(index)"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model="entry.expires_on"
+                        outlined
+                        dense
+                        type="date"
+                        label="Expiration Date *"
+                        readonly
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn
+            flat
+            no-caps
+            label="Cancel"
+            color="grey-7"
+            v-close-popup
+            :disable="savingCocImport"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            label="Save"
+            color="primary"
+            icon="save"
+            :loading="savingCocImport"
+            :disable="loadingCocImportEntries"
+            @click="saveCocImports"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <AdminApplicationCalendarDialog
       v-model="showCalendarPreviewDialog"
       v-model:calendar-preview-model="calendarPreviewModel"
@@ -539,6 +693,7 @@ const $q = useQuasar()
 const search = ref('')
 const activityFilter = ref('ACTIVE')
 const loading = ref(false)
+const loadingTotalEmployees = ref(false)
 const loadingDepartments = ref(false)
 
 const employees = ref([])
@@ -586,6 +741,10 @@ const creditLeaveTypes = ref([])
 const allCreditEmployeeOptions = ref([])
 const filteredCreditEmployeeOptions = ref([])
 const leaveCreditForm = ref(defaultLeaveCreditForm())
+const showCocImportDialog = ref(false)
+const savingCocImport = ref(false)
+const loadingCocImportEntries = ref(false)
+const cocImportForm = ref(defaultCocImportForm())
 const creditEmployeeSelect = ref(null)
 const creditEmployeeFilter = ref('')
 const CREDIT_EMPLOYEE_LOOKUP_LIMIT = 20
@@ -612,6 +771,14 @@ const leaveCreditDialogDescription = computed(() =>
 const leaveCreditDialogSaveLabel = computed(() =>
   isLeaveCreditsEditMode.value ? 'Update Leave Credits' : 'Save Leave Credits',
 )
+const selectedCreditEmployeeLabel = computed(() => {
+  const selectedOption = getSelectedCreditEmployeeOption()
+  return selectedOption?.label || 'No employee selected'
+})
+const canOpenCocImportDialog = computed(() => {
+  const controlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  return /^\d+$/.test(controlNo)
+})
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -1152,6 +1319,24 @@ async function fetchDepartments() {
   }
 }
 
+async function fetchTotalEmployeesSummary() {
+  loadingTotalEmployees.value = true
+  try {
+    const { data } = await api.get('/employees', {
+      params: {
+        activity: activityFilter.value || 'ALL',
+        per_page: 1,
+        page: 1,
+      },
+    })
+    totalEmployees.value = Number(data?.total_employees ?? 0)
+  } catch (err) {
+    console.error('Failed to load employee summary:', err)
+  } finally {
+    loadingTotalEmployees.value = false
+  }
+}
+
 async function fetchData(page = 1) {
   loading.value = true
   try {
@@ -1166,8 +1351,6 @@ async function fetchData(page = 1) {
         page,
       },
     })
-
-    totalEmployees.value = data.total_employees ?? 0
 
     if (data.employees) {
       employees.value = data.employees.data ?? []
@@ -1561,6 +1744,7 @@ watch(search, () => {
 })
 
 watch(activityFilter, () => {
+  void fetchTotalEmployeesSummary()
   fetchData(1)
 })
 
@@ -1586,8 +1770,9 @@ watch(calendarPreviewDateStates, () => {
 })
 
 onMounted(() => {
-  fetchDepartments()
-  fetchData()
+  void fetchDepartments()
+  void fetchTotalEmployeesSummary()
+  void fetchData()
 })
 
 watch(
@@ -1596,11 +1781,28 @@ watch(
     if (!showLeaveCreditsDialog.value) return
     if (selectedControlNo === previousControlNo) return
 
+    if (showCocImportDialog.value) {
+      cocImportForm.value.employee_control_no = selectedControlNo
+      if (/^\d+$/.test(selectedControlNo)) {
+        void loadCocImportEntries(selectedControlNo)
+      } else {
+        cocImportForm.value = defaultCocImportForm()
+      }
+    }
+
     void fetchCreditLeaveTypes(selectedControlNo, {
       prefillFromCurrentBalances: isLeaveCreditsEditMode.value,
     })
   },
 )
+
+watch(showLeaveCreditsDialog, (isOpen) => {
+  if (isOpen) return
+  showCocImportDialog.value = false
+  cocImportForm.value = defaultCocImportForm()
+  savingCocImport.value = false
+  loadingCocImportEntries.value = false
+})
 
 onBeforeUnmount(() => {
   clearCalendarPreviewWarning()
@@ -3677,6 +3879,22 @@ function defaultLeaveCreditForm() {
   }
 }
 
+function buildDefaultCocImportEntry() {
+  return {
+    id: null,
+    hours: '',
+    credited_at: '',
+    expires_on: '',
+  }
+}
+
+function defaultCocImportForm(employeeControlNo = '') {
+  return {
+    employee_control_no: String(employeeControlNo ?? '').trim(),
+    entries: [buildDefaultCocImportEntry()],
+  }
+}
+
 function resetLeaveCreditForm() {
   creditLeaveTypesLookupSequence += 1
   loadingCreditLeaveTypes.value = false
@@ -3688,6 +3906,10 @@ function resetLeaveCreditForm() {
   }
   loadingCreditEmployees.value = false
   leaveCreditForm.value = defaultLeaveCreditForm()
+  cocImportForm.value = defaultCocImportForm()
+  showCocImportDialog.value = false
+  savingCocImport.value = false
+  loadingCocImportEntries.value = false
   leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_ADD
   creditEmployeeFilter.value = ''
   setCreditEmployeeOptions([])
@@ -3714,6 +3936,240 @@ function openLeaveCreditsEditDialog(employee = null) {
   upsertCreditEmployeeOption(employee)
   showLeaveCreditsDialog.value = true
   void fetchCreditLeaveTypes(controlNo, { prefillFromCurrentBalances: true })
+}
+
+function addCocImportEntry() {
+  if (cocImportForm.value.entries.length >= 200) return
+  cocImportForm.value.entries.push(buildDefaultCocImportEntry())
+}
+
+function resolveCocImportExpiryDate(creditedAtRaw) {
+  const creditedAt = String(creditedAtRaw ?? '').trim()
+  if (!creditedAt) return ''
+
+  const match = creditedAt.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return ''
+
+  const parsedDate = new Date(`${creditedAt}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  const expiryYear = parsedDate.getFullYear() + 1
+  return `${expiryYear}-12-31`
+}
+
+function handleCocImportEntryEarnedDateChange(index) {
+  const entries = Array.isArray(cocImportForm.value.entries) ? cocImportForm.value.entries : []
+  const entry = entries[index]
+  if (!entry) return
+
+  const resolvedExpiry = resolveCocImportExpiryDate(entry.credited_at)
+  entry.expires_on = resolvedExpiry || ''
+}
+
+function removeCocImportEntry(index) {
+  if (cocImportForm.value.entries.length <= 1) return
+  cocImportForm.value.entries.splice(index, 1)
+}
+
+function isExistingCocImportEntry(entry) {
+  const entryId = Number(entry?.id)
+  return Number.isInteger(entryId) && entryId > 0
+}
+
+function isEditableImportedCocApplication(application) {
+  const rawStatus = String(application?.rawStatus ?? application?.raw_status ?? application?.status ?? '')
+    .trim()
+    .toUpperCase()
+  if (rawStatus !== 'APPROVED') return false
+
+  const remarks = String(application?.remarks ?? '').trim().toLowerCase()
+  if (!remarks.startsWith('coc balance import (hr)')) return false
+
+  const creditedHours = Number(application?.credited_hours)
+  if (!Number.isFinite(creditedHours) || creditedHours <= 0) return false
+
+  const expiresOn = String(application?.cto_expires_on ?? '').trim()
+  if (!expiresOn) return false
+
+  return true
+}
+
+function buildCocImportEntryFromApplication(application) {
+  const creditedAtRaw = String(application?.cto_credited_at ?? '').trim()
+  let creditedAtDate = ''
+  if (creditedAtRaw) {
+    const dateMatch = creditedAtRaw.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (dateMatch?.[1]) {
+      creditedAtDate = dateMatch[1]
+    } else {
+      const parsedDate = new Date(creditedAtRaw)
+      if (!Number.isNaN(parsedDate.getTime())) {
+        const year = parsedDate.getFullYear()
+        const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+        const day = String(parsedDate.getDate()).padStart(2, '0')
+        creditedAtDate = `${year}-${month}-${day}`
+      }
+    }
+  }
+
+  const expiresOnFromApi = String(application?.cto_expires_on ?? '').trim()
+  const resolvedExpiry = expiresOnFromApi || resolveCocImportExpiryDate(creditedAtDate)
+  const hours = Number(application?.credited_hours)
+  return {
+    id: Number(application?.id) > 0 ? Number(application.id) : null,
+    hours: Number.isFinite(hours) && hours > 0 ? String(hours) : '',
+    credited_at: creditedAtDate,
+    expires_on: resolvedExpiry,
+  }
+}
+
+async function loadCocImportEntries(employeeControlNo) {
+  const normalizedControlNo = String(employeeControlNo ?? '').trim()
+  if (!/^\d+$/.test(normalizedControlNo)) {
+    cocImportForm.value = defaultCocImportForm()
+    return
+  }
+
+  loadingCocImportEntries.value = true
+  try {
+    const { data } = await api.get('/hr/coc-applications', {
+      params: {
+        employee_control_no: normalizedControlNo,
+        status: 'APPROVED',
+        include_imported: 1,
+      },
+    })
+    const applications = Array.isArray(data?.applications) ? data.applications : []
+    const editableEntries = applications
+      .filter((application) => isEditableImportedCocApplication(application))
+      .map((application) => buildCocImportEntryFromApplication(application))
+      .filter((entry) => entry.expires_on && entry.hours !== '')
+
+    cocImportForm.value = {
+      employee_control_no: normalizedControlNo,
+      entries: editableEntries.length ? editableEntries : [buildDefaultCocImportEntry()],
+    }
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to load existing COC entries right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+    cocImportForm.value = defaultCocImportForm(normalizedControlNo)
+  } finally {
+    loadingCocImportEntries.value = false
+  }
+}
+
+function openCocImportDialog() {
+  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  if (!/^\d+$/.test(selectedControlNo)) {
+    $q.notify({
+      type: 'warning',
+      message: 'Select a valid employee first before importing COC balances.',
+      position: 'top',
+    })
+    return
+  }
+
+  cocImportForm.value = defaultCocImportForm(selectedControlNo)
+  showCocImportDialog.value = true
+  void loadCocImportEntries(selectedControlNo)
+}
+
+function cocImportValidationError() {
+  const employeeControlNo = String(cocImportForm.value.employee_control_no ?? '').trim()
+  if (!employeeControlNo) return 'Employee is required.'
+  if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
+
+  const entries = Array.isArray(cocImportForm.value.entries) ? cocImportForm.value.entries : []
+  if (!entries.length) return 'Add at least one COC entry.'
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const rowNo = index + 1
+    const entry = entries[index] ?? {}
+    const hoursRaw = normalizeBalanceInputValue(entry.hours)
+    if (hoursRaw === '') return `Entry #${rowNo}: hours are required.`
+
+    const hours = Number(hoursRaw)
+    if (!Number.isFinite(hours)) return `Entry #${rowNo}: hours must be a number.`
+    if (hours <= 0) return `Entry #${rowNo}: hours must be greater than zero.`
+
+    const creditedAtRaw = String(entry.credited_at ?? '').trim()
+    const expiresOnRaw = String(entry.expires_on ?? '').trim()
+    if (!creditedAtRaw) return `Entry #${rowNo}: earned date is required.`
+    if (!expiresOnRaw) return `Entry #${rowNo}: expiration date is required.`
+
+    const creditedAt = new Date(`${creditedAtRaw}T00:00:00`)
+    const expiresOn = new Date(`${expiresOnRaw}T00:00:00`)
+    if (Number.isNaN(creditedAt.getTime())) return `Entry #${rowNo}: credited date is invalid.`
+    if (Number.isNaN(expiresOn.getTime())) return `Entry #${rowNo}: expiration date is invalid.`
+    if (expiresOn < creditedAt) {
+      return `Entry #${rowNo}: expiration date cannot be earlier than credited date.`
+    }
+  }
+
+  return ''
+}
+
+function buildCocImportEntriesPayload() {
+  return cocImportForm.value.entries.map((entry) => ({
+    id: isExistingCocImportEntry(entry) ? Number(entry.id) : undefined,
+    hours: Number(normalizeBalanceInputValue(entry.hours)),
+    credited_at: String(entry.credited_at ?? '').trim(),
+    expires_on: String(entry.expires_on ?? '').trim(),
+  }))
+}
+
+async function saveCocImports() {
+  if (loadingCocImportEntries.value) {
+    return
+  }
+
+  const validationError = cocImportValidationError()
+  if (validationError) {
+    $q.notify({ type: 'warning', message: validationError, position: 'top' })
+    return
+  }
+
+  savingCocImport.value = true
+  try {
+    const employeeControlNo = String(cocImportForm.value.employee_control_no ?? '').trim()
+    const payload = {
+      employee_control_no: employeeControlNo,
+      entries: buildCocImportEntriesPayload(),
+    }
+
+    const { data } = await api.post('/hr/coc-balances/import', payload)
+    const createdCount = Number(data?.created_count ?? data?.imported_count ?? 0)
+    const updatedCount = Number(data?.updated_count ?? 0)
+    const savedCount = Number(data?.saved_count ?? payload.entries.length)
+    const normalizedCreatedCount = Number.isFinite(createdCount) && createdCount > 0 ? createdCount : 0
+    const normalizedUpdatedCount = Number.isFinite(updatedCount) && updatedCount > 0 ? updatedCount : 0
+    const normalizedSavedCount =
+      Number.isFinite(savedCount) && savedCount > 0 ? savedCount : payload.entries.length
+    const updatedBalance = Number(data?.updated_balance)
+    const balanceLabel = Number.isFinite(updatedBalance) ? ` Updated CTO balance: ${updatedBalance}.` : ''
+    const detailParts = []
+    if (normalizedCreatedCount > 0) {
+      detailParts.push(`${normalizedCreatedCount} added`)
+    }
+    if (normalizedUpdatedCount > 0) {
+      detailParts.push(`${normalizedUpdatedCount} updated`)
+    }
+    const detailLabel = detailParts.length ? ` (${detailParts.join(', ')})` : ''
+
+    $q.notify({
+      type: 'positive',
+      message: `${normalizedSavedCount} COC entr${normalizedSavedCount === 1 ? 'y' : 'ies'} saved successfully${detailLabel}.${balanceLabel}`,
+      position: 'top',
+    })
+
+    showCocImportDialog.value = false
+    cocImportForm.value = defaultCocImportForm(employeeControlNo)
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to save COC entries right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    savingCocImport.value = false
+  }
 }
 
 function buildLeaveCreditBalanceState(existingBalances = {}) {
@@ -3948,6 +4404,18 @@ async function saveLeaveCredits() {
 .leave-credit-dialog {
   width: min(760px, 96vw);
   max-width: 96vw;
+}
+
+.coc-import-dialog {
+  width: min(820px, 96vw);
+  max-width: 96vw;
+}
+
+.coc-import-entry {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
 }
 
 .employee-details-dialog {

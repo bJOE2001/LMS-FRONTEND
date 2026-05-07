@@ -1765,17 +1765,18 @@ async function fetchEmployees(page = 1) {
       department_id: adminDepartmentId.value,
       search: search.value || undefined,
     }
+    const summaryParams = {
+      department_id: adminDepartmentId.value,
+      per_page: 1,
+      page: 1,
+    }
 
     if (useClientSideRows.value) {
       const collectionCacheKey = buildEmployeeCollectionCacheKey()
       const needsCollectionRefresh = fullEmployeeRowsCacheKey.value !== collectionCacheKey
 
       const summaryRequest = api.get('/employees', {
-        params: {
-          ...baseParams,
-          per_page: 1,
-          page: 1,
-        },
+        params: summaryParams,
       }).catch(() => null)
 
       const collectionRequest = needsCollectionRefresh
@@ -1813,24 +1814,18 @@ async function fetchEmployees(page = 1) {
         page: pageNum,
       },
     })
-    const summaryRequest = activeStatusFilter.value
-      ? api.get('/employees', {
-        params: {
-          ...baseParams,
-          per_page: 1,
-          page: 1,
-        },
-      }).catch(() => null)
-      : Promise.resolve(null)
+    const summaryRequest = api.get('/employees', {
+      params: summaryParams,
+    }).catch(() => null)
 
     const [tableResponse, summaryResponse] = await Promise.all([tableRequest, summaryRequest])
     const data = tableResponse?.data ?? {}
-    const summaryData = summaryResponse?.data ?? data
+    const summaryData = summaryResponse?.data ?? {}
 
     invalidateEmployeeCollectionCache()
     employees.value = data.employees?.data ?? []
-    totalEmployees.value = summaryData.total_employees ?? 0
-    statusCounts.value = summaryData.status_counts ?? {}
+    totalEmployees.value = summaryData.total_employees ?? data.total_employees ?? 0
+    statusCounts.value = summaryData.status_counts ?? data.status_counts ?? {}
     pagination.value.page = data.employees?.current_page ?? 1
     pagination.value.rowsNumber = data.employees?.total ?? 0
     applyDepartmentHeadState(data.department_head ?? summaryData.department_head ?? null)
