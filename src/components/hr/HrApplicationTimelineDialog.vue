@@ -422,9 +422,6 @@ const timelineEntries = computed(() => {
   const cleanedTimeline = baseTimeline.filter(
     (entry) => !isReceivedTimelineEntryTitle(entry) && !isReleasedTimelineEntryTitle(entry),
   )
-  const existingClosedEntries = cleanedTimeline.filter((entry) =>
-    isEntryTitle(entry, 'Application Closed'),
-  )
   const coreEntries = cleanedTimeline.filter((entry) => !isEntryTitle(entry, 'Application Closed'))
   const hasUpdateCycle = isUpdateRequestCycle.value
   const cycleDisapprovedEntry = hasUpdateCycle
@@ -452,17 +449,13 @@ const timelineEntries = computed(() => {
     cycleReleasedSourceEntry,
     cycleDisapprovedEntry,
   )
+  const cmoCbmoReviewEntry = buildCmoCbmoReviewTimelineEntry()
   const receivedInsertEntry =
     historicalReceivedEntry || (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
   if (receivedInsertEntry) {
     const receivedInsertIndex = getReceivedInsertionIndex(coreEntries)
     coreEntries.splice(receivedInsertIndex, 0, receivedInsertEntry)
   }
-
-  const closedEntry = buildClosedTimelineEntry(
-    existingClosedEntries[0] || null,
-    cycleDisapprovedEntry,
-  )
 
   const finalizedEntries = [...coreEntries]
   if (hasUpdateCycle) {
@@ -480,11 +473,12 @@ const timelineEntries = computed(() => {
     }
   } else {
     const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
-    finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
-  }
-
-  if (closedEntry) {
-    finalizedEntries.push(closedEntry)
+    if (cmoCbmoReviewEntry) {
+      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cmoCbmoReviewEntry)
+      finalizedEntries.splice(cycleReleaseInsertIndex + 1, 0, cycleReleasedEntry)
+    } else {
+      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
+    }
   }
 
   return finalizedEntries.map((entry) => adjustPendingHrReviewTimelineEntry(entry))
@@ -770,6 +764,12 @@ function isReleasedStatusHistoryEntry(entry) {
   )
 }
 
+function isCmoCbmoReviewStatusHistoryEntry(entry) {
+  const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+  const stageToken = normalizeStatusHistoryToken(entry?.stage)
+  return actionToken === 'CMO_CBMO_REVIEWED' || stageToken === 'cmo/cbmo reviewed'
+}
+
 function resolveHistoricalReceivedBeforeCurrentUpdateMeta(application) {
   const cycleStart = currentUpdateRequestCycleStartAt.value
   if (!cycleStart) return null
@@ -827,6 +827,24 @@ function pickPreferredReleaseDateValue(application, historyEntry = null) {
   return sortedByNewest[0] || ''
 }
 
+function pickPreferredCmoCbmoReviewDateValue(application, historyEntry = null) {
+  const reviewDateCandidates = [
+    String(application?.cmo_cbmo_reviewed_at || '').trim(),
+    String(application?.cmoCbmoReviewedAt || '').trim(),
+    String(resolveStatusHistoryTimestamp(historyEntry) || '').trim(),
+  ].filter(Boolean)
+  if (!reviewDateCandidates.length) return ''
+
+  const sortedByNewest = [...reviewDateCandidates].sort((left, right) => {
+    const leftTimestamp = toComparableTimestamp(left)
+    const rightTimestamp = toComparableTimestamp(right)
+    if (Number.isNaN(leftTimestamp) || Number.isNaN(rightTimestamp)) return 0
+    return rightTimestamp - leftTimestamp
+  })
+
+  return sortedByNewest[0] || ''
+}
+
 function resolveCurrentReleasedMeta(application) {
   if (!application || typeof application !== 'object') return null
 
@@ -845,6 +863,28 @@ function resolveCurrentReleasedMeta(application) {
   const actor = String(
     application?.released_by ||
       application?.hr_released_by ||
+      resolveStatusHistoryActor(historyEntry) ||
+      '',
+  ).trim()
+
+  return {
+    at,
+    actor: actor || null,
+  }
+}
+
+function resolveCurrentCmoCbmoReviewMeta(application) {
+  if (!application || typeof application !== 'object') return null
+
+  const historyEntry =
+    getStatusHistoryEntries(application).find((entry) => isCmoCbmoReviewStatusHistoryEntry(entry)) ||
+    null
+  const at = pickPreferredCmoCbmoReviewDateValue(application, historyEntry)
+  if (!at) return null
+
+  const actor = String(
+    application?.cmo_cbmo_reviewed_by ||
+      application?.cmoCbmoReviewedBy ||
       resolveStatusHistoryActor(historyEntry) ||
       '',
   ).trim()
@@ -940,7 +980,9 @@ function isHrPhaseEntry(entry) {
   const normalizedTitle = normalizeEntryTitle(entry)
   return (
     normalizedTitle.includes('pending hr review') ||
+    normalizedTitle.includes('hr certification') ||
     normalizedTitle.includes('approved by hr') ||
+    normalizedTitle.includes('cmo/cbmo review') ||
     normalizedTitle.includes('application disapproved') ||
     normalizedTitle.includes('recalled by hr') ||
     normalizedTitle.includes('pending edit review (hr)') ||
@@ -999,22 +1041,29 @@ function getReceivedInsertionIndex(entries) {
   if (isCocApplicationType.value) {
     const pendingHrIndex = entries.findIndex(
       (entry) =>
+        isEntryTitle(entry, 'HR Certification') ||
         isEntryTitle(entry, 'Pending HR Review') ||
         isEntryTitle(entry, 'Pending Edit Review (HR)') ||
         isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
     )
     if (pendingHrIndex >= 0) return pendingHrIndex + 1
 
-    const approvedByHrIndex = entries.findIndex((entry) => isEntryTitle(entry, 'Approved by HR'))
+    const approvedByHrIndex = entries.findIndex(
+      (entry) =>
+        isEntryTitle(entry, 'HR Certification Completed') ||
+        isEntryTitle(entry, 'Approved by HR'),
+    )
     if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
   }
 
   const adminCompletedIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Admin Recommendation Completed') ||
     isEntryTitle(entry, 'Admin Review Completed'),
   )
   if (adminCompletedIndex >= 0) return adminCompletedIndex + 1
 
   const adminPendingIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Admin Recommendation') ||
     isEntryTitle(entry, 'Department Admin Review Pending'),
   )
   if (adminPendingIndex >= 0) return adminPendingIndex + 1
@@ -1026,7 +1075,11 @@ function getReceivedInsertionIndex(entries) {
 }
 
 function getHistoricalReleasedInsertionIndex(entries) {
-  const approvedByHrIndex = entries.findIndex((entry) => isEntryTitle(entry, 'Approved by HR'))
+  const approvedByHrIndex = entries.findIndex(
+    (entry) =>
+      isEntryTitle(entry, 'HR Certification Completed') ||
+      isEntryTitle(entry, 'Approved by HR'),
+  )
   if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
 
   const updateTimelineIndex = entries.findIndex((entry) => isUpdateRequestTimelineEntry(entry))
@@ -1153,7 +1206,8 @@ function buildReceivedTimelineEntry(existingEntry = null) {
 function adjustPendingHrReviewTimelineEntry(entry) {
   if (
     !entry ||
-    (!isEntryTitle(entry, 'Pending HR Review') &&
+    (!isEntryTitle(entry, 'HR Certification') &&
+      !isEntryTitle(entry, 'Pending HR Review') &&
       !isEntryTitle(entry, 'Pending Edit Review (HR)') &&
       !isEntryTitle(entry, 'Pending Cancellation Review (HR)'))
   ) {
@@ -1176,6 +1230,44 @@ function adjustPendingHrReviewTimelineEntry(entry) {
     icon: 'radio_button_unchecked',
     color: 'grey-5',
     actor: undefined,
+  }
+}
+
+function buildCmoCbmoReviewTimelineEntry() {
+  if (isUpdateRequestCycle.value || !props.application) return null
+
+  const rawStatus = getApplicationRawStatusKey(props.application)
+  const shouldShowStage =
+    ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
+    isBackendCmoCbmoReviewState(props.application) ||
+    isReleasedState.value
+  if (!shouldShowStage) return null
+
+  const reviewMeta = resolveCurrentCmoCbmoReviewMeta(props.application)
+  if (isBackendCmoCbmoReviewState(props.application)) {
+    return {
+      title: 'CMO/CBMO Review',
+      subtitle: formatDateTime(reviewMeta?.at) || 'Completed',
+      description: 'Application was cleared for release.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: String(reviewMeta?.actor || '').trim() || undefined,
+    }
+  }
+
+  const isCurrent =
+    rawStatus === 'APPROVED' &&
+    isReceivedState.value &&
+    !isReleasedState.value
+
+  return {
+    title: 'CMO/CBMO Review',
+    subtitle: isCurrent ? 'Current stage' : 'Upcoming',
+    description: isCurrent
+      ? 'Waiting for CMO/CBMO review before release.'
+      : 'This stage starts after HR certification.',
+    icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
+    color: isCurrent ? 'warning' : 'grey-5',
   }
 }
 
@@ -1293,40 +1385,6 @@ function buildHistoricalReleasedTimelineEntry(existingEntry = null) {
   }
 }
 
-function getDefaultClosedTimelineEntry() {
-  return {
-    title: 'Application Closed',
-    subtitle: 'Upcoming',
-    description: 'Application workflow is complete.',
-    icon: 'radio_button_unchecked',
-    color: 'grey-5',
-  }
-}
-
-function buildClosedTimelineEntry(existingEntry = null, disapprovedEntry = null) {
-  const baseEntry = existingEntry ? { ...existingEntry } : getDefaultClosedTimelineEntry()
-  if (disapprovedEntry) {
-    return {
-      ...baseEntry,
-      subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Completed',
-      description: 'Application workflow is complete.',
-      icon: 'task_alt',
-      color: 'positive',
-      actor: String(disapprovedEntry?.actor || '').trim() || undefined,
-    }
-  }
-  if (isReleasedState.value) return baseEntry
-
-  return {
-    ...baseEntry,
-    subtitle: 'Upcoming',
-    description: 'Application will be closed after document release.',
-    icon: 'radio_button_unchecked',
-    color: 'grey-5',
-    actor: undefined,
-  }
-}
-
 function formatDateTime(value) {
   if (!value) return ''
 
@@ -1370,12 +1428,44 @@ function getTimelineEntryIcon(entry) {
   return 'check'
 }
 
+function normalizeRawStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function getApplicationRawStatusKey(application) {
+  return normalizeRawStatusKey(
+    application?.rawStatus || application?.raw_status || application?.status,
+  )
+}
+
+function isTruthyBackendFlag(value) {
+  if (value === true) return true
+  if (value === false || value === null || value === undefined) return false
+  if (typeof value === 'number') return value === 1
+  const normalized = String(value).trim().toLowerCase()
+  return ['1', 'true', 'yes', 'y'].includes(normalized)
+}
+
 function isBackendReceivedState(application) {
   if (typeof props.isApplicationReceivedByHr === 'function') {
     return Boolean(props.isApplicationReceivedByHr(application))
   }
 
   return Boolean(props.isReceived)
+}
+
+function isBackendCmoCbmoReviewState(application) {
+  if (!application) return false
+  if (isBackendReleasedState(application)) return true
+
+  return Boolean(
+    isTruthyBackendFlag(application?.has_cmo_cbmo_reviewed) ||
+      isTruthyBackendFlag(application?.hasCmoCbmoReviewed) ||
+      resolveCurrentCmoCbmoReviewMeta(application),
+  )
 }
 
 function isBackendReleasedState(application) {
