@@ -58,8 +58,9 @@ const queueStagePriority = {
   PENDING_HR_CLASSIFICATION: 4,
   PENDING_ADMIN: 5,
   PENDING_ADMIN_REVIEW: 6,
-  PENDING_RELEASE: 7,
-  PENDING: 8,
+  PENDING_CMO_CBMO_REVIEW: 7,
+  PENDING_RELEASE: 8,
+  PENDING: 9,
 }
 
 function getActualRequestedDayCount(app) {
@@ -1348,8 +1349,11 @@ export function useAdminApplicationsPage() {
     assignBackendAliasIfMissing(normalized, 'released_by', 'releasedBy')
     assignBackendAliasIfMissing(normalized, 'received_at', 'receivedAt')
     assignBackendAliasIfMissing(normalized, 'released_at', 'releasedAt')
+    assignBackendAliasIfMissing(normalized, 'cmo_cbmo_reviewed_by', 'cmoCbmoReviewedBy')
+    assignBackendAliasIfMissing(normalized, 'cmo_cbmo_reviewed_at', 'cmoCbmoReviewedAt')
     assignBackendAliasIfMissing(normalized, 'has_hr_received', 'hasHrReceived')
     assignBackendAliasIfMissing(normalized, 'has_hr_released', 'hasHrReleased')
+    assignBackendAliasIfMissing(normalized, 'has_cmo_cbmo_reviewed', 'hasCmoCbmoReviewed')
     assignBackendAliasIfMissing(normalized, 'queue_group_status', 'queueGroupStatus')
     assignBackendAliasIfMissing(normalized, 'queue_group_priority', 'queueGroupPriority')
     assignBackendAliasIfMissing(normalized, 'queue_stage_key', 'queueStageKey')
@@ -2985,15 +2989,16 @@ export function useAdminApplicationsPage() {
     if (!app || !isCocApplication(app)) return ''
 
     const rawStatus = getApplicationRawStatus(app)
-    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
-    if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
+    if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
+    if (rawStatus === 'PENDING_HR') return 'HR Certification'
     if (rawStatus !== 'APPROVED') return ''
 
     if (isApplicationReleased(app)) {
       return 'Approved'
     }
-    if (isApplicationReceivedByHr(app)) return 'Pending Release'
-    return 'Pending HR Receive'
+    if (isApplicationCmoCbmoReviewed(app)) return 'Release'
+    if (isApplicationReceivedByHr(app)) return 'CMO/CBMO Review'
+    return 'HR Certification'
   }
 
   function normalizeQueueStageKeyToken(value) {
@@ -3033,30 +3038,34 @@ export function useAdminApplicationsPage() {
     if (!app || isCocApplication(app)) return ''
 
     const queueStageKey = getApplicationQueueStageKey(app)
-    if (queueStageKey === 'PENDING_ADMIN') return 'Pending Admin'
-    if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Pending Update Admin Review'
+    if (queueStageKey === 'PENDING_ADMIN') return 'Admin Recommendation'
+    if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Admin Recommendation'
     if (queueStageKey === 'PENDING_HR_RECEIVE') {
-      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'HR Certification'
     }
     if (queueStageKey === 'PENDING_HR_REVIEW') {
-      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'Pending HR Review'
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'HR Certification'
+    }
+    if (queueStageKey === 'PENDING_CMO_CBMO_REVIEW') {
+      return 'CMO/CBMO Review'
     }
     if (queueStageKey === 'PENDING_RELEASE') {
       if (isApplicationReleased(app)) return 'Approved'
-      return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+      return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Release'
     }
 
     const rawStatus = getApplicationRawStatus(app)
-    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+    if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
     if (rawStatus === 'PENDING_HR') {
       if (isApplicationReceivedByHr(app)) {
-        return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'Pending HR Review'
+        return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'HR Certification'
       }
-      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'HR Certification'
     }
     if (rawStatus === 'APPROVED') {
       if (isApplicationReleased(app)) return 'Approved'
-      return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+      if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
+      return isApplicationCmoCbmoReviewed(app) ? 'Release' : 'CMO/CBMO Review'
     }
 
     return ''
@@ -3075,8 +3084,8 @@ export function useAdminApplicationsPage() {
 
     if (rawStatus === 'RECALLED') return 'Recalled'
     if (rawStatus === 'REJECTED') return 'Disapproved'
-    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
-    if (rawStatus === 'PENDING_HR') return 'Pending HR'
+    if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
+    if (rawStatus === 'PENDING_HR') return 'HR Certification'
     if (rawStatus === 'APPROVED') return 'Approved'
 
     if (app?.status) return app.status
@@ -3088,21 +3097,20 @@ export function useAdminApplicationsPage() {
 
     const cocReleaseStageStatus = getCocReleaseStageStatus(app)
     if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 'positive'
-    if (cocReleaseStageStatus === 'Pending Release') return 'indigo-6'
-    if (cocReleaseStageStatus === 'Pending HR Receive') return 'teal-6'
-    if (cocReleaseStageStatus === 'Pending HR Review') return 'blue-6'
-    if (cocReleaseStageStatus === 'Pending Admin') return 'warning'
+    if (cocReleaseStageStatus === 'Release') return 'indigo-6'
+    if (cocReleaseStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
+    if (cocReleaseStageStatus === 'HR Certification') return 'blue-6'
+    if (cocReleaseStageStatus === 'Admin Recommendation') return 'warning'
 
     const rawStatus = getApplicationRawStatus(app)
     const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
-    if (leaveWorkflowStageStatus === 'Pending Admin') return 'warning'
-    if (leaveWorkflowStageStatus === 'Pending Update Admin Review') return 'warning'
+    if (leaveWorkflowStageStatus === 'Admin Recommendation') return 'warning'
     if (leaveWorkflowStageStatus === 'Pending Update Receive') return 'teal-6'
-    if (leaveWorkflowStageStatus === 'Pending HR Receive') return 'teal-6'
     if (leaveWorkflowStageStatus === 'Pending Update HR Review') return 'blue-6'
-    if (leaveWorkflowStageStatus === 'Pending HR Review') return 'blue-6'
+    if (leaveWorkflowStageStatus === 'HR Certification') return 'blue-6'
+    if (leaveWorkflowStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
     if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
-    if (leaveWorkflowStageStatus === 'Pending Release') return 'indigo-6'
+    if (leaveWorkflowStageStatus === 'Release') return 'indigo-6'
     if (leaveWorkflowStageStatus === 'Approved') return 'green'
 
     if (rawStatus === 'PENDING_ADMIN') return 'warning'
@@ -3130,7 +3138,7 @@ export function useAdminApplicationsPage() {
     const stageStatus = getLeaveWorkflowStageStatus(app)
 
     if (status === 'PENDING_ADMIN') {
-      return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Pending Update Admin Review'
+      return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Admin Recommendation'
     }
     if (status === 'PENDING_HR') {
       if (isCancelRequest) {
@@ -3141,7 +3149,7 @@ export function useAdminApplicationsPage() {
       if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
         return stageStatus
       }
-      return 'Pending Update HR Review'
+      return 'HR Certification'
     }
     if (status === 'PENDING') {
       if (isCancelRequest) {
@@ -3207,7 +3215,7 @@ export function useAdminApplicationsPage() {
       return rawStatus === 'APPROVED' || getApplicationStatusLabel(app) === 'Approved'
     }
 
-    return getApplicationStatusLabel(app) !== 'Pending Admin'
+    return getApplicationStatusLabel(app) !== 'Admin Recommendation'
   }
 
   function getDateSearchValues(dateValue) {
@@ -3649,7 +3657,7 @@ export function useAdminApplicationsPage() {
     if (!approvedAt && approvedBy === 'Unknown') return null
 
     return {
-      title: 'Approved by HR',
+      title: 'HR Certification Completed',
       subtitle: approvedAt || 'Completed',
       description: 'Application was approved before the ' + getAdminUpdateRequestReviewNoun(app) + '.',
       icon: 'task_alt',
@@ -3845,7 +3853,7 @@ export function useAdminApplicationsPage() {
     if (rawStatus === 'PENDING_ADMIN') {
       if (hasEditRequest) {
         entries.push({
-          title: 'Admin Review Completed',
+          title: 'Admin Recommendation Completed',
           subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
           description: 'Application was reviewed and forwarded to HR.',
           icon: 'check_circle',
@@ -3867,14 +3875,14 @@ export function useAdminApplicationsPage() {
       }
 
       entries.push({
-        title: 'Department Admin Review Pending',
+        title: 'Admin Recommendation',
         subtitle: 'Current stage',
         description: 'Waiting for department admin approval or disapproval.',
         icon: 'pending_actions',
         color: 'warning',
       })
       entries.push({
-        title: 'Pending HR Review',
+        title: 'HR Certification',
         subtitle: 'Upcoming',
         description: 'This stage starts after department admin approval.',
         icon: 'radio_button_unchecked',
@@ -3899,7 +3907,7 @@ export function useAdminApplicationsPage() {
 
       if (resolveDepartmentAdminActionDateValue(app)) {
         entries.push({
-          title: 'Admin Review Completed',
+          title: 'Admin Recommendation Completed',
           subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
           description: 'Application was reviewed and forwarded to HR.',
           icon: 'check_circle',
@@ -3931,7 +3939,7 @@ export function useAdminApplicationsPage() {
     }
 
     entries.push({
-      title: 'Admin Review Completed',
+      title: 'Admin Recommendation Completed',
       subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
       description: 'Application was reviewed and forwarded to HR.',
       icon: 'check_circle',
@@ -3956,7 +3964,7 @@ export function useAdminApplicationsPage() {
       }
 
       entries.push({
-        title: 'Pending HR Review',
+        title: 'HR Certification',
         subtitle: 'Current stage',
         description: 'Waiting for HR final evaluation and approval.',
         icon: 'pending_actions',
@@ -4008,7 +4016,7 @@ export function useAdminApplicationsPage() {
       const approvedBy = resolveHrActor(app)
 
       entries.push({
-        title: 'Approved by HR',
+        title: 'HR Certification Completed',
         subtitle: approvedAt,
         description: 'Application is fully approved.',
         icon: 'task_alt',
@@ -4037,7 +4045,7 @@ export function useAdminApplicationsPage() {
         entries.push(preEditHrApprovalEntry)
       } else if (approvedAt || approvedBy !== 'Unknown') {
         entries.push({
-          title: 'Approved by HR',
+          title: 'HR Certification Completed',
           subtitle: approvedAt || 'Completed',
           description: 'Application was fully approved before recall.',
           icon: 'task_alt',
@@ -4122,6 +4130,7 @@ export function useAdminApplicationsPage() {
       existingReleasedEntry,
       cycleDisapprovedEntry,
     )
+    const cmoCbmoReviewEntry = buildCmoCbmoReviewTimelineEntry(app)
 
     const receivedInsertEntry = historicalReceivedEntry ||
       (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
@@ -4148,16 +4157,12 @@ export function useAdminApplicationsPage() {
       }
     } else {
       const cycleReleaseInsertIndex = getReleasedTimelineInsertionIndex(finalizedEntries)
-      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
-    }
-
-    const closedEntry = buildClosedTimelineEntry(
-      existingClosedEntries[0] || null,
-      isApplicationReleased(app),
-      cycleDisapprovedEntry,
-    )
-    if (closedEntry) {
-      finalizedEntries.push(closedEntry)
+      if (cmoCbmoReviewEntry) {
+        finalizedEntries.splice(cycleReleaseInsertIndex, 0, cmoCbmoReviewEntry)
+        finalizedEntries.splice(cycleReleaseInsertIndex + 1, 0, cycleReleasedEntry)
+      } else {
+        finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
+      }
     }
 
     return finalizedEntries.map((entry) => adjustPendingHrTimelineEntryForReceive(app, entry))
@@ -4215,7 +4220,9 @@ export function useAdminApplicationsPage() {
     const normalizedTitle = normalizeTimelineEntryTitle(entry)
     return (
       normalizedTitle.includes('pending hr review') ||
+      normalizedTitle.includes('hr certification') ||
       normalizedTitle.includes('approved by hr') ||
+      normalizedTitle.includes('cmo/cbmo review') ||
       normalizedTitle.includes('application disapproved') ||
       normalizedTitle.includes('recalled by hr') ||
       normalizedTitle.includes('pending edit review (hr)') ||
@@ -4275,6 +4282,7 @@ export function useAdminApplicationsPage() {
   function getReceivedTimelineInsertionIndex(app, entries) {
     if (isCocApplication(app)) {
       const pendingHrReviewIndex = entries.findIndex((entry) =>
+        isTimelineEntryTitle(entry, 'HR Certification') ||
         isTimelineEntryTitle(entry, 'Pending HR Review') ||
         isTimelineEntryTitle(entry, 'Pending Edit Review (HR)') ||
         isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)'),
@@ -4282,17 +4290,20 @@ export function useAdminApplicationsPage() {
       if (pendingHrReviewIndex >= 0) return pendingHrReviewIndex + 1
 
       const approvedByHrIndex = entries.findIndex((entry) =>
+        isTimelineEntryTitle(entry, 'HR Certification Completed') ||
         isTimelineEntryTitle(entry, 'Approved by HR'),
       )
       if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
     }
 
     const adminCompletedIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Admin Recommendation Completed') ||
       isTimelineEntryTitle(entry, 'Admin Review Completed'),
     )
     if (adminCompletedIndex >= 0) return adminCompletedIndex + 1
 
     const adminPendingIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Admin Recommendation') ||
       isTimelineEntryTitle(entry, 'Department Admin Review Pending'),
     )
     if (adminPendingIndex >= 0) return adminPendingIndex + 1
@@ -4304,7 +4315,11 @@ export function useAdminApplicationsPage() {
   }
 
   function getHistoricalReleasedTimelineInsertionIndex(entries) {
-    const approvedByHrIndex = entries.findIndex((entry) => isTimelineEntryTitle(entry, 'Approved by HR'))
+    const approvedByHrIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'HR Certification Completed') ||
+        isTimelineEntryTitle(entry, 'Approved by HR'),
+    )
     if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
 
     const updateTimelineIndex = entries.findIndex((entry) => isUpdateRequestTimelineEntry(entry))
@@ -4371,7 +4386,9 @@ export function useAdminApplicationsPage() {
   }
 
   function adjustPendingHrTimelineEntryForReceive(app, entry) {
-    const isPendingHrReviewEntry = isTimelineEntryTitle(entry, 'Pending HR Review')
+    const isPendingHrReviewEntry =
+      isTimelineEntryTitle(entry, 'HR Certification') ||
+      isTimelineEntryTitle(entry, 'Pending HR Review')
     const isPendingEditHrReviewEntry = isTimelineEntryTitle(entry, 'Pending Edit Review (HR)')
     const isPendingCancellationHrReviewEntry = isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)')
     if (!isPendingHrReviewEntry && !isPendingEditHrReviewEntry && !isPendingCancellationHrReviewEntry) return entry
@@ -4446,7 +4463,10 @@ export function useAdminApplicationsPage() {
     const entryTitle = getReleasedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
     const isCoc = isCocApplication(app)
-    const isCocAwaitingRelease = isCoc && isApplicationReceivedByHr(app)
+    const isAwaitingRelease =
+      !hasAdminEditRequestSignal(app) &&
+      isApplicationCmoCbmoReviewed(app) &&
+      !isApplicationReleased(app)
 
     if (disapprovedEntry) {
       return {
@@ -4466,9 +4486,11 @@ export function useAdminApplicationsPage() {
     if (!isApplicationReleased(app)) {
       return {
         title: entryTitle,
-        subtitle: isCocAwaitingRelease ? 'Current stage' : 'Upcoming',
-        description: isCocAwaitingRelease
-          ? 'Waiting for HR to release this COC application.'
+        subtitle: isAwaitingRelease ? 'Current stage' : 'Upcoming',
+        description: isAwaitingRelease
+          ? isCoc
+            ? 'Waiting for HR to release this COC application.'
+            : 'Waiting for HR to release the physical leave document.'
           : isCoc
             ? 'COC application release will follow final HR action.'
           : cycleDocumentLabel
@@ -4476,8 +4498,8 @@ export function useAdminApplicationsPage() {
               ? 'Cancellation form will be released before final closure.'
               : 'Updated leave document will be released before final closure.'
             : 'Physical leave document will be released before final closure.',
-        icon: isCocAwaitingRelease ? 'pending_actions' : 'radio_button_unchecked',
-        color: isCocAwaitingRelease ? 'warning' : 'grey-5',
+        icon: isAwaitingRelease ? 'pending_actions' : 'radio_button_unchecked',
+        color: isAwaitingRelease ? 'warning' : 'grey-5',
       }
     }
 
@@ -4505,13 +4527,40 @@ export function useAdminApplicationsPage() {
     }
   }
 
-  function getDefaultClosedTimelineEntry() {
+  function buildCmoCbmoReviewTimelineEntry(app) {
+    if (!app || hasAdminEditRequestSignal(app)) return null
+
+    const rawStatus = getApplicationRawStatus(app)
+    const shouldShowStage = ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
+      isApplicationCmoCbmoReviewed(app) ||
+      isApplicationReleased(app)
+    if (!shouldShowStage) return null
+
+    if (isApplicationCmoCbmoReviewed(app)) {
+      const reviewedBy = resolveCmoCbmoReviewActor(app)
+      return {
+        title: 'CMO/CBMO Review',
+        subtitle: formatDateTime(resolveCmoCbmoReviewDateValue(app)) || 'Completed',
+        description: 'Application was cleared for release.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: reviewedBy !== 'Unknown' ? reviewedBy : undefined,
+      }
+    }
+
+    const isCurrent =
+      rawStatus === 'APPROVED' &&
+      isApplicationReceivedByHr(app) &&
+      !isApplicationReleased(app)
+
     return {
-      title: 'Application Closed',
-      subtitle: 'Upcoming',
-      description: 'Application workflow is complete.',
-      icon: 'radio_button_unchecked',
-      color: 'grey-5',
+      title: 'CMO/CBMO Review',
+      subtitle: isCurrent ? 'Current stage' : 'Upcoming',
+      description: isCurrent
+        ? 'Waiting for CMO/CBMO review before release.'
+        : 'This stage starts after HR certification.',
+      icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
+      color: isCurrent ? 'warning' : 'grey-5',
     }
   }
 
@@ -4547,30 +4596,6 @@ export function useAdminApplicationsPage() {
     }
   }
 
-  function buildClosedTimelineEntry(existingEntry = null, isReleasedState = false, disapprovedEntry = null) {
-    const baseEntry = existingEntry ? { ...existingEntry } : getDefaultClosedTimelineEntry()
-    if (disapprovedEntry) {
-      return {
-        ...baseEntry,
-        subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Completed',
-        description: 'Application workflow is complete.',
-        icon: 'task_alt',
-        color: 'positive',
-        actor: String(disapprovedEntry?.actor || '').trim() || undefined,
-      }
-    }
-    if (isReleasedState) return baseEntry
-
-    return {
-      ...baseEntry,
-      subtitle: 'Upcoming',
-      description: 'Application will be closed after document release.',
-      icon: 'radio_button_unchecked',
-      color: 'grey-5',
-      actor: undefined,
-    }
-  }
-
   function resolveReceivedHistoryEntry(app) {
     return findLatestStatusHistoryEntry(app, (entry) => {
       const action = String(entry?.action || '')
@@ -4589,6 +4614,17 @@ export function useAdminApplicationsPage() {
         .replace(/[\s-]+/g, '_')
       const stage = String(entry?.stage || '').trim().toLowerCase()
       return action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
+    })
+  }
+
+  function resolveCmoCbmoReviewHistoryEntry(app) {
+    return findLatestStatusHistoryEntry(app, (entry) => {
+      const action = String(entry?.action || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_')
+      const stage = String(entry?.stage || '').trim().toLowerCase()
+      return action === 'CMO_CBMO_REVIEWED' || stage === 'cmo/cbmo reviewed'
     })
   }
 
@@ -4613,6 +4649,14 @@ export function useAdminApplicationsPage() {
     if (directActor) return directActor
 
     const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
+    return historyActor || 'Unknown'
+  }
+
+  function resolveCmoCbmoReviewActor(app) {
+    const directActor = String(app?.cmo_cbmo_reviewed_by || app?.cmoCbmoReviewedBy || '').trim()
+    if (directActor) return directActor
+
+    const historyActor = String(resolveStatusHistoryActor(resolveCmoCbmoReviewHistoryEntry(app)) || '').trim()
     return historyActor || 'Unknown'
   }
 
@@ -4739,6 +4783,14 @@ export function useAdminApplicationsPage() {
     )
   }
 
+  function resolveCmoCbmoReviewDateValue(app) {
+    return pickLatestTimestampValue(
+      app?.cmo_cbmo_reviewed_at || null,
+      app?.cmoCbmoReviewedAt || null,
+      resolveStatusHistoryTimestamp(resolveCmoCbmoReviewHistoryEntry(app)) || null,
+    )
+  }
+
   function isApplicationReceivedByHr(app) {
     if (!app) return false
 
@@ -4765,6 +4817,19 @@ export function useAdminApplicationsPage() {
     }
 
     return Boolean(app?.has_hr_released || resolveReleasedHistoryEntry(app) || releasedAt)
+  }
+
+  function isApplicationCmoCbmoReviewed(app) {
+    if (!app) return false
+    if (isApplicationReleased(app)) return true
+
+    const reviewedAt = resolveCmoCbmoReviewDateValue(app)
+    return Boolean(
+      app?.has_cmo_cbmo_reviewed ||
+        app?.hasCmoCbmoReviewed ||
+        resolveCmoCbmoReviewHistoryEntry(app) ||
+        reviewedAt,
+    )
   }
 
   function getTimelineEntryTone(entry) {
@@ -4962,7 +5027,7 @@ export function useAdminApplicationsPage() {
     const rawStatus = getApplicationRawStatus(app)
     if (rawStatus === 'RECALLED') return 'RECALLED'
     if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return 'REJECTED'
-    if (rawStatus === 'APPROVED') return 'APPROVED'
+    if (rawStatus === 'APPROVED') return isApplicationReleased(app) ? 'APPROVED' : 'PENDING'
     if (rawStatus.includes('PENDING')) return 'PENDING'
 
     const groupedRawStatus = getApplicationGroupedRawStatus(app)
@@ -5004,7 +5069,9 @@ export function useAdminApplicationsPage() {
         : queueStagePriority.PENDING_HR_RECEIVE
     }
     if (rawStatus === 'APPROVED' && !isApplicationReleased(app)) {
-      return queueStagePriority.PENDING_RELEASE
+      return isApplicationCmoCbmoReviewed(app)
+        ? queueStagePriority.PENDING_RELEASE
+        : queueStagePriority.PENDING_CMO_CBMO_REVIEW
     }
     if (rawStatus.includes('PENDING')) return queueStagePriority.PENDING
 

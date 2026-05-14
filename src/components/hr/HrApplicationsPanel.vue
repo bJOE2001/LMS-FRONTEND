@@ -241,6 +241,19 @@
               <q-tooltip>Approve</q-tooltip>
             </q-btn>
             <q-btn
+              v-if="canShowCmoCbmoReviewAction(props.row)"
+              flat
+              dense
+              round
+              size="sm"
+              icon="check_circle"
+              color="deep-purple-6"
+              :disable="releaseLoading"
+              @click.stop="markApplicationCmoCbmoReviewed(props.row)"
+            >
+              <q-tooltip>Approve CMO/CBMO Review</q-tooltip>
+            </q-btn>
+            <q-btn
               v-if="canShowPendingReleaseAction(props.row)"
               flat
               dense
@@ -913,7 +926,7 @@ export default defineComponent({
 
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
-        (stageStatus === 'Pending Release' || stageStatus === 'Pending Update Release') &&
+        (stageStatus === 'Release' || stageStatus === 'Pending Update Release') &&
         panel.canReleaseApplication(app)
       )
     }
@@ -921,8 +934,15 @@ export default defineComponent({
     function canShowPendingReceiveAction(app) {
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
-        (stageStatus === 'Pending HR Receive' || stageStatus === 'Pending Update Receive') &&
+        (stageStatus === 'HR Certification' || stageStatus === 'Pending Update Receive') &&
         panel.canReceiveApplication(app)
+      )
+    }
+
+    function canShowCmoCbmoReviewAction(app) {
+      return (
+        panel.getApplicationStatusLabel(app) === 'CMO/CBMO Review' &&
+        panel.canCmoCbmoReviewApplication(app)
       )
     }
 
@@ -958,6 +978,7 @@ export default defineComponent({
       ...panel,
       canShowCocCertificatePrintAction,
       canOpenCalendarPreview,
+      canShowCmoCbmoReviewAction,
       canShowPendingReleaseAction,
       canShowPendingReceiveAction,
       canShowHrReviewDecisionActions,

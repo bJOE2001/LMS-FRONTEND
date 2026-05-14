@@ -19,6 +19,150 @@ pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 // ─── helpers ───────────────────────────────────────────────────────────────
 const BOX_SIZE = 7
 const BOX_LW = 0.5
+const HEADER_BAR_COLOR = '#0f6b3a'
+
+function toBase64(url) {
+  return fetch(url)
+    .then((response) => response.blob())
+    .then(
+      (blob) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        }),
+    )
+}
+
+function buildCocStyleLeaveHeader(logoBase64, borderWidth) {
+  const compactHeaderBarHeight = 17
+  const compactSmallBarTopOffset = 33
+  const compactHeaderTextLeftInset = 6
+  const compactHeaderTextSize = 10
+  const receiptStampBarGap = 4
+  const receiptStampHeight = compactSmallBarTopOffset - receiptStampBarGap
+  const smallHeaderBarTopOffset = compactSmallBarTopOffset + receiptStampBarGap
+  const compactOfficeBandPaddingTop = Math.max(
+    0,
+    Math.floor((compactHeaderBarHeight - compactHeaderTextSize) / 2),
+  )
+
+  return {
+    columns: [
+      {
+        width: 28,
+        margin: [0, smallHeaderBarTopOffset, 8, 0],
+        canvas: [
+          {
+            type: 'rect',
+            x: 0,
+            y: 0,
+            w: 22,
+            h: compactHeaderBarHeight,
+            color: HEADER_BAR_COLOR,
+          },
+        ],
+      },
+      logoBase64
+        ? { width: 78, image: logoBase64, fit: [72, 72], margin: [0, -1, 8, 0] }
+        : { width: 78, text: '' },
+      {
+        width: '*',
+        stack: [
+          {
+            columns: [
+              {
+                width: '*',
+                stack: [
+                  {
+                    text: 'REPUBLIC OF THE PHILIPPINES',
+                    fontSize: 7,
+                    bold: false,
+                    lineHeight: 1,
+                    margin: [compactHeaderTextLeftInset, 0, 0, 0],
+                  },
+                  {
+                    text: 'PROVINCE OF DAVAO DEL NORTE',
+                    fontSize: 7,
+                    bold: false,
+                    lineHeight: 1,
+                    margin: [compactHeaderTextLeftInset, 0, 0, 0],
+                  },
+                  {
+                    text: 'CITY OF TAGUM',
+                    fontSize: 14,
+                    bold: true,
+                    lineHeight: 1,
+                    margin: [compactHeaderTextLeftInset, 0, 0, 0],
+                  },
+                ],
+              },
+              {
+                width: 100,
+                table: {
+                  widths: ['*'],
+                  heights: [receiptStampHeight],
+                  body: [
+                    [
+                      {
+                        text: 'Stamp of Date of Receipt',
+                        fontSize: 7,
+                        alignment: 'center',
+                        margin: [2, 8, 2, 0],
+                      },
+                    ],
+                  ],
+                },
+                layout: {
+                  hLineWidth: () => borderWidth,
+                  vLineWidth: () => borderWidth,
+                  hLineColor: () => '#000',
+                  vLineColor: () => '#000',
+                  paddingLeft: () => 0,
+                  paddingRight: () => 0,
+                  paddingTop: () => 0,
+                  paddingBottom: () => 0,
+                },
+              },
+            ],
+            columnGap: 0,
+            margin: [0, 0, 0, receiptStampBarGap],
+          },
+          {
+            table: {
+              widths: ['*'],
+              heights: [compactHeaderBarHeight],
+              body: [
+                [
+                  {
+                    text: 'CITY HUMAN RESOURCE MANAGEMENT OFFICE',
+                    color: '#ffffff',
+                    bold: true,
+                    alignment: 'left',
+                    fontSize: compactHeaderTextSize,
+                    fillColor: HEADER_BAR_COLOR,
+                    margin: [compactHeaderTextLeftInset, compactOfficeBandPaddingTop, 4, 0],
+                  },
+                ],
+              ],
+            },
+            layout: {
+              hLineWidth: () => 0,
+              vLineWidth: () => 0,
+              paddingLeft: () => 0,
+              paddingRight: () => 0,
+              paddingTop: () => 0,
+              paddingBottom: () => 0,
+            },
+          },
+        ],
+      },
+    ],
+    columnGap: 0,
+    margin: [0, 0, 0, 4],
+  }
+}
 
 /** Draw a checkbox (empty or checked) + label as a row for the PDF. */
 function checkboxRow(checked, label, opts = {}) {
@@ -283,6 +427,29 @@ function fmtSalary(val) {
     maximumFractionDigits: 2,
   })
   return `₱ ${formatted}`
+}
+
+function underlinedInfoValue(value, opts = {}) {
+  const textValue = String(value || '').trim()
+  return {
+    text: textValue || ' ',
+    fontSize: opts.fontSize ?? 9,
+    bold: opts.bold ?? true,
+    color: '#000000',
+    lineHeight: opts.lineHeight ?? 1.05,
+    decoration: textValue ? 'underline' : undefined,
+    margin: opts.margin ?? [0, 3, 0, 0],
+    noWrap: Boolean(opts.noWrap),
+  }
+}
+
+function getSingleLineInfoFontSize(value) {
+  const length = String(value || '').trim().length
+  if (length > 60) return 6.6
+  if (length > 50) return 7.2
+  if (length > 40) return 7.8
+  if (length > 32) return 8.4
+  return 9
 }
 
 /** Format leave credit number for 7.A table (empty if null/undefined). */
@@ -1437,6 +1604,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const inclusiveDates = resolveInclusiveDatesLabel(app)
   const b = 0.5 // border width
   const name = parseName(app)
+  const position = String(app?.position || '').trim()
+  const positionFontSize = getSingleLineInfoFontSize(position)
   const recommendationSignatory = getRecommendationSignatory(app)
   const chrmoLeaveInChargeSignatory = getChrmoLeaveInChargeSignatory(app)
   const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
@@ -1465,6 +1634,12 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showBarReview = isStudy && studyDetail === 'BAR Review'
   const showMonetizationPurpose = isMonetization || otherPurpose === 'Monetization'
   const showTerminalPurpose = otherPurpose === 'Terminal Leave'
+  let logoBase64 = null
+  try {
+    logoBase64 = await toBase64('/images/CityOfTagumLogo.png')
+  } catch {
+    logoBase64 = null
+  }
 
   const docDefinition = {
     pageSize: 'A4',
@@ -1472,64 +1647,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
 
     content: [
       // ═══ TOP HEADER ═══
-      {
-        columns: [
-          {
-            width: 100,
-            stack: [
-              { text: 'Civil Service Form No. 6', fontSize: 7, italics: true, color: '#333' },
-              { text: 'Revised 2020', fontSize: 7, italics: true, color: '#333' },
-            ],
-          },
-          {
-            width: '*',
-            stack: [
-              {
-                text: 'Republic of the Philippines',
-                fontSize: 9,
-                italics: true,
-                alignment: 'center',
-              },
-              {
-                text: 'Province of Davao del Norte',
-                fontSize: 9,
-                italics: true,
-                alignment: 'center',
-              },
-              { text: 'CITY GOVERNMENT OF TAGUM', fontSize: 10, bold: true, alignment: 'center' },
-              {
-                text: 'JV Ayala Avenue, Apokon, Tagum City',
-                fontSize: 8,
-                italics: true,
-                alignment: 'center',
-              },
-            ],
-          },
-          {
-            width: 100,
-            table: {
-              widths: ['*'],
-              body: [
-                [
-                  {
-                    text: 'Stamp of Date of Receipt',
-                    fontSize: 7,
-                    alignment: 'center',
-                    margin: [2, 8, 2, 8],
-                  },
-                ],
-              ],
-            },
-            layout: {
-              hLineWidth: () => b,
-              vLineWidth: () => b,
-              hLineColor: () => '#000',
-              vLineColor: () => '#000',
-            },
-          },
-        ],
-        margin: [0, 0, 0, 4],
-      },
+      buildCocStyleLeaveHeader(logoBase64, b),
 
       // Title
       {
@@ -1549,14 +1667,10 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
               {
                 stack: [
                   { text: '1.  OFFICE/DEPARTMENT:', bold: true, fontSize: 8 },
-                  {
-                    text: office,
+                  underlinedInfoValue(office, {
                     fontSize: officeFontSize,
-                    bold: true,
-                    decoration: 'underline',
-                    lineHeight: 1.05,
                     margin: [0, 4, 0, 0],
-                  },
+                  }),
                 ],
                 border: [true, true, false, true],
                 margin: [8, 8],
@@ -1566,41 +1680,75 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                   widths: ['auto', '*', '*', '*'],
                   body: [
                     [
-                      { text: '2. NAME:', bold: true, fontSize: 8, margin: [0, 0, 12, 0] },
-                      { text: '(Lastname)', fontSize: 7, color: '#666', margin: [0, 0, 0, 0] },
-                      { text: '(Firstname)', fontSize: 7, color: '#666', margin: [0, 0, 0, 0] },
-                      { text: '(Middlename)', fontSize: 7, color: '#666', margin: [0, 0, 0, 0] },
+                      {
+                        text: '2. NAME:',
+                        bold: true,
+                        fontSize: 8,
+                        margin: [0, 0, 12, 0],
+                        border: [false, false, false, false],
+                      },
+                      {
+                        text: '(Lastname)',
+                        fontSize: 7,
+                        color: '#666',
+                        margin: [0, 0, 0, 0],
+                        border: [false, false, false, false],
+                      },
+                      {
+                        text: '(Firstname)',
+                        fontSize: 7,
+                        color: '#666',
+                        margin: [0, 0, 0, 0],
+                        border: [false, false, false, false],
+                      },
+                      {
+                        text: '(Middlename)',
+                        fontSize: 7,
+                        color: '#666',
+                        margin: [0, 0, 0, 0],
+                        border: [false, false, false, false],
+                      },
                     ],
                     [
-                      { text: '', margin: [0, 4, 12, 0] },
+                      { text: '', margin: [0, 4, 12, 0], border: [false, false, false, false] },
                       {
                         text: name.last,
                         fontSize: 9,
                         bold: true,
-                        decoration: 'underline',
                         color: '#000000',
+                        decoration: name.last ? 'underline' : undefined,
                         margin: [0, 0, 0, 0],
+                        border: [false, false, false, false],
                       },
                       {
                         text: name.first,
                         fontSize: 9,
                         bold: true,
-                        decoration: 'underline',
                         color: '#000000',
+                        decoration: name.first ? 'underline' : undefined,
                         margin: [0, 0, 0, 0],
+                        border: [false, false, false, false],
                       },
                       {
                         text: name.middle,
                         fontSize: 9,
                         bold: true,
-                        decoration: 'underline',
                         color: '#000000',
+                        decoration: name.middle ? 'underline' : undefined,
                         margin: [0, 0, 0, 0],
+                        border: [false, false, false, false],
                       },
                     ],
                   ],
                 },
-                layout: 'noBorders',
+                layout: {
+                  hLineWidth: () => 0,
+                  vLineWidth: () => 0,
+                  paddingLeft: () => 0,
+                  paddingRight: () => 0,
+                  paddingTop: () => 0,
+                  paddingBottom: () => 0,
+                },
                 border: [false, true, true, true],
                 margin: [8, 8],
               },
@@ -1616,39 +1764,38 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
       },
       {
         table: {
-          widths: ['38%', '31%', '31%'],
+          widths: ['26%', '52%', '22%'],
           body: [
             [
               {
-                text: [
-                  { text: '3.  DATE OF FILING: ', bold: true, fontSize: 8 },
-                  {
-                    text: fmtDateLong(app.date_filed),
-                    fontSize: 9,
-                    bold: true,
-                    decoration: 'underline',
-                  },
+                stack: [
+                  { text: '3.  DATE OF FILING:', bold: true, fontSize: 8 },
+                  underlinedInfoValue(fmtDateLong(app.date_filed), {
+                    margin: [0, 4, 0, 0],
+                  }),
                 ],
                 border: [true, false, false, true],
                 margin: [8, 8],
               },
               {
-                text: [
-                  { text: '4.  POSITION: ', bold: true, fontSize: 8 },
-                  {
-                    text: app?.position || '',
-                    fontSize: 9,
-                    bold: true,
-                    decoration: 'underline',
-                  },
+                stack: [
+                  { text: '4.  POSITION:', bold: true, fontSize: 8 },
+                  underlinedInfoValue(position, {
+                    fontSize: positionFontSize,
+                    margin: [0, 4, 0, 0],
+                    noWrap: true,
+                  }),
                 ],
                 border: [false, false, false, true],
                 margin: [8, 8],
               },
               {
-                text: [
-                  { text: '5.  SALARY: ', bold: true, fontSize: 8 },
-                  { text: fmtSalary(app.salary), fontSize: 9, bold: true, decoration: 'underline' },
+                stack: [
+                  { text: '5.  SALARY:', bold: true, fontSize: 8 },
+                  underlinedInfoValue(fmtSalary(app.salary), {
+                    margin: [0, 4, 0, 0],
+                    noWrap: true,
+                  }),
                 ],
                 border: [false, false, true, true],
                 margin: [8, 8],
