@@ -24,6 +24,10 @@ const color = computed(() => {
   if (!normalized) return 'grey'
 
   if (normalized.includes('PENDING') && normalized.includes('LATE')) return 'orange-8'
+  if (normalized.includes('ADMIN RECOMMENDATION')) return 'warning'
+  if (normalized.includes('HR CERTIFICATION')) return 'blue-6'
+  if (normalized.includes('CMO') || normalized.includes('CBMO')) return 'deep-purple-6'
+  if (normalized === 'RELEASE' || normalized.includes('PENDING RELEASE')) return 'indigo-6'
   if (normalized.includes('PENDING ADMIN')) return 'warning'
   if (normalized.includes('PENDING HR RECEIVE')) return 'teal-6'
   if (normalized.includes('PENDING HR REVIEW')) return 'blue-6'
