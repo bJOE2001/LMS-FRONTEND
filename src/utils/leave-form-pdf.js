@@ -136,7 +136,7 @@ function buildCocStyleLeaveHeader(logoBase64, borderWidth) {
               body: [
                 [
                   {
-                    text: 'CITY HUMAN RESOURCE MANAGEMENT OFFICE',
+                    text: 'CITY GOVERMENT OF TAGUM',
                     color: '#ffffff',
                     bold: true,
                     alignment: 'left',
@@ -395,7 +395,9 @@ function isNameSuffix(value) {
 }
 
 function formatSignatoryNameWithMiddleInitial(value) {
-  const rawName = String(value || '').trim().replace(/\s+/g, ' ')
+  const rawName = String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
   if (!rawName) return ''
 
   if (rawName.includes(',')) {
@@ -554,7 +556,9 @@ function getLeaveBalanceTypeKey(value) {
 }
 
 function resolveCertificationSelectedTypeKey(typeKey) {
-  const normalizedTypeKey = String(typeKey || '').trim().toLowerCase()
+  const normalizedTypeKey = String(typeKey || '')
+    .trim()
+    .toLowerCase()
   if (!normalizedTypeKey) return ''
 
   const forcedLeaveKey = getLeaveBalanceTypeKey('Mandatory / Forced Leave')

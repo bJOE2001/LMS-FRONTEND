@@ -3,7 +3,10 @@ import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
-import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
+import {
+  generateCocApplicationPdf,
+  isReviewedCocApplicationPrintable,
+} from 'src/utils/coc-form-pdf'
 import { generateRequestChangesApprovedLeavePdf } from 'src/utils/request-changes-approved-leave-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { printAdminApplicationsPdf } from 'src/utils/admin-applications-pdf'
@@ -91,7 +94,13 @@ export function useAdminApplicationsPage() {
   const route = useRoute()
 
   const columns = [
-    { name: 'employee', label: 'Employee', align: 'left' },
+    {
+      name: 'employee',
+      label: 'Employee',
+      align: 'left',
+      style: 'width: 18%',
+      headerStyle: 'width: 18%',
+    },
     {
       name: 'leaveType',
       label: 'Leave Type',
@@ -100,43 +109,47 @@ export function useAdminApplicationsPage() {
         return formatMonetizationLeaveTypeLabel(leaveTypeLabel, row?.is_monetization)
       },
       align: 'left',
+      style: 'width: 16%',
+      headerStyle: 'width: 16%',
     },
     {
       name: 'dateFiled',
       label: 'Date Filed',
       field: 'dateFiled',
       align: 'left',
+      style: 'width: 12%',
+      headerStyle: 'width: 12%',
     },
     {
       name: 'inclusiveDates',
       label: 'Inclusive Dates',
-      field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row),
+      field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationLabel(row)),
       align: 'left',
-    },
-    {
-      name: 'leaveBalance',
-      label: 'Leave Balance',
-      field: 'leave_balance',
-      align: 'left',
+      style: 'width: 15%',
+      headerStyle: 'width: 15%',
     },
     {
       name: 'days',
       label: 'Duration',
-      field: (row) => row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row),
+      field: (row) => (row?.is_monetization ? 'N/A' : getApplicationDurationDisplay(row)),
       align: 'center',
+      style: 'width: 9%',
+      headerStyle: 'width: 9%',
     },
     {
       name: 'status',
       label: 'Status',
       field: 'status',
       align: 'left',
+      style: 'width: 16%',
+      headerStyle: 'width: 16%',
     },
     {
       name: 'actions',
       label: 'Actions',
       align: 'center',
-      style: 'width: 228px',
-      headerStyle: 'width: 228px',
+      style: 'width: 14%',
+      headerStyle: 'width: 14%',
     },
   ]
 
@@ -214,7 +227,8 @@ export function useAdminApplicationsPage() {
 
   const leaveApplicationRows = computed(() =>
     (applicationRows.value ?? []).filter(
-      (application) => !isCocApplication(application) && application?.application_row_variant !== 'recalled',
+      (application) =>
+        !isCocApplication(application) && application?.application_row_variant !== 'recalled',
     ),
   )
 
@@ -259,7 +273,8 @@ export function useAdminApplicationsPage() {
     const applicationState = getApplicationCalendarState(application)
     const requestUpdateDates = getApplicationRequestUpdateCalendarDates(application)
     const applicationDates = getApplicationCalendarPreviewDates(application)
-    if ((!applicationState && requestUpdateDates.length === 0) || applicationDates.length === 0) return []
+    if ((!applicationState && requestUpdateDates.length === 0) || applicationDates.length === 0)
+      return []
 
     return [application]
   })
@@ -366,32 +381,28 @@ export function useAdminApplicationsPage() {
   }
 
   async function fetchWorkflowDetailSnapshotsForStageSensitiveRows(applications = []) {
-    const stageSensitiveRows = (Array.isArray(applications) ? applications : []).filter((application) => {
-      if (!application || typeof application !== 'object') return false
-      if (isCocApplication(application)) return false
-      if (!hasAdminEditRequestSignal(application)) return false
+    const stageSensitiveRows = (Array.isArray(applications) ? applications : []).filter(
+      (application) => {
+        if (!application || typeof application !== 'object') return false
+        if (isCocApplication(application)) return false
+        if (!hasAdminEditRequestSignal(application)) return false
 
-      const rawStatus = getApplicationRawStatus(application)
-      if (rawStatus !== 'PENDING_HR' && rawStatus !== 'APPROVED') return false
+        const rawStatus = getApplicationRawStatus(application)
+        if (rawStatus !== 'PENDING_HR' && rawStatus !== 'APPROVED') return false
 
-      const id = String(
-        application?.id ??
-          application?.application_id ??
-          application?.leave_application_id ??
-          '',
-      ).trim()
+        const id = String(
+          application?.id ?? application?.application_id ?? application?.leave_application_id ?? '',
+        ).trim()
 
-      return Boolean(id)
-    })
+        return Boolean(id)
+      },
+    )
 
     if (!stageSensitiveRows.length) return []
 
     const detailRequests = stageSensitiveRows.map(async (application) => {
       const id = String(
-        application?.id ??
-          application?.application_id ??
-          application?.leave_application_id ??
-          '',
+        application?.id ?? application?.application_id ?? application?.leave_application_id ?? '',
       ).trim()
       if (!id) return null
 
@@ -412,11 +423,12 @@ export function useAdminApplicationsPage() {
   async function fetchApplications() {
     loading.value = true
     try {
-      const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] = await Promise.all([
-        api.get('/admin/dashboard').catch(() => null),
-        api.get('/admin/leave-applications').catch(() => null),
-        api.get('/admin/coc-applications').catch(() => null),
-      ])
+      const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] =
+        await Promise.all([
+          api.get('/admin/dashboard').catch(() => null),
+          api.get('/admin/leave-applications').catch(() => null),
+          api.get('/admin/coc-applications').catch(() => null),
+        ])
 
       const mergedApplications = mergeApplications(
         extractApplicationsFromPayload(dashboardResponse?.data),
@@ -433,9 +445,10 @@ export function useAdminApplicationsPage() {
         normalizedMergedApplications,
       )
 
-      const mergedApplicationsWithWorkflowSnapshots = workflowDetailSnapshots.length > 0
-        ? mergeApplications(normalizedMergedApplications, workflowDetailSnapshots)
-        : normalizedMergedApplications
+      const mergedApplicationsWithWorkflowSnapshots =
+        workflowDetailSnapshots.length > 0
+          ? mergeApplications(normalizedMergedApplications, workflowDetailSnapshots)
+          : normalizedMergedApplications
 
       applicationRows.value = expandApplicationsForDisplay(
         mergedApplicationsWithWorkflowSnapshots.map((application) =>
@@ -446,7 +459,9 @@ export function useAdminApplicationsPage() {
       const selectedRowKey = getApplicationRowKey(selectedApp.value)
       const selectedId = Number(selectedApp.value?.id)
       const refreshedSelectedApp = selectedRowKey
-        ? applicationRows.value.find((application) => getApplicationRowKey(application) === selectedRowKey)
+        ? applicationRows.value.find(
+            (application) => getApplicationRowKey(application) === selectedRowKey,
+          )
         : Number.isFinite(selectedId)
           ? applicationRows.value.find((application) => Number(application?.id) === selectedId)
           : null
@@ -497,7 +512,9 @@ export function useAdminApplicationsPage() {
   }
 
   function normalizeDurationUnit(value) {
-    const normalized = String(value || '').trim().toLowerCase()
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase()
     if (normalized.startsWith('hour')) return 'hour'
     if (normalized.startsWith('day')) return 'day'
     return ''
@@ -533,7 +550,10 @@ export function useAdminApplicationsPage() {
     const netMinutes = Math.max(0, Math.round(rawMinutes) - breakMinutes)
     const wholeHoursMinutes = Math.floor(netMinutes / 60) * 60
     const excessMinutes = netMinutes % 60
-    return Math.min(ctoStandardDayHours * 60, wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0))
+    return Math.min(
+      ctoStandardDayHours * 60,
+      wholeHoursMinutes + (excessMinutes >= 20 ? excessMinutes : 0),
+    )
   }
 
   function getCocBaseCreditableDisplay(app) {
@@ -542,9 +562,7 @@ export function useAdminApplicationsPage() {
     const rows = Array.isArray(app?.rows) ? app.rows : []
     if (rows.length) {
       const totalCreditableMinutes = rows.reduce((total, row) => {
-        const explicitCreditableMinutes = Number(
-          row?.creditable_minutes ?? row?.creditableMinutes,
-        )
+        const explicitCreditableMinutes = Number(row?.creditable_minutes ?? row?.creditableMinutes)
 
         if (Number.isFinite(explicitCreditableMinutes) && explicitCreditableMinutes >= 0) {
           return total + Math.round(explicitCreditableMinutes)
@@ -552,9 +570,9 @@ export function useAdminApplicationsPage() {
 
         const rawMinutes = Number(
           row?.no_of_hours_and_minutes ??
-          row?.minutes ??
-          row?.total_no_of_coc_applied_minutes ??
-          row?.totalNoOfCocAppliedMinutes,
+            row?.minutes ??
+            row?.total_no_of_coc_applied_minutes ??
+            row?.totalNoOfCocAppliedMinutes,
         )
         const breakMinutes = Number(row?.break_minutes ?? row?.breakMinutes ?? 0)
 
@@ -566,9 +584,9 @@ export function useAdminApplicationsPage() {
 
     const rawMinutes = Number(
       app?.total_no_of_coc_applied_minutes ??
-      app?.totalNoOfCocAppliedMinutes ??
-      app?.total_minutes ??
-      app?.totalMinutes,
+        app?.totalNoOfCocAppliedMinutes ??
+        app?.total_minutes ??
+        app?.totalMinutes,
     )
 
     if (Number.isFinite(rawMinutes) && rawMinutes >= 0) {
@@ -586,9 +604,9 @@ export function useAdminApplicationsPage() {
 
     const rawMinutes = Number(
       app?.total_no_of_coc_applied_minutes ??
-      app?.totalNoOfCocAppliedMinutes ??
-      app?.total_minutes ??
-      app?.totalMinutes,
+        app?.totalNoOfCocAppliedMinutes ??
+        app?.total_minutes ??
+        app?.totalMinutes,
     )
 
     if (Number.isFinite(rawMinutes) && rawMinutes >= 0) {
@@ -611,7 +629,9 @@ export function useAdminApplicationsPage() {
       return formatHoursAndMinutesDisplay(creditedHours)
     }
 
-    const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '').trim().toUpperCase()
+    const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '')
+      .trim()
+      .toUpperCase()
     if (rawStatus === 'PENDING_HR' || rawStatus === 'PENDING_ADMIN') {
       return 'Pending HR classification'
     }
@@ -653,7 +673,11 @@ export function useAdminApplicationsPage() {
   function getApplicationDurationDisplay(app) {
     if (isCocApplication(app)) {
       const creditedDisplay = getCocCreditedHoursDisplay(app)
-      if (creditedDisplay && creditedDisplay !== 'Pending HR classification' && creditedDisplay !== 'N/A') {
+      if (
+        creditedDisplay &&
+        creditedDisplay !== 'Pending HR classification' &&
+        creditedDisplay !== 'N/A'
+      ) {
         return creditedDisplay
       }
 
@@ -662,7 +686,8 @@ export function useAdminApplicationsPage() {
 
     if (!isCocApplication(app) && !app?.is_monetization) {
       const storedRecallDateKeys = getStoredRecallDateKeys(app)
-      const shouldUseVisibleDuration = storedRecallDateKeys.length > 0 || app?.application_row_variant === 'recalled'
+      const shouldUseVisibleDuration =
+        storedRecallDateKeys.length > 0 || app?.application_row_variant === 'recalled'
       const visibleDateSet = getVisibleDateSetForDisplay(app)
       if (shouldUseVisibleDuration && visibleDateSet.length) {
         const visibleDays = getDateSubsetTotalDays(app, visibleDateSet)
@@ -738,7 +763,9 @@ export function useAdminApplicationsPage() {
   }
 
   function normalizeApplicationType(value) {
-    const normalized = String(value || '').trim().toUpperCase()
+    const normalized = String(value || '')
+      .trim()
+      .toUpperCase()
     if (normalized === 'COC') return 'COC'
     if (normalized === 'LEAVE') return 'LEAVE'
     return ''
@@ -868,10 +895,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationEmployeeLookupCandidates(application) {
-    return [
-      application?.employee_control_no,
-      application?.employee?.control_no,
-    ]
+    return [application?.employee_control_no, application?.employee?.control_no]
       .map((value) => normalizeLookupValue(value))
       .filter(Boolean)
   }
@@ -976,7 +1000,10 @@ export function useAdminApplicationsPage() {
   function mergeApplicationRecords(existingApplication, incomingApplication) {
     if (!existingApplication) return incomingApplication
 
-    const preferredApplication = choosePreferredApplication(existingApplication, incomingApplication)
+    const preferredApplication = choosePreferredApplication(
+      existingApplication,
+      incomingApplication,
+    )
     if (preferredApplication === incomingApplication) {
       return {
         ...existingApplication,
@@ -1001,7 +1028,10 @@ export function useAdminApplicationsPage() {
       }
       const key = getApplicationMergeKey(normalizedApplication, index)
       const existingApplication = mergedApplications.get(key)
-      mergedApplications.set(key, mergeApplicationRecords(existingApplication, normalizedApplication))
+      mergedApplications.set(
+        key,
+        mergeApplicationRecords(existingApplication, normalizedApplication),
+      )
     })
 
     return Array.from(mergedApplications.values())
@@ -1030,8 +1060,9 @@ export function useAdminApplicationsPage() {
       return
     }
 
-    localSubmittedApplicationOverrides.value = localSubmittedApplicationOverrides.value.map((item, index) =>
-      index === existingIndex ? mergeApplicationRecords(item, normalizedApplication) : item,
+    localSubmittedApplicationOverrides.value = localSubmittedApplicationOverrides.value.map(
+      (item, index) =>
+        index === existingIndex ? mergeApplicationRecords(item, normalizedApplication) : item,
     )
   }
 
@@ -1096,10 +1127,7 @@ export function useAdminApplicationsPage() {
   function resolveAdminUpdateRequestActionTypeFromPayload(payload) {
     if (!payload || typeof payload !== 'object') return ''
 
-    const candidates = [
-      payload?.action_type,
-      payload?.request_kind,
-    ]
+    const candidates = [payload?.action_type, payload?.request_kind]
 
     for (const candidate of candidates) {
       const normalized = normalizeAdminUpdateRequestActionTypeToken(candidate)
@@ -1151,8 +1179,7 @@ export function useAdminApplicationsPage() {
 
   function getAdminLatestUpdateRequestStatus(app) {
     const explicitStatus = normalizeAdminUpdateRequestStatus(
-      app?.latest_update_request_status ??
-        '',
+      app?.latest_update_request_status ?? '',
     )
     const historyDecisionStatus = resolveAdminUpdateRequestStatusFromHistory(app)
 
@@ -1187,10 +1214,10 @@ export function useAdminApplicationsPage() {
   function resolveAdminUpdateRequestStatusFromHistory(app) {
     const hasUpdateRequestContext = Boolean(
       app?.latest_update_requested_at ||
-        app?.latest_update_request_payload ||
-        app?.pending_update ||
-        app?.latest_update_request_action_type ||
-        app?.pending_update_action_type,
+      app?.latest_update_request_payload ||
+      app?.pending_update ||
+      app?.latest_update_request_action_type ||
+      app?.pending_update_action_type,
     )
     const entries = getStatusHistoryEntries(app)
     for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -1227,8 +1254,7 @@ export function useAdminApplicationsPage() {
 
       if (
         ['ADMIN_REJECTED', 'HR_REJECTED'].includes(actionToken) &&
-        (
-          hasUpdateRequestContext ||
+        (hasUpdateRequestContext ||
           stageToken.includes('edit request') ||
           stageToken.includes('request update') ||
           stageToken.includes('cancellation request') ||
@@ -1236,8 +1262,7 @@ export function useAdminApplicationsPage() {
           remarksToken.includes('edit request') ||
           remarksToken.includes('request update') ||
           remarksToken.includes('cancellation request') ||
-          remarksToken.includes('cancel request')
-        )
+          remarksToken.includes('cancel request'))
       ) {
         return 'REJECTED'
       }
@@ -1399,7 +1424,9 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationGroupedRawStatus(app) {
-    const grouped = String(app?.group_raw_status || '').trim().toUpperCase()
+    const grouped = String(app?.group_raw_status || '')
+      .trim()
+      .toUpperCase()
     if (grouped) return grouped
     return getApplicationRawStatus(app)
   }
@@ -1425,13 +1452,14 @@ export function useAdminApplicationsPage() {
       return 'Mandatory / Forced Leave'
     }
     if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
-    if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave') return 'Special Privilege Leave'
-  if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
-  if (lower === 'vacation') return 'Vacation Leave'
-  if (lower === 'sick') return 'Sick Leave'
-  if (lower === 'vacation leave') return 'Vacation Leave'
-  if (lower === 'sick leave') return 'Sick Leave'
-  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+    if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave')
+      return 'Special Privilege Leave'
+    if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
+    if (lower === 'vacation') return 'Vacation Leave'
+    if (lower === 'sick') return 'Sick Leave'
+    if (lower === 'vacation leave') return 'Vacation Leave'
+    if (lower === 'sick leave') return 'Sick Leave'
+    if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
 
     return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
   }
@@ -1462,12 +1490,12 @@ export function useAdminApplicationsPage() {
     const label = prettifyLeaveBalanceLabel(value)
     if (!label) return ''
 
-  const lower = label.toLowerCase()
-  if (lower === 'cto leave') return 'CTO'
-  if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'special privilege leave') return 'MC06'
-  if (lower === 'sick leave') return 'SL'
-  if (lower === 'vacation leave') return 'VL'
+    const lower = label.toLowerCase()
+    if (lower === 'cto leave') return 'CTO'
+    if (lower === 'mandatory / forced leave') return 'FL'
+    if (lower === 'special privilege leave') return 'MC06'
+    if (lower === 'sick leave') return 'SL'
+    if (lower === 'vacation leave') return 'VL'
     if (lower === 'wellness leave') return 'WL'
 
     const normalized = label
@@ -1537,7 +1565,9 @@ export function useAdminApplicationsPage() {
     ]
 
     for (const candidate of categoryCandidates) {
-      const normalizedCategory = String(candidate || '').trim().toUpperCase()
+      const normalizedCategory = String(candidate || '')
+        .trim()
+        .toUpperCase()
       if (normalizedCategory) return normalizedCategory
     }
 
@@ -1552,11 +1582,7 @@ export function useAdminApplicationsPage() {
     if (leaveTypeCategory === 'EVENT') return false
 
     const leaveTypeLabel =
-      app?.leaveType ??
-      app?.leave_type ??
-      app?.leaveTypeName ??
-      app?.leave_type_name ??
-      ''
+      app?.leaveType ?? app?.leave_type ?? app?.leaveTypeName ?? app?.leave_type_name ?? ''
 
     return !isEventBasedLeaveBalanceType(leaveTypeLabel)
   }
@@ -1920,44 +1946,42 @@ export function useAdminApplicationsPage() {
 
     return Array.from(groupedByMonthYear.values())
       .map((group) => {
-      const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
-      if (!uniqueDays.length) return ''
+        const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
+        if (!uniqueDays.length) return ''
 
-      const dayRanges = []
-      let rangeStart = uniqueDays[0]
-      let rangeEnd = uniqueDays[0]
+        const dayRanges = []
+        let rangeStart = uniqueDays[0]
+        let rangeEnd = uniqueDays[0]
 
-      for (let index = 1; index < uniqueDays.length; index += 1) {
-        const currentDay = uniqueDays[index]
-        if (currentDay === rangeEnd + 1) {
+        for (let index = 1; index < uniqueDays.length; index += 1) {
+          const currentDay = uniqueDays[index]
+          if (currentDay === rangeEnd + 1) {
+            rangeEnd = currentDay
+            continue
+          }
+
+          dayRanges.push([rangeStart, rangeEnd])
+          rangeStart = currentDay
           rangeEnd = currentDay
-          continue
         }
 
         dayRanges.push([rangeStart, rangeEnd])
-        rangeStart = currentDay
-        rangeEnd = currentDay
-      }
 
-      dayRanges.push([rangeStart, rangeEnd])
+        const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+          let dayLabel = String(startDay)
+          if (endDay > startDay) {
+            dayLabel = endDay === startDay + 1 ? `${startDay}, ${endDay}` : `${startDay}-${endDay}`
+          }
+          return `${group.monthName} ${dayLabel}`
+        })
 
-      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
-        let dayLabel = String(startDay)
-        if (endDay > startDay) {
-          dayLabel = endDay === startDay + 1
-            ? `${startDay}, ${endDay}`
-            : `${startDay}-${endDay}`
+        const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+        if (hasSingleDayOnly) {
+          return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
         }
-        return `${group.monthName} ${dayLabel}`
+
+        return `${rangeLabels.join(', ')} ${group.year}`
       })
-
-      const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
-      if (hasSingleDayOnly) {
-        return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
-      }
-
-      return `${rangeLabels.join(', ')} ${group.year}`
-    })
       .filter(Boolean)
   }
 
@@ -1990,13 +2014,9 @@ export function useAdminApplicationsPage() {
   function normalizeIsoDateList(dateValues) {
     if (!Array.isArray(dateValues)) return []
 
-    return [
-      ...new Set(
-        dateValues
-          .map((value) => toIsoDateString(value))
-          .filter(Boolean),
-      ),
-    ].sort((left, right) => Date.parse(left) - Date.parse(right))
+    return [...new Set(dateValues.map((value) => toIsoDateString(value)).filter(Boolean))].sort(
+      (left, right) => Date.parse(left) - Date.parse(right),
+    )
   }
 
   function extractIsoDateKeysFromMap(valueMap = {}) {
@@ -2079,9 +2099,7 @@ export function useAdminApplicationsPage() {
     if (!source || typeof source !== 'object') return []
 
     let recalledDates = normalizeIsoDateList(
-      parseSelectedDatesValue(
-        source?.recall_selected_dates ?? source?.recallSelectedDates,
-      ),
+      parseSelectedDatesValue(source?.recall_selected_dates ?? source?.recallSelectedDates),
     )
 
     if (!recalledDates.length) return []
@@ -2116,10 +2134,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getPendingUpdatePayload(app) {
-    const candidates = [
-      app?.pending_update,
-      app?.latest_update_request_payload,
-    ]
+    const candidates = [app?.pending_update, app?.latest_update_request_payload]
 
     for (const candidate of candidates) {
       if (!candidate) continue
@@ -2141,11 +2156,13 @@ export function useAdminApplicationsPage() {
   }
 
   function getDateSubsetTotalDays(app, dateKeys = []) {
-    const normalizedDateKeys = [...new Set(
-      (Array.isArray(dateKeys) ? dateKeys : [])
-        .map((value) => toIsoDateString(value))
-        .filter(Boolean),
-    )]
+    const normalizedDateKeys = [
+      ...new Set(
+        (Array.isArray(dateKeys) ? dateKeys : [])
+          .map((value) => toIsoDateString(value))
+          .filter(Boolean),
+      ),
+    ]
     if (!normalizedDateKeys.length) return 0
 
     const coverageWeights = getSelectedDateCoverageWeights(app)
@@ -2160,12 +2177,7 @@ export function useAdminApplicationsPage() {
   function normalizePayStatusCode(value) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       return normalizePayStatusCode(
-        value.pay_status ??
-          value.payStatus ??
-          value.status ??
-          value.code ??
-          value.value ??
-          '',
+        value.pay_status ?? value.payStatus ?? value.status ?? value.code ?? value.value ?? '',
       )
     }
 
@@ -2347,11 +2359,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveApplicationTotalDays(app) {
-    const candidates = [
-      app?.total_days,
-      app?.duration_value,
-      app?.days,
-    ]
+    const candidates = [app?.total_days, app?.duration_value, app?.days]
 
     for (const candidate of candidates) {
       const numericValue = Number(candidate)
@@ -2369,9 +2377,7 @@ export function useAdminApplicationsPage() {
     const dateSet = resolveDateSetFromSource(app)
     if (!dateSet.length) return {}
 
-    const rawCoverageMap = toSelectedDateCoverageMap(
-      app?.selected_date_coverage,
-    )
+    const rawCoverageMap = toSelectedDateCoverageMap(app?.selected_date_coverage)
 
     const normalizedCoverageMap = normalizeMapKeysWithIsoAlias(rawCoverageMap)
 
@@ -2394,12 +2400,11 @@ export function useAdminApplicationsPage() {
     return dateSet.reduce((acc, dateValue, index) => {
       const isoDate = toIsoDateString(dateValue)
       const key = isoDate || String(dateValue)
-      const coverage = (
+      const coverage =
         normalizedCoverageMap[key] ??
         normalizedCoverageMap[String(index)] ??
         normalizedCoverageMap[String(index + 1)] ??
         ''
-      )
 
       if (coverage === 'half') {
         acc[key] = 0.5
@@ -2422,9 +2427,7 @@ export function useAdminApplicationsPage() {
     const dateSet = getVisibleDateSetForDisplay(app)
     if (!dateSet.length) return []
 
-    const rawStatusMap = toSelectedDatePayStatusMap(
-      app?.selected_date_pay_status,
-    )
+    const rawStatusMap = toSelectedDatePayStatusMap(app?.selected_date_pay_status)
 
     const normalizedStatusMap = normalizeMapKeysWithIsoAlias(rawStatusMap)
     const normalizedHalfDayPortionMap = normalizeMapKeysWithIsoAlias(
@@ -2446,19 +2449,17 @@ export function useAdminApplicationsPage() {
     return dateSet.map((dateValue, index) => {
       const isoDate = toIsoDateString(dateValue)
       const key = isoDate || String(dateValue)
-      const payStatus = (
+      const payStatus =
         normalizedStatusMap[key] ??
         normalizedStatusMap[String(index)] ??
         normalizedStatusMap[String(index + 1)] ??
         fallbackStatus
-      )
       const coverageWeight = Number(coverageWeights[key] ?? 1)
-      const halfDayPortion = (
+      const halfDayPortion =
         normalizedHalfDayPortionMap[key] ??
         normalizedHalfDayPortionMap[String(index)] ??
         normalizedHalfDayPortionMap[String(index + 1)] ??
         ''
-      )
 
       return {
         dateKey: key,
@@ -2483,11 +2484,7 @@ export function useAdminApplicationsPage() {
     const normalizedCoverageMap = normalizeMapKeysWithIsoAlias(rawCoverageMap)
 
     const totalDays = (() => {
-      const candidates = [
-        payload?.total_days,
-        payload?.duration_value,
-        payload?.days,
-      ]
+      const candidates = [payload?.total_days, payload?.duration_value, payload?.days]
 
       for (const candidate of candidates) {
         const numericValue = Number(candidate)
@@ -2503,7 +2500,7 @@ export function useAdminApplicationsPage() {
     let defaultCoverageWeight = 1
     const dateCount = dateSet.length
     if (dateCount > 0 && totalDays > 0) {
-      const halfMatch = Math.abs((dateCount * 0.5) - totalDays) < 0.00001
+      const halfMatch = Math.abs(dateCount * 0.5 - totalDays) < 0.00001
       const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
 
       if (halfMatch) {
@@ -2516,12 +2513,11 @@ export function useAdminApplicationsPage() {
     return dateSet.reduce((acc, dateValue, index) => {
       const isoDate = toIsoDateString(dateValue)
       const key = isoDate || String(dateValue)
-      const coverage = (
+      const coverage =
         normalizedCoverageMap[key] ??
         normalizedCoverageMap[String(index)] ??
         normalizedCoverageMap[String(index + 1)] ??
         ''
-      )
 
       if (coverage === 'half') {
         acc[key] = 0.5
@@ -2564,19 +2560,17 @@ export function useAdminApplicationsPage() {
     return dateSet.map((dateValue, index) => {
       const isoDate = toIsoDateString(dateValue)
       const key = isoDate || String(dateValue)
-      const payStatus = (
+      const payStatus =
         normalizedStatusMap[key] ??
         normalizedStatusMap[String(index)] ??
         normalizedStatusMap[String(index + 1)] ??
         fallbackStatus
-      )
       const coverageWeight = Number(coverageWeights[key] ?? 1)
-      const halfDayPortion = (
+      const halfDayPortion =
         normalizedHalfDayPortionMap[key] ??
         normalizedHalfDayPortionMap[String(index)] ??
         normalizedHalfDayPortionMap[String(index + 1)] ??
         ''
-      )
 
       return {
         dateKey: key,
@@ -2638,13 +2632,18 @@ export function useAdminApplicationsPage() {
     }
 
     const indicatorRows = getSelectedDateIndicatorRows(app)
-    if (indicatorRows.length && indicatorRows.some((entry) => entry?.coverageLabel?.startsWith('Half Day'))) {
+    if (
+      indicatorRows.length &&
+      indicatorRows.some((entry) => entry?.coverageLabel?.startsWith('Half Day'))
+    ) {
       return indicatorRows.map((entry) => {
         const dateText = String(entry?.dateText || '').trim()
         const coverageLabel = String(entry?.coverageLabel || '').trim()
         if (!coverageLabel.startsWith('Half Day')) return dateText
 
-        const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
+        const halfDayPortion = String(entry?.halfDayPortion || '')
+          .trim()
+          .toUpperCase()
         return halfDayPortion === 'AM' || halfDayPortion === 'PM'
           ? `${dateText} (${halfDayPortion})`
           : `${dateText} (Half Day)`
@@ -2729,9 +2728,13 @@ export function useAdminApplicationsPage() {
     ]
     if (selectedDates.length > 0) return selectedDates
 
-    const inclusiveDateMatches = parseInclusiveDateText(getApplicationInclusiveDateLines(application))
+    const inclusiveDateMatches = parseInclusiveDateText(
+      getApplicationInclusiveDateLines(application),
+    )
     if (inclusiveDateMatches.length > 0) {
-      return [...new Set(inclusiveDateMatches.map((date) => normalizeIsoDate(date)).filter(Boolean))]
+      return [
+        ...new Set(inclusiveDateMatches.map((date) => normalizeIsoDate(date)).filter(Boolean)),
+      ]
     }
 
     return []
@@ -2760,7 +2763,9 @@ export function useAdminApplicationsPage() {
       return [...requestUpdateDates].sort((left, right) => Date.parse(left) - Date.parse(right))
     }
 
-    return [...getApplicationCalendarDates(application)].sort((left, right) => Date.parse(left) - Date.parse(right))
+    return [...getApplicationCalendarDates(application)].sort(
+      (left, right) => Date.parse(left) - Date.parse(right),
+    )
   }
 
   const CALENDAR_PREVIEW_WARNING_WIDTH = 220
@@ -3009,10 +3014,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationQueueStageKey(app) {
-    const candidates = [
-      app?.queue_stage_key,
-      app?.queueStageKey,
-    ]
+    const candidates = [app?.queue_stage_key, app?.queueStageKey]
 
     for (const candidate of candidates) {
       const normalized = normalizeQueueStageKeyToken(candidate)
@@ -3096,7 +3098,8 @@ export function useAdminApplicationsPage() {
     if (isCancelledByUser(app)) return 'grey-7'
 
     const cocReleaseStageStatus = getCocReleaseStageStatus(app)
-    if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 'positive'
+    if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released')
+      return 'positive'
     if (cocReleaseStageStatus === 'Release') return 'indigo-6'
     if (cocReleaseStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
     if (cocReleaseStageStatus === 'HR Certification') return 'blue-6'
@@ -3211,7 +3214,9 @@ export function useAdminApplicationsPage() {
 
   function canPrintApplication(app) {
     if (isCocApplication(app)) {
-      const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '').trim().toUpperCase()
+      const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '')
+        .trim()
+        .toUpperCase()
       return rawStatus === 'APPROVED' || getApplicationStatusLabel(app) === 'Approved'
     }
 
@@ -3390,10 +3395,7 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestRequestedAt(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
-    const requestedAt =
-      app?.latest_update_requested_at ||
-      app?.updated_at ||
-      null
+    const requestedAt = app?.latest_update_requested_at || app?.updated_at || null
 
     return formatDateTime(requestedAt) || 'N/A'
   }
@@ -3457,7 +3459,9 @@ export function useAdminApplicationsPage() {
     const requestedIndicatorRows = getPendingUpdateDateIndicatorRows(app)
     if (
       requestedIndicatorRows.length &&
-      requestedIndicatorRows.some((entry) => String(entry?.coverageLabel || '').startsWith('Half Day'))
+      requestedIndicatorRows.some((entry) =>
+        String(entry?.coverageLabel || '').startsWith('Half Day'),
+      )
     ) {
       return requestedIndicatorRows
         .map((entry) => {
@@ -3465,7 +3469,9 @@ export function useAdminApplicationsPage() {
           const coverageLabel = String(entry?.coverageLabel || '').trim()
           if (!coverageLabel.startsWith('Half Day')) return dateText
 
-          const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
+          const halfDayPortion = String(entry?.halfDayPortion || '')
+            .trim()
+            .toUpperCase()
           return halfDayPortion === 'AM' || halfDayPortion === 'PM'
             ? `${dateText} (${halfDayPortion})`
             : `${dateText} (Half Day)`
@@ -3524,11 +3530,9 @@ export function useAdminApplicationsPage() {
   function resolveAdminEditRequestSubmittedMeta(app) {
     const pendingPayload = getPendingUpdatePayload(app)
 
-    const submittedAt =
-      app?.latest_update_requested_at ||
-      app?.updated_at ||
-      null
-    const submittedBy = String(resolveFiledByActor(app) || app?.employee_name || 'Unknown').trim() || 'Unknown'
+    const submittedAt = app?.latest_update_requested_at || app?.updated_at || null
+    const submittedBy =
+      String(resolveFiledByActor(app) || app?.employee_name || 'Unknown').trim() || 'Unknown'
     const submittedReason = String(
       app?.latest_update_request_reason ??
         app?.pending_update_reason ??
@@ -3587,9 +3591,8 @@ export function useAdminApplicationsPage() {
       if (targetDecision === 'APPROVED' && explicitApprovedSignal) return true
       if (targetDecision === 'REJECTED' && explicitRejectedSignal) return true
 
-      const expectedDecisionActions = targetDecision === 'REJECTED'
-        ? ['ADMIN_REJECTED', 'HR_REJECTED']
-        : ['HR_APPROVED']
+      const expectedDecisionActions =
+        targetDecision === 'REJECTED' ? ['ADMIN_REJECTED', 'HR_REJECTED'] : ['HR_APPROVED']
       if (!expectedDecisionActions.includes(actionToken)) return false
 
       if (updateRequestSignal || cancelRequestSignal) return true
@@ -3659,7 +3662,8 @@ export function useAdminApplicationsPage() {
     return {
       title: 'HR Certification Completed',
       subtitle: approvedAt || 'Completed',
-      description: 'Application was approved before the ' + getAdminUpdateRequestReviewNoun(app) + '.',
+      description:
+        'Application was approved before the ' + getAdminUpdateRequestReviewNoun(app) + '.',
       icon: 'task_alt',
       color: 'positive',
       actor: approvedBy,
@@ -3681,7 +3685,9 @@ export function useAdminApplicationsPage() {
         ? 'Cancellation Request Disapproved by Admin'
         : 'Edit Request Disapproved by Admin',
       approvedTitle: isCancelRequest ? 'Cancellation Request Approved' : 'Edit Request Approved',
-      rejectedTitle: isCancelRequest ? 'Cancellation Request Disapproved' : 'Edit Request Disapproved',
+      rejectedTitle: isCancelRequest
+        ? 'Cancellation Request Disapproved'
+        : 'Edit Request Disapproved',
       pendingHrTitle: isCancelRequest
         ? 'Pending Cancellation Review (HR)'
         : 'Pending Edit Review (HR)',
@@ -3814,7 +3820,9 @@ export function useAdminApplicationsPage() {
 
     const rawStatus = getApplicationRawStatus(app)
     const hasEditRequest = hasAdminEditRequestSignal(app)
-    const preEditHrApprovalEntry = hasEditRequest ? getAdminPreEditHrApprovalTimelineEntry(app) : null
+    const preEditHrApprovalEntry = hasEditRequest
+      ? getAdminPreEditHrApprovalTimelineEntry(app)
+      : null
     const editRequestEntries = hasEditRequest ? getAdminEditRequestTimelineEntries(app) : []
     const entries = [
       {
@@ -3920,7 +3928,8 @@ export function useAdminApplicationsPage() {
         title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Disapproved',
         subtitle: disapprovedAt,
         description: isApprovedCancellationRequest
-          ? formatRecentRemarks(app) || 'Application was cancelled through the approved cancellation request.'
+          ? formatRecentRemarks(app) ||
+            'Application was cancelled through the approved cancellation request.'
           : formatRecentRemarks(app) || 'Application was disapproved.',
         icon: isApprovedCancellationRequest ? 'event_busy' : 'cancel',
         color: 'negative',
@@ -3988,18 +3997,18 @@ export function useAdminApplicationsPage() {
         }
         entries.push(...editRequestEntries)
 
-        const lastCompletedEditEntry = [...editRequestEntries]
-          .reverse()
-          .find((entry) => {
-            const title = String(entry?.title || '').toLowerCase()
-            return (
-              title.includes('request approved') ||
-              title.includes('request rejected') ||
-              title.includes('request disapproved')
-            )
-          })
-        const closedSubtitle = lastCompletedEditEntry?.subtitle || preEditHrApprovalEntry?.subtitle || 'Completed'
-        const closedActor = lastCompletedEditEntry?.actor || preEditHrApprovalEntry?.actor || resolveHrActor(app)
+        const lastCompletedEditEntry = [...editRequestEntries].reverse().find((entry) => {
+          const title = String(entry?.title || '').toLowerCase()
+          return (
+            title.includes('request approved') ||
+            title.includes('request rejected') ||
+            title.includes('request disapproved')
+          )
+        })
+        const closedSubtitle =
+          lastCompletedEditEntry?.subtitle || preEditHrApprovalEntry?.subtitle || 'Completed'
+        const closedActor =
+          lastCompletedEditEntry?.actor || preEditHrApprovalEntry?.actor || resolveHrActor(app)
 
         entries.push({
           title: 'Application Closed',
@@ -4113,8 +4122,8 @@ export function useAdminApplicationsPage() {
     const cycleDisapprovedEntry = hasUpdateCycle
       ? getCurrentCycleDisapprovedTimelineEntry(cleanedTimeline)
       : null
-    const isAdminDisapprovedUpdateCycle = hasUpdateCycle &&
-      isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
+    const isAdminDisapprovedUpdateCycle =
+      hasUpdateCycle && isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
     const historicalReceivedEntry = hasUpdateCycle
       ? buildHistoricalReceivedTimelineEntry(app, existingReceivedEntry)
       : null
@@ -4132,8 +4141,8 @@ export function useAdminApplicationsPage() {
     )
     const cmoCbmoReviewEntry = buildCmoCbmoReviewTimelineEntry(app)
 
-    const receivedInsertEntry = historicalReceivedEntry ||
-      (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
+    const receivedInsertEntry =
+      historicalReceivedEntry || (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
     if (receivedInsertEntry) {
       const receivedInsertIndex = getReceivedTimelineInsertionIndex(app, cleanedTimeline)
       cleanedTimeline.splice(receivedInsertIndex, 0, receivedInsertEntry)
@@ -4147,8 +4156,7 @@ export function useAdminApplicationsPage() {
         finalizedEntries.splice(historicalReleaseInsertIndex, 0, historicalReleasedEntry)
       }
       if (historicalReceivedEntry && shouldShowCurrentCycleReceivedEntry) {
-        const updateReceivedInsertIndex =
-          getUpdateReceivedTimelineInsertionIndex(finalizedEntries)
+        const updateReceivedInsertIndex = getUpdateReceivedTimelineInsertionIndex(finalizedEntries)
         finalizedEntries.splice(updateReceivedInsertIndex, 0, cycleReceivedEntry)
       }
       if (!isAdminDisapprovedUpdateCycle) {
@@ -4175,7 +4183,12 @@ export function useAdminApplicationsPage() {
   }
 
   function isTimelineEntryTitle(entry, title) {
-    return normalizeTimelineEntryTitle(entry) === String(title || '').trim().toLowerCase()
+    return (
+      normalizeTimelineEntryTitle(entry) ===
+      String(title || '')
+        .trim()
+        .toLowerCase()
+    )
   }
 
   function isReceivedTimelineEntryTitle(entry) {
@@ -4273,38 +4286,40 @@ export function useAdminApplicationsPage() {
   function getCurrentCycleDisapprovedTimelineEntry(entries) {
     if (!Array.isArray(entries)) return null
     return (
-      [...entries]
-        .reverse()
-        .find((entry) => isDisapprovedUpdateRequestTimelineEntry(entry)) || null
+      [...entries].reverse().find((entry) => isDisapprovedUpdateRequestTimelineEntry(entry)) || null
     )
   }
 
   function getReceivedTimelineInsertionIndex(app, entries) {
     if (isCocApplication(app)) {
-      const pendingHrReviewIndex = entries.findIndex((entry) =>
-        isTimelineEntryTitle(entry, 'HR Certification') ||
-        isTimelineEntryTitle(entry, 'Pending HR Review') ||
-        isTimelineEntryTitle(entry, 'Pending Edit Review (HR)') ||
-        isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)'),
+      const pendingHrReviewIndex = entries.findIndex(
+        (entry) =>
+          isTimelineEntryTitle(entry, 'HR Certification') ||
+          isTimelineEntryTitle(entry, 'Pending HR Review') ||
+          isTimelineEntryTitle(entry, 'Pending Edit Review (HR)') ||
+          isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)'),
       )
       if (pendingHrReviewIndex >= 0) return pendingHrReviewIndex + 1
 
-      const approvedByHrIndex = entries.findIndex((entry) =>
-        isTimelineEntryTitle(entry, 'HR Certification Completed') ||
-        isTimelineEntryTitle(entry, 'Approved by HR'),
+      const approvedByHrIndex = entries.findIndex(
+        (entry) =>
+          isTimelineEntryTitle(entry, 'HR Certification Completed') ||
+          isTimelineEntryTitle(entry, 'Approved by HR'),
       )
       if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
     }
 
-    const adminCompletedIndex = entries.findIndex((entry) =>
-      isTimelineEntryTitle(entry, 'Admin Recommendation Completed') ||
-      isTimelineEntryTitle(entry, 'Admin Review Completed'),
+    const adminCompletedIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'Admin Recommendation Completed') ||
+        isTimelineEntryTitle(entry, 'Admin Review Completed'),
     )
     if (adminCompletedIndex >= 0) return adminCompletedIndex + 1
 
-    const adminPendingIndex = entries.findIndex((entry) =>
-      isTimelineEntryTitle(entry, 'Admin Recommendation') ||
-      isTimelineEntryTitle(entry, 'Department Admin Review Pending'),
+    const adminPendingIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'Admin Recommendation') ||
+        isTimelineEntryTitle(entry, 'Department Admin Review Pending'),
     )
     if (adminPendingIndex >= 0) return adminPendingIndex + 1
 
@@ -4325,34 +4340,40 @@ export function useAdminApplicationsPage() {
     const updateTimelineIndex = entries.findIndex((entry) => isUpdateRequestTimelineEntry(entry))
     if (updateTimelineIndex >= 0) return updateTimelineIndex
 
-    const receivedIndex = entries.findIndex((entry) => isTimelineEntryTitle(entry, 'Received Application'))
+    const receivedIndex = entries.findIndex((entry) =>
+      isTimelineEntryTitle(entry, 'Received Application'),
+    )
     if (receivedIndex >= 0) return receivedIndex + 1
 
     return entries.length
   }
 
   function getUpdateReceivedTimelineInsertionIndex(entries) {
-    const pendingAdminReviewIndex = entries.findIndex((entry) =>
-      isTimelineEntryTitle(entry, 'Pending Edit Review (Admin)') ||
-      isTimelineEntryTitle(entry, 'Pending Cancellation Review (Admin)'),
+    const pendingAdminReviewIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'Pending Edit Review (Admin)') ||
+        isTimelineEntryTitle(entry, 'Pending Cancellation Review (Admin)'),
     )
     if (pendingAdminReviewIndex >= 0) return pendingAdminReviewIndex + 1
 
-    const adminApprovedIndex = entries.findIndex((entry) =>
-      isTimelineEntryTitle(entry, 'Edit Request Approved by Admin') ||
-      isTimelineEntryTitle(entry, 'Cancellation Request Approved by Admin'),
+    const adminApprovedIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'Edit Request Approved by Admin') ||
+        isTimelineEntryTitle(entry, 'Cancellation Request Approved by Admin'),
     )
     if (adminApprovedIndex >= 0) return adminApprovedIndex + 1
 
-    const pendingHrReviewIndex = entries.findIndex((entry) =>
-      isTimelineEntryTitle(entry, 'Pending Edit Review (HR)') ||
-      isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)'),
+    const pendingHrReviewIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'Pending Edit Review (HR)') ||
+        isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)'),
     )
     if (pendingHrReviewIndex >= 0) return pendingHrReviewIndex
 
-    const requestSubmittedIndex = entries.findIndex((entry) =>
-      isTimelineEntryTitle(entry, 'Edit Request Submitted') ||
-      isTimelineEntryTitle(entry, 'Cancellation Request Submitted'),
+    const requestSubmittedIndex = entries.findIndex(
+      (entry) =>
+        isTimelineEntryTitle(entry, 'Edit Request Submitted') ||
+        isTimelineEntryTitle(entry, 'Cancellation Request Submitted'),
     )
     if (requestSubmittedIndex >= 0) return requestSubmittedIndex + 1
 
@@ -4390,8 +4411,16 @@ export function useAdminApplicationsPage() {
       isTimelineEntryTitle(entry, 'HR Certification') ||
       isTimelineEntryTitle(entry, 'Pending HR Review')
     const isPendingEditHrReviewEntry = isTimelineEntryTitle(entry, 'Pending Edit Review (HR)')
-    const isPendingCancellationHrReviewEntry = isTimelineEntryTitle(entry, 'Pending Cancellation Review (HR)')
-    if (!isPendingHrReviewEntry && !isPendingEditHrReviewEntry && !isPendingCancellationHrReviewEntry) return entry
+    const isPendingCancellationHrReviewEntry = isTimelineEntryTitle(
+      entry,
+      'Pending Cancellation Review (HR)',
+    )
+    if (
+      !isPendingHrReviewEntry &&
+      !isPendingEditHrReviewEntry &&
+      !isPendingCancellationHrReviewEntry
+    )
+      return entry
     if (!shouldDeferPendingHrReviewUntilReceive(app)) return entry
 
     const pendingDescription = isPendingEditHrReviewEntry
@@ -4425,11 +4454,11 @@ export function useAdminApplicationsPage() {
           ? 'Waiting for HR to acknowledge this COC application.'
           : isCoc
             ? 'HR will acknowledge this COC application for review.'
-          : cycleDocumentLabel
-            ? cycleDocumentLabel === 'Cancellation Form'
-              ? 'HR will confirm receipt of the cancellation form.'
-              : 'HR will confirm receipt of the updated hard copy leave application form.'
-            : 'HR will confirm receipt of the hard copy leave application form.',
+            : cycleDocumentLabel
+              ? cycleDocumentLabel === 'Cancellation Form'
+                ? 'HR will confirm receipt of the cancellation form.'
+                : 'HR will confirm receipt of the updated hard copy leave application form.'
+              : 'HR will confirm receipt of the hard copy leave application form.',
         icon: isCocAwaitingReceive ? 'pending_actions' : 'radio_button_unchecked',
         color: isCocAwaitingReceive ? 'warning' : 'grey-5',
       }
@@ -4493,11 +4522,11 @@ export function useAdminApplicationsPage() {
             : 'Waiting for HR to release the physical leave document.'
           : isCoc
             ? 'COC application release will follow final HR action.'
-          : cycleDocumentLabel
-            ? cycleDocumentLabel === 'Cancellation Form'
-              ? 'Cancellation form will be released before final closure.'
-              : 'Updated leave document will be released before final closure.'
-            : 'Physical leave document will be released before final closure.',
+            : cycleDocumentLabel
+              ? cycleDocumentLabel === 'Cancellation Form'
+                ? 'Cancellation form will be released before final closure.'
+                : 'Updated leave document will be released before final closure.'
+              : 'Physical leave document will be released before final closure.',
         icon: isAwaitingRelease ? 'pending_actions' : 'radio_button_unchecked',
         color: isAwaitingRelease ? 'warning' : 'grey-5',
       }
@@ -4531,7 +4560,8 @@ export function useAdminApplicationsPage() {
     if (!app || hasAdminEditRequestSignal(app)) return null
 
     const rawStatus = getApplicationRawStatus(app)
-    const shouldShowStage = ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
+    const shouldShowStage =
+      ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
       isApplicationCmoCbmoReviewed(app) ||
       isApplicationReleased(app)
     if (!shouldShowStage) return null
@@ -4549,9 +4579,7 @@ export function useAdminApplicationsPage() {
     }
 
     const isCurrent =
-      rawStatus === 'APPROVED' &&
-      isApplicationReceivedByHr(app) &&
-      !isApplicationReleased(app)
+      rawStatus === 'APPROVED' && isApplicationReceivedByHr(app) && !isApplicationReleased(app)
 
     return {
       title: 'CMO/CBMO Review',
@@ -4612,7 +4640,9 @@ export function useAdminApplicationsPage() {
         .trim()
         .toUpperCase()
         .replace(/[\s-]+/g, '_')
-      const stage = String(entry?.stage || '').trim().toLowerCase()
+      const stage = String(entry?.stage || '')
+        .trim()
+        .toLowerCase()
       return action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
     })
   }
@@ -4623,7 +4653,9 @@ export function useAdminApplicationsPage() {
         .trim()
         .toUpperCase()
         .replace(/[\s-]+/g, '_')
-      const stage = String(entry?.stage || '').trim().toLowerCase()
+      const stage = String(entry?.stage || '')
+        .trim()
+        .toLowerCase()
       return action === 'CMO_CBMO_REVIEWED' || stage === 'cmo/cbmo reviewed'
     })
   }
@@ -4640,7 +4672,9 @@ export function useAdminApplicationsPage() {
     const directActor = String(app?.received_by || '').trim()
     if (directActor) return directActor
 
-    const historyActor = String(resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '').trim()
+    const historyActor = String(
+      resolveStatusHistoryActor(resolveReceivedHistoryEntry(app)) || '',
+    ).trim()
     return historyActor || 'Unknown'
   }
 
@@ -4648,7 +4682,9 @@ export function useAdminApplicationsPage() {
     const directActor = String(app?.released_by || '').trim()
     if (directActor) return directActor
 
-    const historyActor = String(resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '').trim()
+    const historyActor = String(
+      resolveStatusHistoryActor(resolveReleasedHistoryEntry(app)) || '',
+    ).trim()
     return historyActor || 'Unknown'
   }
 
@@ -4656,7 +4692,9 @@ export function useAdminApplicationsPage() {
     const directActor = String(app?.cmo_cbmo_reviewed_by || app?.cmoCbmoReviewedBy || '').trim()
     if (directActor) return directActor
 
-    const historyActor = String(resolveStatusHistoryActor(resolveCmoCbmoReviewHistoryEntry(app)) || '').trim()
+    const historyActor = String(
+      resolveStatusHistoryActor(resolveCmoCbmoReviewHistoryEntry(app)) || '',
+    ).trim()
     return historyActor || 'Unknown'
   }
 
@@ -4702,11 +4740,7 @@ export function useAdminApplicationsPage() {
   function resolveCurrentUpdateRequestCycleStartValue(app) {
     if (!hasAdminEditRequestSignal(app)) return null
     const submittedMeta = resolveAdminEditRequestSubmittedMeta(app)
-    return (
-      app?.latest_update_requested_at ||
-      submittedMeta?.submittedAt ||
-      null
-    )
+    return app?.latest_update_requested_at || submittedMeta?.submittedAt || null
   }
 
   function findLatestStatusHistoryEntryBefore(app, matcher, beforeValue) {
@@ -4730,13 +4764,17 @@ export function useAdminApplicationsPage() {
     const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
     if (!cycleStart) return null
 
-    const historyEntry = findLatestStatusHistoryEntryBefore(app, (entry) => {
-      const action = String(entry?.action || '')
-        .trim()
-        .toUpperCase()
-        .replace(/[\s-]+/g, '_')
-      return action === 'HR_RECEIVED'
-    }, cycleStart)
+    const historyEntry = findLatestStatusHistoryEntryBefore(
+      app,
+      (entry) => {
+        const action = String(entry?.action || '')
+          .trim()
+          .toUpperCase()
+          .replace(/[\s-]+/g, '_')
+        return action === 'HR_RECEIVED'
+      },
+      cycleStart,
+    )
 
     if (!historyEntry) return null
     return {
@@ -4749,14 +4787,22 @@ export function useAdminApplicationsPage() {
     const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
     if (!cycleStart) return null
 
-    const historyEntry = findLatestStatusHistoryEntryBefore(app, (entry) => {
-      const action = String(entry?.action || '')
-        .trim()
-        .toUpperCase()
-        .replace(/[\s-]+/g, '_')
-      const stage = String(entry?.stage || '').trim().toLowerCase()
-      return action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
-    }, cycleStart)
+    const historyEntry = findLatestStatusHistoryEntryBefore(
+      app,
+      (entry) => {
+        const action = String(entry?.action || '')
+          .trim()
+          .toUpperCase()
+          .replace(/[\s-]+/g, '_')
+        const stage = String(entry?.stage || '')
+          .trim()
+          .toLowerCase()
+        return (
+          action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
+        )
+      },
+      cycleStart,
+    )
 
     if (!historyEntry) return null
     return {
@@ -4767,8 +4813,7 @@ export function useAdminApplicationsPage() {
 
   function resolveReceivedDateValue(app) {
     return pickLatestTimestampValue(
-      app?.received_at ||
-        null,
+      app?.received_at || null,
       app?.hr_received_at || null,
       resolveStatusHistoryTimestamp(resolveReceivedHistoryEntry(app)) || null,
     )
@@ -4776,8 +4821,7 @@ export function useAdminApplicationsPage() {
 
   function resolveReleasedDateValue(app) {
     return pickLatestTimestampValue(
-      app?.released_at ||
-        null,
+      app?.released_at || null,
       app?.hr_released_at || null,
       resolveStatusHistoryTimestamp(resolveReleasedHistoryEntry(app)) || null,
     )
@@ -4826,9 +4870,9 @@ export function useAdminApplicationsPage() {
     const reviewedAt = resolveCmoCbmoReviewDateValue(app)
     return Boolean(
       app?.has_cmo_cbmo_reviewed ||
-        app?.hasCmoCbmoReviewed ||
-        resolveCmoCbmoReviewHistoryEntry(app) ||
-        reviewedAt,
+      app?.hasCmoCbmoReviewed ||
+      resolveCmoCbmoReviewHistoryEntry(app) ||
+      reviewedAt,
     )
   }
 
@@ -4860,11 +4904,7 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveFiledDateValue(app) {
-    return (
-      app?.filed_at ||
-      app?.created_at ||
-      null
-    )
+    return app?.filed_at || app?.created_at || null
   }
 
   function resolveDepartmentAdminActor(app) {
@@ -4925,12 +4965,7 @@ export function useAdminApplicationsPage() {
       return action === 'HR_RECALLED' || stage === 'hr recalled'
     })
 
-    return (
-      app?.recall_action_at ||
-      historyEntry?.created_at ||
-      app?.reviewed_at ||
-      null
-    )
+    return app?.recall_action_at || historyEntry?.created_at || app?.reviewed_at || null
   }
 
   function formatRecallRemarks(app) {
@@ -4940,32 +4975,20 @@ export function useAdminApplicationsPage() {
   }
 
   function resolveCancelledActor(app) {
-    return (
-      app?.cancelled_by ||
-      'Unknown'
-    )
+    return app?.cancelled_by || 'Unknown'
   }
 
   function resolveCancelledDateValue(app) {
-    return (
-      app?.cancelled_at ||
-      null
-    )
+    return app?.cancelled_at || null
   }
 
   function resolveDisapprovalActor(app) {
     if (isCancelledByUser(app)) return resolveCancelledActor(app)
-    return (
-      app?.disapproved_by ||
-      'Unknown'
-    )
+    return app?.disapproved_by || 'Unknown'
   }
 
   function resolveDisapprovedDateValue(app) {
-    return (
-      app?.disapproved_at ||
-      null
-    )
+    return app?.disapproved_at || null
   }
 
   function resolveProcessedBy(app) {
@@ -5079,11 +5102,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationQueueTimestamp(app) {
-    const candidateDates = [
-      app?.created_at,
-      app?.filed_at,
-      app?.dateFiled,
-    ]
+    const candidateDates = [app?.created_at, app?.filed_at, app?.dateFiled]
 
     for (const candidate of candidateDates) {
       const timestamp = Date.parse(String(candidate || '').trim())
@@ -5102,13 +5121,13 @@ export function useAdminApplicationsPage() {
     const groupA = getApplicationQueueGroupStatus(a)
     const groupB = getApplicationQueueGroupStatus(b)
     if (groupA === 'PENDING' && groupB === 'PENDING') {
-      const stagePriorityDiff = resolvePendingQueueStagePriority(a) - resolvePendingQueueStagePriority(b)
+      const stagePriorityDiff =
+        resolvePendingQueueStagePriority(a) - resolvePendingQueueStagePriority(b)
       if (stagePriorityDiff !== 0) return stagePriorityDiff
     }
 
     const isLifoGroup =
-      groupA === groupB &&
-      (groupA === 'APPROVED' || groupA === 'REJECTED' || groupA === 'RECALLED')
+      groupA === groupB && (groupA === 'APPROVED' || groupA === 'REJECTED' || groupA === 'RECALLED')
 
     const dateA = getApplicationQueueTimestamp(a)
     const dateB = getApplicationQueueTimestamp(b)
@@ -5130,10 +5149,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getApplicationRecencyTimestamp(app) {
-    const candidateDates = [
-      app?.created_at,
-      app?.filed_at,
-    ]
+    const candidateDates = [app?.created_at, app?.filed_at]
 
     for (const candidate of candidateDates) {
       const timestamp = Date.parse(candidate || '')
@@ -5162,10 +5178,7 @@ export function useAdminApplicationsPage() {
     const app = resolveApp(target)
     if (!app || isCocApplication(app)) return false
 
-    return (
-      getAdminLatestUpdateRequestStatus(app) === 'PENDING' &&
-      hasAdminEditRequestSignal(app)
-    )
+    return getAdminLatestUpdateRequestStatus(app) === 'PENDING' && hasAdminEditRequestSignal(app)
   }
 
   function getConfirmActionTitle(type) {
@@ -5254,16 +5267,13 @@ export function useAdminApplicationsPage() {
               160,
               Math.min(CALENDAR_PREVIEW_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)),
             )
-            const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+            const cellCenter = cellRect.left - calendarRect.left + cellRect.width / 2
             const popupLeft = Math.max(
               8,
-              Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8),
+              Math.min(cellCenter - popupWidth * 0.58, calendarWidth - popupWidth - 8),
             )
-            const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
-            const arrowLeft = Math.max(
-              16,
-              Math.min(cellCenter - popupLeft - 6, popupWidth - 18),
-            )
+            const popupTop = Math.max(6, cellRect.top - calendarRect.top - 56)
+            const arrowLeft = Math.max(16, Math.min(cellCenter - popupLeft - 6, popupWidth - 18))
 
             nextWarningStyle = {
               width: `${popupWidth}px`,
@@ -5298,7 +5308,9 @@ export function useAdminApplicationsPage() {
 
     const previewDates = getApplicationCalendarPreviewDates(baseApplication)
     const anchorDate =
-      previewDates[0] || normalizeIsoDate(baseApplication?.filed_at || baseApplication?.created_at) || normalizeIsoDate(new Date())
+      previewDates[0] ||
+      normalizeIsoDate(baseApplication?.filed_at || baseApplication?.created_at) ||
+      normalizeIsoDate(new Date())
 
     calendarPreviewModel.value = []
     clearCalendarPreviewWarning()
@@ -5309,7 +5321,10 @@ export function useAdminApplicationsPage() {
   }
 
   async function hydrateSelectedApplicationForDialog(baseApplication, dialogType = 'details') {
-    const id = baseApplication?.id ?? baseApplication?.application_id ?? baseApplication?.leave_application_id
+    const id =
+      baseApplication?.id ??
+      baseApplication?.application_id ??
+      baseApplication?.leave_application_id
     if (!id) return
 
     const endpoint = isCocApplication(baseApplication)
@@ -5323,18 +5338,20 @@ export function useAdminApplicationsPage() {
 
       const normalizedDetail = normalizeAdminApplicationForDisplay(detailedApplication)
       const normalizedBase = normalizeAdminApplicationForDisplay(baseApplication)
-      const detailPayload = normalizedDetail && typeof normalizedDetail === 'object' ? normalizedDetail : {}
+      const detailPayload =
+        normalizedDetail && typeof normalizedDetail === 'object' ? normalizedDetail : {}
       const basePayload = normalizedBase && typeof normalizedBase === 'object' ? normalizedBase : {}
       const isRecalledVariant =
-        String(basePayload?.application_row_variant || '').trim().toLowerCase() === 'recalled'
+        String(basePayload?.application_row_variant || '')
+          .trim()
+          .toLowerCase() === 'recalled'
       const mergedPayload = isRecalledVariant
         ? { ...detailPayload, ...basePayload }
         : { ...basePayload, ...detailPayload }
       const normalizedMergedApplication = normalizeAdminApplicationForDisplay(mergedPayload)
 
-      const activeDialogOpen = dialogType === 'timeline'
-        ? showTimelineDialog.value
-        : showDetailsDialog.value
+      const activeDialogOpen =
+        dialogType === 'timeline' ? showTimelineDialog.value : showDetailsDialog.value
       if (!activeDialogOpen) return
 
       const expectedKey = String(
@@ -5392,7 +5409,12 @@ export function useAdminApplicationsPage() {
     if (resolveApplicationAttachmentReference(app)) return true
 
     const submittedFlag = app?.attachment_submitted
-    return submittedFlag === true || submittedFlag === 1 || submittedFlag === '1' || submittedFlag === 'true'
+    return (
+      submittedFlag === true ||
+      submittedFlag === 1 ||
+      submittedFlag === '1' ||
+      submittedFlag === 'true'
+    )
   }
 
   async function viewApplicationAttachment(app = selectedApp.value) {
@@ -5400,7 +5422,11 @@ export function useAdminApplicationsPage() {
     const id = target?.id
 
     if (!id) {
-      $q.notify({ type: 'negative', message: 'Unable to identify this leave application attachment.', position: 'top' })
+      $q.notify({
+        type: 'negative',
+        message: 'Unable to identify this leave application attachment.',
+        position: 'top',
+      })
       return
     }
 
@@ -5428,11 +5454,12 @@ export function useAdminApplicationsPage() {
         return
       }
 
-      const blob = response.data instanceof Blob
-        ? response.data
-        : new Blob([response.data], {
-            type: response?.headers?.['content-type'] || 'application/octet-stream',
-          })
+      const blob =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], {
+              type: response?.headers?.['content-type'] || 'application/octet-stream',
+            })
       const objectUrl = URL.createObjectURL(blob)
 
       const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer')
@@ -5509,16 +5536,14 @@ export function useAdminApplicationsPage() {
     if (pdfWindow) {
       try {
         pdfWindow.document.title = 'Preparing PDF...'
-        pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+        pdfWindow.document.body.innerHTML =
+          '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
       } catch {
         // Ignore interim window rendering issues.
       }
     }
     const targetApplicationId = String(
-      app?.id ??
-      app?.application_id ??
-      app?.leave_application_id ??
-      '',
+      app?.id ?? app?.application_id ?? app?.leave_application_id ?? '',
     ).trim()
 
     const openApplicationPdf = async (application) => {
@@ -5541,14 +5566,18 @@ export function useAdminApplicationsPage() {
       ])
 
       const dashboardPayload = dashboardResponse?.data
-      const updatedApplications = mergeApplications(extractApplicationsFromPayload(dashboardPayload))
+      const updatedApplications = mergeApplications(
+        extractApplicationsFromPayload(dashboardPayload),
+      )
       const updated = updatedApplications.find(
         (item) => getApplicationRowKey(item) === getApplicationRowKey(app),
       )
       let printableApplication = updated || app
 
       if (!cocApplication && targetApplicationId !== '' && leaveApplicationsResponse?.data) {
-        const detailedLeaveApplication = extractSingleApplicationFromPayload(leaveApplicationsResponse.data)
+        const detailedLeaveApplication = extractSingleApplicationFromPayload(
+          leaveApplicationsResponse.data,
+        )
 
         if (detailedLeaveApplication && typeof detailedLeaveApplication === 'object') {
           printableApplication = {
@@ -5591,9 +5620,8 @@ export function useAdminApplicationsPage() {
     } catch (error) {
       if (cocApplication) {
         if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
-        const message = error instanceof Error && error.message
-          ? error.message
-          : cocPrintBlockedMessage
+        const message =
+          error instanceof Error && error.message ? error.message : cocPrintBlockedMessage
         $q.notify({ type: 'warning', message, position: 'top' })
         return
       }
@@ -5694,9 +5722,9 @@ export function useAdminApplicationsPage() {
 
     const targetApplicationId = String(
       printableApplication?.id ??
-      printableApplication?.application_id ??
-      printableApplication?.leave_application_id ??
-      '',
+        printableApplication?.application_id ??
+        printableApplication?.leave_application_id ??
+        '',
     ).trim()
 
     if (!targetApplicationId) return printableApplication
@@ -5724,10 +5752,7 @@ export function useAdminApplicationsPage() {
 
       if (departmentHead && typeof departmentHead === 'object') {
         const departmentHeadFullName = String(
-          departmentHead?.full_name ||
-            departmentHead?.fullName ||
-            departmentHead?.name ||
-            '',
+          departmentHead?.full_name || departmentHead?.fullName || departmentHead?.name || '',
         ).trim()
 
         printableApplication = {
@@ -5779,7 +5804,10 @@ export function useAdminApplicationsPage() {
       })
     } catch (err) {
       if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
-      const message = resolveApiErrorMessage(err, 'Unable to print the request-change form right now.')
+      const message = resolveApiErrorMessage(
+        err,
+        'Unable to print the request-change form right now.',
+      )
       $q.notify({ type: 'negative', message, position: 'top' })
     }
   }
