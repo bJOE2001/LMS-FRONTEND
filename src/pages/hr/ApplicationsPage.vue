@@ -1,10 +1,10 @@
 <template>
   <q-page class="q-pa-md">
     <div class="q-mb-lg">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">All Applications</h1>
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Applications</h1>
     </div>
 
-    <HrApplicationsPanel />
+    <HrApplicationsPanel application-type="LEAVE" />
   </q-page>
 </template>
 

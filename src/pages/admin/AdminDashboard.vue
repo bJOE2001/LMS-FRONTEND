@@ -294,7 +294,11 @@
                 rounded
                 class="text-weight-medium q-pa-xs application-status-badge"
                 style="padding-left: 10px; padding-right: 10px"
-              />
+              >
+                <q-tooltip v-if="getApplicationStatusTooltip(props.row)">
+                  {{ getApplicationStatusTooltip(props.row) }}
+                </q-tooltip>
+              </q-badge>
               <q-badge
                 v-if="isEditUpdateRequest(props.row)"
                 color="deep-purple-7"
@@ -2251,7 +2255,14 @@ function getSearchTokens(value) {
 
 function getApplicationStatusLabel(app) {
   if (isCancelledByUser(app)) return 'Cancelled'
-  if (app?.status) return app.status
+  if (isApplicationReleased(app)) return 'Released'
+  if (app?.status) {
+    return String(app.status)
+      .trim()
+      .replace(/^HR Certification(?: Completed)?$/i, (match) =>
+        match.replace(/^HR Certification/i, 'CHRMO Certification'),
+      )
+  }
 
   if (app?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
   if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
@@ -2263,6 +2274,7 @@ function getApplicationStatusLabel(app) {
 
 function getApplicationStatusColor(app) {
   if (isCancelledByUser(app)) return 'grey-7'
+  if (isApplicationReleased(app)) return 'positive'
   if (app?.rawStatus === 'PENDING_ADMIN') return 'warning'
   if (app?.rawStatus === 'PENDING_HR') return 'blue-6'
   if (app?.rawStatus === 'APPROVED') return 'green'
@@ -2293,7 +2305,8 @@ function isEditUpdateRequest(app) {
 function canPrintApplication(app) {
   if (isCocApplication(app)) {
     const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '').trim().toUpperCase()
-    return rawStatus === 'APPROVED' || getApplicationStatusLabel(app) === 'Approved'
+    const statusLabel = getApplicationStatusLabel(app)
+    return rawStatus === 'APPROVED' || statusLabel === 'Approved' || statusLabel === 'Released'
   }
 
   return getApplicationStatusLabel(app) !== 'Pending Admin'
@@ -2400,14 +2413,14 @@ function buildApplicationTimeline(app) {
     })
     entries.push({
       title: 'Pending HR Review',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     })
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -2468,7 +2481,7 @@ function buildApplicationTimeline(app) {
     })
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -2606,6 +2619,64 @@ function getStatusHistoryEntries(app) {
 
 function findStatusHistoryEntry(app, matcher) {
   return getStatusHistoryEntries(app).find((entry) => matcher(entry || {})) || null
+}
+
+function resolveReleasedHistoryEntry(app) {
+  return findStatusHistoryEntry(app, (entry) => {
+    const action = String(entry?.action || '').toUpperCase()
+    const stage = String(entry?.stage || '').toLowerCase()
+    return action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
+  })
+}
+
+function resolveReleasedDateValue(app) {
+  const historyEntry = resolveReleasedHistoryEntry(app)
+  return (
+    app?.releasedAt ||
+    app?.released_at ||
+    app?.hrReleasedAt ||
+    app?.hr_released_at ||
+    historyEntry?.created_at ||
+    historyEntry?.createdAt ||
+    null
+  )
+}
+
+function hasReleasedFlag(app) {
+  return [
+    app?.hasHrReleased,
+    app?.has_hr_released,
+    app?.released,
+    app?.isReleased,
+    String(app?.status || '').trim().toUpperCase() === 'RELEASED',
+  ].some(
+    (value) =>
+      value === true ||
+      value === 1 ||
+      value === '1' ||
+      String(value || '').toLowerCase() === 'true',
+  )
+}
+
+function isApplicationReleased(app) {
+  if (!app) return false
+  return Boolean(
+    hasReleasedFlag(app) || resolveReleasedHistoryEntry(app) || resolveReleasedDateValue(app),
+  )
+}
+
+function getApplicationStatusTooltip(app) {
+  if (!isApplicationReleased(app)) return ''
+
+  const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
+  const releasedAt = formatDateTime(resolveReleasedDateValue(app))
+
+  if (approvedAt && releasedAt) {
+    return `Approved by HR on ${approvedAt}; released on ${releasedAt}.`
+  }
+  if (releasedAt) return `Approved by HR, then released on ${releasedAt}.`
+  if (approvedAt) return `Approved by HR on ${approvedAt}; released.`
+  return 'Approved by HR, then released.'
 }
 
 function resolveRecallActor(app) {
@@ -3673,8 +3744,8 @@ async function confirmDisapprove() {
 .application-timeline-meta {
   font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: #64748b;
 }
 .application-timeline-title {

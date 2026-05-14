@@ -198,7 +198,11 @@
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Application Status</div>
-            <StatusBadge class="self-start" :status="getFinalStatusForStatusColumn(application)" />
+            <StatusBadge
+              class="self-start"
+              :status="getFinalStatusForStatusColumn(application)"
+              :tooltip="getStatusTooltipForStatusColumn(application)"
+            />
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Office</div>
@@ -718,6 +722,10 @@ const props = defineProps({
   getFinalStatusForStatusColumn: {
     type: Function,
     default: (app) => String(app?.displayStatus || '').trim(),
+  },
+  getStatusTooltipForStatusColumn: {
+    type: Function,
+    default: () => '',
   },
 })
 

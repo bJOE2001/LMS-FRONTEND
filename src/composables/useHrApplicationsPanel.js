@@ -28,7 +28,14 @@ const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationT
 const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
   .toLowerCase()
-const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'disapproved', 'recalled'])
+const searchableStatusValues = new Set([
+  'pending',
+  'approved',
+  'released',
+  'rejected',
+  'disapproved',
+  'recalled',
+])
 const queueGroupRenderOrder = ['PENDING', 'APPROVED', 'REJECTED', 'RECALLED', 'OTHER']
 const EMPLOYMENT_TYPE_FILTER_LABELS = {
   elective: 'Elective',
@@ -450,16 +457,16 @@ function getCocReleaseStageStatus(app) {
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (rawStatus === 'PENDING_LATE_HR') return 'Pending Late Filing'
-  if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
-  if (rawStatus === 'PENDING_HR') return 'HR Certification'
+  if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+  if (rawStatus === 'PENDING_HR') return 'CHRMO Certification'
   if (rawStatus !== 'APPROVED') return ''
 
   if (isApplicationReleased(app)) {
     return 'Approved'
   }
-  if (isApplicationCmoCbmoReviewed(app)) return 'Release'
+  if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
   if (isApplicationReceivedByHr(app)) return 'CMO/CBMO Review'
-  return 'HR Certification'
+  return 'CHRMO Certification'
 }
 
 function normalizeQueueStageKeyToken(value) {
@@ -499,33 +506,37 @@ function getLeaveWorkflowStageStatus(app) {
   if (!app || isCocApplication(app)) return ''
 
   const queueStageKey = getApplicationQueueStageKey(app)
-  if (queueStageKey === 'PENDING_ADMIN') return 'Admin Recommendation'
-  if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Admin Recommendation'
+  if (queueStageKey === 'PENDING_ADMIN') return 'Department Recommendation'
+  if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Department Recommendation'
   if (queueStageKey === 'PENDING_HR_RECEIVE') {
-    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'HR Certification'
+    if (isApplicationReceivedByHr(app)) {
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'CHRMO Certification'
+    }
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
   }
   if (queueStageKey === 'PENDING_HR_REVIEW') {
-    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'HR Certification'
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'CHRMO Certification'
   }
   if (queueStageKey === 'PENDING_CMO_CBMO_REVIEW') {
+    if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
     return 'CMO/CBMO Review'
   }
   if (queueStageKey === 'PENDING_RELEASE') {
-    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Release'
+    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
   }
 
   const rawStatus = getApplicationRawStatusKey(app)
-  if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
+  if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
   if (rawStatus === 'PENDING_HR') {
     if (isApplicationReceivedByHr(app)) {
-      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'HR Certification'
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'CHRMO Certification'
     }
-    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'HR Certification'
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
   }
   if (rawStatus === 'APPROVED') {
     if (isApplicationReleased(app)) return 'Approved'
     if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
-    return isApplicationCmoCbmoReviewed(app) ? 'Release' : 'CMO/CBMO Review'
+    return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CBMO Review'
   }
 
   return ''
@@ -544,8 +555,10 @@ function mergeStatus(app) {
   const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
   if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
 
-  if (raw === 'PENDING_ADMIN' || normalizedStatus.includes('PENDING ADMIN')) return 'Admin Recommendation'
-  if (raw === 'PENDING_HR' || normalizedStatus.includes('PENDING HR')) return 'HR Certification'
+  if (raw === 'PENDING_ADMIN' || normalizedStatus.includes('PENDING ADMIN')) {
+    return 'Department Recommendation'
+  }
+  if (raw === 'PENDING_HR' || normalizedStatus.includes('PENDING HR')) return 'CHRMO Certification'
 
   if (raw.includes('PENDING') || normalizedStatus.includes('PENDING')) return 'Pending'
   if (raw.includes('RECALLED') || normalizedStatus.includes('RECALLED')) {
@@ -759,8 +772,8 @@ function getEditRequestBadgeLabel(app) {
       return labelPrefix + ' Pending'
     }
     if (!isCancellationRequestAction(app)) {
-      if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
-      return 'HR Certification'
+      if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+      return 'CHRMO Certification'
     }
   }
   if (status === 'APPROVED') {
@@ -788,8 +801,8 @@ function getEditRequestStatusLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
   if (status === 'PENDING') {
     const rawStatus = getApplicationRawStatusKey(app)
-    if (rawStatus === 'PENDING_HR') return 'HR Certification'
-    if (rawStatus === 'PENDING_ADMIN') return 'Admin Recommendation'
+    if (rawStatus === 'PENDING_HR') return 'CHRMO Certification'
+    if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
     return 'Pending Review'
   }
   if (status === 'APPROVED') return 'Approved'
@@ -2334,7 +2347,7 @@ const applicationsForTable = computed(() => {
     const shouldHidePendingAdmin =
       rawStatus === 'PENDING_ADMIN' &&
       !isPendingEditRequest(app) &&
-      !(isLateCocSourceView() && getApplicationType(app) === 'COC')
+      !(applicationTypeFilter.value === 'COC' && getApplicationType(app) === 'COC')
     if (shouldHidePendingAdmin) return false
     return matchesEmploymentTypeFilter(app)
   })
@@ -2568,26 +2581,57 @@ function toIsoDate(value) {
   return `${year}-${month}-${day}`
 }
 
+function mapApplicationsForPanel(applicationsForDisplay = []) {
+  return normalizeBackendApplications(applicationsForDisplay).map((app, index) => {
+    const normalized = normalizeBackendApplicationShape(app, index) || app
+    return {
+      ...normalized,
+      application_type: getApplicationType(normalized),
+      application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
+      employeeName: normalized?.employeeName || 'Unknown',
+      officeShort: resolveOfficeAcronymLabel(normalized),
+      displayStatus: mergeStatus(normalized),
+    }
+  })
+}
+
 async function fetchApplications() {
   loading.value = true
   try {
-    if (applicationTypeFilter.value === 'COC' && applicationSourceFilter === 'late_filing') {
-      const cocLateResponse = await api.get('/hr/coc-applications/late-filings')
-      const lateApplications = normalizeBackendApplications(
-        extractApplicationsFromPayload(cocLateResponse?.data),
+    if (applicationTypeFilter.value === 'COC') {
+      const [cocApplicationsResponse, cocLateResponse] = await Promise.all([
+        applicationSourceFilter === 'late_filing'
+          ? Promise.resolve(null)
+          : api.get('/hr/coc-applications').catch(() => null),
+        !applicationSourceFilter || applicationSourceFilter === 'late_filing'
+          ? api.get('/hr/coc-applications/late-filings').catch(() => null)
+          : Promise.resolve(null),
+      ])
+
+      const mergedCocApplications = mergeApplications(
+        normalizeBackendApplications(extractApplicationsFromPayload(cocApplicationsResponse?.data)),
+        normalizeBackendApplications(extractApplicationsFromPayload(cocLateResponse?.data)),
       )
 
-      applications.value = lateApplications.map((app, index) => {
-        const normalized = normalizeBackendApplicationShape(app, index) || app
-        return {
-          ...normalized,
-          application_type: getApplicationType(normalized),
-          application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
-          employeeName: normalized?.employeeName || 'Unknown',
-          officeShort: resolveOfficeAcronymLabel(normalized),
-          displayStatus: mergeStatus(normalized),
-        }
-      })
+      applications.value = mapApplicationsForPanel(mergedCocApplications)
+      return
+    }
+
+    if (applicationTypeFilter.value === 'LEAVE') {
+      const leaveApplicationsResponse = await api.get('/hr/leave-applications')
+      const leaveApplications = normalizeBackendApplications(
+        extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+      )
+      const detailWorkflowSnapshots = await fetchWorkflowDetailSnapshotsForApprovedLeaveRows(
+        leaveApplications,
+      )
+      const applicationsForDisplay = expandApplicationsForDisplay(
+        detailWorkflowSnapshots.length > 0
+          ? mergeApplications(leaveApplications, detailWorkflowSnapshots)
+          : leaveApplications,
+      )
+
+      applications.value = mapApplicationsForPanel(applicationsForDisplay)
       return
     }
 
@@ -2612,17 +2656,7 @@ async function fetchApplications() {
       mergedApplicationsWithWorkflowSnapshots,
     )
 
-    applications.value = normalizeBackendApplications(applicationsForDisplay).map((app, index) => {
-      const normalized = normalizeBackendApplicationShape(app, index) || app
-      return {
-        ...normalized,
-        application_type: getApplicationType(normalized),
-        application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
-        employeeName: normalized?.employeeName || 'Unknown',
-        officeShort: resolveOfficeAcronymLabel(normalized),
-        displayStatus: mergeStatus(normalized),
-      }
-    })
+    applications.value = mapApplicationsForPanel(applicationsForDisplay)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load applications right now.')
     q.notify({
@@ -2865,19 +2899,34 @@ function getApplicationRawStatusKey(app) {
 function getApplicationStatusColor(app) {
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
   if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 'positive'
-  if (cocReleaseStageStatus === 'Release') return 'indigo-6'
+  if (cocReleaseStageStatus === 'Pending Release' || cocReleaseStageStatus === 'Release') {
+    return 'indigo-6'
+  }
   if (cocReleaseStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
-  if (cocReleaseStageStatus === 'HR Certification') return 'blue-6'
-  if (cocReleaseStageStatus === 'Admin Recommendation') return 'warning'
+  if (cocReleaseStageStatus === 'CHRMO Certification') return 'blue-6'
+  if (
+    cocReleaseStageStatus === 'Department Recommendation' ||
+    cocReleaseStageStatus === 'Admin Recommendation'
+  ) {
+    return 'warning'
+  }
 
   const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
-  if (leaveWorkflowStageStatus === 'Admin Recommendation') return 'warning'
+  if (
+    leaveWorkflowStageStatus === 'Department Recommendation' ||
+    leaveWorkflowStageStatus === 'Admin Recommendation'
+  ) {
+    return 'warning'
+  }
   if (leaveWorkflowStageStatus === 'Pending Update Receive') return 'teal-6'
+  if (leaveWorkflowStageStatus === 'Pending Receive') return 'teal-6'
   if (leaveWorkflowStageStatus === 'Pending Update Review') return 'blue-6'
-  if (leaveWorkflowStageStatus === 'HR Certification') return 'blue-6'
+  if (leaveWorkflowStageStatus === 'CHRMO Certification') return 'blue-6'
   if (leaveWorkflowStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
   if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
-  if (leaveWorkflowStageStatus === 'Release') return 'indigo-6'
+  if (leaveWorkflowStageStatus === 'Pending Release' || leaveWorkflowStageStatus === 'Release') {
+    return 'indigo-6'
+  }
   if (leaveWorkflowStageStatus === 'Approved') return 'green'
 
   const rawStatus = getApplicationRawStatusKey(app)
@@ -3261,7 +3310,7 @@ function getPreEditHrApprovalTimelineEntry(app) {
   const requestLabel = isCancellationRequestAction(app) ? 'cancellation request' : 'edit request'
 
   return {
-    title: 'HR Certification Completed',
+    title: 'CHRMO Certification Completed',
     subtitle: approvedAt || 'Completed',
     description: 'Application was approved before the ' + requestLabel + '.',
     icon: 'task_alt',
@@ -3403,7 +3452,7 @@ function getEditRequestTimelineEntries(app) {
   } else {
     entries.push({
       title: terminology.pendingHrTitle,
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin review.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3683,6 +3732,148 @@ function shouldUseUpdateReceiveEndpoint(app) {
   return Boolean(resolveCurrentUpdateRequestCycleStartValue(app))
 }
 
+function getReceiveConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Receive COC Application',
+      message: 'This will confirm that HR received this COC application.',
+    }
+  }
+
+  if (shouldUseUpdateReceiveEndpoint(app)) {
+    if (isCancellationRequestAction(app)) {
+      return {
+        title: 'Receive Cancellation Form',
+        message: 'This will confirm that HR received the hard-copy cancellation form.',
+      }
+    }
+
+    return {
+      title: 'Receive Updated Application',
+      message: 'This will confirm that HR received the updated hard-copy leave application form.',
+    }
+  }
+
+  return {
+    title: 'Receive Application',
+    message: 'This will confirm that HR received the hard-copy leave application form.',
+  }
+}
+
+function confirmApplicationReceive(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canReceiveApplication(application)) return false
+
+  const confirmationCopy = getReceiveConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Receive',
+      color: 'primary',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationReceived(application)
+  })
+
+  return true
+}
+
+function confirmApplicationCmoCbmoReview(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canCmoCbmoReviewApplication(application)) return false
+
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: 'Confirm CMO/CBMO Review',
+    message: 'This will confirm CMO/CBMO review and move the application to Pending Release.',
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Confirm',
+      color: 'deep-purple-6',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationCmoCbmoReviewed(application)
+  })
+
+  return true
+}
+
+function getReleaseConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Release COC Application',
+      message: 'This will confirm that HR released this COC application.',
+    }
+  }
+
+  if (shouldUseUpdateReleaseEndpoint(app)) {
+    if (isCancellationRequestAction(app)) {
+      return {
+        title: 'Release Cancellation Form',
+        message: 'This will confirm that HR released the cancellation form.',
+      }
+    }
+
+    return {
+      title: 'Release Updated Application',
+      message: 'This will confirm that HR released the updated hard-copy leave application form.',
+    }
+  }
+
+  return {
+    title: 'Release Application',
+    message: 'This will confirm that HR released the hard-copy leave application form.',
+  }
+}
+
+function confirmApplicationRelease(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canReleaseApplication(application)) return false
+
+  const confirmationCopy = getReleaseConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Release',
+      color: 'secondary',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationReleased(application)
+  })
+
+  return true
+}
+
 function shouldUseUpdateReleaseEndpoint(app) {
   if (!app || isCocApplication(app)) return false
   if (getLatestUpdateRequestStatus(app) !== 'APPROVED') return false
@@ -3783,7 +3974,12 @@ function formatRecentRemarks(app) {
 }
 
 function isLateCocWorkflowApplication(app) {
-  return isLateCocSourceView() && isCocApplication(app)
+  if (!isCocApplication(app)) return false
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_LATE_HR') return true
+
+  return Boolean(app?.is_late_filed || app?.isLateFiled || app?.late_filing_status)
 }
 
 function getLateCocHrEvaluationTimelineEntry(app) {
@@ -3882,15 +4078,15 @@ function buildApplicationTimeline(app) {
 
   if (rawStatus === 'PENDING_LATE_HR') {
     entries.push({
-      title: 'Admin Recommendation',
-      subtitle: 'Upcoming',
+      title: 'Department Recommendation',
+      subtitle: 'On Process',
       description: 'This stage starts after HR approves the late COC application.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     })
     entries.push({
-      title: 'HR Certification',
-      subtitle: 'Upcoming',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3898,7 +4094,7 @@ function buildApplicationTimeline(app) {
     entries.push(...editRequestEntries)
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3909,7 +4105,7 @@ function buildApplicationTimeline(app) {
   if (rawStatus === 'PENDING_ADMIN') {
     if (hasEditRequest) {
       entries.push({
-        title: 'Admin Recommendation Completed',
+        title: 'Department Recommendation Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
@@ -3925,7 +4121,7 @@ function buildApplicationTimeline(app) {
       entries.push(...editRequestEntries)
       entries.push({
         title: 'Application Closed',
-        subtitle: 'Upcoming',
+        subtitle: 'On Process',
         description: 'Application will be closed after final HR action.',
         icon: 'radio_button_unchecked',
         color: 'grey-5',
@@ -3934,15 +4130,15 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: 'Admin Recommendation',
+      title: 'Department Recommendation',
       subtitle: 'Current stage',
       description: 'Waiting for department admin approval or disapproval.',
       icon: 'pending_actions',
       color: 'warning',
     })
     entries.push({
-      title: 'HR Certification',
-      subtitle: 'Upcoming',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3950,7 +4146,7 @@ function buildApplicationTimeline(app) {
     entries.push(...editRequestEntries)
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3966,7 +4162,7 @@ function buildApplicationTimeline(app) {
 
     if (resolveDepartmentAdminActionDateValue(app)) {
       entries.push({
-        title: 'Admin Recommendation Completed',
+        title: 'Department Recommendation Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
@@ -4001,7 +4197,7 @@ function buildApplicationTimeline(app) {
   }
 
   entries.push({
-    title: 'Admin Recommendation Completed',
+    title: 'Department Recommendation Completed',
     subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
     description: 'Application was reviewed and forwarded to HR.',
     icon: 'check_circle',
@@ -4020,7 +4216,7 @@ function buildApplicationTimeline(app) {
       entries.push(...editRequestEntries)
       entries.push({
         title: 'Application Closed',
-        subtitle: 'Upcoming',
+        subtitle: 'On Process',
         description: 'Application will be closed after final HR action.',
         icon: 'radio_button_unchecked',
         color: 'grey-5',
@@ -4029,7 +4225,7 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: 'HR Certification',
+      title: 'CHRMO Certification',
       subtitle: 'Current stage',
       description: 'Waiting for HR final evaluation and approval.',
       icon: 'pending_actions',
@@ -4038,7 +4234,7 @@ function buildApplicationTimeline(app) {
     entries.push(...editRequestEntries)
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -4081,7 +4277,7 @@ function buildApplicationTimeline(app) {
     const approvedBy = resolveHrActor(app)
 
     entries.push({
-      title: 'HR Certification Completed',
+      title: 'CHRMO Certification Completed',
       subtitle: approvedAt,
       description: 'Application is fully approved.',
       icon: 'task_alt',
@@ -4111,7 +4307,7 @@ function buildApplicationTimeline(app) {
       entries.push(preEditHrApprovalEntry)
     } else if (approvedAt || approvedBy !== 'Unknown') {
       entries.push({
-        title: 'HR Certification Completed',
+        title: 'CHRMO Certification Completed',
         subtitle: approvedAt || 'Completed',
         description: 'Application was fully approved before recall.',
         icon: 'task_alt',
@@ -5195,6 +5391,7 @@ async function markApplicationReceived(target = selectedApp.value) {
       }
 
       applyLeaveApplicationUpdate(mergedApplication)
+      await fetchLatestHrLeaveApplication(mergedApplication)
     }
 
     q.notify({
@@ -5418,6 +5615,7 @@ async function markApplicationCmoCbmoReviewed(target = selectedApp.value) {
         selectedApp.value = mergedApplication
       }
       applyLeaveApplicationUpdate(mergedApplication)
+      await fetchLatestHrLeaveApplication(mergedApplication)
     }
 
     q.notify({
@@ -5528,7 +5726,7 @@ function getLateCocMutationFallbackPatch(actionType) {
       raw_status: 'PENDING_ADMIN',
       rawStatus: 'PENDING_ADMIN',
       group_raw_status: 'PENDING_ADMIN',
-      status: 'Admin Recommendation',
+      status: 'Department Recommendation',
     }
   }
 
@@ -5643,6 +5841,9 @@ async function handleDialogMutationSuccess(payload = {}) {
     canReleaseApplication,
     clearEmploymentTypeFilter,
     columns,
+    confirmApplicationCmoCbmoReview,
+    confirmApplicationReceive,
+    confirmApplicationRelease,
     confirmActionTarget,
     confirmActionType,
     createRecalledCompanionRow,

@@ -384,7 +384,7 @@ const receivedActionLabel = computed(() =>
   requestCycleDocumentLabel.value ? requestCycleDocumentLabel.value + ' Received' : 'Received',
 )
 const releaseActionLabel = computed(() =>
-  requestCycleDocumentLabel.value ? 'Release ' + requestCycleDocumentLabel.value : 'Released',
+  requestCycleDocumentLabel.value ? 'Release ' + requestCycleDocumentLabel.value : 'Release',
 )
 const releasedActionLabel = computed(() =>
   requestCycleDocumentLabel.value ? requestCycleDocumentLabel.value + ' Released' : 'Released',
@@ -554,14 +554,12 @@ function handleReceiveClick() {
   if (!props.application || !canReceiveState.value) return
 
   lastRequestedReceiveKey.value = applicationKey.value
-  markLocalActionAsCompleted(localReceivedStateByKey, 'HR')
   emit('receive', props.application)
 }
 
 function handleReleaseClick() {
   if (!props.application || !canReleaseState.value) return
   lastRequestedReleaseKey.value = applicationKey.value
-  markLocalActionAsCompleted(localReleasedStateByKey, 'HR')
   emit('release', props.application)
 }
 
@@ -895,19 +893,6 @@ function resolveCurrentCmoCbmoReviewMeta(application) {
   }
 }
 
-function markLocalActionAsCompleted(stateByKeyRef, actor = 'HR') {
-  const key = applicationKey.value
-  if (!key) return
-
-  stateByKeyRef.value = {
-    ...stateByKeyRef.value,
-    [key]: {
-      actor: String(actor || 'HR').trim() || 'HR',
-      at: new Date().toISOString(),
-    },
-  }
-}
-
 function clearLocalActionState(stateByKeyRef, key) {
   if (!key || !stateByKeyRef.value[key]) return
 
@@ -932,6 +917,8 @@ function normalizeEntryTitle(entry) {
   return String(entry?.title || '')
     .trim()
     .toLowerCase()
+    .replace(/^hr certification completed$/, 'chrmo certification completed')
+    .replace(/^hr certification$/, 'chrmo certification')
 }
 
 function isEntryTitle(entry, title) {
@@ -980,7 +967,7 @@ function isHrPhaseEntry(entry) {
   const normalizedTitle = normalizeEntryTitle(entry)
   return (
     normalizedTitle.includes('pending hr review') ||
-    normalizedTitle.includes('hr certification') ||
+    normalizedTitle.includes('chrmo certification') ||
     normalizedTitle.includes('approved by hr') ||
     normalizedTitle.includes('cmo/cbmo review') ||
     normalizedTitle.includes('application disapproved') ||
@@ -1041,7 +1028,7 @@ function getReceivedInsertionIndex(entries) {
   if (isCocApplicationType.value) {
     const pendingHrIndex = entries.findIndex(
       (entry) =>
-        isEntryTitle(entry, 'HR Certification') ||
+        isEntryTitle(entry, 'CHRMO Certification') ||
         isEntryTitle(entry, 'Pending HR Review') ||
         isEntryTitle(entry, 'Pending Edit Review (HR)') ||
         isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
@@ -1050,19 +1037,21 @@ function getReceivedInsertionIndex(entries) {
 
     const approvedByHrIndex = entries.findIndex(
       (entry) =>
-        isEntryTitle(entry, 'HR Certification Completed') ||
+        isEntryTitle(entry, 'CHRMO Certification Completed') ||
         isEntryTitle(entry, 'Approved by HR'),
     )
     if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
   }
 
   const adminCompletedIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Department Recommendation Completed') ||
     isEntryTitle(entry, 'Admin Recommendation Completed') ||
     isEntryTitle(entry, 'Admin Review Completed'),
   )
   if (adminCompletedIndex >= 0) return adminCompletedIndex + 1
 
   const adminPendingIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Department Recommendation') ||
     isEntryTitle(entry, 'Admin Recommendation') ||
     isEntryTitle(entry, 'Department Admin Review Pending'),
   )
@@ -1077,7 +1066,7 @@ function getReceivedInsertionIndex(entries) {
 function getHistoricalReleasedInsertionIndex(entries) {
   const approvedByHrIndex = entries.findIndex(
     (entry) =>
-      isEntryTitle(entry, 'HR Certification Completed') ||
+        isEntryTitle(entry, 'CHRMO Certification Completed') ||
       isEntryTitle(entry, 'Approved by HR'),
   )
   if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
@@ -1162,7 +1151,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
 
     return {
       title: entryTitle,
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: isCoc
         ? 'HR will acknowledge this COC application for review.'
         : isUpdateCycle
@@ -1206,7 +1195,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
 function adjustPendingHrReviewTimelineEntry(entry) {
   if (
     !entry ||
-    (!isEntryTitle(entry, 'HR Certification') &&
+    (!isEntryTitle(entry, 'CHRMO Certification') &&
       !isEntryTitle(entry, 'Pending HR Review') &&
       !isEntryTitle(entry, 'Pending Edit Review (HR)') &&
       !isEntryTitle(entry, 'Pending Cancellation Review (HR)'))
@@ -1225,7 +1214,7 @@ function adjustPendingHrReviewTimelineEntry(entry) {
 
   return {
     ...entry,
-    subtitle: 'Upcoming',
+    subtitle: 'On Process',
     description: pendingDescription,
     icon: 'radio_button_unchecked',
     color: 'grey-5',
@@ -1262,7 +1251,7 @@ function buildCmoCbmoReviewTimelineEntry() {
 
   return {
     title: 'CMO/CBMO Review',
-    subtitle: isCurrent ? 'Current stage' : 'Upcoming',
+    subtitle: isCurrent ? 'Current stage' : 'On Process',
     description: isCurrent
       ? 'Waiting for CMO/CBMO review before release.'
       : 'This stage starts after HR certification.',
@@ -1297,7 +1286,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
     const isCurrent = canReleaseState.value
     return {
       title: entryTitle,
-      subtitle: isCurrent ? 'Current stage' : 'Upcoming',
+      subtitle: isCurrent ? 'Current stage' : 'On Process',
       description: isCurrent
         ? isCoc
           ? 'Waiting for HR to release this COC application.'
@@ -1656,8 +1645,8 @@ watch(
 .application-timeline-meta {
   font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: #64748b;
 }
 

@@ -35,7 +35,7 @@ function toBase64(url) {
     )
 }
 
-function buildCocStyleLeaveHeader(logoBase64, borderWidth) {
+function buildCocStyleLeaveHeader(logoBase64, borderWidth, employeeStatusLabel = '') {
   const compactHeaderBarHeight = 17
   const compactSmallBarTopOffset = 33
   const compactHeaderTextLeftInset = 6
@@ -106,10 +106,25 @@ function buildCocStyleLeaveHeader(logoBase64, borderWidth) {
                   body: [
                     [
                       {
-                        text: 'Stamp of Date of Receipt',
-                        fontSize: 7,
-                        alignment: 'center',
-                        margin: [2, 8, 2, 0],
+                        stack: [
+                          {
+                            text: 'Stamp of Date of Receipt',
+                            fontSize: 7,
+                            alignment: 'center',
+                          },
+                          ...(employeeStatusLabel
+                            ? [
+                                {
+                                  text: employeeStatusLabel,
+                                  fontSize: 8,
+                                  bold: true,
+                                  alignment: 'center',
+                                  margin: [2, 5, 2, 0],
+                                },
+                              ]
+                            : []),
+                        ],
+                        margin: [2, employeeStatusLabel ? 5 : 8, 2, 0],
                       },
                     ],
                   ],
@@ -380,6 +395,60 @@ function parseName(app) {
   const last = words[words.length - 1]
   const first = words.slice(0, -1).join(' ')
   return { last, first, middle: '', full: raw }
+}
+
+function formatEmployeeStatusForReceiptStamp(app) {
+  const candidates = [
+    app?.employment_status,
+    app?.employment_status_key,
+    app?.employmentStatus,
+    app?.employmentStatusKey,
+    app?.employment_type,
+    app?.employmentType,
+    app?.appointment_status,
+    app?.appointmentStatus,
+    app?.employee_status,
+    app?.employeeStatus,
+    app?.employee?.employment_status,
+    app?.employee?.employment_status_key,
+    app?.employee?.employmentStatus,
+    app?.employee?.employmentStatusKey,
+    app?.employee?.employment_type,
+    app?.employee?.employmentType,
+    app?.employee?.appointment_status,
+    app?.employee?.appointmentStatus,
+    app?.employee?.status,
+    app?.user?.employment_status,
+    app?.user?.employment_status_key,
+    app?.user?.employmentStatus,
+    app?.user?.employmentStatusKey,
+    app?.user?.employment_type,
+    app?.user?.employmentType,
+    app?.user?.appointment_status,
+    app?.user?.appointmentStatus,
+  ]
+
+  const rawStatus = candidates.find((value) => String(value || '').trim())
+  const normalizedStatus = String(rawStatus || '')
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+
+  if (!normalizedStatus) return ''
+
+  const upperStatus = normalizedStatus.toUpperCase()
+  if (upperStatus.includes('REGULAR')) return 'Permanent'
+  if (upperStatus.includes('ELECTIVE')) return 'Elective'
+  if (upperStatus.includes('CASUAL')) return 'Casual'
+  if (
+    upperStatus.includes('CO TER') ||
+    upperStatus.includes('COTER') ||
+    upperStatus.includes('CO TERM')
+  ) {
+    return 'Co-Term'
+  }
+
+  return normalizedStatus.replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
 function formatMiddleInitial(value) {
@@ -1608,6 +1677,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const inclusiveDates = resolveInclusiveDatesLabel(app)
   const b = 0.5 // border width
   const name = parseName(app)
+  const employeeStatusLabel = formatEmployeeStatusForReceiptStamp(app)
   const position = String(app?.position || '').trim()
   const positionFontSize = getSingleLineInfoFontSize(position)
   const recommendationSignatory = getRecommendationSignatory(app)
@@ -1651,7 +1721,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
 
     content: [
       // ═══ TOP HEADER ═══
-      buildCocStyleLeaveHeader(logoBase64, b),
+      buildCocStyleLeaveHeader(logoBase64, b, employeeStatusLabel),
 
       // Title
       {
@@ -2030,13 +2100,18 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     margin: [4, 4, 0, 2],
                   },
                   {
-                    text: `${app.total_days} ${app.total_days === 1 ? 'Day' : 'day(s)'}`,
-                    fontSize: 9,
-                    bold: true,
-                    margin: [12, 2, 4, 4],
+                    ...underlinedInfoValue(
+                      `${app.total_days} ${app.total_days === 1 ? 'Day' : 'day(s)'}`,
+                      { fontSize: 9, margin: [12, 2, 4, 4] },
+                    ),
                   },
                   { text: 'INCLUSIVE DATES', bold: true, fontSize: 8, margin: [4, 4, 0, 2] },
-                  { text: inclusiveDates, fontSize: 8, bold: true, margin: [12, 2, 4, 4] },
+                  {
+                    ...underlinedInfoValue(inclusiveDates, {
+                      fontSize: 8,
+                      margin: [12, 2, 4, 4],
+                    }),
+                  },
                 ],
                 border: [true, false, true, true],
               },

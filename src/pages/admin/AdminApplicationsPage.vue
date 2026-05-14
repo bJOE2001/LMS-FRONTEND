@@ -117,7 +117,10 @@
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
             <div class="status-cell-wrap">
-              <StatusBadge :status="getFinalStatusForStatusColumn(tableProps.row)" />
+              <StatusBadge
+                :status="getFinalStatusForStatusColumn(tableProps.row)"
+                :tooltip="getStatusTooltipForStatusColumn(tableProps.row)"
+              />
             </div>
           </q-td>
         </template>
@@ -264,11 +267,14 @@
                   v-if="
                     ![
                       'Pending HR',
+                      'Pending Receive',
                       'Pending HR Receive',
                       'Pending HR Review',
                       'Admin Recommendation',
-                      'HR Certification',
+                      'Department Recommendation',
+                      'CHRMO Certification',
                       'CMO/CBMO Review',
+                      'Pending Release',
                       'Release',
                       'Pending Update Receive',
                       'Pending Update HR Review',
@@ -475,7 +481,10 @@
 
             <div class="admin-application-details-item">
               <div class="admin-application-details-label">Application Status</div>
-              <StatusBadge :status="getFinalStatusForStatusColumn(selectedApp)" />
+              <StatusBadge
+                :status="getFinalStatusForStatusColumn(selectedApp)"
+                :tooltip="getStatusTooltipForStatusColumn(selectedApp)"
+              />
             </div>
 
             <div v-if="isCtoLeaveApplication(selectedApp)" class="admin-application-details-item">
@@ -864,6 +873,7 @@ const {
   getPendingUpdateDateIndicatorRows,
   hasPendingDateUpdate,
   formatDate,
+  formatDateTime,
   getApplicationStatusColor,
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
@@ -891,6 +901,9 @@ const {
   printApplication,
   isCocApplication,
   isCtoLeaveApplication,
+  isApplicationReleased,
+  resolveFinalApprovalDateValue,
+  resolveReleasedDateValue,
   hasApplicationAttachment,
   viewApplicationAttachment,
   openActionConfirm,
@@ -919,6 +932,9 @@ const inclusiveDatePatterns = [
 function normalizeDisapprovedStatusLabel(statusValue) {
   return String(statusValue || '')
     .trim()
+    .replace(/^HR Certification(?: Completed)?$/i, (match) =>
+      match.replace(/^HR Certification/i, 'CHRMO Certification'),
+    )
     .replace(/rejected/gi, 'Disapproved')
 }
 
@@ -989,6 +1005,8 @@ function getFinalStatusForStatusColumn(app) {
     return resolvedStatus
   }
 
+  if (isApplicationReleased(app)) return 'Released'
+
   const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
   if (updateRequestBadgeLabel) {
     return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
@@ -1002,6 +1020,20 @@ function getFinalStatusForStatusColumn(app) {
   }
 
   return getDisplayApplicationStatusLabel(app)
+}
+
+function getStatusTooltipForStatusColumn(app) {
+  if (!isApplicationReleased(app)) return ''
+
+  const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
+  const releasedAt = formatDateTime(resolveReleasedDateValue(app))
+
+  if (approvedAt && releasedAt) {
+    return `Approved by HR on ${approvedAt}; released on ${releasedAt}.`
+  }
+  if (releasedAt) return `Approved by HR, then released on ${releasedAt}.`
+  if (approvedAt) return `Approved by HR on ${approvedAt}; released.`
+  return 'Approved by HR, then released.'
 }
 
 function getApplicationDetailsLeaveTypeLabel(app) {

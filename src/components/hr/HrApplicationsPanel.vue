@@ -162,7 +162,10 @@
       <template #body-cell-status="props">
         <q-td>
           <div class="status-cell-wrap">
-            <StatusBadge :status="getFinalStatusForStatusColumn(props.row)" />
+            <StatusBadge
+              :status="getFinalStatusForStatusColumn(props.row)"
+              :tooltip="getStatusTooltipForStatusColumn(props.row)"
+            />
           </div>
         </q-td>
       </template>
@@ -212,7 +215,7 @@
               icon="inventory_2"
               color="primary"
               :disable="receiveLoading"
-              @click.stop="markApplicationReceived(props.row)"
+              @click.stop="confirmApplicationReceive(props.row)"
             >
               <q-tooltip>Receive</q-tooltip>
             </q-btn>
@@ -249,7 +252,7 @@
               icon="check_circle"
               color="deep-purple-6"
               :disable="releaseLoading"
-              @click.stop="markApplicationCmoCbmoReviewed(props.row)"
+              @click.stop="confirmApplicationCmoCbmoReview(props.row)"
             >
               <q-tooltip>Approve CMO/CBMO Review</q-tooltip>
             </q-btn>
@@ -262,7 +265,7 @@
               icon="outbox"
               color="secondary"
               :disable="releaseLoading"
-              @click.stop="markApplicationReleased(props.row)"
+              @click.stop="confirmApplicationRelease(props.row)"
             >
               <q-tooltip>Release</q-tooltip>
             </q-btn>
@@ -310,8 +313,8 @@
     :has-application-attachment="hasApplicationAttachment"
     :receive-loading="receiveLoading"
     :release-loading="releaseLoading"
-    @receive="markApplicationReceived"
-    @release="markApplicationReleased"
+    @receive="confirmApplicationReceive"
+    @release="confirmApplicationRelease"
     @view-attachment="viewApplicationAttachment"
   />
 
@@ -370,6 +373,7 @@
     :can-edit-application="canEditApplication"
     :can-recall-application="canRecallApplication"
     :get-final-status-for-status-column="getFinalStatusForStatusColumn"
+    :get-status-tooltip-for-status-column="getStatusTooltipForStatusColumn"
     @view-attachment="viewApplicationAttachment"
     @open-edit="openEdit"
     @open-action-confirm="openActionConfirm"
@@ -475,7 +479,12 @@ export default defineComponent({
   },
   setup(props) {
     const normalizeDisapprovedStatusLabel = (statusValue) =>
-      String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+      String(statusValue || '')
+        .trim()
+        .replace(/^HR Certification(?: Completed)?$/i, (match) =>
+          match.replace(/^HR Certification/i, 'CHRMO Certification'),
+        )
+        .replace(/rejected/gi, 'Disapproved')
 
     function getDisplayApplicationStatusLabel(app) {
       const statusLabel = String(
@@ -915,10 +924,26 @@ export default defineComponent({
         return resolvedStatus
       }
 
+      if (panel.isApplicationReleased(app)) return 'Released'
+
       const updateRequestBadgeLabel = panel.getEditRequestBadgeLabel(app)
       if (updateRequestBadgeLabel) return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
 
       return getDisplayApplicationStatusLabel(app)
+    }
+
+    function getStatusTooltipForStatusColumn(app) {
+      if (!panel.isApplicationReleased(app)) return ''
+
+      const approvedAt = panel.formatDateTime(panel.resolveFinalApprovalDateValue(app))
+      const releasedAt = panel.formatDateTime(panel.resolveReleasedDateValue(app))
+
+      if (approvedAt && releasedAt) {
+        return `Approved by HR on ${approvedAt}; released on ${releasedAt}.`
+      }
+      if (releasedAt) return `Approved by HR, then released on ${releasedAt}.`
+      if (approvedAt) return `Approved by HR on ${approvedAt}; released.`
+      return 'Approved by HR, then released.'
     }
 
     function canShowPendingReleaseAction(app) {
@@ -926,7 +951,9 @@ export default defineComponent({
 
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
-        (stageStatus === 'Release' || stageStatus === 'Pending Update Release') &&
+        (stageStatus === 'Pending Release' ||
+          stageStatus === 'Release' ||
+          stageStatus === 'Pending Update Release') &&
         panel.canReleaseApplication(app)
       )
     }
@@ -934,7 +961,9 @@ export default defineComponent({
     function canShowPendingReceiveAction(app) {
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
-        (stageStatus === 'HR Certification' || stageStatus === 'Pending Update Receive') &&
+        (stageStatus === 'Pending Receive' ||
+          stageStatus === 'CHRMO Certification' ||
+          stageStatus === 'Pending Update Receive') &&
         panel.canReceiveApplication(app)
       )
     }
@@ -994,6 +1023,7 @@ export default defineComponent({
       getApplicationCalendarDates,
       getApplicationRequestUpdateCalendarDates,
       getFinalStatusForStatusColumn,
+      getStatusTooltipForStatusColumn,
       handleCalendarPreviewModelUpdate,
       handleCalendarPreviewSurfaceClick,
       handleCalendarPreviewSurfacePointerDown,
