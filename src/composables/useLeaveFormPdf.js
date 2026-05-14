@@ -1453,54 +1453,54 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const leaveTypes = [
     {
       key: 'Vacation Leave',
-      label: 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'VACATION LEAVE (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
     {
       key: 'Mandatory/Forced Leave',
-      label: 'Mandatory/Forced Leave(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'MANDATORY/FORCED LEAVE(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
     {
       key: 'Sick Leave',
-      label: 'Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'SICK LEAVE (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
-    { key: 'Wellness Leave', label: 'Wellness Leave Policy (CSC Resolution No. 2501292)' },
+    { key: 'Wellness Leave', label: 'WELLNESS LEAVE POLICY (CSC Resolution No. 2501292)' },
     {
       key: 'CTO Leave',
-      label: 'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
+      label: 'COMPENSATORY TIME OFF (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
     },
     {
       key: 'Maternity Leave',
-      label: 'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
+      label: 'MATERNITY LEAVE (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
     },
     {
       key: 'Paternity Leave',
-      label: 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
+      label: 'PATERNITY LEAVE (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
     },
     {
       key: 'Special Privilege Leave',
       label:
-        'Special Privilege Leave(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+        'SPECIAL PRIVILEGE LEAVE(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
-    { key: 'Solo Parent Leave', label: 'Solo Parent Leave (RA No. 8972 / CSC MC No. 8, s. 2004)' },
+    { key: 'Solo Parent Leave', label: 'SOLO PARENT LEAVE (RA No. 8972 / CSC MC No. 8, s. 2004)' },
     {
       key: 'Study Leave',
-      label: 'Study Leave (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'STUDY LEAVE (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
-    { key: '10-Day VAWC Leave', label: '10-Day VAWC Leave (RA No. 9262 / CSC MC No. 15, s. 2005)' },
+    { key: '10-Day VAWC Leave', label: '10-DAY VAWC LEAVE (RA No. 9262 / CSC MC No. 15, s. 2005)' },
     {
       key: 'Rehabilitation Privilege',
       label:
-        'Rehabilitation Privilege (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+        'REHABILITATION PRIVILEGE (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
     {
       key: 'Special Leave Benefits for Women',
-      label: 'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)',
+      label: 'SPECIAL LEAVE BENEFITS FOR WOMEN (RA No. 9710 / CSC MC No. 25, s. 2010)',
     },
     {
       key: 'Special Emergency (Calamity) Leave',
-      label: 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)',
+      label: 'SPECIAL EMERGENCY (CALAMITY) LEAVE (CSC MC No. 2, s. 2012, as amended)',
     },
-    { key: 'Adoption Leave', label: 'Adoption Leave (R.A. No. 8552)' },
+    { key: 'Adoption Leave', label: 'ADOPTION LEAVE (R.A. No. 8552)' },
   ]
   const isKnownLeave = leaveTypes.some((t) => t.key === lt)
 

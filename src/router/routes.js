@@ -21,6 +21,7 @@ const routes = [
       { path: 'hr/signatories', name: 'hr-signatories', component: () => import('pages/hr/SignatoriesPage.vue') },
       { path: 'hr/leave-types', name: 'hr-leave-types', component: () => import('pages/hr/LeaveTypesPage.vue') },
       { path: 'hr/departments-library', name: 'hr-departments-library', component: () => import('pages/hr/DepartmentsLibraryPage.vue') },
+      { path: 'hr/illness-library', name: 'hr-illness-library', component: () => import('pages/hr/IllnessLibraryPage.vue') },
       { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },

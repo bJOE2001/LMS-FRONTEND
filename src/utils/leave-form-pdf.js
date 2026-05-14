@@ -238,6 +238,42 @@ function parseName(app) {
   return { last, first, middle: '', full: raw }
 }
 
+function formatMiddleInitial(value) {
+  const normalizedValue = String(value || '')
+    .trim()
+    .replace(/\.+$/, '')
+
+  return normalizedValue ? `${normalizedValue.charAt(0)}.` : ''
+}
+
+function isNameSuffix(value) {
+  return /^(JR|SR|I|II|III|IV|V|VI)\.?$/i.test(String(value || '').trim())
+}
+
+function formatSignatoryNameWithMiddleInitial(value) {
+  const rawName = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!rawName) return ''
+
+  if (rawName.includes(',')) {
+    const [lastName = '', givenPart = '', middlePart = ''] = rawName
+      .split(',')
+      .map((part) => part.trim())
+    const middleInitial = formatMiddleInitial(middlePart)
+    return [givenPart, middleInitial, lastName].filter(Boolean).join(' ')
+  }
+
+  const parts = rawName.split(' ').filter(Boolean)
+  if (parts.length < 3) return rawName
+
+  const suffix = isNameSuffix(parts[parts.length - 1]) ? parts.pop() : ''
+  const lastName = parts.pop()
+  const middleName = parts.pop()
+  const givenNames = parts.join(' ')
+  const middleInitial = formatMiddleInitial(middleName)
+
+  return [givenNames, middleInitial, lastName, suffix].filter(Boolean).join(' ')
+}
+
 function fmtSalary(val) {
   if (val == null || val === '') return ''
   const n = Number(val)
@@ -1250,12 +1286,18 @@ function resolveApprovedForSectionValues(app) {
 }
 
 function formatApprovedForDays(value) {
+  const numericValue = Number(value)
+  if (Number.isFinite(numericValue) && Math.abs(numericValue) < 0.0005) {
+    return ''
+  }
+
   const formatted = fmtCredit(value)
   return formatted === '' ? '' : formatted
 }
 
 function formatApprovedForOthers(value) {
-  return String(value || '').trim()
+  const resolvedValue = String(value || '').trim()
+  return resolvedValue === '0' || resolvedValue === '0.000' ? '' : resolvedValue
 }
 
 function getApprovedForFieldWidth() {
@@ -1277,6 +1319,7 @@ function buildApprovedForLine(value, label, margin = [4, 2]) {
               {
                 text: resolvedValue || ' ',
                 fontSize: 8,
+                bold: true,
                 margin: [0, 0, 0, 2],
                 border: [false, false, false, true],
               },
@@ -1284,7 +1327,7 @@ function buildApprovedForLine(value, label, margin = [4, 2]) {
           ],
         },
         layout: {
-          hLineWidth: () => 0.6,
+          hLineWidth: () => 1,
           vLineWidth: () => 0,
           hLineColor: () => '#000',
           paddingLeft: () => 0,
@@ -1396,6 +1439,12 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const name = parseName(app)
   const recommendationSignatory = getRecommendationSignatory(app)
   const chrmoLeaveInChargeSignatory = getChrmoLeaveInChargeSignatory(app)
+  const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
+    recommendationSignatory.fullName,
+  )
+  const chrmoLeaveInChargeSignatoryName = formatSignatoryNameWithMiddleInitial(
+    chrmoLeaveInChargeSignatory.fullName,
+  )
   const leaveDetails = resolveConfirmedLeaveDetails(app)
   const vacationDetail = resolveVacationDetailValue(leaveDetails.vacation_detail)
   const vacationSpecify = resolveVacationSpecifyValue(leaveDetails.vacation_specify)
@@ -1504,6 +1553,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     text: office,
                     fontSize: officeFontSize,
                     bold: true,
+                    decoration: 'underline',
                     lineHeight: 1.05,
                     margin: [0, 4, 0, 0],
                   },
@@ -1527,6 +1577,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                         text: name.last,
                         fontSize: 9,
                         bold: true,
+                        decoration: 'underline',
                         color: '#000000',
                         margin: [0, 0, 0, 0],
                       },
@@ -1534,6 +1585,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                         text: name.first,
                         fontSize: 9,
                         bold: true,
+                        decoration: 'underline',
                         color: '#000000',
                         margin: [0, 0, 0, 0],
                       },
@@ -1541,6 +1593,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                         text: name.middle,
                         fontSize: 9,
                         bold: true,
+                        decoration: 'underline',
                         color: '#000000',
                         margin: [0, 0, 0, 0],
                       },
@@ -1654,56 +1707,56 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                   },
                   checkboxRow(
                     isVacation,
-                    'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+                    'VACATION LEAVE (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
                     { marginVertical: 0 },
                   ),
                   checkboxRow(
                     isMandatory,
-                    'Mandatory/Forced Leave (Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+                    'MANDATORY/FORCED LEAVE (Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
                   ),
                   checkboxRow(
                     isSick,
-                    'Sick Leave  (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+                    'SICK LEAVE  (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
                   ),
-                  checkboxRow(isWellness, 'Wellness Leave Policy (CSC Resolution No. 2501292)'),
+                  checkboxRow(isWellness, 'WELLNESS LEAVE POLICY (CSC Resolution No. 2501292)'),
                   checkboxRow(
                     isCTO,
-                    'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
+                    'COMPENSATORY TIME OFF (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
                   ),
                   checkboxRow(
                     isMaternity,
-                    'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
+                    'MATERNITY LEAVE (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
                   ),
                   checkboxRow(
                     isPaternity,
-                    'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
+                    'PATERNITY LEAVE (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
                   ),
                   checkboxRow(
                     isSpecPriv,
-                    'Special Privilege Leave(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+                    'SPECIAL PRIVILEGE LEAVE(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
                   ),
                   checkboxRow(
                     isSoloParent,
-                    'Solo Parent Leave (RA No. 8972 / CSC MC No. 8, s. 2004)',
+                    'SOLO PARENT LEAVE (RA No. 8972 / CSC MC No. 8, s. 2004)',
                   ),
                   checkboxRow(
                     isStudy,
-                    'Study Leave (Sec. 53, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+                    'STUDY LEAVE (Sec. 53, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
                   ),
-                  checkboxRow(isVAWC, '10-Day VAWC Leave (RA No. 9262 / CSC MC No. 15, s. 2005)'),
+                  checkboxRow(isVAWC, '10-DAY VAWC LEAVE (RA No. 9262 / CSC MC No. 15, s. 2005)'),
                   checkboxRow(
                     isRehab,
-                    'Rehabilitation Privilege (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+                    'REHABILITATION PRIVILEGE (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
                   ),
                   checkboxRow(
                     isSLBW,
-                    'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)',
+                    'SPECIAL LEAVE BENEFITS FOR WOMEN (RA No. 9710 / CSC MC No. 25, s. 2010)',
                   ),
                   checkboxRow(
                     isCalamity,
-                    'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)',
+                    'SPECIAL EMERGENCY (CALAMITY) LEAVE (CSC MC No. 2, s. 2012, as amended)',
                   ),
-                  checkboxRow(isAdoption, 'Adoption Leave (R.A. No. 8552)'),
+                  checkboxRow(isAdoption, 'ADOPTION LEAVE (R.A. No. 8552)'),
                 ],
                 border: [true, false, true, true],
               },
@@ -1921,7 +1974,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       body: [
                         [
                           {
-                            text: chrmoLeaveInChargeSignatory.fullName || ' ',
+                            text: chrmoLeaveInChargeSignatoryName || ' ',
                             fontSize: 8,
                             bold: true,
                             alignment: 'center',
@@ -1969,7 +2022,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       body: [
                         [
                           {
-                            text: recommendationSignatory.fullName || ' ',
+                            text: recommendationSignatoryName || ' ',
                             fontSize: 8,
                             bold: true,
                             alignment: 'center',

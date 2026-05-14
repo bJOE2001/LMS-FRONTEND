@@ -644,6 +644,7 @@ import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { useSickIllnessOptions } from 'src/composables/useSickIllnessOptions'
 import { saveLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 import {
   enumerateInclusiveDates,
@@ -727,18 +728,10 @@ function parseSalary(value) {
 
 const attachmentMaxSizeBytes = 10 * 1024 * 1024
 const allowedAttachmentExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.pdf', '.doc', '.docx']
-const sickIllnessOptions = [
-  { label: 'Flu', value: 'Flu' },
-  { label: 'Fever', value: 'Fever' },
-  { label: 'Cough and Cold', value: 'Cough and Cold' },
-  { label: 'Hypertension', value: 'Hypertension' },
-  { label: 'Migraine', value: 'Migraine' },
-  { label: 'Asthma', value: 'Asthma' },
-  { label: 'Dengue', value: 'Dengue' },
-  { label: 'Diarrhea', value: 'Diarrhea' },
-  { label: 'Urinary Tract Infection (UTI)', value: 'Urinary Tract Infection (UTI)' },
-  { label: 'Other', value: 'Other' },
-]
+const {
+  sickIllnessOptions,
+  fetchSickIllnessOptions,
+} = useSickIllnessOptions()
 
 function resolveSingleFile(value) {
   if (!value) return null
@@ -1458,6 +1451,8 @@ function refreshLeaveTypeOptions() {
 }
 
 onMounted(async () => {
+  void fetchSickIllnessOptions()
+
   try {
     const [{ data }] = await Promise.all([
       api.get('/admin/employees-for-leave'),
