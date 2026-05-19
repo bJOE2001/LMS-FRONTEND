@@ -128,7 +128,12 @@
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap">
-              <q-avatar size="32px" color="primary" text-color="white" class="q-mr-sm">
+              <q-avatar
+                size="32px"
+                :color="statusBadgeColor(props.row.status)"
+                text-color="white"
+                class="q-mr-sm"
+              >
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
                 <div>
@@ -260,7 +265,7 @@
                 <div class="text-caption text-grey-6">Status</div>
                 <q-badge
                   :color="statusBadgeColor(selectedEmployee.status)"
-                  :label="selectedEmployee.status"
+                  :label="displayStatusLabel(selectedEmployee.status)"
                   rounded
                 />
               </div>
@@ -1055,9 +1060,7 @@ const calendarPreviewWarningState = computed(
 )
 
 function statusBadgeColor(status) {
-  const normalizedStatus = String(status || '')
-    .trim()
-    .toUpperCase()
+  const normalizedStatus = normalizeStatus(status)
   if (!normalizedStatus) return 'grey'
   const c = {
     REGULAR: 'green',
@@ -1069,12 +1072,25 @@ function statusBadgeColor(status) {
   return c[normalizedStatus] ?? 'blue-9'
 }
 
-function formatResponsiveStatusLabel(status) {
-  const normalizedStatus = String(status || '')
+function normalizeStatus(status) {
+  return String(status || '')
     .trim()
     .toUpperCase()
+}
+
+function displayStatusLabel(status) {
+  const normalizedStatus = normalizeStatus(status)
   if (!normalizedStatus) return '-'
-  return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
+  if (normalizedStatus === 'REGULAR') return 'PERMANENT'
+  if (normalizedStatus === 'CONTRACTUAL') return 'COS(Job Order)'
+  if (normalizedStatus === 'HONORARIUM') return 'COS(Honorarium)'
+  return normalizedStatus
+}
+
+function formatResponsiveStatusLabel(status) {
+  const displayStatus = displayStatusLabel(status)
+  if (displayStatus === '-') return '-'
+  return $q.screen.lt.sm ? displayStatus.charAt(0) : displayStatus
 }
 
 function hasMeaningfulValue(value) {

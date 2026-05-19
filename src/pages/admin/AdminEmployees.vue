@@ -108,7 +108,12 @@
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap cursor-pointer" @click="viewEmployee(props.row)">
-              <q-avatar size="32px" color="primary" text-color="white" class="q-mr-sm">
+              <q-avatar
+                size="32px"
+                :color="statusBadgeColor(props.row.status)"
+                text-color="white"
+                class="q-mr-sm"
+              >
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
               <div class="column justify-center items-start">
@@ -330,7 +335,7 @@
                 <div class="text-caption text-grey-6">Status</div>
                 <q-badge
                   :color="statusBadgeColor(selectedEmployee.status)"
-                  :label="selectedEmployee.status"
+                  :label="displayStatusLabel(selectedEmployee.status)"
                   rounded
                 />
               </div>
@@ -769,11 +774,11 @@ const createDefaultDepartmentHeadForm = () => ({
 const departmentHeadForm = ref(createDefaultDepartmentHeadForm())
 
 const statusOptions = [
-  { label: 'Regular', value: 'REGULAR' },
+  { label: 'Permanent', value: 'REGULAR' },
   { label: 'Co-terminous', value: 'CO-TERMINOUS' },
   { label: 'Elective', value: 'ELECTIVE' },
   { label: 'Casual', value: 'CASUAL' },
-  { label: 'Contractual', value: 'CONTRACTUAL' },
+  { label: 'COS(Job Order)', value: 'CONTRACTUAL' },
 ]
 // const REQUIRED_LEAVE_BALANCE_TYPES = [
 //   'Vacation Leave',
@@ -943,7 +948,7 @@ const statusCards = computed(() => [
   },
   {
     key: 'REGULAR',
-    label: 'Regular',
+    label: 'Permanent',
     value: statusCounts.value.REGULAR || 0,
     filterValue: 'REGULAR',
     icon: 'verified_user',
@@ -963,7 +968,7 @@ const statusCards = computed(() => [
   },
   {
     key: 'CONTRACTUAL',
-    label: 'Contractual',
+    label: 'COS(Job Order)',
     value: statusCounts.value.CONTRACTUAL || 0,
     filterValue: 'CONTRACTUAL',
     icon: 'badge',
@@ -978,6 +983,15 @@ function normalizeStatus(value) {
   return String(value || '')
     .trim()
     .toUpperCase()
+}
+
+function displayStatusLabel(status) {
+  const normalizedStatus = normalizeStatus(status)
+  if (!normalizedStatus) return '-'
+  if (normalizedStatus === 'REGULAR') return 'PERMANENT'
+  if (normalizedStatus === 'CONTRACTUAL') return 'COS(Job Order)'
+  if (normalizedStatus === 'HONORARIUM') return 'COS(Honorarium)'
+  return normalizedStatus
 }
 
 function getMiddleInitial(value) {
@@ -1489,9 +1503,9 @@ function shouldShowAssignedOffice(employee) {
 }
 
 function formatResponsiveStatusLabel(status) {
-  const normalizedStatus = normalizeStatus(status)
-  if (!normalizedStatus) return '-'
-  return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
+  const displayStatus = displayStatusLabel(status)
+  if (displayStatus === '-') return '-'
+  return $q.screen.lt.sm ? displayStatus.charAt(0) : displayStatus
 }
 
 function formatDate(value) {

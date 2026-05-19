@@ -352,8 +352,13 @@ function normalizeStatusSortKey(status) {
 }
 
 function formatStatusLabel(status) {
-  const normalizedStatus = String(status || '').trim()
-  if (normalizedStatus.toUpperCase() === 'HONORARIUM') return 'Honorarium'
+  const normalizedStatus = String(status || '')
+    .trim()
+    .toUpperCase()
+  if (!normalizedStatus) return '-'
+  if (normalizedStatus === 'REGULAR') return 'PERMANENT'
+  if (normalizedStatus === 'CONTRACTUAL') return 'COS(Job Order)'
+  if (normalizedStatus === 'HONORARIUM') return 'COS(Honorarium)'
   return normalizedStatus
 }
 
