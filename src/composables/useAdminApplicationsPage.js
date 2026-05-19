@@ -876,6 +876,96 @@ export function useAdminApplicationsPage() {
       .trim()
   }
 
+  function trimText(value) {
+    return String(value ?? '').trim()
+  }
+
+  function getMiddleInitial(value) {
+    const normalized = trimText(value)
+    if (!normalized) return ''
+
+    const firstToken = normalized
+      .split(/[\s.-]+/)
+      .map((part) => part.trim())
+      .find(Boolean)
+
+    const firstCharacter = String(firstToken || normalized)
+      .replace(/[^A-Za-z0-9]/g, '')
+      .charAt(0)
+
+    return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+  }
+
+  function formatEmployeeNameFromParts(surname, firstname, middlename = '') {
+    const cleanSurname = trimText(surname)
+    const cleanFirstname = trimText(firstname)
+    if (!cleanSurname || !cleanFirstname) return ''
+
+    const formattedName = `${cleanSurname}, ${cleanFirstname}`
+    const middleInitial = getMiddleInitial(middlename)
+    return middleInitial ? `${formattedName} ${middleInitial}` : formattedName
+  }
+
+  function formatEmployeeNameFromRaw(value) {
+    const rawName = trimText(value)
+    if (!rawName) return ''
+
+    if (rawName.includes(',')) {
+      const [rawSurname, ...rawGivenNames] = rawName.split(',')
+      const surname = trimText(rawSurname)
+      const givenTokens = rawGivenNames
+        .join(' ')
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter(Boolean)
+
+      const firstname = givenTokens[0] || ''
+      const middlename = givenTokens.slice(1).join(' ')
+
+      return formatEmployeeNameFromParts(surname, firstname, middlename) || rawName
+    }
+
+    const tokens = rawName
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean)
+    if (tokens.length < 2) return rawName
+
+    const firstname = tokens[0]
+    const surname = tokens[tokens.length - 1]
+    const middlename = tokens.slice(1, -1).join(' ')
+
+    return formatEmployeeNameFromParts(surname, firstname, middlename) || rawName
+  }
+
+  function formatApplicationEmployeeName(application) {
+    const formattedFromParts = formatEmployeeNameFromParts(
+      application?.surname ?? application?.last_name ?? application?.lastName,
+      application?.firstname ?? application?.first_name ?? application?.firstName,
+      application?.middlename ?? application?.middle_name ?? application?.middleName,
+    )
+    if (formattedFromParts) return formattedFromParts
+
+    const formattedFromEmployeeObject = formatEmployeeNameFromParts(
+      application?.employee?.surname ?? application?.employee?.last_name ?? application?.employee?.lastName,
+      application?.employee?.firstname ?? application?.employee?.first_name ?? application?.employee?.firstName,
+      application?.employee?.middlename ?? application?.employee?.middle_name ?? application?.employee?.middleName,
+    )
+    if (formattedFromEmployeeObject) return formattedFromEmployeeObject
+
+    const fallbackRawName =
+      application?.employeeName ||
+      application?.employee_name ||
+      application?.employee?.name ||
+      application?.employee?.full_name ||
+      application?.employee?.employee_name ||
+      application?.name ||
+      application?.full_name ||
+      ''
+
+    return formatEmployeeNameFromRaw(fallbackRawName)
+  }
+
   function getApplicationEmployeeDisplayName(application) {
     return (
       application?.employeeName ||
@@ -1434,7 +1524,15 @@ export function useAdminApplicationsPage() {
   function normalizeAdminApplicationForDisplay(app) {
     if (!app || typeof app !== 'object') return app
 
-    return normalizeAdminWorkflowAliases(app)
+    const normalized = normalizeAdminWorkflowAliases(app)
+    const formattedEmployeeName = formatApplicationEmployeeName(normalized)
+    if (!formattedEmployeeName) return normalized
+
+    return {
+      ...normalized,
+      employee_name: formattedEmployeeName,
+      employeeName: formattedEmployeeName,
+    }
   }
 
   function prettifyLeaveBalanceLabel(value) {

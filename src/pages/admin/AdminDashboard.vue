@@ -1,7 +1,39 @@
 <template>
   <q-page class="q-pa-md">
-    <div class="row items-center q-mb-lg">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
+    <div class="row items-center justify-between q-col-gutter-sm q-mb-lg">
+      <div class="col-auto">
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
+          <q-input
+            class="dashboard-kpi-range-input"
+            dense
+            outlined
+            readonly
+            label="Date Range"
+            :model-value="kpiDateRangeLabel"
+          >
+            <template #prepend>
+              <q-icon name="event" />
+            </template>
+            <template #append>
+              <q-icon name="arrow_drop_down" class="cursor-pointer">
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date
+                    :model-value="kpiDateRangeModel"
+                    mask="YYYY-MM-DD"
+                    range
+                    today-btn
+                    @update:model-value="handleKpiDateRangeChange"
+                  />
+                </q-popup-proxy>
+              </q-icon>
+            </template>
+          </q-input>
+          <q-btn flat dense no-caps label="Today" @click="resetKpiDateRangeToToday" />
+        </div>
+      </div>
     </div>
 
     <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
@@ -29,7 +61,7 @@
               </div>
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ dashboardData.total_count }}</template>
+                <template v-else>{{ kpiCardMetrics.total_count }}</template>
               </div>
             </div>
             <div class="stat-breakdown dashboard-kpi-breakdown">
@@ -64,7 +96,7 @@
                 <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="schedule" size="28px" color="warning" />
                   <q-icon
-                    v-if="dashboardData.pending_count > 5"
+                    v-if="kpiCardMetrics.pending_count > 5"
                     name="warning"
                     size="18px"
                     color="warning"
@@ -76,7 +108,7 @@
               </div>
               <div class="stat-value text-warning dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="warning" />
-                <template v-else>{{ dashboardData.pending_count }}</template>
+                <template v-else>{{ kpiCardMetrics.pending_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -107,7 +139,7 @@
               </div>
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ dashboardData.total_approved }}</template>
+                <template v-else>{{ kpiCardMetrics.total_approved }}</template>
               </div>
             </div>
           </q-card-section>
@@ -138,7 +170,7 @@
               </div>
               <div class="stat-value text-negative dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="negative" />
-                <template v-else>{{ dashboardData.rejected_count }}</template>
+                <template v-else>{{ kpiCardMetrics.rejected_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -865,6 +897,135 @@ function normalizeDashboardAnalytics(value) {
   }
 }
 
+function normalizeEmploymentTypeKey(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[_\s]+/g, '-')
+
+  if (!normalized) return ''
+  if (normalized.includes('ELECTIVE')) return 'elective'
+  if (
+    normalized.includes('CO-TER') ||
+    normalized.includes('CO-TERM') ||
+    normalized.includes('COTER')
+  )
+    return 'co_terminous'
+  if (normalized.includes('REGULAR')) return 'regular'
+  if (normalized.includes('CASUAL')) return 'casual'
+  return ''
+}
+
+function buildEmploymentBreakdown(applications) {
+  const breakdown = emptyEmploymentBreakdown()
+
+  for (const application of applications) {
+    const candidates = [
+      application?.employment_status,
+      application?.employmentStatus,
+      application?.appointment_status,
+      application?.appointmentStatus,
+      application?.employee_status,
+      application?.employeeStatus,
+      application?.status_type,
+      application?.statusType,
+      application?.employee?.status,
+      application?.employee?.employment_status,
+      application?.employee?.employmentStatus,
+      application?.user?.status,
+      application?.user?.employment_status,
+      application?.user?.employmentStatus,
+    ]
+
+    for (const candidate of candidates) {
+      const normalizedKey = normalizeEmploymentTypeKey(candidate)
+      if (!normalizedKey) continue
+      breakdown[normalizedKey] += 1
+      break
+    }
+  }
+
+  return breakdown
+}
+
+function getCurrentIsoDate() {
+  const currentDate = new Date()
+  const year = currentDate.getFullYear()
+  const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+  const day = String(currentDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function toIsoDate(value) {
+  const rawValue = String(value || '').trim()
+  if (!rawValue) return ''
+
+  const matchedValue = rawValue.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (matchedValue) return matchedValue[1]
+
+  const parsedDate = new Date(rawValue)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+  const day = String(parsedDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function resolveKpiDateRange(value) {
+  if (typeof value === 'string') {
+    const normalizedDate = toIsoDate(value)
+    if (normalizedDate) return { from: normalizedDate, to: normalizedDate }
+  }
+
+  const fromDate = toIsoDate(value?.from ?? value?.to)
+  const toDate = toIsoDate(value?.to ?? value?.from)
+  const today = getCurrentIsoDate()
+  const resolvedFrom = fromDate || toDate || today
+  const resolvedTo = toDate || fromDate || today
+
+  return resolvedFrom <= resolvedTo
+    ? { from: resolvedFrom, to: resolvedTo }
+    : { from: resolvedTo, to: resolvedFrom }
+}
+
+function formatRangeDateLabel(value) {
+  const parsedDate = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return value
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function getApplicationKpiDateIso(application) {
+  const candidates = [
+    application?.dateFiled,
+    application?.date_filed,
+    application?.filed_at,
+    application?.filedAt,
+    application?.created_at,
+    application?.createdAt,
+    application?.startDate,
+    application?.start_date,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedDate = toIsoDate(candidate)
+    if (normalizedDate) return normalizedDate
+  }
+
+  return ''
+}
+
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
   { key: 'elective', label: 'Elective' },
   { key: 'co_terminous', label: 'Co-term' },
@@ -893,6 +1054,7 @@ const rejectionMode = ref('disapprove')
 const disapproveTargetApp = ref(null)
 const actionResultType = ref('approved')
 const actionResultApp = ref(null)
+const kpiDateRangeModel = ref(resolveKpiDateRange(getCurrentIsoDate()))
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -920,7 +1082,7 @@ function countRejectedApplications(applications) {
   }).length
 }
 
-const kpiBreakdown = computed(() => {
+const baseKpiBreakdown = computed(() => {
   const source = dashboardData.value.kpi_breakdown ?? {}
   return {
     pending: { ...emptyEmploymentBreakdown(), ...(source.pending ?? {}) },
@@ -930,12 +1092,93 @@ const kpiBreakdown = computed(() => {
   }
 })
 
+const normalizedKpiDateRange = computed(() => resolveKpiDateRange(kpiDateRangeModel.value))
+
+const kpiDateRangeLabel = computed(() => {
+  const range = normalizedKpiDateRange.value
+  if (range.from === range.to) return formatRangeDateLabel(range.from)
+  return `${formatRangeDateLabel(range.from)} - ${formatRangeDateLabel(range.to)}`
+})
+
+const kpiFilteredApplications = computed(() => {
+  const range = normalizedKpiDateRange.value
+
+  return applicationRows.value.filter((application) => {
+    const applicationDate = getApplicationKpiDateIso(application)
+    if (!applicationDate) return false
+    return applicationDate >= range.from && applicationDate <= range.to
+  })
+})
+
+const kpiCardMetrics = computed(() => {
+  const filteredApplications = kpiFilteredApplications.value.filter(
+    (application) => !isCancelledByUser(application),
+  )
+
+  let pendingCount = 0
+  let approvedCount = 0
+  let rejectedCount = 0
+
+  for (const application of filteredApplications) {
+    const rawStatusKey = normalizeStatusKey(application?.rawStatus ?? application?.raw_status)
+    const statusKey = normalizeStatusKey(application?.status)
+    const resolvedStatusKey = rawStatusKey || statusKey
+
+    if (resolvedStatusKey === 'PENDING_ADMIN' || resolvedStatusKey === 'PENDING') {
+      pendingCount += 1
+      continue
+    }
+
+    if (resolvedStatusKey === 'PENDING_HR' || resolvedStatusKey === 'APPROVED') {
+      approvedCount += 1
+      continue
+    }
+
+    if (
+      resolvedStatusKey === 'REJECTED' ||
+      resolvedStatusKey === 'DISAPPROVED' ||
+      statusKey.includes('REJECT')
+    ) {
+      rejectedCount += 1
+    }
+  }
+
+  return {
+    total_count: filteredApplications.length,
+    pending_count: pendingCount,
+    total_approved: approvedCount,
+    rejected_count: rejectedCount,
+  }
+})
+
+const kpiCardEmploymentBreakdown = computed(() => {
+  const filteredBreakdown = buildEmploymentBreakdown(kpiFilteredApplications.value)
+  if (Object.values(filteredBreakdown).some((value) => value > 0)) {
+    return filteredBreakdown
+  }
+
+  if (kpiCardMetrics.value.total_count === 0) {
+    return emptyEmploymentBreakdown()
+  }
+
+  return baseKpiBreakdown.value.total
+})
+
 const totalApplicationBreakdownCards = computed(() =>
   EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
     ...card,
-    value: kpiBreakdown.value.total[card.key] ?? 0,
+    value: kpiCardEmploymentBreakdown.value[card.key] ?? 0,
   })),
 )
+
+function handleKpiDateRangeChange(value) {
+  kpiDateRangeModel.value = resolveKpiDateRange(value)
+}
+
+function resetKpiDateRangeToToday() {
+  const today = getCurrentIsoDate()
+  kpiDateRangeModel.value = { from: today, to: today }
+}
 
 const applicationTableColumns = computed(() => {
   if (!$q.screen.lt.sm) return columns
@@ -1138,7 +1381,7 @@ async function fetchDashboard() {
 }
 
 function maybeShowPendingReminder() {
-  const pendingCount = Number(dashboardData.value.pending_count || 0)
+  const pendingCount = Number(kpiCardMetrics.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
   if (props.applicationsOnly) return
   if (pendingCount <= 0) return
@@ -3404,6 +3647,12 @@ async function confirmDisapprove() {
 .dashboard-kpi-label {
   margin-top: 0 !important;
 }
+.dashboard-kpi-range-wrap {
+  justify-content: flex-end;
+}
+.dashboard-kpi-range-input {
+  min-width: 240px;
+}
 .pending-reminder-card {
   min-width: 360px;
   max-width: 480px;
@@ -3846,6 +4095,15 @@ async function confirmDisapprove() {
     margin-bottom: 10px !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+  }
+
+  .dashboard-kpi-range-wrap {
+    justify-content: stretch;
+  }
+
+  .dashboard-kpi-range-input {
+    min-width: 0;
+    width: 100%;
   }
 
   .dashboard-kpi-col {

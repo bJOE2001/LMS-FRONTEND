@@ -220,6 +220,22 @@ function parseObjectCandidate(value) {
   return typeof value === 'object' && !Array.isArray(value) ? value : null
 }
 
+function parseArrayCandidate(value) {
+  if (!value) return null
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+
+  const trimmedValue = value.trim()
+  if (!trimmedValue) return null
+
+  try {
+    const parsedValue = JSON.parse(trimmedValue)
+    return Array.isArray(parsedValue) ? parsedValue : null
+  } catch {
+    return null
+  }
+}
+
 const CONFIRMED_LEAVE_DETAIL_FIELDS = Object.freeze([
   'vacation_detail',
   'vacation_specify',
@@ -624,6 +640,68 @@ function getLeaveBalanceTypeKey(value) {
   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
 }
 
+function isMonetizationFlagEnabled(value) {
+  if (value === true) return true
+  if (value === 1) return true
+  const normalizedValue = String(value || '')
+    .trim()
+    .toLowerCase()
+  return normalizedValue === '1' || normalizedValue === 'true' || normalizedValue === 'yes'
+}
+
+function resolveMonetizationLeaveCreditComponents(app) {
+  const sources = [
+    app?.monetization_leave_credits,
+    app?.monetizationLeaveCredits,
+    app?.raw?.monetization_leave_credits,
+    app?.raw?.monetizationLeaveCredits,
+  ]
+
+  const parsedComponents = []
+  for (const source of sources) {
+    if (!source) continue
+    if (Array.isArray(source)) {
+      parsedComponents.push(...source)
+      continue
+    }
+
+    const parsedArraySource = parseArrayCandidate(source)
+    if (parsedArraySource) {
+      parsedComponents.push(...parsedArraySource)
+    }
+  }
+
+  if (!parsedComponents.length) return []
+
+  const componentsByTypeKey = new Map()
+  for (const rawComponent of parsedComponents) {
+    if (!rawComponent || typeof rawComponent !== 'object' || Array.isArray(rawComponent)) continue
+
+    const leaveTypeLabel = prettifyLeaveBalanceLabel(
+      rawComponent.leave_type_name ?? rawComponent.leaveTypeName ?? rawComponent.leave_type ?? '',
+    )
+    const leaveTypeKey = getLeaveBalanceTypeKey(leaveTypeLabel)
+    if (!leaveTypeKey) continue
+
+    const days = toFiniteNumber(rawComponent.days ?? rawComponent.total_days ?? rawComponent.totalDays)
+    if (days === null || days <= 0) continue
+
+    const existingComponent = componentsByTypeKey.get(leaveTypeKey)
+    if (existingComponent) {
+      existingComponent.days = Math.round((existingComponent.days + days) * 1000) / 1000
+      continue
+    }
+
+    componentsByTypeKey.set(leaveTypeKey, {
+      key: leaveTypeKey,
+      label: leaveTypeLabel,
+      days,
+    })
+  }
+
+  return [...componentsByTypeKey.values()]
+}
+
 function resolveCertificationSelectedTypeKey(typeKey) {
   const normalizedTypeKey = String(typeKey || '')
     .trim()
@@ -885,8 +963,9 @@ function buildCertificationColumns(app, options = {}) {
   const sickKey = getLeaveBalanceTypeKey('Sick Leave')
   const forcedLeaveKey = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
   const isForcedLeaveSelection = rawSelectedKey === forcedLeaveKey
+  const forceDualVacationSick = options?.forceDualVacationSick === true
   const showDualColumns =
-    !isForcedLeaveSelection && (selectedKey === vacationKey || selectedKey === sickKey)
+    forceDualVacationSick || (!isForcedLeaveSelection && (selectedKey === vacationKey || selectedKey === sickKey))
 
   if (showDualColumns) {
     return [
@@ -934,45 +1013,79 @@ function applyCertificationLessThisApplicationOverride(
       return column
     }
 
-    const existingTotalEarnedNumber = toCreditNumber(column?.totalEarned)
-    const existingBalanceNumber = toCreditNumber(column?.balance)
-    const nextColumn = {
-      ...column,
-      lessThisApplication: fmtCertificationCredit(normalizedLessThisApplicationDays),
-    }
-    // For approved reprints, keep persisted balance values to avoid double deduction.
-    if (preserveExistingBalance && existingBalanceNumber !== null) {
-      if (
-        existingTotalEarnedNumber !== null &&
-        normalizedLessThisApplicationDays > 0 &&
-        existingTotalEarnedNumber <= existingBalanceNumber + 1e-9
-      ) {
-        nextColumn.totalEarned = fmtCertificationCredit(
-          existingBalanceNumber + normalizedLessThisApplicationDays,
-        )
-      }
-      return nextColumn
-    }
+    return applyCertificationLessThisApplicationToColumn(
+      column,
+      normalizedLessThisApplicationDays,
+      preserveExistingBalance,
+    )
+  })
+}
 
-    if (existingTotalEarnedNumber !== null) {
-      const computedBalance = existingTotalEarnedNumber - normalizedLessThisApplicationDays
-      const normalizedBalance = Math.max(computedBalance, 0)
-      nextColumn.balance = fmtCertificationCredit(
-        Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance,
-      )
-      return nextColumn
-    }
-
-    if (existingBalanceNumber !== null) {
-      nextColumn.totalEarned = fmtCertificationCredit(existingBalanceNumber)
-      const computedBalance = existingBalanceNumber - normalizedLessThisApplicationDays
-      const normalizedBalance = Math.max(computedBalance, 0)
-      nextColumn.balance = fmtCertificationCredit(
-        Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance,
+function applyCertificationLessThisApplicationToColumn(
+  column,
+  normalizedLessThisApplicationDays,
+  preserveExistingBalance,
+) {
+  const existingTotalEarnedNumber = toCreditNumber(column?.totalEarned)
+  const existingBalanceNumber = toCreditNumber(column?.balance)
+  const nextColumn = {
+    ...column,
+    lessThisApplication: fmtCertificationCredit(normalizedLessThisApplicationDays),
+  }
+  // For approved reprints, keep persisted balance values to avoid double deduction.
+  if (preserveExistingBalance && existingBalanceNumber !== null) {
+    if (
+      existingTotalEarnedNumber !== null &&
+      normalizedLessThisApplicationDays > 0 &&
+      existingTotalEarnedNumber <= existingBalanceNumber + 1e-9
+    ) {
+      nextColumn.totalEarned = fmtCertificationCredit(
+        existingBalanceNumber + normalizedLessThisApplicationDays,
       )
     }
-
     return nextColumn
+  }
+
+  if (existingTotalEarnedNumber !== null) {
+    const computedBalance = existingTotalEarnedNumber - normalizedLessThisApplicationDays
+    const normalizedBalance = Math.max(computedBalance, 0)
+    nextColumn.balance = fmtCertificationCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
+    return nextColumn
+  }
+
+  if (existingBalanceNumber !== null) {
+    nextColumn.totalEarned = fmtCertificationCredit(existingBalanceNumber)
+    const computedBalance = existingBalanceNumber - normalizedLessThisApplicationDays
+    const normalizedBalance = Math.max(computedBalance, 0)
+    nextColumn.balance = fmtCertificationCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance)
+  }
+
+  return nextColumn
+}
+
+function applyMonetizationCertificationLessThisApplicationOverride(columns, components, options = {}) {
+  if (!Array.isArray(columns) || columns.length === 0) return columns
+  if (!Array.isArray(components) || components.length === 0) return columns
+
+  const preserveExistingBalance = options?.preserveExistingBalance === true
+
+  return columns.map((column) => {
+    const columnTypeKey = getLeaveBalanceTypeKey(column?.label)
+    if (!columnTypeKey) return column
+
+    const matchedComponent = components.find((component) =>
+      areCertificationTypeKeysEquivalent(columnTypeKey, component?.key),
+    )
+    if (!matchedComponent) return column
+
+    const normalizedComponentDays = toFiniteNumber(matchedComponent.days)
+    if (normalizedComponentDays === null) return column
+
+    return applyCertificationLessThisApplicationToColumn(
+      column,
+      normalizedComponentDays,
+      preserveExistingBalance,
+    )
   })
 }
 
@@ -1515,8 +1628,7 @@ function resolveApprovedForSectionValues(app) {
   if (withoutPayDays !== null)
     withoutPayDays = Math.max(0, Math.round(withoutPayDays * 1000) / 1000)
 
-  const others =
-    String(app?.approved_for_others || '').trim() || (app?.is_monetization ? 'Monetization' : '')
+  const others = String(app?.approved_for_others || '').trim()
 
   return {
     withPayDays,
@@ -1618,14 +1730,26 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const officeFontSize = getOfficeDepartmentFontSize(office)
   const resolvedLeaveType = resolvePrintableLeaveType(app)
   const lt = resolvedLeaveType.toLowerCase()
+  const monetizationComponents = resolveMonetizationLeaveCreditComponents(app)
+  const vacationLeaveKey = getLeaveBalanceTypeKey('Vacation Leave')
+  const sickLeaveKey = getLeaveBalanceTypeKey('Sick Leave')
+  const includesVacationMonetization = monetizationComponents.some(
+    (component) => component.key === vacationLeaveKey && component.days > 0,
+  )
+  const includesSickMonetization = monetizationComponents.some(
+    (component) => component.key === sickLeaveKey && component.days > 0,
+  )
   const rawStatus = String(app.raw_status || '').toUpperCase()
   const statusLabel = String(app.status || '').toUpperCase()
 
   // Determine which leave type checkbox to tick
-  const isMonetization = app?.is_monetization === true || lt.includes('monetization')
-  const isVacation = lt.includes('vacation') && !isMonetization
+  const isMonetization =
+    isMonetizationFlagEnabled(app?.is_monetization) ||
+    isMonetizationFlagEnabled(app?.raw?.is_monetization) ||
+    lt.includes('monetization')
+  const isVacation = (lt.includes('vacation') && !isMonetization) || (isMonetization && includesVacationMonetization)
   const isMandatory = lt.includes('mandatory') || lt.includes('forced')
-  const isSick = lt.includes('sick')
+  const isSick = (lt.includes('sick') && !isMonetization) || (isMonetization && includesSickMonetization)
   const isWellness = lt.includes('wellness')
   const isCTO = lt.includes('cto') || lt.includes('compensatory time off')
   const isMaternity = lt.includes('maternity')
@@ -1663,16 +1787,28 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const asOfDate = cert.as_of_date || ''
   const certificationLessThisApplicationDays =
     pickFirstFiniteNumber(app?.deductible_days) ?? approvedForSection.withPayDays
-  const certificationColumns = applyCertificationLessThisApplicationOverride(
-    buildCertificationColumns(app, {
-      inferMissingTotalFromBalance: !isApproved,
-    }),
-    resolvedLeaveType,
-    certificationLessThisApplicationDays,
-    {
-      preserveExistingBalance: isApproved,
-    },
-  )
+  const baseCertificationColumns = buildCertificationColumns(app, {
+    inferMissingTotalFromBalance: !isApproved,
+    forceDualVacationSick:
+      isMonetization && (includesVacationMonetization || includesSickMonetization),
+  })
+  const certificationColumns =
+    isMonetization && monetizationComponents.length > 0
+      ? applyMonetizationCertificationLessThisApplicationOverride(
+          baseCertificationColumns,
+          monetizationComponents,
+          {
+            preserveExistingBalance: isApproved,
+          },
+        )
+      : applyCertificationLessThisApplicationOverride(
+          baseCertificationColumns,
+          resolvedLeaveType,
+          certificationLessThisApplicationDays,
+          {
+            preserveExistingBalance: isApproved,
+          },
+        )
 
   const inclusiveDates = resolveInclusiveDatesLabel(app)
   const b = 0.5 // border width

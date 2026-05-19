@@ -1,8 +1,38 @@
 <template>
   <q-page class="q-pa-sm hr-dashboard-page">
-    <div class="row justify-between items-center q-mb-sm">
-      <div>
+    <div class="row justify-between items-center q-col-gutter-sm q-mb-sm">
+      <div class="col-auto">
         <h1 class="text-h5 text-weight-bold q-mt-none q-mb-none">HR Dashboard</h1>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
+          <q-input
+            class="dashboard-kpi-range-input"
+            dense
+            outlined
+            readonly
+            label="Date Range"
+            :model-value="kpiDateRangeLabel"
+          >
+            <template #prepend>
+              <q-icon name="event" />
+            </template>
+            <template #append>
+              <q-icon name="arrow_drop_down" class="cursor-pointer">
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date
+                    :model-value="kpiDateRangeModel"
+                    mask="YYYY-MM-DD"
+                    range
+                    today-btn
+                    @update:model-value="handleKpiDateRangeChange"
+                  />
+                </q-popup-proxy>
+              </q-icon>
+            </template>
+          </q-input>
+          <q-btn flat dense no-caps label="Today" @click="resetKpiDateRangeToToday" />
+        </div>
       </div>
     </div>
 
@@ -24,7 +54,7 @@
               </div>
               <div class="stat-value text-primary">
                 <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ dashboardData.total_count }}</template>
+                <template v-else>{{ kpiCardMetrics.total_count }}</template>
               </div>
             </div>
             <div class="stat-breakdown">
@@ -54,7 +84,7 @@
                 <div class="row items-center no-wrap q-gutter-xs">
                   <q-icon name="schedule" size="28px" color="warning" class="stat-card-icon" />
                   <q-icon
-                    v-if="dashboardData.pending_count > 5"
+                    v-if="kpiCardMetrics.pending_count > 5"
                     name="warning"
                     size="18px"
                     color="warning"
@@ -65,7 +95,7 @@
               </div>
               <div class="stat-value text-warning">
                 <q-spinner v-if="loading" size="32px" color="warning" />
-                <template v-else>{{ dashboardData.pending_count }}</template>
+                <template v-else>{{ kpiCardMetrics.pending_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -88,7 +118,7 @@
               </div>
               <div class="stat-value text-primary">
                 <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ dashboardData.approved_count }}</template>
+                <template v-else>{{ kpiCardMetrics.approved_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -111,7 +141,7 @@
               </div>
               <div class="stat-value text-negative">
                 <q-spinner v-if="loading" size="32px" color="negative" />
-                <template v-else>{{ dashboardData.rejected_count }}</template>
+                <template v-else>{{ kpiCardMetrics.rejected_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -134,7 +164,7 @@
               </div>
               <div class="stat-value text-blue-grey-7">
                 <q-spinner v-if="loading" size="32px" color="blue-grey-7" />
-                <template v-else>{{ dashboardData.recalled_count }}</template>
+                <template v-else>{{ kpiCardMetrics.recalled_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -320,6 +350,7 @@ function buildEmploymentBreakdown(applications) {
 }
 
 const loading = ref(true)
+const kpiDateRangeModel = ref(null)
 const dashboardData = ref({
   total_count: 0,
   pending_count: 0,
@@ -462,6 +493,58 @@ function toIsoDate(value) {
   return `${year}-${month}-${day}`
 }
 
+function getCurrentIsoDate() {
+  return toIsoDate(new Date())
+}
+
+function resolveKpiDateRange(value) {
+  if (typeof value === 'string') {
+    const normalizedDate = toIsoDate(value)
+    if (normalizedDate) return { from: normalizedDate, to: normalizedDate }
+  }
+
+  const fromDate = toIsoDate(value?.from ?? value?.to)
+  const toDate = toIsoDate(value?.to ?? value?.from)
+  const today = getCurrentIsoDate()
+  const resolvedFrom = fromDate || toDate || today
+  const resolvedTo = toDate || fromDate || today
+
+  return resolvedFrom <= resolvedTo
+    ? { from: resolvedFrom, to: resolvedTo }
+    : { from: resolvedTo, to: resolvedFrom }
+}
+
+function formatRangeDateLabel(value) {
+  const parsedDate = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return value
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function getApplicationKpiDateIso(application) {
+  const candidates = [
+    application?.dateFiled,
+    application?.date_filed,
+    application?.filed_at,
+    application?.filedAt,
+    application?.submitted_at,
+    application?.created_at,
+    application?.createdAt,
+    application?.startDate,
+    application?.start_date,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedDate = toIsoDate(candidate)
+    if (normalizedDate) return normalizedDate
+  }
+
+  return ''
+}
+
 function enumerateDateRange(startDateValue, endDateValue) {
   const startDate = toIsoDate(startDateValue)
   const endDate = toIsoDate(endDateValue)
@@ -506,12 +589,67 @@ function getEmployeeKey(application) {
   return String(key || '').trim()
 }
 
+const normalizedKpiDateRange = computed(() => resolveKpiDateRange(kpiDateRangeModel.value))
+
+const kpiDateRangeLabel = computed(() => {
+  const range = normalizedKpiDateRange.value
+  if (range.from === range.to) return formatRangeDateLabel(range.from)
+  return `${formatRangeDateLabel(range.from)} - ${formatRangeDateLabel(range.to)}`
+})
+
+const kpiFilteredApplications = computed(() => {
+  const range = normalizedKpiDateRange.value
+
+  return dashboardApplications.value.filter((application) => {
+    const applicationDate = getApplicationKpiDateIso(application)
+    if (!applicationDate) return false
+    return applicationDate >= range.from && applicationDate <= range.to
+  })
+})
+
+const kpiCardMetrics = computed(() => {
+  const filteredApplications = kpiFilteredApplications.value.filter(
+    (application) => !isCancelledApplication(application),
+  )
+
+  let pendingCount = 0
+  let approvedCount = 0
+  let rejectedCount = 0
+  let recalledCount = 0
+
+  for (const application of filteredApplications) {
+    const mergedStatus = mergeStatus(application)
+    if (mergedStatus === 'Pending') {
+      pendingCount += 1
+      continue
+    }
+
+    if (mergedStatus === 'Approved') {
+      approvedCount += 1
+      continue
+    }
+
+    if (mergedStatus === 'Disapproved') {
+      rejectedCount += 1
+      continue
+    }
+
+    if (mergedStatus === 'Recalled') {
+      recalledCount += 1
+    }
+  }
+
+  return {
+    total_count: filteredApplications.length,
+    pending_count: pendingCount,
+    approved_count: approvedCount,
+    rejected_count: rejectedCount,
+    recalled_count: recalledCount,
+  }
+})
+
 const manpowerCurrentDateIso = computed(() => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return getCurrentIsoDate()
 })
 
 const manpowerCurrentDateLabel = computed(() => {
@@ -558,9 +696,16 @@ const manpowerCurrentSnapshot = computed(() => {
 })
 
 const totalApplicationsBreakdown = computed(() => {
+  const filteredBreakdown = buildEmploymentBreakdown(kpiFilteredApplications.value)
+  if (Object.values(filteredBreakdown).some((value) => value > 0)) return filteredBreakdown
+
+  if (kpiCardMetrics.value.total_count === 0) {
+    return emptyEmploymentBreakdown()
+  }
+
   const apiBreakdown = normalizeEmploymentBreakdown(dashboardData.value.kpi_breakdown?.total)
   if (Object.values(apiBreakdown).some((value) => value > 0)) return apiBreakdown
-  return buildEmploymentBreakdown(dashboardApplications.value)
+  return filteredBreakdown
 })
 
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
@@ -582,6 +727,15 @@ function getEmploymentTypeCardStyle(card) {
     '--stat-mini-card-accent': card.accent,
     '--stat-mini-card-hover-bg': card.bg,
   }
+}
+
+function handleKpiDateRangeChange(value) {
+  kpiDateRangeModel.value = resolveKpiDateRange(value)
+}
+
+function resetKpiDateRangeToToday() {
+  const today = getCurrentIsoDate()
+  kpiDateRangeModel.value = { from: today, to: today }
 }
 
 async function fetchDashboard() {
@@ -632,13 +786,14 @@ function goToApplications(status, extraQuery = {}) {
 }
 
 function maybeShowPendingReminder() {
-  const pendingCount = Number(dashboardData.value.pending_count || 0)
+  const pendingCount = Number(kpiCardMetrics.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
   if (pendingCount <= 0) return
   if (hasSeenPendingReminderDialog()) return
   showPendingReminderDialog(pendingCount)
 }
 
+resetKpiDateRangeToToday()
 onMounted(fetchDashboard)
 </script>
 
@@ -658,6 +813,14 @@ onMounted(fetchDashboard)
 
 .dashboard-panel-col > * {
   width: 100%;
+}
+
+.dashboard-kpi-range-wrap {
+  justify-content: flex-end;
+}
+
+.dashboard-kpi-range-input {
+  min-width: 240px;
 }
 
 .compact-panel :deep(.q-card__section) {
@@ -828,6 +991,15 @@ onMounted(fetchDashboard)
 
   .stat-cards-row {
     margin: 0 0 4px !important;
+  }
+
+  .dashboard-kpi-range-wrap {
+    justify-content: stretch;
+  }
+
+  .dashboard-kpi-range-input {
+    min-width: 0;
+    width: 100%;
   }
 
   .stat-card-col {

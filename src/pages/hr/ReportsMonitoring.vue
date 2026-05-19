@@ -268,6 +268,7 @@ import {
   exportReportsMonitoringCsv,
   exportReportsMonitoringExcel,
 } from 'src/utils/reports-monitoring-export'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import { useReportStore } from 'stores/reportStore'
 
 const reportStore = useReportStore()
@@ -321,46 +322,13 @@ const monthOptions = [
   })),
 ]
 
-const OFFICE_ACRONYM_STOP_WORDS = new Set([
-  'A',
-  'AN',
-  'AND',
-  'FOR',
-  'IN',
-  'OF',
-  'OFFICE',
-  'ON',
-  'THE',
-  'TO',
-])
-
-function toOfficeCode(value) {
-  const source = String(value || '').trim()
-  if (!source) return '-'
-
-  if (!/\s/.test(source) && source === source.toUpperCase()) {
-    return source
-  }
-
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !OFFICE_ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word),
-  )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source
+function getOfficeFilterValue(row) {
+  const officeAcronym = resolveOfficeAcronymLabel(row)
+  return String(officeAcronym || '').trim()
 }
 
 function getOfficeColumnValue(row) {
-  return toOfficeCode(row?.office)
+  return getOfficeFilterValue(row) || '-'
 }
 
 const STATUS_SORT_SEQUENCE = [
@@ -398,9 +366,29 @@ function trimNullable(value) {
   return normalized !== '' ? normalized : ''
 }
 
-function formatNameFromParts(surname, firstname) {
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function formatNameFromParts(surname, firstname, middlename = '') {
   const nameParts = [trimNullable(surname), trimNullable(firstname)].filter(Boolean)
-  return nameParts.join(', ')
+  const formattedName = nameParts.join(', ')
+  if (!formattedName) return ''
+
+  const middleInitial = getMiddleInitial(middlename)
+  return middleInitial ? `${formattedName} ${middleInitial}` : formattedName
 }
 
 function formatGivenNamesWithoutTrailingMiddle(givenNamesValue) {
@@ -441,6 +429,7 @@ function formatReportRowName(row) {
   const formattedFromParts = formatNameFromParts(
     row?.surname ?? row?.last_name ?? row?.lastName,
     row?.firstname ?? row?.first_name ?? row?.firstName,
+    row?.middlename ?? row?.middle_name ?? row?.middleName,
   )
 
   if (formattedFromParts) return formattedFromParts
@@ -994,14 +983,14 @@ const officeOptions = computed(() => {
   const offices = Array.from(
     new Set(
       selectedReportRows.value
-        .map((row) => row?.office)
+        .map((row) => getOfficeFilterValue(row))
         .filter((office) => office != null && String(office).trim() !== ''),
     ),
   ).sort()
 
   return [
     { label: 'All Offices', value: null },
-    ...offices.map((office) => ({ label: toOfficeCode(office), value: office })),
+    ...offices.map((office) => ({ label: office, value: office })),
   ]
 })
 
@@ -1053,7 +1042,7 @@ const filteredRows = computed(() => {
       if (filters.year && !rowYears.includes(filters.year)) return false
     }
 
-    if (filters.office && row?.office !== filters.office) return false
+    if (filters.office && getOfficeFilterValue(row) !== filters.office) return false
     if (filters.status && row?.status !== filters.status) return false
     if (search && !String(row?.name || '').toLowerCase().includes(search)) return false
     return true

@@ -218,27 +218,37 @@
             <!-- ==================== MONETIZATION SECTION ==================== -->
             <div v-if="isMonetization" class="section-block q-mb-lg dialog-section dialog-section--full">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">Monetization Leave</div>
-              <p class="text-grey-6 text-caption q-mb-md">City Hall of Tagum Policy: Minimum of 10 accumulated leave credits required.</p>
 
               <div class="q-mb-md">
                 <label class="input-label">Select Leave Type to Monetize</label>
-                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" :placeholder="monetization.leaveTypeId ? '' : 'Select Leave Type'" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
+                <q-select v-model="monetization.leaveTypeIds" :options="monetizationLeaveTypeOptions" :placeholder="selectedMonetizationTypeIds.length ? '' : 'Select Leave Type'" outlined dense emit-value map-options multiple use-chips :rules="[val => (Array.isArray(val) && val.length > 0) || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
                   <template #prepend><q-icon name="account_balance_wallet" size="sm" color="grey-6" /></template>
                 </q-select>
               </div>
 
+              <div v-if="selectedMonetizationOptions.length" class="q-gutter-md q-mb-md">
+                <div v-for="option in selectedMonetizationOptions" :key="option.value" class="row q-col-gutter-md items-start">
+                  <div class="col-12 col-md-6">
+                    <label class="input-label">{{ option.label }} Credits</label>
+                    <q-input :model-value="getMonetizationAvailableBalance(option.value)" outlined dense readonly class="form-input readonly-field" :loading="isMonetizationBalanceLoading(option.value)">
+                      <template #prepend><q-icon name="savings" size="sm" color="grey-6" /></template>
+                    </q-input>
+                    <div v-if="getMonetizationAvailableBalance(option.value) !== null && getMonetizationAvailableBalance(option.value) < 15" class="text-caption text-negative q-mt-xs">Insufficient credits. Minimum of 15 required.</div>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="input-label">Days from {{ option.label }}</label>
+                    <q-input :model-value="getMonetizationDays(option.value)" type="number" min="0" :max="getMonetizationAvailableBalance(option.value) || 999" outlined dense placeholder="Enter number of days" :rules="[val => (val === null || val === '' || Number(val) >= 0) || 'Enter 0 or more', val => !getMonetizationAvailableBalance(option.value) || Number(val || 0) <= getMonetizationAvailableBalance(option.value) || 'Cannot exceed balance']" class="form-input" @update:model-value="value => setMonetizationDays(option.value, value)">
+                      <template #prepend><q-icon name="today" size="sm" color="grey-6" /></template>
+                    </q-input>
+                  </div>
+                </div>
+              </div>
+
               <div class="row q-col-gutter-md q-mb-md">
                 <div class="col-12 col-md-4">
-                  <label class="input-label">Available Leave Credits</label>
-                  <q-input :model-value="monetization.availableBalance" outlined dense readonly class="form-input readonly-field" :loading="monetization.loadingBalance">
-                    <template #prepend><q-icon name="savings" size="sm" color="grey-6" /></template>
-                  </q-input>
-                  <div v-if="monetization.availableBalance !== null && monetization.availableBalance < 10" class="text-caption text-negative q-mt-xs">Insufficient credits. Minimum of 10 required.</div>
-                </div>
-                <div class="col-12 col-md-4">
-                  <label class="input-label">Days to Monetize</label>
-                  <q-input v-model.number="monetization.daysToMonetize" type="number" min="1" :max="monetization.availableBalance || 999" outlined dense placeholder="Enter number of days" :rules="[val => (val !== null && val !== '' && val >= 1) || 'At least 1 day', val => !monetization.availableBalance || val <= monetization.availableBalance || 'Cannot exceed balance']" class="form-input">
-                    <template #prepend><q-icon name="today" size="sm" color="grey-6" /></template>
+                  <label class="input-label">Total Days to Monetize</label>
+                  <q-input :model-value="monetizationTotalDays" outlined dense readonly class="form-input readonly-field">
+                    <template #prepend><q-icon name="event_available" size="sm" color="grey-6" /></template>
                   </q-input>
                 </div>
                 <div class="col-12 col-md-4">
@@ -248,6 +258,32 @@
                   </q-input>
                   <div class="text-caption text-grey-5 q-mt-xs">Daily rate = monthly salary / 22</div>
                 </div>
+              </div>
+
+              <div v-if="monetizationRequiresAttachment" class="q-mb-md">
+                <label class="input-label">Supporting Attachment</label>
+                <q-file
+                  v-model="form.attachmentFile"
+                  outlined
+                  dense
+                  clearable
+                  use-chips
+                  counter
+                  :max-files="1"
+                  accept="image/*,.pdf,.doc,.docx"
+                  :max-file-size="attachmentMaxSizeBytes"
+                  label="Attach supporting document for monetization"
+                  hint="Allowed: image, PDF, DOC, DOCX (max 10 MB)"
+                  persistent-hint
+                  bottom-slots
+                  class="form-input q-mt-sm"
+                  @rejected="onAttachmentRejected"
+                >
+                  <template #prepend>
+                    <q-icon name="attach_file" />
+                  </template>
+                </q-file>
+                <div class="text-caption text-negative q-mt-xs">Required because Vacation Leave or Sick Leave monetization exceeds 10 days.</div>
               </div>
             </div>
 
@@ -1639,69 +1675,218 @@ const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
 const moveDialogActionsUp = computed(() => props.inDialog && !isMonetization.value && showDetailsOfLeave.value)
 
 // Monetization state
-const monetization = ref({
-  leaveTypeId: null,
-  availableBalance: null,
-  daysToMonetize: null,
-  loadingBalance: false,
-})
+const MONETIZATION_MINIMUM_REQUEST_DAYS = 10
+const MONETIZATION_MINIMUM_BALANCE_DAYS = 15
+const MONETIZATION_ATTACHMENT_THRESHOLD_DAYS = 10
+
+function createEmptyMonetizationState() {
+  return {
+    leaveTypeIds: [],
+    availableBalances: {},
+    daysByType: {},
+    loadingBalances: {},
+  }
+}
+
+const monetization = ref(createEmptyMonetizationState())
+
+function resolveLeaveTypeOptionId(leaveType) {
+  const rawId = leaveType?.leave_type_id || leaveType?.id
+  const resolvedId = Number(rawId)
+  return Number.isFinite(resolvedId) && resolvedId > 0 ? resolvedId : null
+}
 
 const monetizationLeaveTypeOptions = computed(() => {
   const opts = []
   const vl = allLeaveTypes.value.find(t => t.name === 'Vacation Leave')
   const sl = allLeaveTypes.value.find(t => t.name === 'Sick Leave')
-  if (vl) opts.push({ label: 'Vacation Leave', value: vl.id })
-  if (sl) opts.push({ label: 'Sick Leave', value: sl.id })
+  const vacationLeaveTypeId = resolveLeaveTypeOptionId(vl)
+  const sickLeaveTypeId = resolveLeaveTypeOptionId(sl)
+  if (vacationLeaveTypeId) opts.push({ label: 'Vacation Leave', value: vacationLeaveTypeId })
+  if (sickLeaveTypeId) opts.push({ label: 'Sick Leave', value: sickLeaveTypeId })
   return opts
 })
 
-watch(isMonetization, async (val) => {
-  if (val && selectedEmployeeControlNo.value) {
-    const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
-    if (vlOpt) {
-      monetization.value.leaveTypeId = vlOpt.value
-      await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, vlOpt.value)
-    }
-  } else {
-    monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
-  }
+function normalizeMonetizationTypeId(value) {
+  const normalized = Number(value)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null
+}
+
+function normalizeMonetizationTypeIds(value) {
+  const rawValues = Array.isArray(value) ? value : (value ? [value] : [])
+  return [...new Set(rawValues.map(normalizeMonetizationTypeId).filter(Boolean))]
+}
+
+const selectedMonetizationTypeIds = computed(() => normalizeMonetizationTypeIds(monetization.value.leaveTypeIds))
+
+const selectedMonetizationOptions = computed(() => {
+  const selectedIds = new Set(selectedMonetizationTypeIds.value)
+  return monetizationLeaveTypeOptions.value.filter(option => selectedIds.has(Number(option.value)))
 })
 
-async function onMonetizationTypeChange(typeId) {
-  if (typeId && selectedEmployeeControlNo.value) {
-    await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, typeId)
+function getMonetizationAvailableBalance(typeId) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return null
+  const balances = monetization.value.availableBalances || {}
+  return Object.prototype.hasOwnProperty.call(balances, normalizedTypeId)
+    ? balances[normalizedTypeId]
+    : null
+}
+
+function isMonetizationBalanceLoading(typeId) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  return normalizedTypeId ? Boolean(monetization.value.loadingBalances?.[normalizedTypeId]) : false
+}
+
+function getMonetizationDays(typeId) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return null
+  const daysByType = monetization.value.daysByType || {}
+  return Object.prototype.hasOwnProperty.call(daysByType, normalizedTypeId)
+    ? daysByType[normalizedTypeId]
+    : null
+}
+
+function setMonetizationDays(typeId, value) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return
+
+  const normalizedDays = value === null || value === ''
+    ? null
+    : Math.max(Number(value), 0)
+
+  monetization.value.daysByType = {
+    ...(monetization.value.daysByType || {}),
+    [normalizedTypeId]: Number.isFinite(normalizedDays) ? normalizedDays : null,
   }
 }
 
+const monetizationComponents = computed(() => selectedMonetizationOptions.value
+  .map(option => ({
+    leave_type_id: Number(option.value),
+    leave_type_name: option.label,
+    days: Number(getMonetizationDays(option.value) || 0),
+  }))
+  .filter(component => component.days > 0))
+
+const monetizationTotalDays = computed(() => Number(
+  monetizationComponents.value
+    .reduce((total, component) => total + Number(component.days || 0), 0)
+    .toFixed(3),
+))
+
+const monetizationRequiresAttachment = computed(() =>
+  monetizationComponents.value.some(component => Number(component.days || 0) > MONETIZATION_ATTACHMENT_THRESHOLD_DAYS),
+)
+
+watch(isMonetization, async (val) => {
+  monetization.value = createEmptyMonetizationState()
+  if (val && selectedEmployeeControlNo.value) {
+    const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
+    if (vlOpt) {
+      await onMonetizationTypeChange([vlOpt.value])
+    }
+  } else {
+    form.value.attachmentFile = null
+  }
+})
+
+watch(selectedEmployeeControlNo, async (controlNo) => {
+  if (!isMonetization.value) return
+
+  monetization.value = createEmptyMonetizationState()
+  if (!controlNo) {
+    form.value.attachmentFile = null
+    return
+  }
+
+  const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
+  if (vlOpt) {
+    await onMonetizationTypeChange([vlOpt.value])
+  }
+})
+
+watch(monetizationRequiresAttachment, (required) => {
+  if (!required && isMonetization.value) {
+    form.value.attachmentFile = null
+  }
+})
+
+async function onMonetizationTypeChange(typeIds) {
+  const normalizedTypeIds = normalizeMonetizationTypeIds(typeIds)
+  monetization.value.leaveTypeIds = normalizedTypeIds
+
+  const retainedDaysByType = {}
+  normalizedTypeIds.forEach((typeId) => {
+    if (Object.prototype.hasOwnProperty.call(monetization.value.daysByType || {}, typeId)) {
+      retainedDaysByType[typeId] = monetization.value.daysByType[typeId]
+    }
+  })
+  monetization.value.daysByType = retainedDaysByType
+
+  if (!selectedEmployeeControlNo.value) return
+
+  await Promise.all(normalizedTypeIds.map(async (typeId) => {
+    if (getMonetizationAvailableBalance(typeId) === null && !isMonetizationBalanceLoading(typeId)) {
+      await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, typeId)
+    }
+  }))
+}
+
 async function fetchEmployeeMonetizationBalance(empId, typeId) {
-  monetization.value.loadingBalance = true
-  monetization.value.availableBalance = null
-  monetization.value.daysToMonetize = null
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return
+
+  monetization.value.loadingBalances = {
+    ...(monetization.value.loadingBalances || {}),
+    [normalizedTypeId]: true,
+  }
+  monetization.value.availableBalances = {
+    ...(monetization.value.availableBalances || {}),
+    [normalizedTypeId]: null,
+  }
   try {
-    const { data } = await api.get(`/admin/employee-leave-balance/${empId}/${typeId}`)
-    monetization.value.availableBalance = data.balance
+    const { data } = await api.get(`/admin/employee-leave-balance/${empId}/${normalizedTypeId}`)
+    monetization.value.availableBalances = {
+      ...(monetization.value.availableBalances || {}),
+      [normalizedTypeId]: Number(data.balance || 0),
+    }
   } catch {
-    monetization.value.availableBalance = 0
+    monetization.value.availableBalances = {
+      ...(monetization.value.availableBalances || {}),
+      [normalizedTypeId]: 0,
+    }
   } finally {
-    monetization.value.loadingBalance = false
+    monetization.value.loadingBalances = {
+      ...(monetization.value.loadingBalances || {}),
+      [normalizedTypeId]: false,
+    }
   }
 }
 
 const monetizationEstimatedAmount = computed(() => {
   const salary = parseSalary(form.value.salary)
-  const days = monetization.value.daysToMonetize
+  const days = monetizationTotalDays.value
   if (!salary || !days || days <= 0) return '0.00'
   const dailyRate = Number(salary) / 22
   return (days * dailyRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 })
 
 const monetizationSubmitDisabled = computed(() => {
-  const bal = monetization.value.availableBalance
-  const days = monetization.value.daysToMonetize
-  if (bal === null || bal < 10) return true
-  if (!days || days < 1 || days > bal) return true
-  if (!monetization.value.leaveTypeId) return true
+  if (!selectedMonetizationTypeIds.value.length) return true
+  if (!monetizationComponents.value.length) return true
+  if (monetizationTotalDays.value < MONETIZATION_MINIMUM_REQUEST_DAYS) return true
+
+  for (const component of monetizationComponents.value) {
+    const balance = getMonetizationAvailableBalance(component.leave_type_id)
+    if (balance === null || isMonetizationBalanceLoading(component.leave_type_id)) return true
+    if (Number(balance) < MONETIZATION_MINIMUM_BALANCE_DAYS) return true
+    if (Number(component.days) > Number(balance)) return true
+  }
+
+  if (monetizationRequiresAttachment.value && !resolveSingleFile(form.value.attachmentFile)) return true
   if (!selectedEmployeeControlNo.value) return true
+
   return false
 })
 
@@ -1735,7 +1920,7 @@ function onLeaveTypeChange(newValue) {
   selectedDatePayStatuses.value = {}
   selectedDateHalfDayPortions.value = {}
   clearCalendarDateWarning()
-  monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
+  monetization.value = createEmptyMonetizationState()
   form.value.reason = preservedReason
 }
 
@@ -2674,6 +2859,9 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
   const selectedDateHalfDayPortionPayload = buildSelectedDateHalfDayPortionPayload(
     sortedSelectedDates.value,
   )
+  const submittedTotalDays = isMonetizationSubmission
+    ? monetizationTotalDays.value
+    : selectedDateTotalDays.value
 
   return {
     ...(backendApplication && typeof backendApplication === 'object' ? backendApplication : {}),
@@ -2697,9 +2885,9 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
       null,
     startDate: backendApplication?.startDate ?? backendApplication?.start_date ?? form.value.startDate,
     endDate: backendApplication?.endDate ?? backendApplication?.end_date ?? form.value.endDate,
-    days: backendApplication?.days ?? backendApplication?.total_days ?? selectedDateTotalDays.value,
-    total_days: backendApplication?.total_days ?? selectedDateTotalDays.value,
-    selected_dates: backendApplication?.selected_dates ?? [...selectedDatesList.value],
+    days: backendApplication?.days ?? backendApplication?.total_days ?? submittedTotalDays,
+    total_days: backendApplication?.total_days ?? submittedTotalDays,
+    selected_dates: backendApplication?.selected_dates ?? (isMonetizationSubmission ? [] : [...selectedDatesList.value]),
     selected_date_half_day_portion:
       backendApplication?.selected_date_half_day_portion ??
       backendApplication?.selectedDateHalfDayPortion ??
@@ -2713,6 +2901,10 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
     is_monetization:
       backendApplication?.is_monetization ??
       isMonetizationSubmission,
+    monetization_leave_credits:
+      backendApplication?.monetization_leave_credits ??
+      backendApplication?.monetizationLeaveCredits ??
+      (isMonetizationSubmission ? monetizationComponents.value : undefined),
     dateFiled:
       backendApplication?.dateFiled ??
       backendApplication?.date_filed ??
@@ -2749,20 +2941,58 @@ async function onSubmit() {
 
   // Monetization submission
   if (isMonetization.value) {
-    if (!monetization.value.leaveTypeId || monetizationSubmitDisabled.value) {
+    const monetizationPayloadComponents = monetizationComponents.value.map(component => ({
+      leave_type_id: component.leave_type_id,
+      days: component.days,
+    }))
+    const selectedAttachmentFile = resolveSingleFile(form.value.attachmentFile)
+
+    if (monetizationRequiresAttachment.value && !selectedAttachmentFile) {
+      $q.notify({ type: 'negative', message: 'Please upload a supporting document when Vacation Leave or Sick Leave monetization exceeds 10 days.' })
+      return
+    }
+
+    if (selectedAttachmentFile) {
+      if (!isAllowedAttachmentImage(selectedAttachmentFile)) {
+        $q.notify({ type: 'negative', message: 'Attachment must be an image, PDF, DOC, or DOCX file.' })
+        return
+      }
+
+      if (Number(selectedAttachmentFile.size || 0) > attachmentMaxSizeBytes) {
+        $q.notify({ type: 'negative', message: 'Attachment must not exceed 10 MB.' })
+        return
+      }
+    }
+
+    if (!monetizationPayloadComponents.length || monetizationSubmitDisabled.value) {
       $q.notify({ type: 'negative', message: 'Please complete all monetization fields.' })
       return
     }
+
     loading.value = true
     try {
-      const response = await api.post('/admin/leave-applications', {
+      const payload = {
         is_monetization: true,
         employee_control_no: selectedEmployeeControlNo.value,
-        leave_type_id: monetization.value.leaveTypeId,
-        total_days: monetization.value.daysToMonetize,
+        leave_type_id: monetizationPayloadComponents[0].leave_type_id,
+        total_days: monetizationTotalDays.value,
+        monetization_leave_credits: monetizationPayloadComponents,
         reason: String(form.value.reason || '').trim() || null,
         salary: parseSalary(form.value.salary) || null,
-      })
+        attachment_submitted: Boolean(selectedAttachmentFile),
+      }
+
+      if (selectedAttachmentFile) {
+        payload.attachment = selectedAttachmentFile
+      }
+
+      const isMultipartPayload = Boolean(payload.attachment)
+      const requestPayload = isMultipartPayload ? buildMultipartPayload(payload) : payload
+      const requestConfig = isMultipartPayload
+        ? { headers: { 'Content-Type': 'multipart/form-data' } }
+        : undefined
+
+      const response = await api.post('/admin/leave-applications', requestPayload, requestConfig)
       const submittedApplication = buildSubmittedApplicationOverride(
         extractSubmittedApplicationFromResponse(response?.data),
         true,

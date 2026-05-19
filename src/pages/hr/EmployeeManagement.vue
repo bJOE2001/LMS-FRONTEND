@@ -131,13 +131,13 @@
               <q-avatar size="32px" color="primary" text-color="white" class="q-mr-sm">
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
-              <div>
-                <div class="text-weight-medium">
-                  {{ props.row.surname }}, {{ props.row.firstname }}
-                </div>
-                <div v-if="props.row.designation" class="text-caption text-grey-6">
-                  {{ props.row.designation }}
-                </div>
+                <div>
+                  <div class="text-weight-medium">
+                    {{ getEmployeeColumnDisplayName(props.row) }}
+                  </div>
+                  <div v-if="props.row.designation" class="text-caption text-grey-6">
+                    {{ props.row.designation }}
+                  </div>
                 <q-badge
                   v-if="isDepartmentHeadRecord(props.row)"
                   color="blue-8"
@@ -241,7 +241,7 @@
             <div class="employee-details-header__profile">
               <div class="employee-details-header__identity">
                 <div class="text-h6 employee-details-header__name">
-                  {{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}
+                  {{ getEmployeeColumnDisplayName(selectedEmployee) }}
                 </div>
                 <div class="text-caption text-grey-6 employee-details-header__designation">
                   {{ selectedEmployee.designation || '-' }}
@@ -1247,6 +1247,41 @@ function getEmployeeFullName(employee) {
   if (!surname || !firstname) return fullName
 
   return `${surname}, ${[firstname, middlename].filter(Boolean).join(' ')}`
+}
+
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function getEmployeeColumnDisplayName(employee) {
+  if (!employee) return 'N/A'
+
+  const surname = String(employee.surname ?? employee.last_name ?? employee.lastName ?? '').trim()
+  const firstname = String(
+    employee.firstname ?? employee.first_name ?? employee.firstName ?? '',
+  ).trim()
+  const middlename = String(
+    employee.middlename ?? employee.middle_name ?? employee.middleName ?? '',
+  ).trim()
+  const middleInitial = getMiddleInitial(middlename)
+
+  if (surname && firstname) {
+    return [ `${surname}, ${firstname}`, middleInitial ].filter(Boolean).join(' ')
+  }
+
+  return getEmployeeFullName(employee)
 }
 
 function getLedgerEmployeeOffice(employee) {

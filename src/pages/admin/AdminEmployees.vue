@@ -114,7 +114,7 @@
               <div class="column justify-center items-start">
                 <div class="row items-center no-wrap q-gutter-x-sm">
                   <div class="employee-name text-primary text-left">
-                    {{ props.row.surname }}, {{ props.row.firstname }}
+                    {{ formatEmployeeDisplayName(props.row) }}
                   </div>
                   <q-badge
                     v-if="isDepartmentHeadRecord(props.row)"
@@ -836,7 +836,7 @@ const columns = [
     name: 'name',
     label: 'Employee',
     align: 'left',
-    field: (row) => `${row.surname}, ${row.firstname}`,
+    field: (row) => formatEmployeeDisplayName(row),
     sortable: true,
   },
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
@@ -978,6 +978,36 @@ function normalizeStatus(value) {
   return String(value || '')
     .trim()
     .toUpperCase()
+}
+
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function formatEmployeeDisplayName(employee) {
+  if (!employee || typeof employee !== 'object') return ''
+
+  const surname = String(employee.surname || '').trim()
+  const firstname = String(employee.firstname || '').trim()
+  const middlename = String(employee.middlename || '').trim()
+
+  if (!surname || !firstname) return [surname, firstname].filter(Boolean).join(', ')
+
+  const baseName = `${surname}, ${firstname}`
+  const middleInitial = getMiddleInitial(middlename)
+  return middleInitial ? `${baseName} ${middleInitial}` : baseName
 }
 
 function countStatusRows(sourceRows = []) {
