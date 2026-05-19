@@ -101,7 +101,7 @@
             dense
             no-caps
             icon="inventory_2"
-            color="primary"
+            color="teal-6"
             :label="receiveActionLabel"
             :loading="receiveLoading"
             :disable="loadingTimeline"
@@ -115,7 +115,7 @@
             no-caps
             disable
             icon="inventory_2"
-            color="positive"
+            color="teal-6"
             :label="receivedActionLabel"
             class="application-timeline-footer-button application-timeline-footer-button--completed"
           />
@@ -959,8 +959,8 @@ function getReleasedTimelineTitle() {
 }
 
 function getDisapprovedDocumentTimelineTitle() {
-  if (!isUpdateRequestCycle.value) return 'Application Disapproved'
-  return requestCycleDocumentLabel.value + ' Disapproved'
+  if (!isUpdateRequestCycle.value) return 'Application Not Certified'
+  return requestCycleDocumentLabel.value + ' Not Certified'
 }
 
 function isHrPhaseEntry(entry) {
@@ -971,15 +971,18 @@ function isHrPhaseEntry(entry) {
     normalizedTitle.includes('approved by hr') ||
     normalizedTitle.includes('cmo/cbmo review') ||
     normalizedTitle.includes('application disapproved') ||
+    normalizedTitle.includes('application not certified') ||
     normalizedTitle.includes('recalled by hr') ||
     normalizedTitle.includes('pending edit review (hr)') ||
     normalizedTitle.includes('pending cancellation review (hr)') ||
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request approved') ||
     normalizedTitle.includes('cancellation request rejected') ||
     normalizedTitle.includes('cancellation request disapproved') ||
+    normalizedTitle.includes('cancellation request not certified') ||
     normalizedTitle.includes('current status')
   )
 }
@@ -992,11 +995,13 @@ function isUpdateRequestTimelineEntry(entry) {
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request submitted') ||
     normalizedTitle.includes('pending cancellation review') ||
     normalizedTitle.includes('cancellation request approved') ||
     normalizedTitle.includes('cancellation request rejected') ||
-    normalizedTitle.includes('cancellation request disapproved')
+    normalizedTitle.includes('cancellation request disapproved') ||
+    normalizedTitle.includes('cancellation request not certified')
   )
 }
 
@@ -1005,8 +1010,10 @@ function isDisapprovedUpdateRequestTimelineEntry(entry) {
   return (
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request rejected') ||
-    normalizedTitle.includes('cancellation request disapproved')
+    normalizedTitle.includes('cancellation request disapproved') ||
+    normalizedTitle.includes('cancellation request not certified')
   )
 }
 
@@ -1187,7 +1194,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
             : 'HR confirmed receipt of the updated hard copy leave application form.'
           : 'HR confirmed receipt of the hard copy leave application form.'),
     icon: String(existingEntry?.icon || '').trim() || 'inventory_2',
-    color: String(existingEntry?.color || '').trim() || 'positive',
+    color: 'teal-6',
     actor: actor || undefined,
   }
 }
@@ -1226,8 +1233,13 @@ function buildCmoCbmoReviewTimelineEntry() {
   if (isUpdateRequestCycle.value || !props.application) return null
 
   const rawStatus = getApplicationRawStatusKey(props.application)
+  const isRejectedAfterReceive =
+    (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') &&
+    isReceivedState.value &&
+    !isReleasedState.value
   const shouldShowStage =
     ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
+    isRejectedAfterReceive ||
     isBackendCmoCbmoReviewState(props.application) ||
     isReleasedState.value
   if (!shouldShowStage) return null
@@ -1251,7 +1263,7 @@ function buildCmoCbmoReviewTimelineEntry() {
 
   return {
     title: 'CMO/CBMO Review',
-    subtitle: isCurrent ? 'Current stage' : 'On Process',
+    subtitle: isCurrent ? 'In Progress' : 'Pending',
     description: isCurrent
       ? 'Waiting for CMO/CBMO review before release.'
       : 'This stage starts after HR certification.',
@@ -1274,8 +1286,8 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
       description:
         String(disapprovedEntry?.description || '').trim() ||
         (isCancellationCycle
-          ? 'Cancellation form release ended because the request was disapproved.'
-          : 'Update release ended because the request was disapproved.'),
+          ? 'Cancellation form release ended because the request was not certified.'
+          : 'Update release ended because the request was not certified.'),
       icon: 'cancel',
       color: 'negative',
       actor: String(disapprovedEntry?.actor || '').trim() || undefined,
@@ -1286,7 +1298,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
     const isCurrent = canReleaseState.value
     return {
       title: entryTitle,
-      subtitle: isCurrent ? 'Current stage' : 'On Process',
+      subtitle: isCurrent ? 'In Progress' : 'Pending',
       description: isCurrent
         ? isCoc
           ? 'Waiting for HR to release this COC application.'
@@ -1301,7 +1313,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
             ? isCancellationCycle
               ? 'The cancellation form will be released before final closure.'
               : 'The updated physical document will be released before final closure.'
-            : 'The physical document will be released before final closure.',
+            : 'Application will be released after final approval.',
       icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
       color: isCurrent ? 'warning' : 'grey-5',
     }
@@ -1353,7 +1365,7 @@ function buildHistoricalReceivedTimelineEntry(existingEntry = null) {
       String(existingEntry?.description || '').trim() ||
       'HR confirmed receipt of the hard copy leave application form.',
     icon: 'inventory_2',
-    color: 'positive',
+    color: 'teal-6',
     actor: meta.actor && meta.actor !== 'Unknown' ? meta.actor : undefined,
   }
 }
@@ -1403,6 +1415,7 @@ function getTimelineEntryTone(entry) {
     return 'recalled'
   }
   if (color.includes('negative') || icon.includes('cancel')) return 'negative'
+  if (color.includes('teal')) return 'received'
   if (color.includes('warning') || icon.includes('pending')) return 'warning'
   if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
   return 'positive'
@@ -1412,6 +1425,7 @@ function getTimelineEntryIcon(entry) {
   const tone = getTimelineEntryTone(entry)
   if (tone === 'recalled') return 'undo'
   if (tone === 'negative') return 'close'
+  if (tone === 'received') return 'inventory_2'
   if (tone === 'warning') return 'schedule'
   if (tone === 'neutral') return 'radio_button_unchecked'
   return 'check'
@@ -1597,6 +1611,10 @@ watch(
   background: #f59e0b;
 }
 
+.application-timeline-marker--received {
+  background: #0d9488;
+}
+
 .application-timeline-marker--recalled {
   background: #2563eb;
 }
@@ -1624,6 +1642,10 @@ watch(
 
 .application-timeline-line--warning {
   background: #f59e0b;
+}
+
+.application-timeline-line--received {
+  background: #0d9488;
 }
 
 .application-timeline-line--recalled {

@@ -48,7 +48,11 @@ const color = computed(() => {
   if (normalized.includes('PENDING RELEASE')) return 'indigo-6'
   if (normalized.includes('PENDING RECEIVE')) return 'teal-6'
   if (normalized.includes('PENDING')) return 'warning'
-  if (normalized.includes('REJECTED') || normalized.includes('DISAPPROVED')) {
+  if (
+    normalized.includes('REJECTED') ||
+    normalized.includes('DISAPPROVED') ||
+    normalized.includes('NOT CERTIFIED')
+  ) {
     return DISAPPROVED_STATUS_COLOR
   }
   if (normalized.includes('RELEASED')) return 'positive'

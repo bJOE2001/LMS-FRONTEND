@@ -489,15 +489,15 @@
             unelevated
             no-caps
             color="negative"
-            label="Disapprove"
+            :label="getRejectActionLabel(application)"
             @click="handleOpenActionConfirm('reject')"
           />
           <q-btn
             v-if="application.rawStatus === 'PENDING_HR'"
             unelevated
             no-caps
-            color="green-7"
-            label="Approve"
+            :color="getApproveActionColor(application)"
+            :label="getApproveActionLabel(application)"
             @click="handleOpenActionConfirm('approve')"
           />
           <q-btn
@@ -726,6 +726,18 @@ const props = defineProps({
   getStatusTooltipForStatusColumn: {
     type: Function,
     default: () => '',
+  },
+  getApproveActionLabel: {
+    type: Function,
+    default: () => 'Approve',
+  },
+  getApproveActionColor: {
+    type: Function,
+    default: () => 'green-7',
+  },
+  getRejectActionLabel: {
+    type: Function,
+    default: () => 'Disapprove',
   },
 })
 

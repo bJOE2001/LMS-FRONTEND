@@ -3672,7 +3672,7 @@ function getReceivedApplicationTimelineEntry(app) {
     subtitle: receivedAt,
     description,
     icon: 'inventory_2',
-    color: 'positive',
+    color: 'teal-6',
     actor: receivedBy,
   }
 }
@@ -4264,11 +4264,11 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Disapproved',
+      title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Not Certified',
       subtitle: disapprovedAt,
       description: isApprovedCancellationRequest
         ? formatRecentRemarks(app) || 'Application was cancelled through the approved cancellation request.'
-        : formatRecentRemarks(app) || 'Application was disapproved.',
+        : formatRecentRemarks(app) || 'Application was not certified.',
       icon: isApprovedCancellationRequest ? 'event_busy' : 'cancel',
       color: 'negative',
       actor: disapprovedBy,
@@ -4315,8 +4315,8 @@ function buildApplicationTimeline(app) {
 
     entries.push({
       title: 'CHRMO Certification',
-      subtitle: 'Current stage',
-      description: 'Waiting for HR final evaluation and approval.',
+      subtitle: 'In Progress',
+      description: 'Waiting for HR evaluation.',
       icon: 'pending_actions',
       color: 'warning',
     })

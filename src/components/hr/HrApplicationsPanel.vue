@@ -213,7 +213,7 @@
               round
               size="sm"
               icon="inventory_2"
-              color="primary"
+              color="teal-6"
               :disable="receiveLoading"
               @click.stop="confirmApplicationReceive(props.row)"
             >
@@ -229,7 +229,7 @@
               color="negative"
               @click.stop="openActionConfirm('reject', props.row)"
             >
-              <q-tooltip>Disapprove</q-tooltip>
+              <q-tooltip>{{ getRejectActionLabel(props.row) }}</q-tooltip>
             </q-btn>
             <q-btn
               v-if="canShowHrReviewDecisionActions(props.row)"
@@ -238,10 +238,10 @@
               round
               size="sm"
               icon="check_circle"
-              color="green-7"
+              :color="getApproveActionColor(props.row)"
               @click.stop="openActionConfirm('approve', props.row)"
             >
-              <q-tooltip>Approve</q-tooltip>
+              <q-tooltip>{{ getApproveActionLabel(props.row) }}</q-tooltip>
             </q-btn>
             <q-btn
               v-if="canShowCmoCbmoReviewAction(props.row)"
@@ -374,6 +374,9 @@
     :can-recall-application="canRecallApplication"
     :get-final-status-for-status-column="getFinalStatusForStatusColumn"
     :get-status-tooltip-for-status-column="getStatusTooltipForStatusColumn"
+    :get-approve-action-label="getApproveActionLabel"
+    :get-approve-action-color="getApproveActionColor"
+    :get-reject-action-label="getRejectActionLabel"
     @view-attachment="viewApplicationAttachment"
     @open-edit="openEdit"
     @open-action-confirm="openActionConfirm"
@@ -403,6 +406,8 @@
     v-model="showConfirmActionDialog"
     :confirm-action-type="confirmActionType"
     :application="confirmActionTarget"
+    :get-approve-action-label="getApproveActionLabel"
+    :get-reject-action-label="getRejectActionLabel"
     :is-edit-request="isPendingEditRequest(resolveApplication(confirmActionTarget))"
     :is-coc-application="isCocApplication"
     :is-pending-edit-request="isPendingEditRequest"
@@ -423,6 +428,7 @@
   <HrApplicationRejectDialog
     v-model="showRejectDialog"
     :application="rejectTargetApp"
+    :get-reject-action-label="getRejectActionLabel"
     :is-coc-application="isCocApplication"
     :is-pending-edit-request="isPendingEditRequest"
     :get-leave-request-action-type="getLeaveRequestActionType"
@@ -478,13 +484,20 @@ export default defineComponent({
     HrApplicationRecallDialog,
   },
   setup(props) {
-    const normalizeDisapprovedStatusLabel = (statusValue) =>
-      String(statusValue || '')
+    const normalizeDisapprovedStatusLabel = (statusValue) => {
+      const normalizedStatus = String(statusValue || '')
         .trim()
         .replace(/^HR Certification(?: Completed)?$/i, (match) =>
           match.replace(/^HR Certification/i, 'CHRMO Certification'),
         )
-        .replace(/rejected/gi, 'Disapproved')
+      const upperStatus = normalizedStatus.toUpperCase()
+
+      if (upperStatus === 'DISAPPROVED' || upperStatus === 'REJECTED') {
+        return 'Not Certified'
+      }
+
+      return normalizedStatus.replace(/rejected/gi, 'Disapproved')
+    }
 
     function getDisplayApplicationStatusLabel(app) {
       const statusLabel = String(
@@ -983,6 +996,22 @@ export default defineComponent({
       )
     }
 
+    function isChrmoCertificationStage(app) {
+      return String(panel.getApplicationStatusLabel(app) || '').trim().toUpperCase() === 'CHRMO CERTIFICATION'
+    }
+
+    function getApproveActionLabel(app) {
+      return isChrmoCertificationStage(app) ? 'Certify' : 'Approve'
+    }
+
+    function getApproveActionColor(app) {
+      return isChrmoCertificationStage(app) ? 'blue-6' : 'green-7'
+    }
+
+    function getRejectActionLabel(app) {
+      return isChrmoCertificationStage(app) ? 'Not Certify' : 'Disapprove'
+    }
+
     function canShowCocCertificatePrintAction(app) {
       return panel.canPrintCocCertificate(app) && panel.isApplicationReceivedByHr(app)
     }
@@ -1024,6 +1053,9 @@ export default defineComponent({
       getApplicationRequestUpdateCalendarDates,
       getFinalStatusForStatusColumn,
       getStatusTooltipForStatusColumn,
+      getApproveActionLabel,
+      getApproveActionColor,
+      getRejectActionLabel,
       handleCalendarPreviewModelUpdate,
       handleCalendarPreviewSurfaceClick,
       handleCalendarPreviewSurfacePointerDown,
