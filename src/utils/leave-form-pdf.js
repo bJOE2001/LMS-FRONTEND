@@ -479,6 +479,56 @@ function isNameSuffix(value) {
   return /^(JR|SR|I|II|III|IV|V|VI)\.?$/i.test(String(value || '').trim())
 }
 
+function isSurnameParticleToken(value) {
+  const token = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\.+$/, '')
+  return ['D', 'DE', 'DEL', 'DELA', 'DELOS', 'DELAS', 'VON', 'VAN', 'BIN', 'IBN', 'AL'].includes(
+    token,
+  )
+}
+
+function normalizeSurnameToken(value) {
+  const token = String(value || '').trim()
+  const upperToken = token.toUpperCase().replace(/\.+$/, '')
+  if (upperToken === 'D') return 'DE'
+  return token
+}
+
+function splitNameTokensWithSurnameParticles(parts = []) {
+  if (!Array.isArray(parts) || parts.length === 0) {
+    return { givenTokens: [], surnameTokens: [] }
+  }
+
+  if (parts.length === 1) {
+    return { givenTokens: [parts[0]], surnameTokens: [] }
+  }
+
+  const workingParts = [...parts]
+  const surnameTokens = [workingParts.pop()]
+
+  while (workingParts.length > 0 && isSurnameParticleToken(workingParts[workingParts.length - 1])) {
+    const candidate = String(workingParts[workingParts.length - 1] || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\.+$/, '')
+
+    // Treat lone "D." / "D" as a surname particle only when we still
+    // have at least first name + middle name tokens before it.
+    if (candidate === 'D' && workingParts.length <= 2) {
+      break
+    }
+
+    surnameTokens.unshift(workingParts.pop())
+  }
+
+  return {
+    givenTokens: workingParts,
+    surnameTokens,
+  }
+}
+
 function formatSignatoryNameWithMiddleInitial(value) {
   const rawName = String(value || '')
     .trim()
@@ -494,15 +544,20 @@ function formatSignatoryNameWithMiddleInitial(value) {
   }
 
   const parts = rawName.split(' ').filter(Boolean)
-  if (parts.length < 3) return rawName
+  if (parts.length < 2) return rawName
 
   const suffix = isNameSuffix(parts[parts.length - 1]) ? parts.pop() : ''
-  const lastName = parts.pop()
-  const middleName = parts.pop()
-  const givenNames = parts.join(' ')
-  const middleInitial = formatMiddleInitial(middleName)
+  const { givenTokens, surnameTokens } = splitNameTokensWithSurnameParticles(parts)
+  if (givenTokens.length === 0 || surnameTokens.length === 0) {
+    return rawName
+  }
 
-  return [givenNames, middleInitial, lastName, suffix].filter(Boolean).join(' ')
+  const middleName = givenTokens.length > 1 ? givenTokens[givenTokens.length - 1] : ''
+  const givenNames = givenTokens.length > 1 ? givenTokens.slice(0, -1).join(' ') : givenTokens[0]
+  const middleInitial = formatMiddleInitial(middleName)
+  const normalizedSurname = surnameTokens.map((token) => normalizeSurnameToken(token)).join(' ')
+
+  return [givenNames, middleInitial, normalizedSurname, suffix].filter(Boolean).join(' ')
 }
 
 function fmtSalary(val) {

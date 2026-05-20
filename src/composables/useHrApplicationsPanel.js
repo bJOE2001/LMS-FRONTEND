@@ -2533,15 +2533,20 @@ const cocInclusiveDatesColumn = {
   style: 'width: 11%',
   headerStyle: 'width: 11%',
 }
+const cocDurationColumn = {
+  ...durationColumn,
+  style: 'width: 8%',
+  headerStyle: 'width: 8%',
+}
 const cocStatusColumn = {
   ...statusColumn,
-  style: 'width: 13%',
-  headerStyle: 'width: 13%',
+  style: 'width: 11%',
+  headerStyle: 'width: 11%',
 }
 const cocActionsColumn = {
   ...actionsColumn,
-  style: 'width: 10%',
-  headerStyle: 'width: 10%',
+  style: 'width: 9%',
+  headerStyle: 'width: 9%',
 }
 
 const columns = [
@@ -2561,6 +2566,7 @@ const cocLateColumns = [
   cocDateFiledColumn,
   cocLateDeadlineColumn,
   cocInclusiveDatesColumn,
+  cocDurationColumn,
   cocStatusColumn,
   cocActionsColumn,
 ]

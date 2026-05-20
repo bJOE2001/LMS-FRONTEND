@@ -930,8 +930,15 @@ const inclusiveDatePatterns = [
 ]
 
 function normalizeDisapprovedStatusLabel(statusValue) {
-  return String(statusValue || '')
-    .trim()
+  const normalizedStatus = String(statusValue || '').trim()
+  if (!normalizedStatus) return ''
+
+  const upperStatus = normalizedStatus.toUpperCase()
+  if (upperStatus === 'DISAPPROVED' || upperStatus === 'REJECTED') {
+    return 'Not Certified'
+  }
+
+  return normalizedStatus
     .replace(/^HR Certification(?: Completed)?$/i, (match) =>
       match.replace(/^HR Certification/i, 'CHRMO Certification'),
     )
@@ -998,11 +1005,16 @@ function getFinalStatusForStatusColumn(app) {
 
   if (
     normalizedResolvedStatus.includes('RECALL') ||
-    normalizedResolvedStatus.includes('REJECT') ||
-    normalizedResolvedStatus.includes('DISAPPROV') ||
     normalizedResolvedStatus.includes('CANCEL')
   ) {
     return resolvedStatus
+  }
+
+  if (
+    normalizedResolvedStatus.includes('REJECT') ||
+    normalizedResolvedStatus.includes('DISAPPROV')
+  ) {
+    return normalizeDisapprovedStatusLabel(resolvedStatus)
   }
 
   if (isApplicationReleased(app)) return 'Released'
