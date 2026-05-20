@@ -3869,7 +3869,7 @@ export function useAdminApplicationsPage() {
     if (isAdminReviewPending) {
       entries.push({
         title: terminology.pendingAdminTitle,
-        subtitle: 'Current stage',
+        subtitle: 'On Process',
         description: terminology.pendingAdminDescription,
         icon: 'pending_actions',
         color: 'warning',
@@ -3916,7 +3916,7 @@ export function useAdminApplicationsPage() {
     } else if (isHrReviewPending) {
       entries.push({
         title: terminology.pendingHrTitle,
-        subtitle: 'Current stage',
+        subtitle: 'On Process',
         description: terminology.pendingHrDescription,
         icon: 'pending_actions',
         color: 'warning',
@@ -4003,7 +4003,7 @@ export function useAdminApplicationsPage() {
 
       entries.push({
         title: 'Department Recommendation',
-        subtitle: 'Current stage',
+        subtitle: 'On Process',
         description: 'Waiting for department admin approval or disapproval.',
         icon: 'pending_actions',
         color: 'warning',
@@ -4093,7 +4093,7 @@ export function useAdminApplicationsPage() {
 
       entries.push({
         title: 'CHRMO Certification',
-        subtitle: 'Current stage',
+        subtitle: 'On Process',
         description: 'Waiting for HR final evaluation and approval.',
         icon: 'pending_actions',
         color: 'warning',
@@ -4567,14 +4567,25 @@ export function useAdminApplicationsPage() {
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
     const isCoc = isCocApplication(app)
     const rawStatus = getApplicationRawStatus(app)
+    const queueStageKey = getApplicationQueueStageKey(app)
     const isCocAwaitingReceive = isCoc && rawStatus === 'APPROVED'
+    const isPendingReceiveStage =
+      !isCoc &&
+      (queueStageKey === 'PENDING_HR_RECEIVE' || (!queueStageKey && rawStatus === 'PENDING_HR'))
+    const isCurrentReceiveStage = isCocAwaitingReceive || isPendingReceiveStage
 
     if (!isApplicationReceivedByHr(app)) {
       return {
         title: entryTitle,
-        subtitle: isCocAwaitingReceive ? 'Current stage' : 'On Process',
-        description: isCocAwaitingReceive
-          ? 'Waiting for HR to acknowledge this COC application.'
+        subtitle: 'On Process',
+        description: isCurrentReceiveStage
+          ? isCocAwaitingReceive
+            ? 'Waiting for HR to acknowledge this COC application.'
+            : cycleDocumentLabel
+              ? cycleDocumentLabel === 'Cancellation Form'
+                ? 'Waiting for HR to confirm receipt of the cancellation form.'
+                : 'Waiting for HR to confirm receipt of the updated hard copy leave application form.'
+              : 'Waiting for HR to confirm receipt of the hard copy leave application form.'
           : isCoc
             ? 'HR will acknowledge this COC application for review.'
             : cycleDocumentLabel
@@ -4582,8 +4593,8 @@ export function useAdminApplicationsPage() {
                 ? 'HR will confirm receipt of the cancellation form.'
                 : 'HR will confirm receipt of the updated hard copy leave application form.'
               : 'HR will confirm receipt of the hard copy leave application form.',
-        icon: isCocAwaitingReceive ? 'pending_actions' : 'radio_button_unchecked',
-        color: isCocAwaitingReceive ? 'warning' : 'grey-5',
+        icon: isCurrentReceiveStage ? 'pending_actions' : 'radio_button_unchecked',
+        color: isCurrentReceiveStage ? 'warning' : 'grey-5',
       }
     }
 
@@ -4615,10 +4626,11 @@ export function useAdminApplicationsPage() {
     const entryTitle = getReleasedTimelineTitle(app)
     const cycleDocumentLabel = getRequestCycleDocumentLabel(app)
     const isCoc = isCocApplication(app)
+    const queueStageKey = getApplicationQueueStageKey(app)
     const isAwaitingRelease =
-      !hasAdminEditRequestSignal(app) &&
-      isApplicationCmoCbmoReviewed(app) &&
-      !isApplicationReleased(app)
+      !isApplicationReleased(app) &&
+      (queueStageKey === 'PENDING_RELEASE' ||
+        (!hasAdminEditRequestSignal(app) && isApplicationCmoCbmoReviewed(app)))
 
     if (disapprovedEntry) {
       return {
@@ -4638,7 +4650,7 @@ export function useAdminApplicationsPage() {
     if (!isApplicationReleased(app)) {
       return {
         title: entryTitle,
-        subtitle: isAwaitingRelease ? 'Current stage' : 'On Process',
+        subtitle: 'On Process',
         description: isAwaitingRelease
           ? isCoc
             ? 'Waiting for HR to release this COC application.'
@@ -4683,8 +4695,10 @@ export function useAdminApplicationsPage() {
     if (!app || hasAdminEditRequestSignal(app)) return null
 
     const rawStatus = getApplicationRawStatus(app)
+    const queueStageKey = getApplicationQueueStageKey(app)
     const shouldShowStage =
       ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
+      queueStageKey === 'PENDING_CMO_CBMO_REVIEW' ||
       isApplicationCmoCbmoReviewed(app) ||
       isApplicationReleased(app)
     if (!shouldShowStage) return null
@@ -4702,11 +4716,13 @@ export function useAdminApplicationsPage() {
     }
 
     const isCurrent =
-      rawStatus === 'APPROVED' && isApplicationReceivedByHr(app) && !isApplicationReleased(app)
+      !isApplicationReleased(app) &&
+      (queueStageKey === 'PENDING_CMO_CBMO_REVIEW' ||
+        (rawStatus === 'APPROVED' && isApplicationReceivedByHr(app)))
 
     return {
       title: 'CMO/CBMO Review',
-      subtitle: isCurrent ? 'Current stage' : 'On Process',
+      subtitle: 'On Process',
       description: isCurrent
         ? 'Waiting for CMO/CBMO review before release.'
         : 'This stage starts after HR certification.',
@@ -5014,7 +5030,22 @@ export function useAdminApplicationsPage() {
   }
 
   function getTimelineEntryIcon(entry) {
+    const title = normalizeTimelineEntryTitle(entry)
     const tone = getTimelineEntryTone(entry)
+
+    if (title.includes('application filed') || title.includes('submitted')) return 'description'
+    if (title.includes('department recommendation')) {
+      return title.includes('completed') ? 'check_box' : 'pending_actions'
+    }
+    if (title.includes('received')) return 'receipt_long'
+    if (title.includes('chrmo certification')) {
+      return title.includes('completed') ? 'task_alt' : 'assignment_ind'
+    }
+    if (title.includes('cmo/cbmo review')) return 'groups'
+    if (title.includes('released')) return 'assignment_turned_in'
+    if (title.includes('application closed')) return 'assignment_turned_in'
+    if (title.includes('current status')) return 'info'
+
     if (tone === 'recalled') return 'undo'
     if (tone === 'negative') return 'close'
     if (tone === 'warning') return 'schedule'

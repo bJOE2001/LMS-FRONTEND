@@ -37,6 +37,9 @@
                 <div class="ledger-sheet__identity-name" :style="identityNameStyle">
                   {{ employeeHeadingName }}
                 </div>
+                <div class="ledger-sheet__identity-status" :style="identityStatusStyle">
+                  {{ employeeHeadingStatus }}
+                </div>
                 <div class="ledger-sheet__identity-office" :style="identityOfficeStyle">
                   {{ employeeHeadingOffice }}
                 </div>
@@ -53,6 +56,9 @@
               <div class="ledger-sheet__header">
                 <div class="ledger-sheet__field">
                   <div class="ledger-sheet__label">Name</div>
+                </div>
+                <div class="ledger-sheet__field">
+                  <div class="ledger-sheet__label">Status</div>
                 </div>
                 <div class="ledger-sheet__field">
                   <div class="ledger-sheet__label">Division Office</div>
@@ -74,7 +80,10 @@
                   <thead>
                     <tr>
                       <th rowspan="2" class="ledger-table__primary-head">
-                        <span class="ledger-table__stacked-head">Period</span>
+                        <span class="ledger-table__stacked-head">
+                          Inclusive<br />
+                          Dates
+                        </span>
                       </th>
                       <th
                         rowspan="2"
@@ -157,7 +166,10 @@
                     <tr
                       v-for="entry in pageRows"
                       :key="entry.key"
-                      :class="{ 'ledger-table__row--blank': entry.isBlank }"
+                      :class="{
+                        'ledger-table__row--blank': entry.isBlank,
+                        'ledger-table__row--balance-forwarded': entry.isBalanceForwarded,
+                      }"
                     >
                       <td class="ledger-table__cell--period">{{ entry.period }}</td>
                       <td class="ledger-table__cell--particulars">{{ entry.particulars }}</td>
@@ -288,6 +300,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  identityStatusStyle: {
+    type: Object,
+    default: () => ({}),
+  },
   identityOfficeStyle: {
     type: Object,
     default: () => ({}),
@@ -297,6 +313,10 @@ const props = defineProps({
     default: () => ({}),
   },
   employeeHeadingName: {
+    type: String,
+    default: 'N/A',
+  },
+  employeeHeadingStatus: {
     type: String,
     default: 'N/A',
   },
@@ -388,15 +408,16 @@ const paperSizeClass = computed(
 
 .ledger-sheet__identity {
   display: grid;
-  grid-template-columns: 34% 42% 24%;
+  grid-template-columns: 34% 13% 29% 24%;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 0;
   min-height: 40px;
   padding: 8px 12px 4px;
   border-bottom: 1px solid #000000;
 }
 
 .ledger-sheet__identity-name,
+.ledger-sheet__identity-status,
 .ledger-sheet__identity-office,
 .ledger-sheet__identity-service {
   min-width: 0;
@@ -412,6 +433,11 @@ const paperSizeClass = computed(
 .ledger-sheet__identity-name {
   letter-spacing: 0.005em;
   text-align: center;
+}
+
+.ledger-sheet__identity-status {
+  text-align: center;
+  letter-spacing: 0.005em;
 }
 
 .ledger-sheet__identity-office {
@@ -432,7 +458,7 @@ const paperSizeClass = computed(
 
 .ledger-sheet__header {
   display: grid;
-  grid-template-columns: 34% 42% 24%;
+  grid-template-columns: 34% 13% 29% 24%;
   border-bottom: 1px solid #000000;
 }
 
@@ -515,6 +541,11 @@ const paperSizeClass = computed(
   height: 20px;
 }
 
+.ledger-table__row--balance-forwarded td {
+  background: #fffdf8;
+  font-weight: 700;
+}
+
 .ledger-table__stacked-head {
   display: flex;
   align-items: center;
@@ -570,6 +601,7 @@ const paperSizeClass = computed(
 
 .ledger-table__cell--period {
   font-weight: 600;
+  white-space: pre-line;
 }
 
 .ledger-table__cell--action {
@@ -599,6 +631,7 @@ const paperSizeClass = computed(
   }
 
   .ledger-sheet__identity-name,
+  .ledger-sheet__identity-status,
   .ledger-sheet__identity-office,
   .ledger-sheet__identity-service {
     text-align: center;

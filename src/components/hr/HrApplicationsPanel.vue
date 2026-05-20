@@ -263,7 +263,7 @@
               round
               size="sm"
               icon="outbox"
-              color="secondary"
+              color="indigo-6"
               :disable="releaseLoading"
               @click.stop="confirmApplicationRelease(props.row)"
             >
@@ -324,9 +324,6 @@
     :is-mobile="$q.screen.lt.sm"
     :show-application-edit-action="showApplicationEditAction"
     :format-date="formatDate"
-    :get-current-leave-balance-class="getCurrentLeaveBalanceClass"
-    :get-current-leave-balance-display="getCurrentLeaveBalanceDisplay"
-    :should-show-current-leave-balance="shouldShowCurrentLeaveBalance"
     :is-cto-leave-application="isCtoLeaveApplication"
     :get-current-cto-available-hours-display="getCurrentCtoAvailableHoursDisplay"
     :get-application-cto-required-hours-display="getApplicationCtoRequiredHoursDisplay"
@@ -952,11 +949,11 @@ export default defineComponent({
       const releasedAt = panel.formatDateTime(panel.resolveReleasedDateValue(app))
 
       if (approvedAt && releasedAt) {
-        return `Approved by HR on ${approvedAt}; released on ${releasedAt}.`
+        return `Certified by HR on ${approvedAt}; released on ${releasedAt}.`
       }
-      if (releasedAt) return `Approved by HR, then released on ${releasedAt}.`
-      if (approvedAt) return `Approved by HR on ${approvedAt}; released.`
-      return 'Approved by HR, then released.'
+      if (releasedAt) return `Certified by HR, then released on ${releasedAt}.`
+      if (approvedAt) return `Certified by HR on ${approvedAt}; released.`
+      return 'Certified by HR, then released.'
     }
 
     function canShowPendingReleaseAction(app) {

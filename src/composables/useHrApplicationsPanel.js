@@ -3486,7 +3486,7 @@ function getEditRequestTimelineEntries(app) {
   if (isAdminReviewPending) {
     entries.push({
       title: terminology.pendingAdminTitle,
-      subtitle: 'Current stage',
+      subtitle: 'On Process',
       description: terminology.pendingAdminDescription,
       icon: 'pending_actions',
       color: 'warning',
@@ -3533,7 +3533,7 @@ function getEditRequestTimelineEntries(app) {
   } else if (isHrReviewPending) {
     entries.push({
       title: terminology.pendingHrTitle,
-      subtitle: 'Current stage',
+      subtitle: 'On Process',
       description: terminology.pendingHrDescription,
       icon: 'pending_actions',
       color: 'warning',
@@ -4078,7 +4078,7 @@ function getLateCocHrEvaluationTimelineEntry(app) {
   if (rawStatus === 'PENDING_LATE_HR') {
     return {
       title: 'Under HR Evaluation',
-      subtitle: 'Current stage',
+      subtitle: 'On Process',
       description: 'Waiting for HR evaluation of this late COC application.',
       icon: 'pending_actions',
       color: 'warning',
@@ -4220,7 +4220,7 @@ function buildApplicationTimeline(app) {
 
     entries.push({
       title: 'Department Recommendation',
-      subtitle: 'Current stage',
+      subtitle: 'On Process',
       description: 'Waiting for department admin approval or disapproval.',
       icon: 'pending_actions',
       color: 'warning',
@@ -4315,7 +4315,7 @@ function buildApplicationTimeline(app) {
 
     entries.push({
       title: 'CHRMO Certification',
-      subtitle: 'In Progress',
+      subtitle: 'On Process',
       description: 'Waiting for HR evaluation.',
       icon: 'pending_actions',
       color: 'warning',

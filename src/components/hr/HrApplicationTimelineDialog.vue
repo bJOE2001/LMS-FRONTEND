@@ -125,7 +125,7 @@
             dense
             no-caps
             icon="outbox"
-            color="secondary"
+            color="indigo-6"
             :label="releaseActionLabel"
             :loading="releaseLoading"
             :disable="loadingTimeline"
@@ -1143,7 +1143,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
     if (canReceiveState.value) {
       return {
         title: entryTitle,
-        subtitle: 'Current stage',
+        subtitle: 'On Process',
         description: isCoc
           ? 'Waiting for HR to acknowledge this COC application.'
           : isUpdateCycle
@@ -1263,7 +1263,7 @@ function buildCmoCbmoReviewTimelineEntry() {
 
   return {
     title: 'CMO/CBMO Review',
-    subtitle: isCurrent ? 'In Progress' : 'Pending',
+    subtitle: 'On Process',
     description: isCurrent
       ? 'Waiting for CMO/CBMO review before release.'
       : 'This stage starts after HR certification.',
@@ -1298,7 +1298,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
     const isCurrent = canReleaseState.value
     return {
       title: entryTitle,
-      subtitle: isCurrent ? 'In Progress' : 'Pending',
+      subtitle: 'On Process',
       description: isCurrent
         ? isCoc
           ? 'Waiting for HR to release this COC application.'
@@ -1422,7 +1422,24 @@ function getTimelineEntryTone(entry) {
 }
 
 function getTimelineEntryIcon(entry) {
+  const title = String(entry?.title || '')
+    .trim()
+    .toLowerCase()
   const tone = getTimelineEntryTone(entry)
+
+  if (title.includes('application filed') || title.includes('submitted')) return 'description'
+  if (title.includes('department recommendation')) {
+    return title.includes('completed') ? 'check_box' : 'pending_actions'
+  }
+  if (title.includes('received')) return 'receipt_long'
+  if (title.includes('chrmo certification')) {
+    return title.includes('completed') ? 'task_alt' : 'assignment_ind'
+  }
+  if (title.includes('cmo/cbmo review')) return 'groups'
+  if (title.includes('released')) return 'assignment_turned_in'
+  if (title.includes('application closed')) return 'assignment_turned_in'
+  if (title.includes('current status')) return 'info'
+
   if (tone === 'recalled') return 'undo'
   if (tone === 'negative') return 'close'
   if (tone === 'received') return 'inventory_2'

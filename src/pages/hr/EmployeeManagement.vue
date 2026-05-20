@@ -370,9 +370,11 @@
       :dialog-style="ledgerDialogStyle"
       :sheet-style="ledgerSheetStyle"
       :identity-name-style="ledgerIdentityNameStyle"
+      :identity-status-style="ledgerIdentityStatusStyle"
       :identity-office-style="ledgerIdentityOfficeStyle"
       :identity-service-value-style="ledgerIdentityServiceValueStyle"
       :employee-heading-name="ledgerEmployeeHeadingName"
+      :employee-heading-status="ledgerEmployeeHeadingStatus"
       :employee-heading-office="ledgerEmployeeHeadingOffice"
       :employee-first-day-of-service="ledgerEmployeeFirstDayOfService"
       :column-widths="ledgerColumnWidths"
@@ -899,7 +901,7 @@ const LEDGER_PAPER_PRESETS = {
     previewWidth: 794,
     previewHeight: 1123,
     minimumRows: 50,
-    pdfMinimumRows: 50,
+    pdfMinimumRows: 46,
     pageSize: 'A4',
     pageMargins: [8, 18, 8, 8],
     pdfHorizontalInset: 0,
@@ -979,10 +981,13 @@ const ledgerRenderedPages = computed(() =>
 )
 
 const ledgerEmployeeDisplayName = computed(() =>
-  getEmployeeFullName(leaveCreditsLedgerEmployee.value),
+  getEmployeeColumnDisplayName(leaveCreditsLedgerEmployee.value),
 )
 const ledgerEmployeeHeadingName = computed(() =>
   formatLedgerHeadingName(ledgerEmployeeDisplayName.value),
+)
+const ledgerEmployeeHeadingStatus = computed(() =>
+  formatLedgerHeadingStatus(leaveCreditsLedgerEmployee.value),
 )
 const ledgerEmployeeHeadingOffice = computed(() =>
   formatLedgerHeadingOffice(leaveCreditsLedgerEmployee.value),
@@ -990,10 +995,15 @@ const ledgerEmployeeHeadingOffice = computed(() =>
 const ledgerIdentityNameStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingName.value),
 )
+const ledgerIdentityStatusStyle = computed(() =>
+  buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingStatus.value),
+)
 const ledgerIdentityOfficeStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingOffice.value),
 )
-const ledgerEmployeeFirstDayOfService = computed(() => 'N/A')
+const ledgerEmployeeFirstDayOfService = computed(() =>
+  formatLedgerFirstDayOfService(leaveCreditsLedgerEmployee.value),
+)
 const ledgerIdentityServiceValueStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeFirstDayOfService.value),
 )
@@ -1317,6 +1327,18 @@ function formatLedgerHeadingName(value) {
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase()
+}
+
+function formatLedgerHeadingStatus(employee) {
+  const status = pickFirstDefined(employee, [
+    'status',
+    'employment_status',
+    'employmentStatus',
+    'employee_status',
+    'employeeStatus',
+  ])
+  const label = displayStatusLabel(status)
+  return label && label !== '-' ? label.toUpperCase() : 'N/A'
 }
 
 function formatLedgerHeadingOffice(employee) {
@@ -1893,8 +1915,30 @@ function formatLedgerActionDate(value) {
   if (Number.isNaN(parsed.getTime())) return ''
 
   return parsed.toLocaleDateString('en-US', {
-    year: '2-digit',
-    month: 'numeric',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function formatLedgerFirstDayOfService(employee) {
+  const serviceDate = pickFirstDefined(employee, [
+    'first_day_of_service',
+    'firstDayOfService',
+    'date_hired',
+    'dateHired',
+    'hire_date',
+    'hireDate',
+    'from_date',
+    'fromDate',
+  ])
+
+  const dateParts = parseLedgerDateParts(serviceDate)
+  if (!dateParts) return 'N/A'
+
+  return dateParts.date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
     day: 'numeric',
   })
 }
@@ -2060,6 +2104,86 @@ function buildLedgerRowsForPaper(rows, preset, options = {}) {
   return normalizedRows
 }
 
+function createLedgerForwardedBalanceState() {
+  return {
+    vacation: null,
+    sick: null,
+    otherDefault: null,
+    otherByCode: {},
+  }
+}
+
+function updateLedgerForwardedBalanceState(state, rows) {
+  if (!state || !Array.isArray(rows)) return state
+
+  rows.forEach((row) => {
+    if (!row || row.isBlank || row.isBalanceForwarded) return
+
+    const vacationBalance = parseLedgerSignedQuantityValue(row.vacationBalance)
+    if (vacationBalance !== null) {
+      state.vacation = vacationBalance
+    }
+
+    const sickBalance = parseLedgerSignedQuantityValue(row.sickBalance)
+    if (sickBalance !== null) {
+      state.sick = sickBalance
+    }
+
+    const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
+    if (otherBalance !== null) {
+      const leaveCode = normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
+      if (leaveCode === 'WL' || leaveCode === 'MCO6') {
+        state.otherByCode[leaveCode] = otherBalance
+      } else {
+        state.otherDefault = otherBalance
+      }
+    }
+  })
+
+  return state
+}
+
+function isLedgerFiniteNumberValue(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+}
+
+function resolveLedgerForwardedOtherBalance(state) {
+  if (!state) return null
+
+  const codedBalances = Object.values(state.otherByCode || {}).filter((value) =>
+    isLedgerFiniteNumberValue(value),
+  )
+  if (codedBalances.length > 0) {
+    const codedTotal = codedBalances.reduce(
+      (total, value) => total + Number(value),
+      isLedgerFiniteNumberValue(state.otherDefault) ? Number(state.otherDefault) : 0,
+    )
+    return roundLedgerNumericValue(codedTotal)
+  }
+
+  return isLedgerFiniteNumberValue(state.otherDefault) ? Number(state.otherDefault) : null
+}
+
+function buildLedgerBalanceForwardedRow(state, pageIndex) {
+  const otherBalance = resolveLedgerForwardedOtherBalance(state)
+
+  return {
+    ...LEDGER_BLANK_ROW_TEMPLATE,
+    key: `ledger-balance-forwarded-${pageIndex}`,
+    id: `ledger-balance-forwarded-${pageIndex}`,
+    isBlank: false,
+    isBalanceForwarded: true,
+    particulars: 'Balance Forwarded',
+    vacationBalance: isLedgerFiniteNumberValue(state?.vacation)
+      ? normalizeLedgerQuantityValue(state.vacation)
+      : '',
+    sickBalance: isLedgerFiniteNumberValue(state?.sick)
+      ? normalizeLedgerQuantityValue(state.sick)
+      : '',
+    otherBalance: otherBalance !== null ? normalizeLedgerQuantityValue(otherBalance) : '',
+  }
+}
+
 function buildLedgerPagesForPaper(rows, preset, options = {}) {
   const rowsPerPageSource =
     options.minimumRowsOverride ?? options.minimumRows ?? preset?.minimumRows ?? 0
@@ -2071,14 +2195,28 @@ function buildLedgerPagesForPaper(rows, preset, options = {}) {
   }
 
   const pages = []
+  const forwardedBalanceState = createLedgerForwardedBalanceState()
+  let sourceIndex = 0
+  let pageIndex = 0
 
-  for (let index = 0; index < sourceRows.length; index += rowsPerPage) {
+  while (sourceIndex < sourceRows.length) {
+    const shouldAddForwardedRow = pageIndex > 0 && rowsPerPage > 1
+    const sourceRowsPerPage = Math.max(1, rowsPerPage - (shouldAddForwardedRow ? 1 : 0))
+    const pageSourceRows = sourceRows.slice(sourceIndex, sourceIndex + sourceRowsPerPage)
+    const pageRows = shouldAddForwardedRow
+      ? [buildLedgerBalanceForwardedRow(forwardedBalanceState, pageIndex), ...pageSourceRows]
+      : pageSourceRows
+
     pages.push(
-      buildLedgerRowsForPaper(sourceRows.slice(index, index + rowsPerPage), preset, {
+      buildLedgerRowsForPaper(pageRows, preset, {
         ...options,
         minimumRowsOverride: rowsPerPage,
       }),
     )
+
+    updateLedgerForwardedBalanceState(forwardedBalanceState, pageSourceRows)
+    sourceIndex += sourceRowsPerPage
+    pageIndex += 1
   }
 
   return pages
@@ -2269,8 +2407,23 @@ function buildLedgerPdfTopLabelCell(text) {
   }
 }
 
+function buildLedgerPdfBodyCellMargin(text, options = {}) {
+  if (Array.isArray(options.margin)) return options.margin
+
+  const fontSize = Number(options.fontSize ?? 6.85)
+  const lineHeight = Number(options.lineHeight ?? 0.95)
+  const rowHeight = Number(options.rowHeight ?? 14.05)
+  const lineCount = Math.max(1, String(text || ' ').split('\n').length)
+  const estimatedTextHeight = fontSize * lineHeight * lineCount
+  const verticalMargin = Math.max(0, (rowHeight - estimatedTextHeight) / 2)
+
+  return [0.2, verticalMargin, 0.2, verticalMargin]
+}
+
 function buildLedgerPdfBodyCell(value, options = {}) {
   const text = String(value ?? '').trim()
+  const fontSize = options.fontSize ?? 6.85
+  const lineHeight = options.lineHeight ?? 0.95
 
   return {
     text: text || ' ',
@@ -2278,9 +2431,14 @@ function buildLedgerPdfBodyCell(value, options = {}) {
     bold: options.bold ?? false,
     color: options.color || '#000000',
     fillColor: options.fillColor,
-    fontSize: options.fontSize ?? 7.68,
-    lineHeight: options.lineHeight ?? 1,
-    margin: options.margin || [0.3, 0.9, 0.3, 0.3],
+    fontSize,
+    lineHeight,
+    margin: buildLedgerPdfBodyCellMargin(text, {
+      ...options,
+      fontSize,
+      lineHeight,
+    }),
+    noWrap: options.noWrap ?? false,
   }
 }
 
@@ -2293,15 +2451,17 @@ function buildLedgerPdfValueCell(value, fillColor, options = {}, entry = null, s
     color,
     bold: hasValue,
     fillColor,
+    noWrap: hasValue,
     ...options,
   })
 }
 
-function buildLedgerPdfTableBody(rows) {
+function buildLedgerPdfTableBody(rows, preset = {}) {
+  const bodyRowHeight = Number(preset?.pdfBodyRowHeight ?? 14.05)
   const tableBody = [
     [
       {
-        text: 'PERIOD',
+        text: 'INCLUSIVE\nDATES',
         rowSpan: 2,
         style: 'ledgerPdfRowSpanHead',
       },
@@ -2363,19 +2523,23 @@ function buildLedgerPdfTableBody(rows) {
     tableBody.push([
       buildLedgerPdfBodyCell(entry.period, {
         bold: Boolean(String(entry.period || '').trim()),
-        fontSize: 7.68,
+        fontSize: 5.8,
+        lineHeight: 0.92,
+        noWrap: false,
+        rowHeight: bodyRowHeight,
       }),
       buildLedgerPdfBodyCell(entry.particulars, {
         bold: Boolean(String(entry.particulars || '').trim()),
         fontSize: 6.6,
         lineHeight: 1,
-        margin: [0.4, 0.95, 0.4, 0.2],
+        rowHeight: bodyRowHeight,
       }),
       buildLedgerPdfValueCell(
         entry.vacationEarned,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2384,7 +2548,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.vacationAbsUndWp,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2393,7 +2558,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.vacationBalance,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2402,7 +2568,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.vacationAbsUndWop,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2411,7 +2578,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickEarned,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2420,7 +2588,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickAbsUnd,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2429,7 +2598,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickBalance,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2438,7 +2608,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickAbsUndWop,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2447,7 +2618,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherEarned,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
@@ -2456,7 +2628,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherAbsUndWp,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
@@ -2465,7 +2638,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherBalance,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
@@ -2474,16 +2648,18 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherAbsUndWop,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
       ),
       buildLedgerPdfBodyCell(entry.actionTaken, {
         bold: Boolean(String(entry.actionTaken || '').trim()),
-        fontSize: 7.68,
-        lineHeight: 1,
-        margin: [0.35, 0.85, 0.35, 0.2],
+        fontSize: 6.25,
+        lineHeight: 0.92,
+        noWrap: false,
+        rowHeight: bodyRowHeight,
       }),
     ])
   })
@@ -2493,9 +2669,11 @@ function buildLedgerPdfTableBody(rows) {
 
 function buildLedgerPdfPageHeader(
   headingName,
+  headingStatus,
   headingOffice,
   firstDayOfService,
   identityNameFontSize,
+  identityStatusFontSize,
   identityOfficeFontSize,
   identityServiceFontSize,
   horizontalInset,
@@ -2505,11 +2683,15 @@ function buildLedgerPdfPageHeader(
   return [
     {
       table: {
-        widths: ['34%', '42%', '24%'],
+        widths: ['34%', '13%', '29%', '24%'],
         body: [
           [
             buildLedgerPdfIdentityCell(headingName, {
               fontSize: identityNameFontSize,
+              alignment: 'center',
+            }),
+            buildLedgerPdfIdentityCell(headingStatus, {
+              fontSize: identityStatusFontSize,
               alignment: 'center',
             }),
             buildLedgerPdfIdentityCell(headingOffice, {
@@ -2533,14 +2715,15 @@ function buildLedgerPdfPageHeader(
         paddingTop: () => 0,
         paddingBottom: () => 0,
       },
-      margin: [horizontalInset, 0, horizontalInset, 2],
+      margin: [horizontalInset, 0, horizontalInset + headerUnderlineRightTrim, 2],
     },
     {
       table: {
-        widths: ['34%', '42%', '24%'],
+        widths: ['34%', '13%', '29%', '24%'],
         body: [
           [
             buildLedgerPdfTopLabelCell('Name'),
+            buildLedgerPdfTopLabelCell('Status'),
             buildLedgerPdfTopLabelCell('Division Office'),
             buildLedgerPdfTopLabelCell('1st Day of Service'),
           ],
@@ -2563,11 +2746,13 @@ function buildLedgerPdfPageHeader(
 
 function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') {
   const preset = LEDGER_PAPER_PRESETS[paperSize] || LEDGER_PAPER_PRESETS.A4
-  const displayName = getEmployeeFullName(employee)
+  const displayName = getEmployeeColumnDisplayName(employee)
   const headingName = formatLedgerHeadingName(displayName)
+  const headingStatus = formatLedgerHeadingStatus(employee)
   const headingOffice = formatLedgerHeadingOffice(employee)
-  const firstDayOfService = 'N/A'
+  const firstDayOfService = formatLedgerFirstDayOfService(employee)
   const identityNameFontSize = resolveLedgerPdfIdentityFontSize(headingName)
+  const identityStatusFontSize = resolveLedgerPdfIdentityFontSize(headingStatus)
   const identityOfficeFontSize = resolveLedgerPdfIdentityFontSize(headingOffice)
   const identityServiceFontSize = resolveLedgerPdfIdentityFontSize(firstDayOfService)
   const horizontalInset = Number(preset?.pdfHorizontalInset ?? 0)
@@ -2578,49 +2763,53 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
     minimumRowsOverride: preset.pdfMinimumRows ?? preset.minimumRows,
   })
   const tableWidths = buildLedgerPdfTableWidths(preset)
-  const pageHeader = buildLedgerPdfPageHeader(
-    headingName,
-    headingOffice,
-    firstDayOfService,
-    identityNameFontSize,
-    identityOfficeFontSize,
-    identityServiceFontSize,
-    horizontalInset,
-    gridLineWidth,
-    headerUnderlineRightTrim,
-  )
-  const content = renderedPages.map((pageRows, pageIndex) => ({
-    stack: [
-      ...pageHeader,
-      {
-        table: {
-          headerRows: 2,
-          widths: tableWidths,
-          heights: (rowIndex) => {
-            if (rowIndex === 0) return preset.pdfHeaderRowHeight
-            if (rowIndex === 1) return preset.pdfSubHeaderRowHeight
-            return preset.pdfBodyRowHeight
+  const content = renderedPages.map((pageRows, pageIndex) => {
+    const pageHeader = buildLedgerPdfPageHeader(
+      headingName,
+      headingStatus,
+      headingOffice,
+      firstDayOfService,
+      identityNameFontSize,
+      identityStatusFontSize,
+      identityOfficeFontSize,
+      identityServiceFontSize,
+      horizontalInset,
+      gridLineWidth,
+      headerUnderlineRightTrim,
+    )
+
+    return {
+      stack: [
+        ...pageHeader,
+        {
+          table: {
+            headerRows: 2,
+            widths: tableWidths,
+            heights: (rowIndex) => {
+              if (rowIndex === 0) return preset.pdfHeaderRowHeight
+              if (rowIndex === 1) return preset.pdfSubHeaderRowHeight
+              return preset.pdfBodyRowHeight
+            },
+            body: buildLedgerPdfTableBody(pageRows, preset),
           },
-          body: buildLedgerPdfTableBody(pageRows),
+          dontBreakRows: true,
+          keepWithHeaderRows: 2,
+          layout: {
+            hLineWidth: (lineIndex) => (lineIndex === 0 ? 0 : gridLineWidth),
+            vLineWidth: () => gridLineWidth,
+            hLineColor: () => '#000000',
+            vLineColor: () => '#000000',
+            paddingLeft: () => 0.2,
+            paddingRight: () => 0.2,
+            paddingTop: () => 0,
+            paddingBottom: () => 0,
+          },
+          margin: [horizontalInset, 0, horizontalInset, 0],
         },
-        dontBreakRows: true,
-        keepWithHeaderRows: 2,
-        layout: {
-          hLineWidth: (lineIndex) => (lineIndex === 0 ? 0 : gridLineWidth),
-          vLineWidth: () => gridLineWidth,
-          hLineColor: () => '#000000',
-          vLineColor: () => '#000000',
-          paddingLeft: () => 0.2,
-          paddingRight: () => 0.2,
-          paddingTop: () => 0,
-          paddingBottom: () => 0,
-        },
-        margin: [horizontalInset, 0, horizontalInset, 0],
-      },
-    ],
-    unbreakable: true,
-    pageBreak: pageIndex > 0 ? 'before' : undefined,
-  }))
+      ],
+      pageBreak: pageIndex > 0 ? 'before' : undefined,
+    }
+  })
 
   return {
     pageSize: preset.pageSize,
@@ -2778,7 +2967,7 @@ function parseLedgerDateParts(value) {
 function buildLedgerInclusiveDateLabel(parts) {
   if (!parts) return ''
   const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-  return `${monthLabel} ${parts.day} ${parts.year}`
+  return `${monthLabel} ${parts.day}, ${parts.year}`
 }
 
 function sortAndNormalizeLedgerDatePartsList(partsList) {
@@ -2802,30 +2991,61 @@ function buildLedgerInclusiveDatesListLabel(partsList) {
   const normalizedList = sortAndNormalizeLedgerDatePartsList(partsList)
   if (normalizedList.length === 0) return ''
 
-  const sameYear = normalizedList.every((parts) => parts.year === normalizedList[0].year)
-  const sameMonth =
-    sameYear && normalizedList.every((parts) => parts.month === normalizedList[0].month)
+  const groups = new Map()
+  for (const parts of normalizedList) {
+    const groupKey = `${parts.year}-${String(parts.month).padStart(2, '0')}`
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        monthLabel: parts.date.toLocaleDateString('en-US', { month: 'short' }),
+        year: parts.year,
+        days: [],
+      })
+    }
 
-  if (sameMonth) {
-    const monthLabel = normalizedList[0].date.toLocaleDateString('en-US', { month: 'short' })
-    const days = normalizedList.map((parts) => parts.day).join(',')
-    return `${monthLabel} ${days} ${normalizedList[0].year}`
+    groups.get(groupKey).days.push(parts.day)
   }
 
-  if (sameYear) {
-    const values = normalizedList.map((parts) => {
-      const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-      return `${monthLabel} ${parts.day}`
-    })
-    return `${values.join(', ')} ${normalizedList[0].year}`
-  }
+  return [...groups.values()]
+    .map((group) => {
+      const uniqueDays = [...new Set(group.days)].sort((left, right) => left - right)
+      if (uniqueDays.length === 0) return ''
 
-  return normalizedList
-    .map((parts) => {
-      const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-      return `${monthLabel} ${parts.day} ${parts.year}`
+      const dayRanges = []
+      let rangeStart = uniqueDays[0]
+      let rangeEnd = uniqueDays[0]
+
+      for (let index = 1; index < uniqueDays.length; index += 1) {
+        const currentDay = uniqueDays[index]
+        if (currentDay === rangeEnd + 1) {
+          rangeEnd = currentDay
+          continue
+        }
+
+        dayRanges.push([rangeStart, rangeEnd])
+        rangeStart = currentDay
+        rangeEnd = currentDay
+      }
+
+      dayRanges.push([rangeStart, rangeEnd])
+
+      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+        let dayLabel = String(startDay)
+        if (endDay > startDay) {
+          dayLabel = endDay === startDay + 1 ? `${startDay}, ${endDay}` : `${startDay}-${endDay}`
+        }
+
+        return `${group.monthLabel} ${dayLabel}`
+      })
+
+      const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+      if (hasSingleDayOnly) {
+        return `${group.monthLabel} ${dayRanges[0][0]}, ${group.year}`
+      }
+
+      return `${rangeLabels.join(', ')} ${group.year}`
     })
-    .join(', ')
+    .filter(Boolean)
+    .join('\n')
 }
 
 function buildLedgerDatePartsRange(startParts, endParts) {

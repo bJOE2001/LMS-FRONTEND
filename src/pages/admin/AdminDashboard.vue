@@ -2648,14 +2648,14 @@ function buildApplicationTimeline(app) {
 
   if (app.rawStatus === 'PENDING_ADMIN') {
     entries.push({
-      title: 'Department Admin Review Pending',
-      subtitle: 'Current stage',
+      title: 'Department Recommendation',
+      subtitle: 'On Process',
       description: 'Waiting for department admin approval or disapproval.',
       icon: 'pending_actions',
       color: 'warning',
     })
     entries.push({
-      title: 'Pending HR Review',
+      title: 'CHRMO Certification',
       subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
@@ -2677,7 +2677,7 @@ function buildApplicationTimeline(app) {
 
     if (resolveDepartmentAdminActionDateValue(app)) {
       entries.push({
-        title: 'Department Admin Review Completed',
+        title: 'Department Recommendation Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
@@ -2706,7 +2706,7 @@ function buildApplicationTimeline(app) {
   }
 
   entries.push({
-    title: 'Department Admin Review Completed',
+    title: 'Department Recommendation Completed',
     subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
     description: 'Application was reviewed and forwarded to HR.',
     icon: 'check_circle',
@@ -2716,8 +2716,8 @@ function buildApplicationTimeline(app) {
 
   if (app.rawStatus === 'PENDING_HR') {
     entries.push({
-      title: 'Pending HR Review',
-      subtitle: 'Current stage',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'Waiting for HR final evaluation and approval.',
       icon: 'pending_actions',
       color: 'warning',
@@ -2737,7 +2737,7 @@ function buildApplicationTimeline(app) {
     const approvedBy = resolveHrActor(app)
 
     entries.push({
-      title: 'Approved by HR',
+      title: 'CHRMO Certification Completed',
       subtitle: approvedAt,
       description: 'Application is fully approved.',
       icon: 'task_alt',
@@ -2763,7 +2763,7 @@ function buildApplicationTimeline(app) {
 
     if (approvedAt || approvedBy !== 'Unknown') {
       entries.push({
-        title: 'Approved by HR',
+        title: 'CHRMO Certification Completed',
         subtitle: approvedAt || 'Completed',
         description: 'Application was fully approved before recall.',
         icon: 'task_alt',
@@ -2813,7 +2813,23 @@ function getTimelineEntryTone(entry) {
 }
 
 function getTimelineEntryIcon(entry) {
+  const title = String(entry?.title || '')
+    .trim()
+    .toLowerCase()
   const tone = getTimelineEntryTone(entry)
+
+  if (title.includes('application filed') || title.includes('submitted')) return 'description'
+  if (title.includes('department recommendation') || title.includes('department admin review')) {
+    return title.includes('completed') ? 'check_box' : 'pending_actions'
+  }
+  if (title.includes('received')) return 'receipt_long'
+  if (title.includes('chrmo certification') || title.includes('pending hr review')) {
+    return title.includes('completed') ? 'task_alt' : 'assignment_ind'
+  }
+  if (title.includes('cmo/cbmo review')) return 'groups'
+  if (title.includes('released')) return 'assignment_turned_in'
+  if (title.includes('application closed')) return 'assignment_turned_in'
+  if (title.includes('current status')) return 'info'
 
   if (tone === 'negative') return 'close'
   if (tone === 'warning') return 'schedule'

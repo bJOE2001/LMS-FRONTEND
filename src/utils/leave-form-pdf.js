@@ -151,7 +151,7 @@ function buildCocStyleLeaveHeader(logoBase64, borderWidth, employeeStatusLabel =
               body: [
                 [
                   {
-                    text: 'CITY GOVERMENT OF TAGUM',
+                    text: 'CITY GOVERNMENT OF TAGUM',
                     color: '#ffffff',
                     bold: true,
                     alignment: 'left',
@@ -649,32 +649,11 @@ function isMonetizationFlagEnabled(value) {
   return normalizedValue === '1' || normalizedValue === 'true' || normalizedValue === 'yes'
 }
 
-function resolveMonetizationLeaveCreditComponents(app) {
-  const sources = [
-    app?.monetization_leave_credits,
-    app?.monetizationLeaveCredits,
-    app?.raw?.monetization_leave_credits,
-    app?.raw?.monetizationLeaveCredits,
-  ]
-
-  const parsedComponents = []
-  for (const source of sources) {
-    if (!source) continue
-    if (Array.isArray(source)) {
-      parsedComponents.push(...source)
-      continue
-    }
-
-    const parsedArraySource = parseArrayCandidate(source)
-    if (parsedArraySource) {
-      parsedComponents.push(...parsedArraySource)
-    }
-  }
-
-  if (!parsedComponents.length) return []
+function normalizeMonetizationLeaveCreditComponents(sourceComponents) {
+  if (!Array.isArray(sourceComponents) || sourceComponents.length === 0) return []
 
   const componentsByTypeKey = new Map()
-  for (const rawComponent of parsedComponents) {
+  for (const rawComponent of sourceComponents) {
     if (!rawComponent || typeof rawComponent !== 'object' || Array.isArray(rawComponent)) continue
 
     const leaveTypeLabel = prettifyLeaveBalanceLabel(
@@ -700,6 +679,27 @@ function resolveMonetizationLeaveCreditComponents(app) {
   }
 
   return [...componentsByTypeKey.values()]
+}
+
+function resolveMonetizationLeaveCreditComponents(app) {
+  const sources = [
+    app?.monetization_leave_credits,
+    app?.monetizationLeaveCredits,
+    app?.raw?.monetization_leave_credits,
+    app?.raw?.monetizationLeaveCredits,
+  ]
+
+  for (const source of sources) {
+    if (!source) continue
+
+    const sourceComponents = Array.isArray(source) ? source : parseArrayCandidate(source)
+    const normalizedComponents = normalizeMonetizationLeaveCreditComponents(sourceComponents)
+    if (normalizedComponents.length > 0) {
+      return normalizedComponents
+    }
+  }
+
+  return []
 }
 
 function resolveCertificationSelectedTypeKey(typeKey) {

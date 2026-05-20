@@ -50,18 +50,6 @@
               v-close-popup
             />
           </div>
-          <div
-            v-if="shouldShowCurrentLeaveBalance(application)"
-            class="hr-application-details-header-balance-text"
-          >
-            <div class="hr-application-details-label">Available Leave Balance</div>
-            <div
-              class="hr-application-details-header-balance-value"
-              :class="getCurrentLeaveBalanceClass(application)"
-            >
-              {{ getCurrentLeaveBalanceDisplay(application) }}
-            </div>
-          </div>
         </div>
       </q-card-section>
       <q-card-section class="q-gutter-y-sm hr-application-details-content">
@@ -539,18 +527,6 @@ const props = defineProps({
     type: Function,
     default: () => '',
   },
-  getCurrentLeaveBalanceClass: {
-    type: Function,
-    default: () => '',
-  },
-  getCurrentLeaveBalanceDisplay: {
-    type: Function,
-    default: () => '',
-  },
-  shouldShowCurrentLeaveBalance: {
-    type: Function,
-    default: () => true,
-  },
   isCtoLeaveApplication: {
     type: Function,
     default: () => false,
@@ -975,18 +951,6 @@ function handlePrintCertificate() {
   flex-shrink: 0;
 }
 
-.hr-application-details-header-balance-text {
-  text-align: right;
-}
-
-.hr-application-details-header-balance-value {
-  margin-top: 2px;
-  color: #1b5e20;
-  font-size: 0.86rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
 .hr-application-details-close {
   color: #607d8b;
   margin-top: 0;
@@ -1220,10 +1184,6 @@ function handlePrintCertificate() {
 
   .hr-application-details-header-side {
     gap: 6px;
-  }
-
-  .hr-application-details-header-balance-value {
-    font-size: 0.8rem;
   }
 
   .hr-application-details-icon {
