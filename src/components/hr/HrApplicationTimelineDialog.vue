@@ -765,7 +765,7 @@ function isReleasedStatusHistoryEntry(entry) {
 function isCmoCbmoReviewStatusHistoryEntry(entry) {
   const actionToken = normalizeStatusHistoryActionToken(entry?.action)
   const stageToken = normalizeStatusHistoryToken(entry?.stage)
-  return actionToken === 'CMO_CBMO_REVIEWED' || stageToken === 'cmo/cbmo reviewed'
+  return actionToken === 'CMO_CBMO_REVIEWED' || stageToken === 'CMO/CVMO Reviewed'
 }
 
 function resolveHistoricalReceivedBeforeCurrentUpdateMeta(application) {
@@ -969,7 +969,7 @@ function isHrPhaseEntry(entry) {
     normalizedTitle.includes('pending hr review') ||
     normalizedTitle.includes('chrmo certification') ||
     normalizedTitle.includes('approved by hr') ||
-    normalizedTitle.includes('cmo/cbmo review') ||
+    normalizedTitle.includes('CMO/CVMO Review') ||
     normalizedTitle.includes('application disapproved') ||
     normalizedTitle.includes('application not certified') ||
     normalizedTitle.includes('recalled by hr') ||
@@ -1247,7 +1247,7 @@ function buildCmoCbmoReviewTimelineEntry() {
   const reviewMeta = resolveCurrentCmoCbmoReviewMeta(props.application)
   if (isBackendCmoCbmoReviewState(props.application)) {
     return {
-      title: 'CMO/CBMO Review',
+      title: 'CMO/CVMO Review',
       subtitle: formatDateTime(reviewMeta?.at) || 'Completed',
       description: 'Application was cleared for release.',
       icon: 'task_alt',
@@ -1262,10 +1262,10 @@ function buildCmoCbmoReviewTimelineEntry() {
     !isReleasedState.value
 
   return {
-    title: 'CMO/CBMO Review',
+    title: 'CMO/CVMO Review',
     subtitle: 'On Process',
     description: isCurrent
-      ? 'Waiting for CMO/CBMO review before release.'
+      ? 'Waiting for CMO/CVMO Review before release.'
       : 'This stage starts after HR certification.',
     icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
     color: isCurrent ? 'warning' : 'grey-5',
@@ -1435,7 +1435,7 @@ function getTimelineEntryIcon(entry) {
   if (title.includes('chrmo certification')) {
     return title.includes('completed') ? 'task_alt' : 'assignment_ind'
   }
-  if (title.includes('cmo/cbmo review')) return 'groups'
+  if (title.includes('CMO/CVMO Review')) return 'groups'
   if (title.includes('released')) return 'assignment_turned_in'
   if (title.includes('application closed')) return 'assignment_turned_in'
   if (title.includes('current status')) return 'info'
@@ -1752,3 +1752,4 @@ watch(
   margin-top: 6px;
 }
 </style>
+

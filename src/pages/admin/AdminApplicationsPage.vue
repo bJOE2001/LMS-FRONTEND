@@ -273,7 +273,7 @@
                       'Admin Recommendation',
                       'Department Recommendation',
                       'CHRMO Certification',
-                      'CMO/CBMO Review',
+                      'CMO/CVMO Review',
                       'Pending Release',
                       'Release',
                       'Pending Update Receive',
@@ -1580,3 +1580,4 @@ onMounted(async () => {
   }
 }
 </style>
+

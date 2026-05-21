@@ -554,7 +554,7 @@ function getCocReleaseStageStatus(app) {
     return 'Approved'
   }
   if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
-  if (isApplicationReceivedByHr(app)) return 'CMO/CBMO Review'
+  if (isApplicationReceivedByHr(app)) return 'CMO/CVMO Review'
   return 'CHRMO Certification'
 }
 
@@ -608,7 +608,7 @@ function getLeaveWorkflowStageStatus(app) {
   }
   if (queueStageKey === 'PENDING_CMO_CBMO_REVIEW') {
     if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
-    return 'CMO/CBMO Review'
+    return 'CMO/CVMO Review'
   }
   if (queueStageKey === 'PENDING_RELEASE') {
     return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
@@ -625,7 +625,7 @@ function getLeaveWorkflowStageStatus(app) {
   if (rawStatus === 'APPROVED') {
     if (isApplicationReleased(app)) return 'Approved'
     if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
-    return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CBMO Review'
+    return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CVMO Review'
   }
 
   return ''
@@ -2997,7 +2997,7 @@ function getApplicationStatusColor(app) {
   if (cocReleaseStageStatus === 'Pending Release' || cocReleaseStageStatus === 'Release') {
     return 'indigo-6'
   }
-  if (cocReleaseStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
+  if (cocReleaseStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
   if (cocReleaseStageStatus === 'CHRMO Certification') return 'blue-6'
   if (
     cocReleaseStageStatus === 'Department Recommendation' ||
@@ -3017,7 +3017,7 @@ function getApplicationStatusColor(app) {
   if (leaveWorkflowStageStatus === 'Pending Receive') return 'teal-6'
   if (leaveWorkflowStageStatus === 'Pending Update Review') return 'blue-6'
   if (leaveWorkflowStageStatus === 'CHRMO Certification') return 'blue-6'
-  if (leaveWorkflowStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
+  if (leaveWorkflowStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
   if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
   if (leaveWorkflowStageStatus === 'Pending Release' || leaveWorkflowStageStatus === 'Release') {
     return 'indigo-6'
@@ -3716,7 +3716,7 @@ function resolveCmoCbmoReviewHistoryEntry(app) {
       .toUpperCase()
       .replace(/[\s-]+/g, '_')
     const stage = String(entry?.stage || '').trim().toLowerCase()
-    return action === 'CMO_CBMO_REVIEWED' || stage === 'cmo/cbmo reviewed'
+    return action === 'CMO_CBMO_REVIEWED' || stage === 'CMO/CVMO Reviewed'
   })
 }
 
@@ -3890,8 +3890,8 @@ function confirmApplicationCmoCbmoReview(target = selectedApp.value) {
 
   q.dialog({
     class: 'hr-receive-required-dialog',
-    title: 'Confirm CMO/CBMO Review',
-    message: 'This will confirm CMO/CBMO review and move the application to Pending Release.',
+    title: 'Confirm CMO/CVMO Review',
+    message: 'This will confirm CMO/CVMO Review and move the application to Pending Release.',
     cancel: {
       label: 'Cancel',
       flat: true,
@@ -5715,14 +5715,14 @@ async function markApplicationCmoCbmoReviewed(target = selectedApp.value) {
 
     q.notify({
       type: 'positive',
-      message: responseMessage || 'Application marked for CMO/CBMO review.',
+      message: responseMessage || 'Application marked for CMO/CVMO Review.',
       position: 'top',
     })
     return true
   } catch (err) {
     const msg = resolveApiErrorMessage(
       err,
-      'Unable to mark this application for CMO/CBMO review right now.',
+      'Unable to mark this application for CMO/CVMO Review right now.',
     )
     q.notify({ type: 'negative', message: msg, position: 'top' })
     return false
@@ -6170,3 +6170,4 @@ async function handleDialogMutationSuccess(payload = {}) {
     viewApplicationAttachment,
   }
 }
+

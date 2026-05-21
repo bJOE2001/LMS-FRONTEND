@@ -2826,7 +2826,7 @@ function getTimelineEntryIcon(entry) {
   if (title.includes('chrmo certification') || title.includes('pending hr review')) {
     return title.includes('completed') ? 'task_alt' : 'assignment_ind'
   }
-  if (title.includes('cmo/cbmo review')) return 'groups'
+  if (title.includes('cmo/cvmo review')) return 'groups'
   if (title.includes('released')) return 'assignment_turned_in'
   if (title.includes('application closed')) return 'assignment_turned_in'
   if (title.includes('current status')) return 'info'
@@ -3090,7 +3090,7 @@ function formatRecentRemarks(app) {
 }
 
 function getConfirmActionTitle(type) {
-  if (type === 'approve') return 'Approve'
+  if (type === 'approve') return 'Recommendation'
   if (type === 'cancel') return 'Cancel'
   return 'Disapprove'
 }
@@ -3109,7 +3109,7 @@ function getConfirmActionIconColor(type) {
 
 function getConfirmActionMessage(type) {
   if (type === 'approve') {
-    return 'This will forward the application to HR for final review.'
+    return 'This will recommend the application and forward it to HR for final review.'
   }
   if (type === 'cancel') {
     return 'You will continue to the cancellation form.'
@@ -3118,13 +3118,13 @@ function getConfirmActionMessage(type) {
 }
 
 function getActionResultLabel(type) {
-  if (type === 'approved') return 'Approved'
+  if (type === 'approved') return 'Recommended'
   if (type === 'cancelled') return 'Cancelled'
   return 'Disapproved'
 }
 
 function getActionResultVerb(type) {
-  if (type === 'approved') return 'approved'
+  if (type === 'approved') return 'recommended'
   if (type === 'cancelled') return 'cancelled'
   return 'disapproved'
 }
@@ -3488,8 +3488,8 @@ async function handleApprove(target) {
     $q.notify({
       type: 'positive',
       message: isCoc
-        ? 'COC application approved and forwarded to HR!'
-        : 'Leave application approved and forwarded to HR!',
+        ? 'COC application recommended and forwarded to HR!'
+        : 'Leave application recommended and forwarded to HR!',
       position: 'top',
     })
     showDetailsDialog.value = false

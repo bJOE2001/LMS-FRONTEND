@@ -3100,7 +3100,7 @@ export function useAdminApplicationsPage() {
       return 'Approved'
     }
     if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
-    if (isApplicationReceivedByHr(app)) return 'CMO/CBMO Review'
+    if (isApplicationReceivedByHr(app)) return 'CMO/CVMO Review'
     return 'CHRMO Certification'
   }
 
@@ -3151,7 +3151,7 @@ export function useAdminApplicationsPage() {
     }
     if (queueStageKey === 'PENDING_CMO_CBMO_REVIEW') {
       if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
-      return 'CMO/CBMO Review'
+      return 'CMO/CVMO Review'
     }
     if (queueStageKey === 'PENDING_RELEASE') {
       if (isApplicationReleased(app)) return 'Approved'
@@ -3169,7 +3169,7 @@ export function useAdminApplicationsPage() {
     if (rawStatus === 'APPROVED') {
       if (isApplicationReleased(app)) return 'Approved'
       if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
-      return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CBMO Review'
+      return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CVMO Review'
     }
 
     return ''
@@ -3205,7 +3205,7 @@ export function useAdminApplicationsPage() {
     if (cocReleaseStageStatus === 'Pending Release' || cocReleaseStageStatus === 'Release') {
       return 'indigo-6'
     }
-    if (cocReleaseStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
+    if (cocReleaseStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
     if (cocReleaseStageStatus === 'CHRMO Certification') return 'blue-6'
     if (
       cocReleaseStageStatus === 'Department Recommendation' ||
@@ -3226,7 +3226,7 @@ export function useAdminApplicationsPage() {
     if (leaveWorkflowStageStatus === 'Pending Receive') return 'teal-6'
     if (leaveWorkflowStageStatus === 'Pending Update HR Review') return 'blue-6'
     if (leaveWorkflowStageStatus === 'CHRMO Certification') return 'blue-6'
-    if (leaveWorkflowStageStatus === 'CMO/CBMO Review') return 'deep-purple-6'
+    if (leaveWorkflowStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
     if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
     if (leaveWorkflowStageStatus === 'Pending Release' || leaveWorkflowStageStatus === 'Release') {
       return 'indigo-6'
@@ -4356,7 +4356,7 @@ export function useAdminApplicationsPage() {
       normalizedTitle.includes('pending hr review') ||
       normalizedTitle.includes('chrmo certification') ||
       normalizedTitle.includes('approved by hr') ||
-      normalizedTitle.includes('cmo/cbmo review') ||
+      normalizedTitle.includes('cmo/cvmo review') ||
       normalizedTitle.includes('application disapproved') ||
       normalizedTitle.includes('recalled by hr') ||
       normalizedTitle.includes('pending edit review (hr)') ||
@@ -4706,7 +4706,7 @@ export function useAdminApplicationsPage() {
     if (isApplicationCmoCbmoReviewed(app)) {
       const reviewedBy = resolveCmoCbmoReviewActor(app)
       return {
-        title: 'CMO/CBMO Review',
+        title: 'CMO/CVMO Review',
         subtitle: formatDateTime(resolveCmoCbmoReviewDateValue(app)) || 'Completed',
         description: 'Application was cleared for release.',
         icon: 'task_alt',
@@ -4721,10 +4721,10 @@ export function useAdminApplicationsPage() {
         (rawStatus === 'APPROVED' && isApplicationReceivedByHr(app)))
 
     return {
-      title: 'CMO/CBMO Review',
+      title: 'CMO/CVMO Review',
       subtitle: 'On Process',
       description: isCurrent
-        ? 'Waiting for CMO/CBMO review before release.'
+        ? 'Waiting for CMO/CVMO Review before release.'
         : 'This stage starts after HR certification.',
       icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
       color: isCurrent ? 'warning' : 'grey-5',
@@ -4795,7 +4795,7 @@ export function useAdminApplicationsPage() {
       const stage = String(entry?.stage || '')
         .trim()
         .toLowerCase()
-      return action === 'CMO_CBMO_REVIEWED' || stage === 'cmo/cbmo reviewed'
+      return action === 'CMO_CBMO_REVIEWED' || stage === 'cmo/cvmo reviewed'
     })
   }
 
@@ -5041,7 +5041,7 @@ export function useAdminApplicationsPage() {
     if (title.includes('chrmo certification')) {
       return title.includes('completed') ? 'task_alt' : 'assignment_ind'
     }
-    if (title.includes('cmo/cbmo review')) return 'groups'
+    if (title.includes('cmo/cvmo review')) return 'groups'
     if (title.includes('released')) return 'assignment_turned_in'
     if (title.includes('application closed')) return 'assignment_turned_in'
     if (title.includes('current status')) return 'info'
@@ -5341,7 +5341,7 @@ export function useAdminApplicationsPage() {
         ? 'Confirm Cancellation Request'
         : 'Confirm Request Update'
     }
-    if (type === 'approve') return 'Approve'
+    if (type === 'approve') return 'Recommendation'
     if (type === 'cancel') return 'Cancel'
     return 'Disapprove'
   }
@@ -5355,19 +5355,19 @@ export function useAdminApplicationsPage() {
 
       return 'This will confirm the request update and forward it to HR for final edit review.'
     }
-    if (type === 'approve') return 'This will forward the leave request to HR for final review.'
+    if (type === 'approve') return 'This will recommend the leave request and forward it to HR for final review.'
     if (type === 'cancel') return 'You will continue to the cancellation form.'
     return 'You will continue to the disapproval form.'
   }
 
   function getActionResultLabel(type) {
-    if (type === 'approved') return 'Approved'
+    if (type === 'approved') return 'Recommended'
     if (type === 'cancelled') return 'Cancelled'
     return 'Disapproved'
   }
 
   function getActionResultVerb(type) {
-    if (type === 'approved') return 'approved'
+    if (type === 'approved') return 'recommended'
     if (type === 'cancelled') return 'cancelled'
     return 'disapproved'
   }
@@ -5986,12 +5986,12 @@ export function useAdminApplicationsPage() {
       $q.notify({
         type: 'positive',
         message: isCoc
-          ? 'COC application approved and forwarded to HR!'
+          ? 'COC application recommended and forwarded to HR!'
           : isEditRequestApproval
             ? isCancellationRequestApproval
-              ? 'Leave cancellation request approved and forwarded to HR!'
-              : 'Leave request update approved and forwarded to HR!'
-            : 'Leave application approved and forwarded to HR!',
+              ? 'Leave cancellation request recommended and forwarded to HR!'
+              : 'Leave request update recommended and forwarded to HR!'
+            : 'Leave application recommended and forwarded to HR!',
         position: 'top',
       })
       showDetailsDialog.value = false

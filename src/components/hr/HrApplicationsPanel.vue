@@ -254,7 +254,7 @@
               :disable="releaseLoading"
               @click.stop="confirmApplicationCmoCbmoReview(props.row)"
             >
-              <q-tooltip>Approve CMO/CBMO Review</q-tooltip>
+              <q-tooltip>Approve CMO/CVMO Review</q-tooltip>
             </q-btn>
             <q-btn
               v-if="canShowPendingReleaseAction(props.row)"
@@ -980,7 +980,7 @@ export default defineComponent({
 
     function canShowCmoCbmoReviewAction(app) {
       return (
-        panel.getApplicationStatusLabel(app) === 'CMO/CBMO Review' &&
+        panel.getApplicationStatusLabel(app) === 'CMO/CVMO Review' &&
         panel.canCmoCbmoReviewApplication(app)
       )
     }
@@ -1637,3 +1637,4 @@ export default defineComponent({
   }
 }
 </style>
+
