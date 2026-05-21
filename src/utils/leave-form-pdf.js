@@ -602,16 +602,26 @@ function fmtCredit(val) {
   return n.toFixed(3)
 }
 
-/** Format leave credit number for 7.A table without rounding off values. */
+/** Format leave credit number for 7.A table without rounding (preserve stored decimals). */
 function fmtCertificationCredit(val) {
   if (val == null || val === '') return ''
-  const n = Number(val)
-  if (!Number.isFinite(n)) return ''
-  const scaled = n * 1000
-  const adjustedScaled = scaled >= 0 ? scaled + Number.EPSILON : scaled - Number.EPSILON
-  const truncated = Math.trunc(adjustedScaled) / 1000
-  const normalized = Math.abs(truncated) < 1e-9 ? 0 : truncated
-  return normalized.toFixed(3)
+  const normalizedValue =
+    typeof val === 'number'
+      ? Number.isFinite(val)
+        ? val.toFixed(12).replace(/\.?0+$/, '')
+        : ''
+      : String(val).trim().replace(/,/g, '')
+  if (!normalizedValue) return ''
+
+  const decimalMatch = normalizedValue.match(/^(-?\d+)(?:\.(\d+))?$/)
+  if (!decimalMatch) {
+    return ''
+  }
+
+  const integerPart = decimalMatch[1]
+  const fractionalPart = (decimalMatch[2] || '').slice(0, 3).padEnd(3, '0')
+
+  return `${integerPart}.${fractionalPart}`
 }
 
 function toCreditNumber(val) {
@@ -623,29 +633,40 @@ function toCreditNumber(val) {
 
 function computeCertificationBalance(totalEarned, lessThisApplication, fallbackBalance) {
   const totalEarnedNumber = toCreditNumber(totalEarned)
+  const formattedTotalEarned = fmtCertificationCredit(totalEarned)
+  const formattedFallbackBalance = fmtCertificationCredit(fallbackBalance)
   const normalizedLessThisApplication =
     lessThisApplication == null || lessThisApplication === ''
       ? totalEarnedNumber !== null
         ? 0
         : null
       : toCreditNumber(lessThisApplication)
+  const formattedLessThisApplication = fmtCertificationCredit(
+    normalizedLessThisApplication ?? lessThisApplication,
+  )
 
   if (totalEarnedNumber !== null) {
+    if (formattedFallbackBalance) {
+      return {
+        totalEarned: formattedTotalEarned,
+        lessThisApplication: formattedLessThisApplication,
+        balance: formattedFallbackBalance,
+      }
+    }
+
     const computedBalance = totalEarnedNumber - (normalizedLessThisApplication ?? 0)
     const normalizedBalance = Math.max(computedBalance, 0)
     return {
-      totalEarned: fmtCertificationCredit(totalEarnedNumber),
-      lessThisApplication: fmtCertificationCredit(normalizedLessThisApplication),
+      totalEarned: formattedTotalEarned,
+      lessThisApplication: formattedLessThisApplication,
       balance: fmtCertificationCredit(Math.abs(normalizedBalance) < 1e-9 ? 0 : normalizedBalance),
     }
   }
 
   return {
-    totalEarned: fmtCertificationCredit(totalEarned),
-    lessThisApplication: fmtCertificationCredit(
-      normalizedLessThisApplication ?? lessThisApplication,
-    ),
-    balance: fmtCertificationCredit(fallbackBalance),
+    totalEarned: formattedTotalEarned,
+    lessThisApplication: formattedLessThisApplication,
+    balance: formattedFallbackBalance,
   }
 }
 
