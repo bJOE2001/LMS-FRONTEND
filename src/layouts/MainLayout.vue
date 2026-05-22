@@ -263,6 +263,7 @@ const hrNav = [
   { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
   { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts' },
+  { path: '/hr/analytics', label: 'Analytics', icon: 'insights' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
 ]
 

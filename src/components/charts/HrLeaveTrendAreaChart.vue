@@ -29,6 +29,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import VueApexCharts from 'vue3-apexcharts'
+import { buildAlignedApexTooltip } from 'src/composables/useAlignedApexTooltip'
 
 const props = defineProps({
   applications: {
@@ -212,9 +213,10 @@ const trendChartOptions = computed(() => ({
   },
   legend: { show: false },
   tooltip: {
-    y: {
-      formatter: (value) => `${Math.round(value)} leaves`,
-    },
+    custom: buildAlignedApexTooltip({
+      isDark: isDark.value,
+      yFormatter: (value) => `${Math.round(value)} leaves`,
+    }),
   },
   noData: {
     text: 'No leave trend data available.',

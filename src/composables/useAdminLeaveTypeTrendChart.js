@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { buildAlignedApexTooltip } from 'src/composables/useAlignedApexTooltip'
 import {
   getApplicationDate,
   getApplicationLeaveType,
@@ -159,9 +160,10 @@ export function useAdminLeaveTypeTrendChart(props) {
     tooltip: {
       shared: true,
       intersect: false,
-      y: {
-        formatter: (value) => `${Math.round(value)} leaves`,
-      },
+      custom: buildAlignedApexTooltip({
+        isDark: isDark.value,
+        yFormatter: (value) => `${Math.round(value)} leaves`,
+      }),
     },
     noData: {
       text: 'No leave data for selected leave type.',

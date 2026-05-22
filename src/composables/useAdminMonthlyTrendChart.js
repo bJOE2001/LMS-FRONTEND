@@ -1,5 +1,6 @@
 import { computed } from 'vue'
 import { useQuasar } from 'quasar'
+import { buildAlignedApexTooltip } from 'src/composables/useAlignedApexTooltip'
 import {
   getApplicationDate,
   isApprovedApplication,
@@ -112,9 +113,10 @@ export function useAdminMonthlyTrendChart(props) {
     },
     legend: { show: false },
     tooltip: {
-      y: {
-        formatter: (value) => `${Math.round(value)} leaves`,
-      },
+      custom: buildAlignedApexTooltip({
+        isDark: isDark.value,
+        yFormatter: (value) => `${Math.round(value)} leaves`,
+      }),
     },
     noData: {
       text: 'No leave trend data available.',

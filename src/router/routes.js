@@ -24,6 +24,7 @@ const routes = [
       { path: 'hr/illness-library', name: 'hr-illness-library', component: () => import('pages/hr/IllnessLibraryPage.vue') },
       { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
+      { path: 'hr/analytics', name: 'hr-analytics', component: () => import('pages/hr/AnalyticsDashboard.vue') },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
       { path: 'hr/user-management', name: 'hr-user-management', component: () => import('pages/hr/UserManagement.vue') },
 
