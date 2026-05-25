@@ -313,8 +313,12 @@
     :has-application-attachment="hasApplicationAttachment"
     :receive-loading="receiveLoading"
     :release-loading="releaseLoading"
+    :undo-receive-loading="undoReceiveLoading"
+    :undo-release-loading="undoReleaseLoading"
     @receive="confirmApplicationReceive"
     @release="confirmApplicationRelease"
+    @undo-receive="confirmApplicationReceiveUndo"
+    @undo-release="confirmApplicationReleaseUndo"
     @view-attachment="viewApplicationAttachment"
   />
 
@@ -997,15 +1001,22 @@ export default defineComponent({
       return String(panel.getApplicationStatusLabel(app) || '').trim().toUpperCase() === 'CHRMO CERTIFICATION'
     }
 
+    function isRecallRequestStage(app) {
+      return panel.isRecallRequestAction(app)
+    }
+
     function getApproveActionLabel(app) {
+      if (isRecallRequestStage(app)) return 'Approve Recall'
       return isChrmoCertificationStage(app) ? 'Certify' : 'Approve'
     }
 
     function getApproveActionColor(app) {
+      if (isRecallRequestStage(app)) return 'orange-8'
       return isChrmoCertificationStage(app) ? 'blue-6' : 'green-7'
     }
 
     function getRejectActionLabel(app) {
+      if (isRecallRequestStage(app)) return 'Disapprove Recall'
       return isChrmoCertificationStage(app) ? 'Not Certify' : 'Disapprove'
     }
 

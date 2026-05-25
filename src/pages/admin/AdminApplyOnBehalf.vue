@@ -147,29 +147,6 @@
                     <span class="dialog-summary-meta-label">Date of Filing:</span>
                     <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
                   </div>
-                  <div class="dialog-summary-meta-item dialog-summary-meta-item--leave-balance">
-                    <div :class="['dialog-summary-badges', { 'dialog-summary-badges--loading': dialogSummaryLoading }]">
-                      <template v-if="dialogSummaryLoading">
-                        <q-skeleton
-                          v-for="index in 5"
-                          :key="`dialog-balance-${index}`"
-                          type="rect"
-                          animation="fade"
-                          class="dialog-summary-badge-skeleton"
-                        />
-                      </template>
-                      <template v-else>
-                        <span
-                          v-for="item in dialogLeaveBalanceItems"
-                          :key="item.key"
-                          class="dialog-summary-badge"
-                        >
-                          {{ item.label }}
-                          <q-tooltip>{{ item.tooltip }}</q-tooltip>
-                        </span>
-                      </template>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -866,15 +843,6 @@ const dialogOfficeDisplay = computed(() => {
   return office.replace(/^office of the\s+/i, '') || office
 })
 
-const REQUIRED_LEAVE_BALANCE_TYPES = [
-  'Vacation Leave',
-  'Sick Leave',
-  'CTO Leave',
-  'Mandatory / Forced Leave',
-  'Special Privilege Leave',
-  'Wellness Leave',
-]
-
 function formatLeaveBalanceValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return ''
@@ -909,28 +877,6 @@ function getLeaveTypeDisplayLabel(value) {
   const prettified = prettifyLeaveBalanceLabel(value)
   if (prettified === 'Special Privilege Leave') return 'MC06'
   return prettified
-}
-
-function toLeaveBalanceAcronym(value) {
-  const label = prettifyLeaveBalanceLabel(value)
-  if (!label) return ''
-
-  const lower = label.toLowerCase()
-  if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'special privilege leave') return 'SPL'
-  if (lower === 'cto leave') return 'CTO'
-  if (lower === 'sick leave') return 'SL'
-  if (lower === 'vacation leave') return 'VL'
-  if (lower === 'wellness leave') return 'WL'
-
-  const normalized = label
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((part) => part.trim().toUpperCase())
-    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
-
-  if (!normalized.length) return ''
-  return normalized.map((part) => part[0]).join('')
 }
 
 function getLeaveBalanceTypeKey(value) {
@@ -1037,28 +983,6 @@ function collectLeaveBalanceEntries(entries, seen, source) {
   collectLeaveBalanceEntriesFromValue(entries, seen, source?.employee_leave_balances)
   collectLeaveBalanceEntriesFromValue(entries, seen, source?.leaveBalance)
   collectLeaveBalanceEntriesFromValue(entries, seen, source)
-}
-
-function buildOrderedLeaveBalanceEntries(...sources) {
-  let orderedLabels = REQUIRED_LEAVE_BALANCE_TYPES
-  let sourceEntries = sources
-
-  if (Array.isArray(sources[0])) {
-    orderedLabels = sources[0].length ? sources[0] : []
-    sourceEntries = sources.slice(1)
-  }
-
-  const entries = []
-  const seen = new Set()
-
-  for (const source of sourceEntries) {
-    collectLeaveBalanceEntries(entries, seen, source)
-  }
-
-  const entryByType = new Map(entries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]))
-  return orderedLabels.map((label) =>
-    entryByType.get(getLeaveBalanceTypeKey(label)) || { label, value: '0' },
-  )
 }
 
 function buildLeaveBalanceEntries(...sources) {
@@ -1349,30 +1273,6 @@ const resolvedLeaveBalanceEntries = computed(() =>
     ...employeeApplicationsForBalanceByRecency.value,
     selectedEmployeeRecord.value,
   ),
-)
-
-const dialogAllowedLeaveBalanceTypes = computed(() => {
-  const allowedTypeKeys = new Set(
-    getAllowedLeaveTypesForEmployee()
-      .filter((leaveType) => leaveType?.is_credit_based)
-      .map((leaveType) => getLeaveBalanceTypeKey(leaveType?.name)),
-  )
-
-  return REQUIRED_LEAVE_BALANCE_TYPES.filter((label) =>
-    allowedTypeKeys.has(getLeaveBalanceTypeKey(label)),
-  )
-})
-
-const dialogLeaveBalanceItems = computed(() =>
-  buildOrderedLeaveBalanceEntries(
-    dialogAllowedLeaveBalanceTypes.value,
-    ...employeeApplicationsForBalanceByRecency.value,
-    selectedEmployeeRecord.value,
-  ).map((entry) => ({
-    key: getLeaveBalanceTypeKey(entry.label),
-    label: `${toLeaveBalanceAcronym(entry.label) || entry.label}: ${entry.value}`,
-    tooltip: entry.label,
-  })),
 )
 
 function getLockedDatePriority(state) {
@@ -3320,10 +3220,6 @@ watch(
 .dialog-summary-meta-item--salary {
   grid-row: 2;
 }
-.dialog-summary-meta-item--leave-balance {
-  grid-row: 3;
-  align-items: center;
-}
 .dialog-summary-meta-label {
   font-size: 0.84rem;
   font-weight: 700;
@@ -3333,29 +3229,6 @@ watch(
   font-size: 0.92rem;
   font-weight: 600;
   color: #46535d;
-}
-.dialog-summary-badges {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 3px;
-  min-height: 1rem;
-  max-width: 100%;
-}
-.dialog-summary-badges--loading {
-  min-height: 20px;
-}
-.dialog-summary-badge {
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid #d8dee6;
-  background: #f5f7fa;
-  color: #72808c;
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
 }
 .dialog-summary-skeleton {
   display: block;
@@ -3374,12 +3247,6 @@ watch(
 .dialog-summary-skeleton--department {
   width: min(300px, 64%);
   height: 18px;
-}
-.dialog-summary-badge-skeleton {
-  flex: 0 0 auto;
-  width: 58px;
-  height: 22px;
-  border-radius: 999px;
 }
 @media (max-width: 768px) {
   .dialog-summary-header {
@@ -3404,10 +3271,6 @@ watch(
     grid-column: auto;
     grid-row: auto;
     justify-self: auto;
-    justify-content: flex-start;
-  }
-  .dialog-summary-badges {
-    flex-wrap: wrap;
     justify-content: flex-start;
   }
 }

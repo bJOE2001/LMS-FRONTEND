@@ -117,33 +117,35 @@ function detailRow(label, value) {
 }
 
 function paragraph(text, options = {}) {
+  const paragraphText = options.indent === false ? text : `          ${text}`
+
   return {
-    text,
+    text: paragraphText,
+    preserveLeadingSpaces: true,
     fontSize: 10,
     alignment: 'justify',
     lineHeight: 1.15,
-    margin: options.margin || [38, 0, 38, 14],
+    margin: options.margin || [48, 0, 36, 14],
   }
 }
 
 function resolveRecallFormData(source = {}) {
-  const inclusiveDates =
-    normalizeText(source.inclusiveDates || source.inclusive_dates) || 'November 25 - 29, 2026'
+  const inclusiveDates = normalizeText(source.inclusiveDates || source.inclusive_dates)
+  const defaultFirstParagraph = inclusiveDates
+    ? `In view of the exigency of services, you are hereby recalled from your scheduled and approved leave with inclusive dates on ${inclusiveDates}.`
+    : 'In view of the exigency of services, you are hereby recalled from your scheduled and approved leave.'
 
   return {
     officeOrderNo: normalizeText(source.officeOrderNo || source.office_order_no) || '___',
-    seriesYear: normalizeText(source.seriesYear || source.series_year) || '2026',
-    date: formatDateLong(source.date || source.orderDate || source.order_date) || 'November 13, 2026',
+    seriesYear: normalizeText(source.seriesYear || source.series_year) || String(new Date().getFullYear()),
+    date: formatDateLong(source.date || source.orderDate || source.order_date) || formatDateLong(new Date()),
     recipientName:
-      normalizeText(source.recipientName || source.recipient_name || source.employeeName || source.employee_name) ||
-      'REYNALDO D. CASAS, HRMO III',
-    from:
-      normalizeText(source.from || source.fromOffice || source.from_office) ||
-      'CITY HUMAN RESOURCE MANAGEMENT OFFICER',
+      normalizeText(source.recipientName || source.recipient_name || source.employeeName || source.employee_name),
+    from: normalizeText(source.from || source.fromOffice || source.from_office),
     subject: normalizeText(source.subject) || 'RECALL ORDER',
     firstParagraph:
       normalizeText(source.firstParagraph || source.first_paragraph) ||
-      `In view of the exigency of services at the City Human Resource Management Office, you are hereby recalled from your scheduled and approved forced leave with inclusive dates on ${inclusiveDates}.`,
+      defaultFirstParagraph,
     secondParagraph:
       normalizeText(source.secondParagraph || source.second_paragraph) ||
       'As such, your unused leave credits shall be restored in accordance to the Civil Service Rules and Regulations.',
@@ -194,7 +196,7 @@ export function buildRecallFormDocDefinition(formData = {}, logoBase64 = null) {
       },
       paragraph(data.firstParagraph),
       paragraph(data.secondParagraph),
-      paragraph(data.thirdParagraph, { margin: [76, 4, 38, 46] }),
+      paragraph(data.thirdParagraph, { margin: [48, 4, 36, 46] }),
       {
         stack: [
           { text: data.mayorName.toUpperCase(), bold: true, fontSize: 10 },

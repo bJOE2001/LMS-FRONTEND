@@ -75,17 +75,36 @@
               </div>
 
               <div class="application-timeline-body">
-                <div v-if="entry.subtitle" class="application-timeline-meta">
-                  {{ entry.subtitle }}
-                </div>
-                <div class="application-timeline-title">
-                  {{ entry.title }}
-                </div>
-                <div v-if="entry.actor" class="application-timeline-actor">
-                  Action by: {{ entry.actor }}
-                </div>
-                <div v-else-if="entry.description" class="application-timeline-actor">
-                  {{ entry.description }}
+                <div class="application-timeline-body-row">
+                  <div class="application-timeline-body-copy">
+                    <div v-if="entry.subtitle" class="application-timeline-meta">
+                      {{ entry.subtitle }}
+                    </div>
+                    <div class="application-timeline-title">
+                      {{ entry.title }}
+                    </div>
+                    <div v-if="entry.actor" class="application-timeline-actor">
+                      Action by: {{ entry.actor }}
+                    </div>
+                    <div v-else-if="entry.description" class="application-timeline-actor">
+                      {{ entry.description }}
+                    </div>
+                  </div>
+                  <q-btn
+                    v-if="canShowUndoTimelineEntryAction(entry)"
+                    flat
+                    dense
+                    round
+                    size="sm"
+                    icon="reply"
+                    color="warning"
+                    :loading="isUndoTimelineEntryLoading(entry)"
+                    :disable="isUndoTimelineEntryDisabled()"
+                    class="application-timeline-row-action"
+                    @click.stop="handleUndoTimelineEntryClick(entry)"
+                  >
+                    <q-tooltip>{{ getUndoTimelineEntryTooltip(entry) }}</q-tooltip>
+                  </q-btn>
                 </div>
               </div>
             </div>
@@ -154,6 +173,7 @@ import { computed, ref, watch } from 'vue'
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+const REQUEST_ACTION_RECALL = 'REQUEST_RECALL'
 
 function normalizeUpdateRequestStatusToken(value) {
   const normalized = String(value || '')
@@ -174,6 +194,14 @@ function normalizeLeaveRequestActionTypeToken(value) {
     .replace(/[\s-]+/g, '_')
 
   if (!normalized) return ''
+
+  if (
+    normalized === REQUEST_ACTION_RECALL ||
+    normalized === 'RECALL_REQUEST' ||
+    normalized === 'LEAVE_RECALL_REQUEST'
+  ) {
+    return REQUEST_ACTION_RECALL
+  }
 
   if (
     normalized === REQUEST_ACTION_CANCEL ||
@@ -235,6 +263,9 @@ function resolveLeaveRequestActionType(application = null) {
   if (payloadType) return payloadType
 
   const remarksToken = String(application?.remarks || '').toLowerCase()
+  if (remarksToken.includes('recall request')) {
+    return REQUEST_ACTION_RECALL
+  }
   if (remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')) {
     return REQUEST_ACTION_CANCEL
   }
@@ -326,13 +357,28 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  undoReceiveLoading: {
+    type: Boolean,
+    default: false,
+  },
+  undoReleaseLoading: {
+    type: Boolean,
+    default: false,
+  },
   loadingTimeline: {
     type: Boolean,
     default: false,
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'receive', 'release', 'view-attachment'])
+const emit = defineEmits([
+  'update:modelValue',
+  'receive',
+  'release',
+  'undo-receive',
+  'undo-release',
+  'view-attachment',
+])
 const localReceivedStateByKey = ref({})
 const localReleasedStateByKey = ref({})
 const lastRequestedReceiveKey = ref('')
@@ -362,14 +408,18 @@ const backendReleasedState = computed(() => isBackendReleasedState(props.applica
 const currentUpdateRequestCycleStartAt = computed(() =>
   resolveCurrentUpdateRequestCycleStartAt(props.application),
 )
-const isUpdateRequestCycle = computed(() => Boolean(currentUpdateRequestCycleStartAt.value))
+const hasRequestCycle = computed(() => Boolean(currentUpdateRequestCycleStartAt.value))
+const currentRequestActionType = computed(() => resolveLeaveRequestActionType(props.application))
+const isRecallRequestCycle = computed(
+  () => hasRequestCycle.value && currentRequestActionType.value === REQUEST_ACTION_RECALL,
+)
+const isUpdateRequestCycle = computed(() => hasRequestCycle.value && !isRecallRequestCycle.value)
 const currentUpdateRequestStatus = computed(() =>
   normalizeUpdateRequestStatusToken(props.application?.latest_update_request_status),
 )
 const isRejectedUpdateRequestCycle = computed(
   () => isUpdateRequestCycle.value && currentUpdateRequestStatus.value === 'REJECTED',
 )
-const currentRequestActionType = computed(() => resolveLeaveRequestActionType(props.application))
 const isCancellationRequestCycle = computed(
   () => isUpdateRequestCycle.value && currentRequestActionType.value === REQUEST_ACTION_CANCEL,
 )
@@ -424,18 +474,24 @@ const timelineEntries = computed(() => {
   )
   const coreEntries = cleanedTimeline.filter((entry) => !isEntryTitle(entry, 'Application Closed'))
   const hasUpdateCycle = isUpdateRequestCycle.value
+  const hasRecallCycle = isRecallRequestCycle.value
+  const hasTrackedRequestCycle = hasUpdateCycle || hasRecallCycle
   const cycleDisapprovedEntry = hasUpdateCycle
     ? getCurrentCycleDisapprovedTimelineEntry(coreEntries)
     : null
   const isAdminDisapprovedUpdateCycle =
     hasUpdateCycle && isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
-  const historicalReceivedEntry = hasUpdateCycle
+  const historicalReceivedEntry = hasTrackedRequestCycle
     ? buildHistoricalReceivedTimelineEntry(existingReceivedApplicationEntry)
     : null
-  const historicalReleasedEntry = hasUpdateCycle
+  const historicalReleasedEntry = hasTrackedRequestCycle
     ? buildHistoricalReleasedTimelineEntry(existingReleasedApplicationEntry)
     : null
-  const shouldShowCurrentCycleReceivedEntry = !cycleDisapprovedEntry || isReceivedState.value
+  const shouldShowCurrentCycleReceivedEntry = hasRecallCycle
+    ? false
+    : hasUpdateCycle
+      ? (!cycleDisapprovedEntry || isReceivedState.value)
+      : true
 
   const cycleReceivedSourceEntry = hasUpdateCycle
     ? existingUpdateReceivedEntry || existingReceivedApplicationEntry
@@ -444,11 +500,12 @@ const timelineEntries = computed(() => {
     ? existingUpdateReleasedEntry || existingReleasedApplicationEntry
     : existingReleasedApplicationEntry || existingUpdateReleasedEntry
 
-  const cycleReceivedEntry = buildReceivedTimelineEntry(cycleReceivedSourceEntry)
-  const cycleReleasedEntry = buildReleasedTimelineEntry(
-    cycleReleasedSourceEntry,
-    cycleDisapprovedEntry,
-  )
+  const cycleReceivedEntry = hasRecallCycle
+    ? null
+    : buildReceivedTimelineEntry(cycleReceivedSourceEntry)
+  const cycleReleasedEntry = hasRecallCycle
+    ? null
+    : buildReleasedTimelineEntry(cycleReleasedSourceEntry, cycleDisapprovedEntry)
   const cmoCbmoReviewEntry = buildCmoCbmoReviewTimelineEntry()
   const receivedInsertEntry =
     historicalReceivedEntry || (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
@@ -470,6 +527,11 @@ const timelineEntries = computed(() => {
     if (!isAdminDisapprovedUpdateCycle) {
       const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
       finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
+    }
+  } else if (hasRecallCycle) {
+    if (historicalReleasedEntry) {
+      const historicalReleaseInsertIndex = getHistoricalReleasedInsertionIndex(finalizedEntries)
+      finalizedEntries.splice(historicalReleaseInsertIndex, 0, historicalReleasedEntry)
     }
   } else {
     const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
@@ -524,6 +586,48 @@ const isReleasedState = computed(() => {
   return Boolean(props.isReleased || isLocalActionStateActive(localReleasedState.value))
 })
 
+const canUndoReleaseState = computed(() => {
+  return Boolean(props.application && isReleasedState.value)
+})
+
+const canUndoReceiveState = computed(() => {
+  if (!props.application || !isReceivedState.value) return false
+  if (isReleasedState.value) return false
+  if (!isUpdateRequestCycle.value && isBackendCmoCbmoReviewState(props.application)) return false
+  return true
+})
+
+function getUndoTimelineEntryType(entry) {
+  if (isReceivedTimelineEntryTitle(entry) && canUndoReceiveState.value) return 'receive'
+  if (isReleasedTimelineEntryTitle(entry) && canUndoReleaseState.value) return 'release'
+  return ''
+}
+
+function canShowUndoTimelineEntryAction(entry) {
+  return Boolean(getUndoTimelineEntryType(entry))
+}
+
+function isUndoTimelineEntryLoading(entry) {
+  const actionType = getUndoTimelineEntryType(entry)
+  if (actionType === 'receive') return props.undoReceiveLoading
+  if (actionType === 'release') return props.undoReleaseLoading
+  return false
+}
+
+function isUndoTimelineEntryDisabled() {
+  return Boolean(
+    props.loadingTimeline ||
+      props.receiveLoading ||
+      props.releaseLoading ||
+      props.undoReceiveLoading ||
+      props.undoReleaseLoading,
+  )
+}
+
+function getUndoTimelineEntryTooltip(entry) {
+  return getUndoTimelineEntryType(entry) === 'release' ? 'Undo Release' : 'Undo Receive'
+}
+
 // const receivedSummaryText = computed(() => {
 //   if (typeof props.getReceivedByHrSummary === 'function') {
 //     const summary = String(props.getReceivedByHrSummary(props.application) || '').trim()
@@ -561,6 +665,32 @@ function handleReleaseClick() {
   if (!props.application || !canReleaseState.value) return
   lastRequestedReleaseKey.value = applicationKey.value
   emit('release', props.application)
+}
+
+function handleUndoReceiveClick() {
+  if (!props.application || !canUndoReceiveState.value) return
+
+  clearLocalActionState(localReceivedStateByKey, applicationKey.value)
+  emit('undo-receive', props.application)
+}
+
+function handleUndoReleaseClick() {
+  if (!props.application || !canUndoReleaseState.value) return
+
+  clearLocalActionState(localReleasedStateByKey, applicationKey.value)
+  emit('undo-release', props.application)
+}
+
+function handleUndoTimelineEntryClick(entry) {
+  const actionType = getUndoTimelineEntryType(entry)
+  if (actionType === 'receive') {
+    handleUndoReceiveClick()
+    return
+  }
+
+  if (actionType === 'release') {
+    handleUndoReleaseClick()
+  }
 }
 
 function getBaseTimelineEntries() {
@@ -644,10 +774,19 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       'REQUESTED_CANCELLATION',
       'REQUEST_CANCELLATION',
     ].includes(actionToken)
+    const isRecallRequestAction = [
+      'REQUEST_RECALL',
+      'RECALL_REQUESTED',
+      'RECALL_REQUEST_SUBMITTED',
+      'REQUESTED_RECALL',
+    ].includes(actionToken)
 
+    if (requestActionType === REQUEST_ACTION_RECALL) {
+      if (isRecallRequestAction) return resolveStatusHistoryTimestamp(entry)
+    } else
     if (requestActionType === REQUEST_ACTION_CANCEL) {
       if (isCancelRequestAction) return resolveStatusHistoryTimestamp(entry)
-    } else if (isUpdateRequestAction || isCancelRequestAction) {
+    } else if (isUpdateRequestAction || isCancelRequestAction || isRecallRequestAction) {
       return resolveStatusHistoryTimestamp(entry)
     }
 
@@ -657,10 +796,16 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       stageToken.includes('cancel request submitted') ||
       stageToken.includes('cancellation request submitted') ||
       stageToken.includes('cancellation requested')
+    const stageIsRecallSignal =
+      stageToken.includes('recall request submitted') ||
+      stageToken.includes('recall requested')
 
+    if (requestActionType === REQUEST_ACTION_RECALL) {
+      if (stageIsRecallSignal) return resolveStatusHistoryTimestamp(entry)
+    } else
     if (requestActionType === REQUEST_ACTION_CANCEL) {
       if (stageIsCancelSignal) return resolveStatusHistoryTimestamp(entry)
-    } else if (stageIsUpdateSignal || stageIsCancelSignal) {
+    } else if (stageIsUpdateSignal || stageIsCancelSignal || stageIsRecallSignal) {
       return resolveStatusHistoryTimestamp(entry)
     }
 
@@ -668,15 +813,21 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       remarksToken.includes('edit request') || remarksToken.includes('request update')
     const remarksHasCancelSignal =
       remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')
+    const remarksHasRecallSignal = remarksToken.includes('recall request')
 
+    if (requestActionType === REQUEST_ACTION_RECALL && !remarksHasRecallSignal) {
+      continue
+    }
     if (requestActionType === REQUEST_ACTION_CANCEL && !remarksHasCancelSignal) {
       continue
     }
 
     if (
       requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
       !remarksHasUpdateSignal &&
-      !remarksHasCancelSignal
+      !remarksHasCancelSignal &&
+      !remarksHasRecallSignal
     ) {
       continue
     }
@@ -686,7 +837,8 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       actionToken.includes('REQUEST') ||
       actionToken.includes('SUBMIT') ||
       actionToken.includes('EDIT') ||
-      actionToken.includes('CANCEL')
+      actionToken.includes('CANCEL') ||
+      actionToken.includes('RECALL')
     ) {
       return resolveStatusHistoryTimestamp(entry)
     }
@@ -975,6 +1127,7 @@ function isHrPhaseEntry(entry) {
     normalizedTitle.includes('recalled by hr') ||
     normalizedTitle.includes('pending edit review (hr)') ||
     normalizedTitle.includes('pending cancellation review (hr)') ||
+    normalizedTitle.includes('pending recall review (hr)') ||
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
@@ -983,6 +1136,10 @@ function isHrPhaseEntry(entry) {
     normalizedTitle.includes('cancellation request rejected') ||
     normalizedTitle.includes('cancellation request disapproved') ||
     normalizedTitle.includes('cancellation request not certified') ||
+    normalizedTitle.includes('recall request approved') ||
+    normalizedTitle.includes('recall request rejected') ||
+    normalizedTitle.includes('recall request disapproved') ||
+    normalizedTitle.includes('recall request not certified') ||
     normalizedTitle.includes('current status')
   )
 }
@@ -1001,7 +1158,13 @@ function isUpdateRequestTimelineEntry(entry) {
     normalizedTitle.includes('cancellation request approved') ||
     normalizedTitle.includes('cancellation request rejected') ||
     normalizedTitle.includes('cancellation request disapproved') ||
-    normalizedTitle.includes('cancellation request not certified')
+    normalizedTitle.includes('cancellation request not certified') ||
+    normalizedTitle.includes('recall request submitted') ||
+    normalizedTitle.includes('pending recall review') ||
+    normalizedTitle.includes('recall request approved') ||
+    normalizedTitle.includes('recall request rejected') ||
+    normalizedTitle.includes('recall request disapproved') ||
+    normalizedTitle.includes('recall request not certified')
   )
 }
 
@@ -1013,7 +1176,10 @@ function isDisapprovedUpdateRequestTimelineEntry(entry) {
     normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request rejected') ||
     normalizedTitle.includes('cancellation request disapproved') ||
-    normalizedTitle.includes('cancellation request not certified')
+    normalizedTitle.includes('cancellation request not certified') ||
+    normalizedTitle.includes('recall request rejected') ||
+    normalizedTitle.includes('recall request disapproved') ||
+    normalizedTitle.includes('recall request not certified')
   )
 }
 
@@ -1679,6 +1845,26 @@ watch(
 
 .application-timeline-body {
   padding-bottom: 18px;
+}
+
+.application-timeline-body-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.application-timeline-body-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.application-timeline-row-action {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  width: 30px;
+  height: 30px;
 }
 
 .application-timeline-meta {
