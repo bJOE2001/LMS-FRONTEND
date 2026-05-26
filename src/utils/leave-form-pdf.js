@@ -7,11 +7,14 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import {
+  getCityViceMayorSignature,
   enrichAppWithDepartmentHead,
   getChrmoLeaveInChargeSignatory,
+  getMayorSignature,
   getRecommendationSignatory,
 } from './department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
+import { resolveRecommendationSignatoryByApplicantType } from './signatory-rules/recommendation-signatory'
 
 // pdfmake v0.3.x font initialization
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -1892,11 +1895,10 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const employeeStatusLabel = formatEmployeeStatusForReceiptStamp(app)
   const position = String(app?.position || '').trim()
   const positionFontSize = getSingleLineInfoFontSize(position)
-  const recommendationSignatory = getRecommendationSignatory(app)
+  const baseRecommendationSignatory = getRecommendationSignatory(app)
+  const cityViceMayorSignatory = getCityViceMayorSignature(app)
+  const mayorSignatory = getMayorSignature(app)
   const chrmoLeaveInChargeSignatory = getChrmoLeaveInChargeSignatory(app)
-  const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
-    recommendationSignatory.fullName,
-  )
   const chrmoLeaveInChargeSignatoryName = formatSignatoryNameWithMiddleInitial(
     chrmoLeaveInChargeSignatory.fullName,
   )
@@ -1914,6 +1916,18 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showWithinPhilippines =
     (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
   const showAbroad = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Abroad'
+  const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
+    app,
+    isAbroad: showAbroad,
+    isWithinPhilippines: showWithinPhilippines,
+    mayorSignatory,
+    cityViceMayorSignatory,
+    baseRecommendationSignatory,
+  })
+  const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
+    recommendationSignatory.fullName,
+  )
+  const mayorSignatoryName = formatSignatoryNameWithMiddleInitial(mayorSignatory.fullName)
   const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
   const showOutPatient = isSick && normalizedSickDetail === 'Out Patient'
   const showMastersDegree = isStudy && studyDetail === 'Masters Degree'
@@ -2570,7 +2584,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       body: [
                         [
                           {
-                            text: 'HON. REY T. UY',
+                            text: mayorSignatoryName || ' ',
                             fontSize: 10,
                             bold: true,
                             alignment: 'center',
@@ -2591,7 +2605,12 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       paddingBottom: () => 0,
                     },
                   },
-                  { text: 'City Mayor', fontSize: 9, alignment: 'center', margin: [0, 2, 0, 6] },
+                  {
+                    text: mayorSignatory.designation || 'City Mayor',
+                    fontSize: 9,
+                    alignment: 'center',
+                    margin: [0, 2, 0, 6],
+                  },
                 ],
               },
             ],

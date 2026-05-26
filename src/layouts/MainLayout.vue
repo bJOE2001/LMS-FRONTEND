@@ -101,25 +101,29 @@
                 </q-item-section>
               </q-item>
               <q-separator />
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/leave-types">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('leave_types')" clickable to="/hr/leave-types">
                 <q-item-section avatar><q-icon name="playlist_add" /></q-item-section>
                 <q-item-section>Leave Types</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/departments-library">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('office_library')" clickable to="/hr/departments-library">
                 <q-item-section avatar><q-icon name="apartment" /></q-item-section>
                 <q-item-section>Office Library</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/illness-library">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('illness_library')" clickable to="/hr/illness-library">
                 <q-item-section avatar><q-icon name="medical_services" /></q-item-section>
                 <q-item-section>Illness Library</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/work-schedules">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('work_schedules')" clickable to="/hr/work-schedules">
                 <q-item-section avatar><q-icon name="schedule" /></q-item-section>
                 <q-item-section>Work Schedules</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/signatories">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('signatories')" clickable to="/hr/signatories">
                 <q-item-section avatar><q-icon name="draw" /></q-item-section>
                 <q-item-section>Signatories</q-item-section>
+              </q-item>
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('access_control')" clickable to="/hr/access-control">
+                <q-item-section avatar><q-icon name="admin_panel_settings" /></q-item-section>
+                <q-item-section>Access Control</q-item-section>
               </q-item>
               <q-item clickable to="/settings">
                 <q-item-section avatar><q-icon name="settings" /></q-item-section>
@@ -182,6 +186,7 @@ import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import { api } from 'boot/axios'
 import NotificationPanel from 'components/NotificationPanel.vue'
+import { hrUserHasModuleAccess } from 'src/utils/hr-module-access'
 
 const route = useRoute()
 const router = useRouter()
@@ -219,7 +224,13 @@ watch(
 // When authenticated, refresh user from API so department_admin gets department_id/department
 // only when local auth payload is missing. Avoid refetching on every route mount.
 onMounted(async () => {
-  if (authStore.isAuthenticated && authStore.getToken() && !authStore.user) {
+  const shouldRefreshUser =
+    authStore.isAuthenticated &&
+    authStore.getToken() &&
+    (!authStore.user ||
+      (authStore.user?.role === 'hr' && !Array.isArray(authStore.user?.hr_module_access)))
+
+  if (shouldRefreshUser) {
     try {
       const { data } = await api.get('/me')
       if (data.user) {
@@ -258,16 +269,22 @@ const adminNav = [
   // { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
 ]
 const hrNav = [
-  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
-  { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in' },
-  { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts' },
-  { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
+  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard', moduleKey: 'dashboard' },
+  { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: 'applications' },
+  { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: 'coc_applications' },
+  { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: 'employee_management' },
+  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts', moduleKey: 'user_management' },
+  { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart', moduleKey: 'reports_monitoring' },
 ]
 
+function canAccessHrModule(moduleKey) {
+  return hrUserHasModuleAccess(authStore.user, moduleKey)
+}
+
 const navItems = computed(() => {
-  if (leaveStore.userRole === 'hr') return hrNav
+  if (leaveStore.userRole === 'hr') {
+    return hrNav.filter((item) => canAccessHrModule(item.moduleKey))
+  }
   // Admin and department_admin see the admin menu (not HR)
   if (leaveStore.userRole === 'admin' || leaveStore.userRole === 'department_admin') return adminNav
   return []

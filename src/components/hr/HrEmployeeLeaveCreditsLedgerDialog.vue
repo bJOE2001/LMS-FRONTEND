@@ -244,6 +244,21 @@
       </q-card-section>
 
       <q-card-actions class="ledger-dialog-actions q-pa-md">
+        <div
+          v-if="!loading && leaveBalanceBadges.length"
+          class="ledger-dialog-actions__balances"
+          aria-label="Leave credit balances"
+        >
+          <span
+            v-for="badge in leaveBalanceBadges"
+            :key="`ledger-badge-${badge.code}`"
+            class="ledger-dialog-balance-badge"
+            :style="badge.style || {}"
+          >
+            <span class="ledger-dialog-balance-badge__code">{{ badge.label }}</span>
+            <span class="ledger-dialog-balance-badge__value">{{ badge.value }}</span>
+          </span>
+        </div>
         <q-space />
         <q-btn
           unelevated
@@ -283,6 +298,10 @@ const props = defineProps({
   canPrint: {
     type: Boolean,
     default: false,
+  },
+  leaveBalanceBadges: {
+    type: Array,
+    default: () => [],
   },
   paperSize: {
     type: String,
@@ -616,6 +635,45 @@ const paperSizeClass = computed(
   flex-wrap: wrap;
 }
 
+.ledger-dialog-actions__balances {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ledger-dialog-actions__balances-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #4b5563;
+}
+
+.ledger-dialog-balance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--badge-accent, #9ca3af);
+  background: var(--badge-bg, #f8fafc);
+  color: var(--badge-accent, #374151);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.ledger-dialog-balance-badge__code {
+  opacity: 0.88;
+}
+
+.ledger-dialog-balance-badge__value {
+  color: #111827;
+  font-weight: 800;
+}
+
 @media (max-width: 900px) {
   .leave-ledger-dialog {
     width: min(100vw, 100vw);
@@ -640,6 +698,10 @@ const paperSizeClass = computed(
 
   .ledger-dialog-actions {
     align-items: stretch;
+  }
+
+  .ledger-dialog-actions__balances {
+    width: 100%;
   }
 }
 </style>

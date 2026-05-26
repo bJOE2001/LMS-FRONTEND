@@ -16,6 +16,33 @@ function normalizeComparableName(value) {
     .trim()
 }
 
+function ensureHonorificPrefix(value, honorific = 'HON.') {
+  const normalizedName = normalizeText(value)
+  if (!normalizedName) return ''
+  const honorificPattern = new RegExp(`^${honorific.replace('.', '\\.')}\\s+`, 'i')
+  if (honorificPattern.test(normalizedName)) {
+    return normalizedName
+  }
+  return `${honorific} ${normalizedName}`
+}
+
+function normalizeDesignationToken(value) {
+  return normalizeText(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isCityViceMayorDesignation(value) {
+  const designationToken = normalizeDesignationToken(value)
+  if (!designationToken) return false
+  return (
+    designationToken.includes('CITY VICE MAYOR') ||
+    (designationToken.includes('VICE MAYOR') && designationToken.includes('CITY'))
+  )
+}
+
 function buildFullName(person) {
   const directName = normalizeText(person?.full_name || person?.name)
   if (directName) return directName
@@ -57,10 +84,62 @@ export function isDepartmentHeadApplicant(app) {
   return Boolean(headName) && Boolean(applicantName) && headName === applicantName
 }
 
-export function getMayorSignature() {
+export function getMayorSignature(app) {
+  const candidate =
+    app?.cityMayor ||
+    app?.city_mayor ||
+    app?.cityMayorSignatory ||
+    app?.city_mayor_signatory ||
+    {}
+  const fallbackName = normalizeText(app?.cityMayorName || app?.city_mayor_name) || ''
+  const fallbackDesignation =
+    normalizeText(candidate?.designation || candidate?.position || app?.cityMayorPosition) || ''
+  const candidateFullName = buildFullName(candidate) || fallbackName
+  if (candidateFullName) {
+    return {
+      fullName: ensureHonorificPrefix(candidateFullName, 'HON.'),
+      designation: fallbackDesignation || 'City Mayor',
+    }
+  }
+
   return {
     fullName: 'HON. REY T. UY',
     designation: 'City Mayor',
+  }
+}
+
+export function getCityViceMayorSignature(app) {
+  const candidate =
+    app?.cityViceMayor ||
+    app?.city_vice_mayor ||
+    app?.cityViceMayorSignatory ||
+    app?.city_vice_mayor_signatory ||
+    {}
+  const fallbackName = normalizeText(app?.cityViceMayorName || app?.city_vice_mayor_name) || ''
+  const fallbackDesignation =
+    normalizeText(candidate?.designation || candidate?.position || app?.cityViceMayorPosition) ||
+    ''
+  const candidateFullName = buildFullName(candidate) || fallbackName
+  if (candidateFullName) {
+    return {
+      fullName: candidateFullName,
+      designation: fallbackDesignation || 'City Vice Mayor',
+    }
+  }
+
+  const head = app?.departmentHead || app?.department_head || {}
+  const headFullName = buildFullName(head)
+  const headDesignation = normalizeText(head?.designation || head?.position)
+  if (isCityViceMayorDesignation(headDesignation)) {
+    return {
+      fullName: headFullName,
+      designation: headDesignation || 'City Vice Mayor',
+    }
+  }
+
+  return {
+    fullName: headFullName,
+    designation: fallbackDesignation || 'City Vice Mayor',
   }
 }
 
@@ -119,6 +198,22 @@ export async function enrichAppWithDepartmentHead(app) {
       app.cityAdministratorName ||
       app.city_administrator_name,
   )
+  const hasCityMayor = Boolean(
+    app.cityMayor ||
+      app.city_mayor ||
+      app.cityMayorSignatory ||
+      app.city_mayor_signatory ||
+      app.cityMayorName ||
+      app.city_mayor_name,
+  )
+  const hasCityViceMayor = Boolean(
+    app.cityViceMayor ||
+      app.city_vice_mayor ||
+      app.cityViceMayorSignatory ||
+      app.city_vice_mayor_signatory ||
+      app.cityViceMayorName ||
+      app.city_vice_mayor_name,
+  )
   const hasChrmoLeaveInCharge = Boolean(
     app.chrmoLeaveInChargeSignatory ||
       app.chrmo_leave_in_charge_signatory ||
@@ -127,7 +222,7 @@ export async function enrichAppWithDepartmentHead(app) {
       app.chrmoLeaveInChargeName ||
       app.chrmo_leave_in_charge_name,
   )
-  if (hasDepartmentHead && hasCityAdministrator && hasChrmoLeaveInCharge) return app
+  if (hasDepartmentHead && hasCityAdministrator && hasCityMayor && hasCityViceMayor && hasChrmoLeaveInCharge) return app
 
   let nextApp = app
 
@@ -162,6 +257,36 @@ export async function enrichAppWithDepartmentHead(app) {
         nextApp = {
           ...nextApp,
           cityAdministrator,
+        }
+      }
+    } catch {
+      // Ignore lookup errors and keep existing app payload.
+    }
+  }
+
+  if (!hasCityMayor) {
+    try {
+      const { data } = await api.get('/city-mayor')
+      const cityMayor = data?.city_mayor
+      if (cityMayor) {
+        nextApp = {
+          ...nextApp,
+          cityMayor,
+        }
+      }
+    } catch {
+      // Ignore lookup errors and keep existing app payload.
+    }
+  }
+
+  if (!hasCityViceMayor) {
+    try {
+      const { data } = await api.get('/city-vice-mayor')
+      const cityViceMayor = data?.city_vice_mayor
+      if (cityViceMayor) {
+        nextApp = {
+          ...nextApp,
+          cityViceMayor,
         }
       }
     } catch {
