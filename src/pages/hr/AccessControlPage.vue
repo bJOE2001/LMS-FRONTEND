@@ -249,7 +249,7 @@ async function saveModuleAccess() {
 
   saving.value = true
   try {
-    await api.put(`/hr/access-control/hr-admins/${selectedAccount.value.id}/modules`, {
+    await api.post(`/hr/access-control/hr-admins/${selectedAccount.value.id}/modules`, {
       module_keys: selectedModuleKeys.value,
     })
     $q.notify({
