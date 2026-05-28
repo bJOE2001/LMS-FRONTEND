@@ -1065,9 +1065,9 @@ function confirmRemoveAccount(row) {
     deletingRowKey.value = String(row?.row_key || '')
     try {
       const endpoint = rowIsHrAdmin
-        ? `/hr/user-management/hr-accounts/${accountId}`
-        : `/hr/user-management/department-admins/${accountId}`
-      const { data } = await api.delete(endpoint)
+        ? `/hr/user-management/hr-accounts/${accountId}/delete`
+        : `/hr/user-management/department-admins/${accountId}/delete`
+      const { data } = await api.post(endpoint)
       const successMessage = data?.message || (rowIsHrAdmin
         ? 'HR admin removed successfully.'
         : 'Office admin deactivated successfully.')

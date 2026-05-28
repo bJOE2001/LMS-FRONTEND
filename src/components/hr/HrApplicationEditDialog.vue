@@ -279,7 +279,7 @@ function buildFormFromApplication(application) {
 
 async function updateApplicationDetails(id, payload) {
   try {
-    await api.put(`/hr/leave-applications/${id}`, payload)
+    await api.post(`/hr/leave-applications/${id}/update`, payload)
     return
   } catch (err) {
     const statusCode = err?.response?.status
@@ -288,7 +288,7 @@ async function updateApplicationDetails(id, payload) {
     }
   }
 
-  await api.patch(`/hr/leave-applications/${id}`, payload)
+  await api.post(`/hr/leave-applications/${id}`, payload)
 }
 
 async function handleSave() {

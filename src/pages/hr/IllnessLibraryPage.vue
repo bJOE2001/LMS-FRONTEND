@@ -237,7 +237,7 @@ async function saveIllness() {
   try {
     const payload = { name }
     const response = dialogMode.value === 'edit'
-      ? await api.put(`/hr/illnesses/${editingId.value}`, payload)
+      ? await api.post(`/hr/illnesses/${editingId.value}/update`, payload)
       : await api.post('/hr/illnesses', payload)
 
     $q.notify({
@@ -284,7 +284,7 @@ function confirmDelete(row) {
 async function deleteIllness(row) {
   deletingId.value = row.id
   try {
-    const { data } = await api.delete(`/hr/illnesses/${row.id}`)
+    const { data } = await api.post(`/hr/illnesses/${row.id}/delete`)
     $q.notify({
       type: 'positive',
       message: data?.message || 'Illness marked inactive successfully.',

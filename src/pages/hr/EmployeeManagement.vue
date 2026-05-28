@@ -2215,15 +2215,11 @@ function roundLedgerNumericValue(value) {
 function normalizeOtherLedgerBalances(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return Array.isArray(rows) ? rows : []
 
-  const trackedOtherCodes = ['WL', 'MCO6']
-  const runningBalancesByCode = {
-    WL: 0,
-    MCO6: 0,
-  }
+  const runningBalancesByCode = {}
 
   return rows.map((row) => {
     const leaveCode = normalizeLedgerLeaveCode(row?.leaveTypeCode || row?.particulars)
-    if (!trackedOtherCodes.includes(leaveCode)) return row
+    if (!isLedgerOtherLeaveCode(leaveCode)) return row
 
     const earnedAmount = parseLedgerSignedQuantityValue(row?.otherEarned) ?? 0
     const withPayAmount = parseLedgerSignedQuantityValue(row?.otherAbsUndWp) ?? 0
@@ -2234,7 +2230,7 @@ function normalizeOtherLedgerBalances(rows) {
     let nextBalance = nextFromDelta
 
     if (existingCombinedBalance !== null) {
-      const otherTypeBalanceTotal = trackedOtherCodes.reduce(
+      const otherTypeBalanceTotal = Object.keys(runningBalancesByCode).reduce(
         (total, code) => (code === leaveCode ? total : total + (runningBalancesByCode[code] ?? 0)),
         0,
       )
@@ -2304,7 +2300,7 @@ function updateLedgerForwardedBalanceState(state, rows) {
     const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
     if (otherBalance !== null) {
       const leaveCode = normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
-      if (leaveCode === 'WL' || leaveCode === 'MCO6') {
+      if (isLedgerOtherLeaveCode(leaveCode)) {
         state.otherByCode[leaveCode] = otherBalance
       } else {
         state.otherDefault = otherBalance
@@ -2432,6 +2428,7 @@ function buildLedgerPdfTableWidths(preset) {
 function normalizeLedgerLeaveCode(value) {
   const raw = String(value ?? '').trim()
   if (!raw) return ''
+  if (raw.toLowerCase().includes('balance forwarded')) return ''
 
   const compact = raw.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -2475,7 +2472,22 @@ function normalizeLedgerLeaveCode(value) {
     return 'MCO6'
   }
 
+  const codeToken = String(raw).split(/\s+/)[0] ?? ''
+  const sanitizedCodeToken = codeToken.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (
+    sanitizedCodeToken &&
+    sanitizedCodeToken !== 'BALANCE' &&
+    sanitizedCodeToken !== 'FORWARDED' &&
+    sanitizedCodeToken.length <= 10
+  ) {
+    return sanitizedCodeToken
+  }
+
   return ''
+}
+
+function isLedgerOtherLeaveCode(leaveCode) {
+  return leaveCode !== '' && leaveCode !== 'VL' && leaveCode !== 'SL'
 }
 
 function resolveLedgerCellLeaveCode(entry, section) {
@@ -2503,7 +2515,7 @@ function resolveLedgerCellLeaveCode(entry, section) {
   )
 
   if (normalizedSection === 'OTHER') {
-    return rowLeaveCode === 'WL' || rowLeaveCode === 'MCO6' ? rowLeaveCode : ''
+    return isLedgerOtherLeaveCode(rowLeaveCode) ? rowLeaveCode : ''
   }
 
   return rowLeaveCode
@@ -4837,7 +4849,7 @@ async function saveLeaveCredits() {
     }
 
     const { data } = isEditMode
-      ? await api.put('/hr/leave-balances', payload)
+      ? await api.post('/hr/leave-balances/update', payload)
       : await api.post('/hr/leave-balances', payload)
     const touchedCount = Number(data?.updated_count ?? data?.saved_count)
     const normalizedTouchedCount =

@@ -170,7 +170,7 @@ async function handleSaveChrmoLeaveInCharge() {
 
   saving.value = true
   try {
-    await api.put('/settings/signatories/chrmo-leave-in-charge', {
+    await api.post('/settings/signatories/chrmo-leave-in-charge/update', {
       employee_control_no: selected.controlNo,
     })
     $q.notify({ type: 'positive', message: 'CHRMO Leave In-charge updated successfully!' })

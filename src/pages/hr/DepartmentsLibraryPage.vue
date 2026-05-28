@@ -236,7 +236,7 @@ async function saveDepartment() {
   try {
     const payload = { name }
     const response = dialogMode.value === 'edit'
-      ? await api.put(`/hr/departments/${editingId.value}`, payload)
+      ? await api.post(`/hr/departments/${editingId.value}/update`, payload)
       : await api.post('/hr/departments', payload)
 
     $q.notify({
@@ -283,7 +283,7 @@ function confirmDelete(row) {
 async function deleteDepartment(row) {
   deletingId.value = row.id
   try {
-    const { data } = await api.delete(`/hr/departments/${row.id}`)
+    const { data } = await api.post(`/hr/departments/${row.id}/delete`)
     $q.notify({
       type: 'positive',
       message: data?.message || 'Office marked inactive successfully.',
