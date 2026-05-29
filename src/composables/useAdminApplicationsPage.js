@@ -8,6 +8,7 @@ import {
   isReviewedCocApplicationPrintable,
 } from 'src/utils/coc-form-pdf'
 import { generateRequestChangesApprovedLeavePdf } from 'src/utils/request-changes-approved-leave-pdf'
+import { generateRecallFormPdf } from 'src/utils/recall-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { printAdminApplicationsPdf } from 'src/utils/admin-applications-pdf'
 import {
@@ -46,6 +47,7 @@ const EVENT_BASED_LEAVE_BALANCE_TYPES = [
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+const REQUEST_ACTION_RECALL = 'REQUEST_RECALL'
 const ctoStandardDayHours = 8
 const queueGroupPriority = {
   PENDING: 0,
@@ -170,7 +172,9 @@ export function useAdminApplicationsPage() {
   const showDisapproveDialog = ref(false)
   const showConfirmActionDialog = ref(false)
   const showActionResultDialog = ref(false)
+  const showRecallRequestDialog = ref(false)
   const selectedApp = ref(null)
+  const recallRequestTargetApp = ref(null)
   const calendarPreviewApp = ref(null)
   const calendarPreviewModel = ref([])
   const calendarPreviewKey = ref(0)
@@ -191,6 +195,9 @@ export function useAdminApplicationsPage() {
   const actionResultType = ref('approved')
   const actionResultApp = ref(null)
   const actionResultIsEditRequestApproval = ref(false)
+  const recallRequestDialogApplication = computed(
+    () => recallRequestTargetApp.value || selectedApp.value,
+  )
 
   const applicationTableColumns = computed(() => {
     if (!$q.screen.lt.sm) return columns
@@ -352,6 +359,11 @@ export function useAdminApplicationsPage() {
   watch(calendarPreviewDateStates, () => {
     if (!showCalendarPreviewDialog.value) return
     syncCalendarPreviewDecorations()
+  })
+
+  watch(showRecallRequestDialog, (isOpen) => {
+    if (isOpen) return
+    recallRequestTargetApp.value = null
   })
 
   watch(
@@ -1193,6 +1205,14 @@ export function useAdminApplicationsPage() {
     if (!normalized) return ''
 
     if (
+      normalized === REQUEST_ACTION_RECALL ||
+      normalized === 'RECALL_REQUEST' ||
+      normalized === 'LEAVE_RECALL_REQUEST'
+    ) {
+      return REQUEST_ACTION_RECALL
+    }
+
+    if (
       normalized === REQUEST_ACTION_CANCEL ||
       normalized === 'CANCEL_REQUEST' ||
       normalized === 'REQUEST_CANCELLATION' ||
@@ -1245,6 +1265,9 @@ export function useAdminApplicationsPage() {
     if (payloadType) return payloadType
 
     const remarksToken = normalizeSearchText(app?.remarks || '')
+    if (remarksToken.includes('recall request')) {
+      return REQUEST_ACTION_RECALL
+    }
     if (remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')) {
       return REQUEST_ACTION_CANCEL
     }
@@ -1259,11 +1282,17 @@ export function useAdminApplicationsPage() {
     return getAdminUpdateRequestActionType(app) === REQUEST_ACTION_CANCEL
   }
 
+  function isAdminRecallRequest(app) {
+    return getAdminUpdateRequestActionType(app) === REQUEST_ACTION_RECALL
+  }
+
   function getAdminEditRequestLabelPrefix(app) {
+    if (isAdminRecallRequest(app)) return 'Recall Request'
     return isAdminCancellationRequest(app) ? 'Cancel Request' : 'Edit Request'
   }
 
   function getAdminUpdateRequestReviewNoun(app) {
+    if (isAdminRecallRequest(app)) return 'recall request'
     return isAdminCancellationRequest(app) ? 'cancellation request' : 'edit request'
   }
 
@@ -1322,6 +1351,8 @@ export function useAdminApplicationsPage() {
           'UPDATE_REQUEST_APPROVED',
           'CANCELLATION_REQUEST_APPROVED',
           'CANCEL_REQUEST_APPROVED',
+          'RECALL_REQUEST_APPROVED',
+          'REQUEST_RECALL_APPROVED',
           'REQUEST_UPDATE_APPROVED',
           'REQUEST_CANCEL_APPROVED',
         ].includes(actionToken)
@@ -1335,6 +1366,8 @@ export function useAdminApplicationsPage() {
           'UPDATE_REQUEST_REJECTED',
           'CANCELLATION_REQUEST_REJECTED',
           'CANCEL_REQUEST_REJECTED',
+          'RECALL_REQUEST_REJECTED',
+          'REQUEST_RECALL_REJECTED',
           'REQUEST_UPDATE_REJECTED',
           'REQUEST_CANCEL_REJECTED',
         ].includes(actionToken)
@@ -1347,10 +1380,12 @@ export function useAdminApplicationsPage() {
         (hasUpdateRequestContext ||
           stageToken.includes('edit request') ||
           stageToken.includes('request update') ||
+          stageToken.includes('recall request') ||
           stageToken.includes('cancellation request') ||
           stageToken.includes('cancel request') ||
           remarksToken.includes('edit request') ||
           remarksToken.includes('request update') ||
+          remarksToken.includes('recall request') ||
           remarksToken.includes('cancellation request') ||
           remarksToken.includes('cancel request'))
       ) {
@@ -1376,9 +1411,11 @@ export function useAdminApplicationsPage() {
 
       if (
         stageToken.includes('edit request approved') ||
+        stageToken.includes('recall request approved') ||
         stageToken.includes('cancellation request approved') ||
         stageToken.includes('cancel request approved') ||
         remarksToken.includes('edit request approved') ||
+        remarksToken.includes('recall request approved') ||
         remarksToken.includes('cancellation request approved') ||
         remarksToken.includes('cancel request approved')
       ) {
@@ -1388,11 +1425,15 @@ export function useAdminApplicationsPage() {
       if (
         stageToken.includes('edit request rejected') ||
         stageToken.includes('edit request disapproved') ||
+        stageToken.includes('recall request rejected') ||
+        stageToken.includes('recall request disapproved') ||
         stageToken.includes('cancellation request rejected') ||
         stageToken.includes('cancellation request disapproved') ||
         stageToken.includes('cancel request rejected') ||
         remarksToken.includes('edit request rejected') ||
         remarksToken.includes('edit request disapproved') ||
+        remarksToken.includes('recall request rejected') ||
+        remarksToken.includes('recall request disapproved') ||
         remarksToken.includes('cancellation request rejected') ||
         remarksToken.includes('cancellation request disapproved') ||
         remarksToken.includes('cancel request rejected')
@@ -2229,6 +2270,40 @@ export function useAdminApplicationsPage() {
     return isRecalledRow
       ? dateSet.filter((dateKey) => recalledDateSet.has(dateKey))
       : dateSet.filter((dateKey) => !recalledDateSet.has(dateKey))
+  }
+
+  function getRemainingRecallableDateKeys(app) {
+    const selectedDates = resolveDateSetFromSource(app)
+    if (!selectedDates.length) return []
+
+    const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+    return selectedDates.filter((dateKey) => !recalledDateSet.has(dateKey))
+  }
+
+  function getRecallDateOptions(app) {
+    return [...new Set(getRemainingRecallableDateKeys(app))].sort()
+  }
+
+  function formatRecallDateLabel(value) {
+    return formatDate(value) || String(value || '').trim()
+  }
+
+  function isRecallableLeaveApplication(app) {
+    if (!app || isCocApplication(app) || app?.is_monetization === true) return false
+
+    const leaveTypeLabel = String(formatApplicationLeaveTypeLabel(app?.leaveType || app?.leave_type || ''))
+      .trim()
+      .toLowerCase()
+
+    return leaveTypeLabel === 'mandatory / forced leave' || leaveTypeLabel === 'vacation leave'
+  }
+
+  function canRequestRecallApplication(app) {
+    if (!app || isCocApplication(app)) return false
+    if (hasApplicationEditRequest(app)) return false
+    if (getApplicationRawStatus(app) !== 'APPROVED') return false
+    if (!isRecallableLeaveApplication(app)) return false
+    return getRemainingRecallableDateKeys(app).length > 0
   }
 
   function getPendingUpdatePayload(app) {
@@ -3255,12 +3330,18 @@ export function useAdminApplicationsPage() {
     const status = getAdminEditRequestBadgeStatus(app)
     const labelPrefix = getAdminEditRequestLabelPrefix(app)
     const isCancelRequest = isAdminCancellationRequest(app)
+    const isRecallRequest = isAdminRecallRequest(app)
     const stageStatus = getLeaveWorkflowStageStatus(app)
 
     if (status === 'PENDING_ADMIN') {
       return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Department Recommendation'
     }
     if (status === 'PENDING_HR') {
+      if (isRecallRequest) {
+        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+        return labelPrefix + ' Pending HR'
+      }
       if (isCancelRequest) {
         if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
         if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
@@ -3272,6 +3353,11 @@ export function useAdminApplicationsPage() {
       return 'CHRMO Certification'
     }
     if (status === 'PENDING') {
+      if (isRecallRequest) {
+        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+        return labelPrefix + ' Pending'
+      }
       if (isCancelRequest) {
         if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
         if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
@@ -3437,6 +3523,7 @@ export function useAdminApplicationsPage() {
     if (
       remarksSignal.includes('edit request') ||
       remarksSignal.includes('request update') ||
+      remarksSignal.includes('recall request') ||
       remarksSignal.includes('cancel request') ||
       remarksSignal.includes('cancellation request')
     ) {
@@ -3452,14 +3539,18 @@ export function useAdminApplicationsPage() {
         actionToken.includes('EDIT') ||
         actionToken.includes('UPDATE_REQUEST') ||
         actionToken.includes('REQUEST_UPDATE') ||
+        actionToken.includes('REQUEST_RECALL') ||
+        actionToken.includes('RECALL_REQUEST') ||
         actionToken.includes('REQUEST_CANCEL') ||
         actionToken.includes('CANCELLATION_REQUEST') ||
         stageToken.includes('edit request') ||
         stageToken.includes('request update') ||
+        stageToken.includes('recall request') ||
         stageToken.includes('cancel request') ||
         stageToken.includes('cancellation request') ||
         historyRemarksToken.includes('edit request') ||
         historyRemarksToken.includes('request update') ||
+        historyRemarksToken.includes('recall request') ||
         historyRemarksToken.includes('cancel request') ||
         historyRemarksToken.includes('cancellation request')
       )
@@ -3489,23 +3580,40 @@ export function useAdminApplicationsPage() {
     return isAdminCancellationRequest(app)
   }
 
+  function isApplicationEditRecallRequest(app) {
+    if (!hasApplicationEditRequest(app)) return false
+    return isAdminRecallRequest(app)
+  }
+
+  function getApplicationEditRequestChangeSummaryLabel(app) {
+    if (isApplicationEditRecallRequest(app)) return 'Recall Leave Dates'
+    return isApplicationEditCancellationRequest(app) ? 'Cancel Leave' : 'Requested Changes'
+  }
+
   function getApplicationEditRequestSectionTitle(app) {
+    if (isApplicationEditRecallRequest(app)) return 'Recall Request Details'
     return isApplicationEditCancellationRequest(app)
       ? 'Cancellation Request Details'
       : 'Requested Changes'
   }
 
   function shouldShowApplicationEditRequestDateComparison(app) {
-    return hasApplicationEditRequest(app) && !isApplicationEditCancellationRequest(app)
+    return (
+      hasApplicationEditRequest(app) &&
+      !isApplicationEditCancellationRequest(app) &&
+      !isApplicationEditRecallRequest(app)
+    )
   }
 
   function getApplicationEditRequestStatusFieldLabel(app) {
+    if (isApplicationEditRecallRequest(app)) return 'Recall Request Status'
     return isApplicationEditCancellationRequest(app)
       ? 'Cancellation Request Status'
       : 'Edit Request Status'
   }
 
   function getApplicationEditRequestApprovedBadgeLabel(app) {
+    if (isApplicationEditRecallRequest(app)) return 'Recall Request Completed'
     return isApplicationEditCancellationRequest(app)
       ? 'Cancellation Request Completed'
       : 'Updated Application Details'
@@ -3531,6 +3639,7 @@ export function useAdminApplicationsPage() {
     const reason = String(
       app?.latest_update_request_reason ??
         app?.pending_update_reason ??
+        pendingPayload?.recall_reason ??
         pendingPayload?.cancel_reason ??
         pendingPayload?.reason ??
         '',
@@ -3648,13 +3757,56 @@ export function useAdminApplicationsPage() {
 
   function resolveAdminEditRequestSubmittedMeta(app) {
     const pendingPayload = getPendingUpdatePayload(app)
+    const submittedHistoryEntry = findStatusHistoryEntry(app, (entry) => {
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+
+      if (isAdminRecallRequest(app)) {
+        return (
+          actionToken.includes('REQUEST_RECALL') ||
+          actionToken.includes('RECALL_REQUEST') ||
+          stageToken.includes('recall request') ||
+          remarksToken.includes('recall request')
+        )
+      }
+
+      if (isAdminCancellationRequest(app)) {
+        return (
+          actionToken.includes('REQUEST_CANCEL') ||
+          actionToken.includes('CANCELLATION_REQUEST') ||
+          stageToken.includes('cancel request') ||
+          stageToken.includes('cancellation request') ||
+          remarksToken.includes('cancel request') ||
+          remarksToken.includes('cancellation request')
+        )
+      }
+
+      return (
+        actionToken.includes('REQUEST_UPDATE') ||
+        actionToken.includes('EDIT_REQUEST') ||
+        stageToken.includes('edit request') ||
+        stageToken.includes('request update') ||
+        remarksToken.includes('edit request') ||
+        remarksToken.includes('request update')
+      )
+    })
 
     const submittedAt = app?.latest_update_requested_at || app?.updated_at || null
-    const submittedBy =
+    const submittedHistoryActor =
+      String(resolveStatusHistoryActor(submittedHistoryEntry) || '').trim()
+    const departmentAdminActor = String(resolveDepartmentAdminActor(app) || '').trim()
+    const defaultSubmitter =
       String(resolveFiledByActor(app) || app?.employee_name || 'Unknown').trim() || 'Unknown'
+    const submittedBy = isAdminRecallRequest(app)
+      ? submittedHistoryActor || (departmentAdminActor && departmentAdminActor !== 'Unknown'
+        ? departmentAdminActor
+        : 'Unknown')
+      : submittedHistoryActor || defaultSubmitter
     const submittedReason = String(
       app?.latest_update_request_reason ??
         app?.pending_update_reason ??
+        pendingPayload?.recall_reason ??
         pendingPayload?.cancel_reason ??
         pendingPayload?.reason ??
         '',
@@ -3790,7 +3942,28 @@ export function useAdminApplicationsPage() {
   }
 
   function getAdminEditRequestTimelineTerminology(app) {
+    const isRecallRequest = isAdminRecallRequest(app)
     const isCancelRequest = isAdminCancellationRequest(app)
+
+    if (isRecallRequest) {
+      return {
+        submittedTitle: 'Recall Request Submitted',
+        pendingAdminTitle: 'Recall Request Submitted',
+        adminApprovedTitle: 'Recall Request Submitted',
+        adminRejectedTitle: 'Recall Request Disapproved by Admin',
+        approvedTitle: 'Recall Request Approved',
+        rejectedTitle: 'Recall Request Disapproved',
+        pendingHrTitle: 'Pending Recall Review (HR)',
+        submittedFallback: 'Department admin requested recall for this approved application.',
+        pendingAdminDescription: 'Waiting for HR final review of the recall request.',
+        adminApprovedDescription: 'Recall request was submitted by department admin to HR.',
+        adminRejectedDescription: 'Department admin disapproved the recall request.',
+        approvedDescription: 'Recall request was reviewed and approved.',
+        rejectedDescription: 'Recall request was reviewed and disapproved.',
+        pendingHrDescription: 'Waiting for HR final review of the recall request.',
+        submittedIcon: 'undo',
+      }
+    }
 
     return {
       submittedTitle: isCancelRequest ? 'Cancellation Request Submitted' : 'Edit Request Submitted',
@@ -3839,6 +4012,7 @@ export function useAdminApplicationsPage() {
     if (!hasAdminEditRequestSignal(app)) return []
 
     const terminology = getAdminEditRequestTimelineTerminology(app)
+    const isRecallRequest = isAdminRecallRequest(app)
     const entries = []
     const submittedMeta = resolveAdminEditRequestSubmittedMeta(app)
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
@@ -3884,7 +4058,7 @@ export function useAdminApplicationsPage() {
         actor: rejectionMeta.reviewedBy,
       })
       return entries
-    } else {
+    } else if (!isRecallRequest) {
       entries.push({
         title: terminology.adminApprovedTitle,
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
@@ -4237,27 +4411,35 @@ export function useAdminApplicationsPage() {
         !isTimelineEntryTitle(entry, 'Application Closed'),
     )
 
-    const hasUpdateCycle = hasAdminEditRequestSignal(app)
+    const hasUpdateCycle = hasAdminEditRequestSignal(app) && !isAdminRecallRequest(app)
+    const hasRecallCycle = hasAdminEditRequestSignal(app) && isAdminRecallRequest(app)
+    const hasTrackedRequestCycle = hasUpdateCycle || hasRecallCycle
+
     const cycleDisapprovedEntry = hasUpdateCycle
       ? getCurrentCycleDisapprovedTimelineEntry(cleanedTimeline)
       : null
     const isAdminDisapprovedUpdateCycle =
       hasUpdateCycle && isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
-    const historicalReceivedEntry = hasUpdateCycle
+    const historicalReceivedEntry = hasTrackedRequestCycle
       ? buildHistoricalReceivedTimelineEntry(app, existingReceivedEntry)
       : null
-    const historicalReleasedEntry = hasUpdateCycle
+    const historicalReleasedEntry = hasTrackedRequestCycle
       ? buildHistoricalReleasedTimelineEntry(app, existingReleasedEntry)
       : null
-    const shouldShowCurrentCycleReceivedEntry =
-      !cycleDisapprovedEntry || isApplicationReceivedByHr(app)
+    const shouldShowCurrentCycleReceivedEntry = hasRecallCycle
+      ? false
+      : !cycleDisapprovedEntry || isApplicationReceivedByHr(app)
 
-    const cycleReceivedEntry = buildReceivedTimelineEntry(app, existingReceivedEntry)
-    const cycleReleasedEntry = buildReleasedTimelineEntry(
-      app,
-      existingReleasedEntry,
-      cycleDisapprovedEntry,
-    )
+    const cycleReceivedEntry = hasRecallCycle
+      ? null
+      : buildReceivedTimelineEntry(app, existingReceivedEntry)
+    const cycleReleasedEntry = hasRecallCycle
+      ? null
+      : buildReleasedTimelineEntry(
+        app,
+        existingReleasedEntry,
+        cycleDisapprovedEntry,
+      )
     const cmoCbmoReviewEntry = buildCmoCbmoReviewTimelineEntry(app)
 
     const receivedInsertEntry =
@@ -4281,6 +4463,12 @@ export function useAdminApplicationsPage() {
       if (!isAdminDisapprovedUpdateCycle) {
         const cycleReleaseInsertIndex = getReleasedTimelineInsertionIndex(finalizedEntries)
         finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
+      }
+    } else if (hasRecallCycle) {
+      if (historicalReleasedEntry) {
+        const historicalReleaseInsertIndex =
+          getHistoricalReleasedTimelineInsertionIndex(finalizedEntries)
+        finalizedEntries.splice(historicalReleaseInsertIndex, 0, historicalReleasedEntry)
       }
     } else {
       const cycleReleaseInsertIndex = getReleasedTimelineInsertionIndex(finalizedEntries)
@@ -4332,6 +4520,7 @@ export function useAdminApplicationsPage() {
 
   function getRequestCycleDocumentLabel(app) {
     if (!hasAdminEditRequestSignal(app)) return ''
+    if (isAdminRecallRequest(app)) return ''
     return isAdminCancellationRequest(app) ? 'Cancellation Form' : 'Update'
   }
 
@@ -5659,6 +5848,282 @@ export function useAdminApplicationsPage() {
     showConfirmActionDialog.value = true
   }
 
+  function openRecallRequest(target) {
+    const app = resolveApp(target) || target || null
+    if (!app) return
+
+    if (!canRequestRecallApplication(app)) {
+      $q.notify({
+        type: 'warning',
+        message: 'This application is not eligible for a recall request.',
+        position: 'top',
+      })
+      return
+    }
+
+    recallRequestTargetApp.value = app
+    showCalendarPreviewDialog.value = false
+    showTimelineDialog.value = false
+    showConfirmActionDialog.value = false
+    showDisapproveDialog.value = false
+    showRecallRequestDialog.value = true
+  }
+
+  function normalizeRecallFormDateSet(dateValues = []) {
+    return [
+      ...new Set(
+        (Array.isArray(dateValues) ? dateValues : [])
+          .map((value) => toIsoDateString(value))
+          .filter(Boolean),
+      ),
+    ].sort()
+  }
+
+  function resolveRecallFormPrintData(app) {
+    const target = resolveApp(app) || app || null
+    if (!target || isCocApplication(target)) return null
+
+    const pendingPayload = getPendingUpdatePayload(target)
+    const actionType = getAdminUpdateRequestActionType(target)
+    const isRecallRequest =
+      actionType === REQUEST_ACTION_RECALL ||
+      isAdminRecallRequest(target) ||
+      pendingPayload?.recall_leave === true ||
+      Array.isArray(pendingPayload?.recall_selected_dates)
+
+    if (!isRecallRequest) return null
+
+    const recallSelectedDates = normalizeRecallFormDateSet(
+      pendingPayload?.recall_selected_dates ??
+        pendingPayload?.selected_dates ??
+        target?.recall_selected_dates ??
+        target?.recallSelectedDates ??
+        [],
+    )
+    if (!recallSelectedDates.length) return null
+
+    return {
+      application: target,
+      recallSelectedDates,
+    }
+  }
+
+  function canPrintRecallRequestApplication(app) {
+    return resolveRecallFormPrintData(app) !== null
+  }
+
+  async function printRecallFormForRequest(application, recallSelectedDates = []) {
+    const requestingOffice = String(
+      application?.office ??
+        application?.office_name ??
+        application?.officeName ??
+        application?.employee?.office ??
+        application?.applicantAdmin?.department?.name ??
+        '',
+    ).trim()
+    const officeForParagraph = (() => {
+      if (!requestingOffice) return ''
+      const normalizedOffice = requestingOffice.replace(/\s+/g, ' ').trim()
+      if (!normalizedOffice) return ''
+
+      const lowercaseJoiners = new Set(['of', 'and', 'the', 'for', 'in', 'at', 'on', 'to', 'by', 'ng', 'sa'])
+      const uppercaseAcronyms = new Set([
+        'HR',
+        'HRMO',
+        'CHRMO',
+        'CMO',
+        'CBMO',
+        'ICT',
+        'ICTMO',
+        'MIS',
+        'IT',
+      ])
+      return normalizedOffice
+        .split(' ')
+        .map((word, index) => {
+          const token = String(word || '').trim()
+          if (!token) return ''
+
+          const alphaOnly = token.replace(/[^A-Z]/g, '')
+          if (uppercaseAcronyms.has(alphaOnly)) {
+            return token.toUpperCase()
+          }
+          if (
+            alphaOnly.length >= 2 &&
+            alphaOnly.length <= 3 &&
+            !lowercaseJoiners.has(token.toLowerCase())
+          ) {
+            return token.toUpperCase()
+          }
+
+          const lower = token.toLowerCase()
+          if (index > 0 && lowercaseJoiners.has(lower)) return lower
+          return lower.charAt(0).toUpperCase() + lower.slice(1)
+        })
+        .join(' ')
+    })()
+    const leaveTypeLabel = formatApplicationLeaveTypeLabel(
+      application?.leaveType || application?.leave_type || 'leave',
+    )
+    const inclusiveDatesText = formatDateSetSummary(recallSelectedDates)
+    const officeForClause = officeForParagraph
+      ? officeForParagraph
+          .replace(/^office\s+of\s+/i, '')
+          .replace(/^the\s+/i, '')
+          .replace(/\bofficer\b$/i, 'Office')
+          .trim()
+      : ''
+    const officeClause = officeForClause
+      ? /\boffice\b/i.test(officeForClause)
+        ? ` at the ${officeForClause}`
+        : ` at the ${officeForClause} Office`
+      : ''
+
+    await generateRecallFormPdf({
+      date: new Date().toISOString(),
+      recipientName: getApplicationEmployeeDisplayName(application) || 'Employee',
+      fromOffice: requestingOffice || 'REQUESTING OFFICE',
+      showCityHeader: false,
+      inclusiveDates: inclusiveDatesText,
+      firstParagraph:
+        `In view of the exigency of services${officeClause}, you are hereby recalled from your scheduled and approved ${String(leaveTypeLabel || 'leave').toLowerCase()} ` +
+        `with inclusive dates on ${inclusiveDatesText}.`,
+    })
+  }
+
+  async function printRecallRequestApplication(app) {
+    const printData = resolveRecallFormPrintData(app)
+    if (!printData) {
+      $q.notify({
+        type: 'warning',
+        message: 'No recall request form data is available for this application.',
+        position: 'top',
+      })
+      return
+    }
+
+    try {
+      await printRecallFormForRequest(printData.application, printData.recallSelectedDates)
+    } catch (printErr) {
+      const printMessage = resolveApiErrorMessage(
+        printErr,
+        'Unable to print the recall form right now.',
+      )
+      $q.notify({ type: 'negative', message: printMessage, position: 'top' })
+    }
+  }
+
+  function confirmRecallFormPrinting(targetApplication) {
+    const employeeName = getApplicationEmployeeDisplayName(targetApplication) || 'this employee'
+    const promptMessage = `Recall request submitted for ${employeeName}. Print recall form now?`
+
+    if (typeof $q.dialog !== 'function') {
+      return Promise.resolve(window.confirm(promptMessage))
+    }
+
+    return new Promise((resolve) => {
+      $q.dialog({
+        title: 'Recall Request Submitted',
+        message:
+          `${promptMessage}<br><br>` +
+          'You can also print it later using the recall print icon in the Actions column.',
+        html: true,
+        ok: {
+          label: 'Print Now',
+          color: 'teal-7',
+          unelevated: true,
+        },
+        cancel: {
+          label: 'Later',
+          flat: true,
+        },
+      })
+        .onOk(() => resolve(true))
+        .onCancel(() => resolve(false))
+    })
+  }
+
+  async function submitRecallRequest(payload = {}) {
+    const application = resolveApp(payload?.application || recallRequestDialogApplication.value)
+    if (!application) {
+      $q.notify({
+        type: 'negative',
+        message: 'Unable to identify this application.',
+        position: 'top',
+      })
+      return
+    }
+
+    const applicationId = String(
+      application?.id ?? application?.application_id ?? application?.leave_application_id ?? '',
+    ).trim()
+    if (!applicationId) {
+      $q.notify({
+        type: 'negative',
+        message: 'Unable to identify this application.',
+        position: 'top',
+      })
+      return
+    }
+
+    const recallReason = String(payload?.recall_reason || '').trim()
+    const recallSelectedDates = [
+      ...new Set(
+        (Array.isArray(payload?.recall_selected_dates) ? payload.recall_selected_dates : [])
+          .map((value) => toIsoDateString(value))
+          .filter(Boolean),
+      ),
+    ].sort()
+    if (!recallReason || recallSelectedDates.length === 0) {
+      $q.notify({
+        type: 'warning',
+        message: 'Recall reason and recall dates are required.',
+        position: 'top',
+      })
+      return
+    }
+
+    actionLoading.value = true
+    try {
+      const response = await api.post(`/admin/leave-applications/${applicationId}/request-recall`, {
+        recall_reason: recallReason,
+        recall_selected_dates: recallSelectedDates,
+      })
+
+      const responseMessage = String(response?.data?.message || '').trim()
+      $q.notify({
+        type: 'positive',
+        message: responseMessage || 'Recall request submitted and forwarded to HR.',
+        position: 'top',
+      })
+
+      showRecallRequestDialog.value = false
+      recallRequestTargetApp.value = null
+      showDetailsDialog.value = false
+
+      await fetchApplications()
+
+      const refreshedApplication = resolveApp(applicationId) || application
+      const shouldPrintNow = await confirmRecallFormPrinting(refreshedApplication)
+      if (shouldPrintNow) {
+        try {
+          await printRecallFormForRequest(refreshedApplication, recallSelectedDates)
+        } catch (printErr) {
+          const printMessage = resolveApiErrorMessage(
+            printErr,
+            'Recall request submitted, but printing the recall form failed.',
+          )
+          $q.notify({ type: 'warning', message: printMessage, position: 'top' })
+        }
+      }
+    } catch (err) {
+      const message = resolveApiErrorMessage(err, 'Unable to submit recall request right now.')
+      $q.notify({ type: 'negative', message, position: 'top' })
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   function confirmPendingAction() {
     const target = confirmActionTarget.value
     const type = confirmActionType.value
@@ -6088,7 +6553,9 @@ export function useAdminApplicationsPage() {
     showDisapproveDialog,
     showConfirmActionDialog,
     showActionResultDialog,
+    showRecallRequestDialog,
     selectedApp,
+    recallRequestDialogApplication,
     selectedAppTimeline,
     calendarPreviewApp,
     calendarPreviewModel,
@@ -6139,6 +6606,7 @@ export function useAdminApplicationsPage() {
     getApplicationEditRequestStatusFieldLabel,
     getApplicationEditRequestApprovedBadgeLabel,
     getApplicationEditRequestSectionTitle,
+    getApplicationEditRequestChangeSummaryLabel,
     shouldShowApplicationEditRequestDateComparison,
     isApplicationEditCancellationRequest,
     getApplicationEditRequestRequestedAt,
@@ -6154,6 +6622,7 @@ export function useAdminApplicationsPage() {
     shouldShowPendingDateComparisonInDetails,
     openDetails,
     openCalendarPreview,
+    openRecallRequest,
     onCalendarPreviewNavigation,
     handleCalendarPreviewModelUpdate,
     handleCalendarPreviewSurfacePointerDown,
@@ -6161,12 +6630,17 @@ export function useAdminApplicationsPage() {
     syncCalendarPreviewDecorations,
     isCocApplication,
     canPrintApplication,
+    canPrintRecallRequestApplication,
     printApplication,
+    printRecallRequestApplication,
     hasMobileApplicationActions,
     hasApplicationAttachment,
     viewApplicationAttachment,
     isCtoLeaveApplication,
     openActionConfirm,
+    canRequestRecallApplication,
+    getRecallDateOptions,
+    formatRecallDateLabel,
     getTimelineEntryTone,
     getTimelineEntryIcon,
     isApplicationReleased,
@@ -6175,6 +6649,7 @@ export function useAdminApplicationsPage() {
     getConfirmActionTitle,
     getConfirmActionMessage,
     confirmPendingAction,
+    submitRecallRequest,
     confirmDisapprove,
     getActionResultLabel,
     getActionResultVerb,

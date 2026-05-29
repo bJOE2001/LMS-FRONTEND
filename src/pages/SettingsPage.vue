@@ -418,7 +418,7 @@ async function handleUpdateProfile() {
       payload.position = editForm.position
     }
 
-    await api.put('/settings/profile', payload)
+    await api.post('/settings/profile/update', payload)
     $q.notify({ type: 'positive', message: 'Profile updated successfully!' })
     showEditDialog.value = false
     await fetchProfile()
@@ -522,7 +522,7 @@ const isPasswordFormValid = computed(() => {
 async function handleChangePassword() {
   loading.value = true
   try {
-    await api.put('/settings/password', {
+    await api.post('/settings/password/update', {
       current_password: passwordForm.currentPassword,
       password: passwordForm.newPassword,
       password_confirmation: passwordForm.confirmPassword

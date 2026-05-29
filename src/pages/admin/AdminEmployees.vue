@@ -1642,7 +1642,7 @@ function confirmAssignDepartmentHead(employee) {
     savingDepartmentHead.value = true
     try {
       if (departmentHeadId.value) {
-        await api.put('/admin/department-head', nextPayload)
+        await api.post('/admin/department-head/update', nextPayload)
       } else {
         await api.post('/admin/department-head', nextPayload)
       }
@@ -1851,7 +1851,7 @@ async function saveDepartmentHead() {
   savingDepartmentHead.value = true
   try {
     if (departmentHeadDialogMode.value === 'edit') {
-      await api.put('/admin/department-head', payload)
+      await api.post('/admin/department-head/update', payload)
       $q.notify({ type: 'positive', message: 'Department head updated successfully.' })
     } else {
       await api.post('/admin/department-head', payload)
@@ -1927,7 +1927,7 @@ function confirmDelete(employee) {
       },
     }).onOk(async () => {
       try {
-        await api.delete('/admin/department-head')
+        await api.post('/admin/department-head/delete')
         $q.notify({ type: 'positive', message: 'Department head removed successfully.' })
         invalidateEmployeeCollectionCache()
         await fetchEmployees(1)
@@ -1958,7 +1958,7 @@ function confirmDelete(employee) {
     },
   }).onOk(async () => {
     try {
-      await api.delete(`/admin/employees/${encodeURIComponent(employee.control_no)}`)
+      await api.post(`/admin/employees/${encodeURIComponent(employee.control_no)}/delete`)
       $q.notify({
         type: 'positive',
         message: 'Employee removed from this department successfully.',

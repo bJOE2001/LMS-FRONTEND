@@ -16,6 +16,8 @@ const router = useRouter()
 const loading = ref(false)
 const receiveLoading = ref(false)
 const releaseLoading = ref(false)
+const undoReceiveLoading = ref(false)
+const undoReleaseLoading = ref(false)
 const timelineLoading = ref(false)
 const applications = ref([])
 const tablePagination = ref({
@@ -58,6 +60,7 @@ const EVENT_BASED_LEAVE_TYPES = [
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+const REQUEST_ACTION_RECALL = 'REQUEST_RECALL'
 
 function getActualRequestedDayCount(app) {
   const explicitCandidates = [
@@ -694,6 +697,14 @@ function normalizeLeaveRequestActionTypeToken(value) {
   if (!normalized) return ''
 
   if (
+    normalized === REQUEST_ACTION_RECALL ||
+    normalized === 'RECALL_REQUEST' ||
+    normalized === 'LEAVE_RECALL_REQUEST'
+  ) {
+    return REQUEST_ACTION_RECALL
+  }
+
+  if (
     normalized === REQUEST_ACTION_CANCEL ||
     normalized === 'CANCEL_REQUEST' ||
     normalized === 'REQUEST_CANCELLATION' ||
@@ -740,6 +751,15 @@ function resolveLeaveRequestActionTypeFromStatusHistory(app) {
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
     if (
+      actionToken.includes('REQUEST_RECALL') ||
+      actionToken.includes('RECALL_REQUEST') ||
+      stageToken.includes('recall request') ||
+      remarksToken.includes('recall request')
+    ) {
+      return REQUEST_ACTION_RECALL
+    }
+
+    if (
       actionToken.includes('REQUEST_CANCEL') ||
       stageToken.includes('cancel request') ||
       stageToken.includes('cancellation request') ||
@@ -782,6 +802,9 @@ function getLeaveRequestActionType(app) {
   if (payloadType) return payloadType
 
   const workflowRemarks = normalizeStatusHistoryToken(app?.remarks || '')
+  if (workflowRemarks.includes('recall request')) {
+    return REQUEST_ACTION_RECALL
+  }
   if (workflowRemarks.includes('cancel request') || workflowRemarks.includes('cancellation request')) {
     return REQUEST_ACTION_CANCEL
   }
@@ -796,11 +819,17 @@ function isCancellationRequestAction(app) {
   return getLeaveRequestActionType(app) === REQUEST_ACTION_CANCEL
 }
 
+function isRecallRequestAction(app) {
+  return getLeaveRequestActionType(app) === REQUEST_ACTION_RECALL
+}
+
 function getEditRequestLabelPrefix(app) {
+  if (isRecallRequestAction(app)) return 'Recall Request'
   return isCancellationRequestAction(app) ? 'Cancel Request' : 'Edit Request'
 }
 
 function getEditRequestStatusFieldLabel(app) {
+  if (isRecallRequestAction(app)) return 'Recall Request Status'
   return isCancellationRequestAction(app)
     ? 'Cancellation Request Status'
     : 'Edit Request Status'
@@ -853,6 +882,11 @@ function getEditRequestBadgeLabel(app) {
   const labelPrefix = getEditRequestLabelPrefix(app)
   const stageStatus = getLeaveWorkflowStageStatus(app)
   if (status === 'PENDING') {
+    if (isRecallRequestAction(app)) {
+      if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+      return 'Recall Request Pending HR'
+    }
+
     if (isCancellationRequestAction(app)) {
       if (rawStatus === 'PENDING_ADMIN') return labelPrefix + ' Pending Admin'
       if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
@@ -1602,8 +1636,14 @@ function getDetailsRemarksRows(app) {
   const rows = []
   const pendingUpdateReason = getPendingUpdateReason(app)
   if (pendingUpdateReason) {
+    const requestLabel = isRecallRequestAction(app)
+      ? 'Recall Request'
+      : isCancellationRequestAction(app)
+        ? 'Cancellation Request'
+        : 'Update Request'
+
     rows.push({
-      label: isCancellationRequestAction(app) ? 'Cancellation Request' : 'Update Request',
+      label: requestLabel,
       text: pendingUpdateReason,
     })
   }
@@ -2649,11 +2689,7 @@ function isRecallableLeaveApplication(app) {
 
 function canRecallApplication(app) {
   if (!app || isCocApplication(app)) return false
-  return (
-    getApplicationRawStatusKey(app) === 'APPROVED' &&
-    getRemainingRecallableDateKeys(app).length > 0 &&
-    isRecallableLeaveApplication(app)
-  )
+  return false
 }
 
 function getRecallDateOptions(app) {
@@ -3171,6 +3207,7 @@ function hasEditRequestSignal(app) {
   if (
     remarksSignal.includes('edit request') ||
     remarksSignal.includes('request update') ||
+    remarksSignal.includes('recall request') ||
     remarksSignal.includes('cancel request') ||
     remarksSignal.includes('cancellation request')
   ) {
@@ -3185,14 +3222,18 @@ function hasEditRequestSignal(app) {
     return (
       actionToken.includes('EDIT') ||
       actionToken.includes('UPDATE_REQUEST') ||
+      actionToken.includes('REQUEST_RECALL') ||
+      actionToken.includes('RECALL_REQUEST') ||
       actionToken.includes('REQUEST_CANCEL') ||
       actionToken.includes('CANCELLATION_REQUEST') ||
       stageToken.includes('edit request') ||
       stageToken.includes('request update') ||
+      stageToken.includes('recall request') ||
       stageToken.includes('cancel request') ||
       stageToken.includes('cancellation request') ||
       historyRemarksToken.includes('edit request') ||
       historyRemarksToken.includes('request update') ||
+      historyRemarksToken.includes('recall request') ||
       historyRemarksToken.includes('cancel request') ||
       historyRemarksToken.includes('cancellation request')
     )
@@ -3214,6 +3255,12 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
       'REQUESTED_UPDATE',
       'EDIT_REQUESTED',
     ]
+    const recallSubmittedActions = [
+      'REQUEST_RECALL',
+      'RECALL_REQUESTED',
+      'RECALL_REQUEST_SUBMITTED',
+      'REQUESTED_RECALL',
+    ]
     const cancelSubmittedActions = [
       'REQUEST_CANCEL',
       'CANCEL_REQUESTED',
@@ -3222,17 +3269,27 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
       'REQUEST_CANCELLATION',
     ]
 
+    if (requestActionType === REQUEST_ACTION_RECALL && recallSubmittedActions.includes(actionToken)) {
+      return true
+    }
+
     if (requestActionType === REQUEST_ACTION_CANCEL && cancelSubmittedActions.includes(actionToken)) {
       return true
     }
 
-    if (requestActionType !== REQUEST_ACTION_CANCEL && updateSubmittedActions.includes(actionToken)) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
+      updateSubmittedActions.includes(actionToken)
+    ) {
       return true
     }
 
     if (
       stageToken.includes('edit request submitted') ||
       stageToken.includes('edit requested') ||
+      stageToken.includes('recall request submitted') ||
+      stageToken.includes('recall requested') ||
       stageToken.includes('cancel request submitted') ||
       stageToken.includes('cancellation request submitted') ||
       stageToken.includes('cancellation requested')
@@ -3242,14 +3299,24 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
 
     const hasUpdateKeyword =
       remarksToken.includes('edit request') || remarksToken.includes('request update')
+    const hasRecallKeyword = remarksToken.includes('recall request')
     const hasCancelKeyword =
       remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')
+
+    if (requestActionType === REQUEST_ACTION_RECALL && !hasRecallKeyword) {
+      return false
+    }
 
     if (requestActionType === REQUEST_ACTION_CANCEL && !hasCancelKeyword) {
       return false
     }
 
-    if (requestActionType !== REQUEST_ACTION_CANCEL && !hasUpdateKeyword && !hasCancelKeyword) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
+      !hasUpdateKeyword &&
+      !hasCancelKeyword
+    ) {
       return false
     }
 
@@ -3258,6 +3325,7 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
       actionToken.includes('REQUEST') ||
       actionToken.includes('SUBMIT') ||
       actionToken.includes('EDIT') ||
+      actionToken.includes('RECALL') ||
       actionToken.includes('CANCEL')
     )
   })
@@ -3275,6 +3343,9 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
       stageToken.includes('request update') ||
       remarksToken.includes('edit request') ||
       remarksToken.includes('request update')
+    const recallRequestSignal =
+      stageToken.includes('recall request') ||
+      remarksToken.includes('recall request')
     const cancelRequestSignal =
       stageToken.includes('cancel request') ||
       stageToken.includes('cancellation request') ||
@@ -3283,16 +3354,33 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
 
     const targetDecision = String(decision || '').toUpperCase()
     const explicitApprovedSignal =
-      ['EDIT_REQUEST_APPROVED', 'UPDATE_REQUEST_APPROVED', 'CANCELLATION_REQUEST_APPROVED', 'CANCEL_REQUEST_APPROVED']
+      [
+        'EDIT_REQUEST_APPROVED',
+        'UPDATE_REQUEST_APPROVED',
+        'RECALL_REQUEST_APPROVED',
+        'REQUEST_RECALL_APPROVED',
+        'CANCELLATION_REQUEST_APPROVED',
+        'CANCEL_REQUEST_APPROVED',
+      ]
         .includes(actionToken) ||
       stageToken.includes('edit request approved') ||
+      stageToken.includes('recall request approved') ||
       stageToken.includes('cancellation request approved') ||
       stageToken.includes('cancel request approved')
     const explicitRejectedSignal =
-      ['EDIT_REQUEST_REJECTED', 'UPDATE_REQUEST_REJECTED', 'CANCELLATION_REQUEST_REJECTED', 'CANCEL_REQUEST_REJECTED']
+      [
+        'EDIT_REQUEST_REJECTED',
+        'UPDATE_REQUEST_REJECTED',
+        'RECALL_REQUEST_REJECTED',
+        'REQUEST_RECALL_REJECTED',
+        'CANCELLATION_REQUEST_REJECTED',
+        'CANCEL_REQUEST_REJECTED',
+      ]
         .includes(actionToken) ||
       stageToken.includes('edit request rejected') ||
       stageToken.includes('edit request disapproved') ||
+      stageToken.includes('recall request rejected') ||
+      stageToken.includes('recall request disapproved') ||
       stageToken.includes('cancellation request rejected') ||
       stageToken.includes('cancellation request disapproved') ||
       stageToken.includes('cancel request rejected')
@@ -3305,8 +3393,13 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
       : ['HR_APPROVED']
     if (!expectedDecisionActions.includes(actionToken)) return false
 
+    if (requestActionType === REQUEST_ACTION_RECALL && recallRequestSignal) return true
     if (requestActionType === REQUEST_ACTION_CANCEL && cancelRequestSignal) return true
-    if (requestActionType !== REQUEST_ACTION_CANCEL && (updateRequestSignal || cancelRequestSignal)) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
+      (updateRequestSignal || cancelRequestSignal)
+    ) {
       return true
     }
 
@@ -3339,12 +3432,20 @@ function resolveEditRequestSubmittedMeta(app) {
     app?.latest_update_requested_at,
     resolveStatusHistoryTimestamp(submittedHistoryEntry),
   )
-  const submittedBy = String(resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
+  const submittedHistoryActor = String(resolveStatusHistoryActor(submittedHistoryEntry) || '').trim()
+  const departmentAdminActor = String(resolveDepartmentAdminActor(app) || '').trim()
+  const defaultSubmitter = String(resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
+  const submittedBy = isRecallRequestAction(app)
+    ? submittedHistoryActor || (departmentAdminActor && departmentAdminActor !== 'Unknown'
+      ? departmentAdminActor
+      : 'Unknown')
+    : submittedHistoryActor || defaultSubmitter
 
   const submittedReason = String(
     pickFirstDefinedValue(
       app?.latest_update_request_reason,
       getPendingUpdateReason(app),
+      pendingPayload?.recall_reason,
       pendingPayload?.cancel_reason,
       pendingPayload?.reason,
       submittedHistoryEntry?.remarks,
@@ -3402,7 +3503,11 @@ function getPreEditHrApprovalTimelineEntry(app) {
   const approvedBy = resolveHrActor(app)
   if (!approvedAt && approvedBy === 'Unknown') return null
 
-  const requestLabel = isCancellationRequestAction(app) ? 'cancellation request' : 'edit request'
+  const requestLabel = isRecallRequestAction(app)
+    ? 'recall request'
+    : isCancellationRequestAction(app)
+      ? 'cancellation request'
+      : 'edit request'
 
   return {
     title: 'CHRMO Certification Completed',
@@ -3415,7 +3520,28 @@ function getPreEditHrApprovalTimelineEntry(app) {
 }
 
 function getEditRequestTimelineTerminology(app) {
+  const isRecallRequest = isRecallRequestAction(app)
   const isCancelRequest = isCancellationRequestAction(app)
+
+  if (isRecallRequest) {
+    return {
+      submittedTitle: 'Recall Request Submitted',
+      pendingAdminTitle: 'Recall Request Submitted',
+      adminApprovedTitle: 'Recall Request Submitted',
+      adminRejectedTitle: 'Recall Request Disapproved by Admin',
+      approvedTitle: 'Recall Request Approved',
+      rejectedTitle: 'Recall Request Disapproved',
+      pendingHrTitle: 'Pending Recall Review (HR)',
+      submittedFallback: 'Department admin requested recall for this approved application.',
+      pendingAdminDescription: 'Waiting for HR final review of the recall request.',
+      adminApprovedDescription: 'Recall request was submitted by department admin to HR.',
+      adminRejectedDescription: 'Department admin disapproved the recall request.',
+      approvedDescription: 'Recall request was reviewed and approved.',
+      rejectedDescription: 'Recall request was reviewed and disapproved.',
+      pendingHrDescription: 'Waiting for HR final review of the recall request.',
+      submittedIcon: 'undo',
+    }
+  }
 
   return {
     submittedTitle: isCancelRequest ? 'Cancellation Request Submitted' : 'Edit Request Submitted',
@@ -3462,6 +3588,7 @@ function getEditRequestTimelineEntries(app) {
   if (!hasEditRequestSignal(app)) return []
 
   const terminology = getEditRequestTimelineTerminology(app)
+  const isRecallRequest = isRecallRequestAction(app)
   const entries = []
   const submittedMeta = resolveEditRequestSubmittedMeta(app)
   const latestUpdateStatus = getLatestUpdateRequestStatus(app)
@@ -3507,7 +3634,7 @@ function getEditRequestTimelineEntries(app) {
       actor: rejectionMeta.reviewedBy,
     })
     return entries
-  } else {
+  } else if (!isRecallRequest) {
     entries.push({
       title: terminology.adminApprovedTitle,
       subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
@@ -3644,6 +3771,7 @@ function canReceiveApplication(app) {
   if (!app) return false
   if (isApplicationReceivedByHr(app)) return false
   if (isCancelledByUser(app)) return false
+  if (isRecallRequestAction(app)) return false
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (isCocApplication(app)) return rawStatus === 'APPROVED'
@@ -3964,6 +4092,120 @@ function confirmApplicationRelease(target = selectedApp.value) {
     persistent: true,
   }).onOk(async () => {
     await markApplicationReleased(application)
+  })
+
+  return true
+}
+
+function getUndoReceiveConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Undo Receive COC Application',
+      message: 'This will undo HR receipt for this COC application.',
+    }
+  }
+
+  if (isCancellationRequestAction(app)) {
+    return {
+      title: 'Undo Receive Cancellation Form',
+      message: 'This will move the cancellation form back before HR receipt.',
+    }
+  }
+
+  if (hasEditRequestSignal(app)) {
+    return {
+      title: 'Undo Receive Updated Application',
+      message: 'This will move the updated hard-copy application back before HR receipt.',
+    }
+  }
+
+  return {
+    title: 'Undo Receive Application',
+    message: 'This will undo HR receipt for the hard-copy leave application.',
+  }
+}
+
+function confirmApplicationReceiveUndo(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReceivedByHr(application)) return false
+
+  const confirmationCopy = getUndoReceiveConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Undo',
+      color: 'warning',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await undoApplicationReceive(application)
+  })
+
+  return true
+}
+
+function getUndoReleaseConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Undo Release COC Application',
+      message: 'This will undo HR release for this COC application.',
+    }
+  }
+
+  if (isCancellationRequestAction(app)) {
+    return {
+      title: 'Undo Release Cancellation Form',
+      message: 'This will move the cancellation form back before HR release.',
+    }
+  }
+
+  if (hasEditRequestSignal(app)) {
+    return {
+      title: 'Undo Release Updated Application',
+      message: 'This will move the updated hard-copy application back before HR release.',
+    }
+  }
+
+  return {
+    title: 'Undo Release Application',
+    message: 'This will undo HR release for the hard-copy leave application.',
+  }
+}
+
+function confirmApplicationReleaseUndo(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReleased(application)) return false
+
+  const confirmationCopy = getUndoReleaseConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Undo',
+      color: 'warning',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await undoApplicationRelease(application)
   })
 
   return true
@@ -5649,6 +5891,136 @@ async function markApplicationReleased(target = selectedApp.value) {
   }
 }
 
+async function undoApplicationReceive(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReceivedByHr(application)) return false
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  undoReceiveLoading.value = true
+  try {
+    const endpoint = isCocApplication(application)
+      ? '/hr/coc-applications/' + id + '/undo-receive'
+      : '/hr/leave-applications/' + id + '/undo-receive'
+    const response = await api.post(endpoint)
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication =
+        normalizeBackendApplicationShape({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        }) ||
+        ({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        })
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      if (isCocApplication(mergedApplication)) {
+        applyCocApplicationUpdate(mergedApplication)
+        await fetchLatestHrCocApplication(mergedApplication)
+      } else {
+        applyLeaveApplicationUpdate(mergedApplication)
+        await fetchLatestHrLeaveApplication(mergedApplication)
+      }
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'HR receipt was undone.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to undo HR receipt right now.')
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    undoReceiveLoading.value = false
+  }
+}
+
+async function undoApplicationRelease(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReleased(application)) return false
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  undoReleaseLoading.value = true
+  try {
+    const endpoint = isCocApplication(application)
+      ? '/hr/coc-applications/' + id + '/undo-release'
+      : '/hr/leave-applications/' + id + '/undo-release'
+    const response = await api.post(endpoint)
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication =
+        normalizeBackendApplicationShape({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        }) ||
+        ({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        })
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      if (isCocApplication(mergedApplication)) {
+        applyCocApplicationUpdate(mergedApplication)
+        await fetchLatestHrCocApplication(mergedApplication)
+      } else {
+        applyLeaveApplicationUpdate(mergedApplication)
+        await fetchLatestHrLeaveApplication(mergedApplication)
+      }
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'HR release was undone.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to undo HR release right now.')
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    undoReleaseLoading.value = false
+  }
+}
+
 async function markApplicationCmoCbmoReviewed(target = selectedApp.value) {
   const application = resolveApplication(target) || target
   if (!canCmoCbmoReviewApplication(application)) return false
@@ -5749,6 +6121,7 @@ async function openActionConfirm(type, target) {
     isApproveAction &&
     !isCocApplication(application) &&
     getApplicationRawStatusKey(application) === 'PENDING_HR' &&
+    !isRecallRequestAction(application) &&
     !isApplicationReceivedByHr(application)
 
   if (needsReceiveBeforeApprove) {
@@ -5938,7 +6311,9 @@ async function handleDialogMutationSuccess(payload = {}) {
     columns,
     confirmApplicationCmoCbmoReview,
     confirmApplicationReceive,
+    confirmApplicationReceiveUndo,
     confirmApplicationRelease,
+    confirmApplicationReleaseUndo,
     confirmActionTarget,
     confirmActionType,
     createRecalledCompanionRow,
@@ -6063,6 +6438,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     isCancelledByUser,
     isCocApplication,
     isCancellationRequestAction,
+    isRecallRequestAction,
     isEditUpdateRequest,
     isPendingEditRequest,
     isRecallableLeaveApplication,
@@ -6072,6 +6448,8 @@ async function handleDialogMutationSuccess(payload = {}) {
     markApplicationReceived,
     markApplicationCmoCbmoReviewed,
     markApplicationReleased,
+    undoApplicationReceive,
+    undoApplicationRelease,
     matchesEmploymentTypeFilter,
     mergeApplications,
     mergeStatus,
@@ -6108,6 +6486,8 @@ async function handleDialogMutationSuccess(payload = {}) {
     receiveLoading,
     rejectTargetApp,
     releaseLoading,
+    undoReceiveLoading,
+    undoReleaseLoading,
     resolveApplication,
     resolveApplicationAttachmentReference,
     resolveApplicationPayModeCode,

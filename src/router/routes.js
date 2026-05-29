@@ -22,6 +22,7 @@ const routes = [
       { path: 'hr/leave-types', name: 'hr-leave-types', component: () => import('pages/hr/LeaveTypesPage.vue') },
       { path: 'hr/departments-library', name: 'hr-departments-library', component: () => import('pages/hr/DepartmentsLibraryPage.vue') },
       { path: 'hr/illness-library', name: 'hr-illness-library', component: () => import('pages/hr/IllnessLibraryPage.vue') },
+      { path: 'hr/access-control', name: 'hr-access-control', component: () => import('pages/hr/AccessControlPage.vue') },
       { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/analytics', name: 'hr-analytics', component: () => import('pages/hr/AnalyticsDashboard.vue') },

@@ -137,7 +137,7 @@
 
         <template #body-cell-department="props">
           <q-td :props="props">
-            {{ toDepartmentCode(props.row.department) }}
+            {{ resolveUserManagementOfficeLabel(props.row) }}
           </q-td>
         </template>
 
@@ -445,7 +445,7 @@ const columns = [
   {
     name: 'department',
     label: 'Office',
-    field: (row) => toDepartmentCode(row?.department),
+    field: (row) => resolveUserManagementOfficeLabel(row),
     align: 'left',
     sortable: true,
   },
@@ -473,8 +473,7 @@ const filteredRows = computed(() => {
         account.full_name,
         account.username,
         account.role_label,
-        account.department,
-        toDepartmentCode(account.department),
+        resolveUserManagementOfficeLabel(account),
         account.position,
         account.employee_control_no,
       ]
@@ -560,42 +559,20 @@ function replaceDepartmentWithOffice(text) {
     .replace(/\bdepartment\b/gi, (match) => (match[0] === 'D' ? 'Office' : 'office'))
 }
 
-const DEPARTMENT_STOP_WORDS = new Set([
-  'A',
-  'AN',
-  'AND',
-  'FOR',
-  'IN',
-  'OF',
-  'OFFICE',
-  'ON',
-  'THE',
-  'TO',
-])
+function resolveUserManagementOfficeLabel(row) {
+  const directAcronym = String(
+    row?.department_office_abbr ??
+      row?.departmentOfficeAbbr ??
+      row?.office_abbr ??
+      row?.officeAbbr ??
+      row?.office_acronym ??
+      row?.officeAcronym ??
+      '',
+  ).trim()
+  if (directAcronym) return directAcronym
 
-function toDepartmentCode(value) {
-  const source = String(value || '').trim()
-  if (!source) return '-'
-
-  if (!/\s/.test(source) && source === source.toUpperCase()) {
-    return source
-  }
-
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !DEPARTMENT_STOP_WORDS.has(word) && !/^\d+$/.test(word),
-  )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source
+  const departmentLabel = String(row?.department || '').trim()
+  return departmentLabel || '-'
 }
 
 function roleColor(role) {
@@ -1088,9 +1065,9 @@ function confirmRemoveAccount(row) {
     deletingRowKey.value = String(row?.row_key || '')
     try {
       const endpoint = rowIsHrAdmin
-        ? `/hr/user-management/hr-accounts/${accountId}`
-        : `/hr/user-management/department-admins/${accountId}`
-      const { data } = await api.delete(endpoint)
+        ? `/hr/user-management/hr-accounts/${accountId}/delete`
+        : `/hr/user-management/department-admins/${accountId}/delete`
+      const { data } = await api.post(endpoint)
       const successMessage = data?.message || (rowIsHrAdmin
         ? 'HR admin removed successfully.'
         : 'Office admin deactivated successfully.')

@@ -160,6 +160,30 @@
               >
                 <q-tooltip>Print PDF</q-tooltip>
               </q-btn>
+              <q-btn
+                v-if="canRequestRecallApplication(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="undo"
+                color="warning"
+                @click.stop="openRecallRequest(tableProps.row)"
+              >
+                <q-tooltip>Request Recall</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canPrintRecallRequestApplication(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="print"
+                color="teal-7"
+                @click.stop="printRecallRequestApplication(tableProps.row)"
+              >
+                <q-tooltip>Print Recall Form</q-tooltip>
+              </q-btn>
               <template v-if="tableProps.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
                   v-if="!hasApplicationEditRequest(tableProps.row)"
@@ -413,7 +437,7 @@
                   <span class="admin-application-requested-changes-key">Requested:</span>
                   <span
                     class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
-                    >Cancel Leave</span
+                    >{{ getApplicationEditRequestChangeSummaryLabel(selectedApp) }}</span
                   >
                 </div>
               </div>
@@ -701,6 +725,22 @@
             label="Print Form"
             @click="printRequestChangesApplication(selectedApp)"
           />
+          <q-btn
+            v-if="canRequestRecallApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="warning"
+            label="Request Recall"
+            @click="openRecallRequest(selectedApp)"
+          />
+          <q-btn
+            v-if="canPrintRecallRequestApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="teal-7"
+            label="Print Recall Form"
+            @click="printRecallRequestApplication(selectedApp)"
+          />
           <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
             <q-btn
               v-if="!hasApplicationEditRequest(selectedApp)"
@@ -775,6 +815,14 @@
       :on-confirm="confirmDisapprove"
     />
 
+    <AdminApplicationRecallRequestDialog
+      v-model="showRecallRequestDialog"
+      :application="recallRequestDialogApplication"
+      :get-recall-date-options="getRecallDateOptions"
+      :format-recall-date-label="formatRecallDateLabel"
+      @request-recall="submitRecallRequest"
+    />
+
     <AdminApplicationActionResultDialog
       v-model="showActionResultDialog"
       :action-result-type="actionResultType"
@@ -798,6 +846,7 @@ import AdminApplicationConfirmActionDialog from 'src/components/admin/AdminAppli
 import AdminApplicationDisapproveDialog from 'src/components/admin/AdminApplicationDisapproveDialog.vue'
 import AdminApplicationActionResultDialog from 'src/components/admin/AdminApplicationActionResultDialog.vue'
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
+import AdminApplicationRecallRequestDialog from 'src/components/admin/AdminApplicationRecallRequestDialog.vue'
 import { api } from 'src/boot/axios'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
 import { computed, onMounted, ref } from 'vue'
@@ -836,8 +885,10 @@ const {
   showDisapproveDialog,
   showConfirmActionDialog,
   showActionResultDialog,
+  showRecallRequestDialog,
   selectedApp,
   selectedAppTimeline,
+  recallRequestDialogApplication,
   calendarPreviewModel,
   calendarPreviewKey,
   calendarPreviewRef,
@@ -881,6 +932,7 @@ const {
   getApplicationEditRequestStatusLabel,
   getApplicationEditRequestApprovedBadgeLabel,
   getApplicationEditRequestSectionTitle,
+  getApplicationEditRequestChangeSummaryLabel,
   shouldShowApplicationEditRequestDateComparison,
   getApplicationEditRequestRequestedAt,
   getApplicationEditRequestReason,
@@ -892,13 +944,17 @@ const {
   shouldShowPendingDateComparisonInDetails,
   openDetails,
   openCalendarPreview,
+  openRecallRequest,
   onCalendarPreviewNavigation,
   handleCalendarPreviewModelUpdate,
   handleCalendarPreviewSurfacePointerDown,
   handleCalendarPreviewSurfaceClick,
   syncCalendarPreviewDecorations,
   canPrintApplication,
+  canPrintRecallRequestApplication,
+  canRequestRecallApplication,
   printApplication,
+  printRecallRequestApplication,
   isCocApplication,
   isCtoLeaveApplication,
   isApplicationReleased,
@@ -918,8 +974,11 @@ const {
   printActionResult,
   canPrintRequestChangesApplication,
   printRequestChangesApplication,
+  getRecallDateOptions,
+  formatRecallDateLabel,
   formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
+  submitRecallRequest,
   // shouldShowCurrentLeaveBalance,
 } = useAdminApplicationsPage()
 

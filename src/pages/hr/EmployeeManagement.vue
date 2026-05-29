@@ -271,6 +271,28 @@
               </div>
             </div>
           </div>
+
+          <div class="employee-details-leave-credits" aria-label="Employee leave credits">
+            <div class="employee-details-leave-credits__badges">
+              <template v-if="employeeDetailsLeaveBadgesLoading">
+                <q-spinner color="secondary" size="16px" />
+                <span class="employee-details-leave-credits__loading-text">
+                  Loading leave credits...
+                </span>
+              </template>
+              <template v-else>
+                <span
+                  v-for="badge in employeeDetailsLeaveBadges"
+                  :key="`employee-details-leave-badge-${badge.code}`"
+                  class="employee-details-leave-badge"
+                  :style="badge.style || {}"
+                >
+                  <span class="employee-details-leave-badge__code">{{ badge.label }}</span>
+                  <span class="employee-details-leave-badge__value">{{ badge.value }}</span>
+                </span>
+              </template>
+            </div>
+          </div>
         </q-card-section>
         <q-separator />
         <q-card-section>
@@ -366,6 +388,7 @@
       :loading="leaveCreditsLedgerLoading"
       :printing="printingLeaveCreditsLedger"
       :can-print="Boolean(leaveCreditsLedgerEmployee)"
+      :leave-balance-badges="ledgerBalanceBadges"
       :paper-size="ledgerPaperSize"
       :dialog-style="ledgerDialogStyle"
       :sheet-style="ledgerSheetStyle"
@@ -714,6 +737,8 @@ const activityOptions = [
 
 const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
+const employeeDetailsLeaveBadges = ref([])
+const employeeDetailsLeaveBadgesLoading = ref(false)
 const leaveHistory = ref([])
 const leaveHistoryLoading = ref(false)
 const showCalendarPreviewDialog = ref(false)
@@ -731,6 +756,7 @@ const calendarPreviewView = ref({
 const showLeaveCreditsLedgerDialog = ref(false)
 const leaveCreditsLedgerEmployee = ref(null)
 const leaveCreditsLedgerRows = ref([])
+const leaveCreditsLedgerBalanceBadges = ref([])
 const leaveCreditsLedgerLoading = ref(false)
 const leaveCreditsLedgerError = ref('')
 const printingLeaveCreditsLedger = ref(false)
@@ -760,6 +786,7 @@ const creditEmployeeLookupCache = new Map()
 let creditEmployeeLookupSequence = 0
 let creditEmployeeAbortController = null
 let creditLeaveTypesLookupSequence = 0
+let employeeDetailsLeaveBadgesLookupSequence = 0
 
 const isLeaveCreditsEditMode = computed(
   () => leaveCreditDialogMode.value === LEAVE_CREDIT_DIALOG_MODE_EDIT,
@@ -960,6 +987,29 @@ const LEDGER_LEAVE_TYPE_COLORS = Object.freeze({
   WL: '#1e5fbf',
   MCO6: '#1b8f3a',
 })
+const LEDGER_BALANCE_BADGE_ORDER = Object.freeze(['VL', 'SL', 'WL', 'MCO6'])
+const LEDGER_BALANCE_BADGE_UNIFORM_PALETTE = Object.freeze({
+  accent: '#475569',
+  background: '#f1f5f9',
+})
+const LEDGER_BALANCE_BADGE_META = Object.freeze({
+  VL: {
+    label: 'VL',
+  },
+  SL: {
+    label: 'SL',
+  },
+  WL: {
+    label: 'WL',
+  },
+  MCO6: {
+    label: 'MCO6',
+  },
+  DEFAULT: {
+    accent: LEDGER_BALANCE_BADGE_UNIFORM_PALETTE.accent,
+    background: LEDGER_BALANCE_BADGE_UNIFORM_PALETTE.background,
+  },
+})
 
 const ledgerColumnWidths = LEDGER_COLUMN_WIDTH_UNITS.map(
   (width) => `${(width / LEDGER_COLUMN_WIDTH_TOTAL) * 100}%`,
@@ -979,6 +1029,7 @@ const ledgerDialogStyle = computed(() => ({
 const ledgerRenderedPages = computed(() =>
   buildLedgerPagesForPaper(leaveCreditsLedgerRows.value, ledgerPaperPreset.value),
 )
+const ledgerBalanceBadges = computed(() => leaveCreditsLedgerBalanceBadges.value)
 
 const ledgerEmployeeDisplayName = computed(() =>
   getEmployeeColumnDisplayName(leaveCreditsLedgerEmployee.value),
@@ -1823,6 +1874,9 @@ watch(activityFilter, () => {
 
 watch(showViewDialog, (isOpen) => {
   if (isOpen) return
+  employeeDetailsLeaveBadgesLookupSequence += 1
+  employeeDetailsLeaveBadgesLoading.value = false
+  employeeDetailsLeaveBadges.value = []
   showCalendarPreviewDialog.value = false
   calendarPreviewAnchorEntry.value = null
   clearCalendarPreviewWarning()
@@ -1882,9 +1936,13 @@ onBeforeUnmount(() => {
 })
 
 function viewEmployee(emp) {
+  const controlNo = String(emp?.control_no ?? '').trim()
   selectedEmployee.value = emp
+  employeeDetailsLeaveBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
+  employeeDetailsLeaveBadgesLoading.value = controlNo !== ''
   showViewDialog.value = true
-  fetchEmployeeLeaveHistory(emp?.control_no)
+  fetchEmployeeLeaveHistory(controlNo)
+  void fetchEmployeeDetailsLeaveBadges(controlNo)
 }
 
 function onEmployeeRowClick(_evt, row) {
@@ -1984,6 +2042,120 @@ function normalizeLedgerQuantityValue(value) {
   return String(value).trim()
 }
 
+function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
+  const coreBalancesByCode = {
+    VL: 0,
+    SL: 0,
+    WL: 0,
+    MCO6: 0,
+  }
+  const customBadges = []
+  const customBadgeCodes = new Set()
+
+  if (Array.isArray(leaveTypes)) {
+    leaveTypes.forEach((leaveType, index) => {
+      if (!leaveType || leaveType.is_credit_based === false) return
+
+      const leaveTypeName = normalizeLedgerTextValue(
+        pickFirstDefined(leaveType, [
+          'name',
+          'display_name',
+          'displayName',
+          'leave_type_name',
+          'leaveTypeName',
+          'label',
+        ]),
+      )
+      if (!leaveTypeName) return
+
+      const rawBalance = pickFirstDefined(leaveType, [
+        'balance',
+        'current_balance',
+        'currentBalance',
+        'leave_balance',
+        'leaveBalance',
+        'remaining_balance',
+        'remainingBalance',
+        'editable_balance',
+        'editableBalance',
+        'total',
+        'amount',
+      ])
+      const parsedBalance = parseLedgerSignedQuantityValue(rawBalance)
+      const roundedBalance = roundLedgerNumericValue(parsedBalance ?? 0)
+      const normalizedCode = normalizeLedgerLeaveCode(leaveTypeName)
+
+      if (
+        normalizedCode === 'VL' ||
+        normalizedCode === 'SL' ||
+        normalizedCode === 'WL' ||
+        normalizedCode === 'MCO6'
+      ) {
+        coreBalancesByCode[normalizedCode] = roundedBalance
+        return
+      }
+
+      const leaveTypeId = Number(leaveType?.id ?? leaveType?.leave_type_id)
+      const customCode = Number.isInteger(leaveTypeId) && leaveTypeId > 0
+        ? `LT-${leaveTypeId}`
+        : `LT-NAME-${normalizeLeaveTypeName(leaveTypeName) || index}`
+      const customLabel = resolveLedgerCustomLeaveBadgeLabel(leaveTypeName)
+      if (customBadgeCodes.has(customCode)) return
+
+      customBadgeCodes.add(customCode)
+      customBadges.push(
+        buildLedgerBalanceBadgeItem(
+          customCode,
+          customLabel,
+          roundedBalance,
+          LEDGER_BALANCE_BADGE_UNIFORM_PALETTE,
+        ),
+      )
+    })
+  }
+
+  const coreBadges = LEDGER_BALANCE_BADGE_ORDER.map((code) => {
+    const meta = LEDGER_BALANCE_BADGE_META[code]
+    return buildLedgerBalanceBadgeItem(
+      code,
+      meta.label,
+      coreBalancesByCode[code],
+      LEDGER_BALANCE_BADGE_UNIFORM_PALETTE,
+    )
+  })
+
+  return [...coreBadges, ...customBadges]
+}
+
+function resolveLedgerCustomLeaveBadgeLabel(leaveTypeName) {
+  const normalizedLabel = normalizeLeaveTypeName(leaveTypeName)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+  if (normalizedLabel === 'mandatory forced leave') return 'FL'
+  if (normalizedLabel === 'solo parent leave') return 'SPL'
+  if (normalizedLabel === 'special emergency calamity leave') return 'CL'
+
+  return leaveTypeName
+}
+
+function buildLedgerBalanceBadgeItem(code, label, balanceValue, palette = {}) {
+  const numericBalance = Number(balanceValue)
+  const safeBalance = Number.isFinite(numericBalance) ? numericBalance : 0
+  const accent = String(palette?.accent || LEDGER_BALANCE_BADGE_META.DEFAULT.accent)
+  const background = String(palette?.background || LEDGER_BALANCE_BADGE_META.DEFAULT.background)
+
+  return {
+    code,
+    label,
+    value: formatLedgerNumber(safeBalance),
+    style: {
+      '--badge-accent': accent,
+      '--badge-bg': background,
+    },
+  }
+}
+
 function normalizeLedgerAccrualQuantityValue(value) {
   const normalized = normalizeLedgerQuantityValue(value)
   if (!normalized) return normalized
@@ -2043,15 +2215,11 @@ function roundLedgerNumericValue(value) {
 function normalizeOtherLedgerBalances(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return Array.isArray(rows) ? rows : []
 
-  const trackedOtherCodes = ['WL', 'MCO6']
-  const runningBalancesByCode = {
-    WL: 0,
-    MCO6: 0,
-  }
+  const runningBalancesByCode = {}
 
   return rows.map((row) => {
     const leaveCode = normalizeLedgerLeaveCode(row?.leaveTypeCode || row?.particulars)
-    if (!trackedOtherCodes.includes(leaveCode)) return row
+    if (!isLedgerOtherLeaveCode(leaveCode)) return row
 
     const earnedAmount = parseLedgerSignedQuantityValue(row?.otherEarned) ?? 0
     const withPayAmount = parseLedgerSignedQuantityValue(row?.otherAbsUndWp) ?? 0
@@ -2062,7 +2230,7 @@ function normalizeOtherLedgerBalances(rows) {
     let nextBalance = nextFromDelta
 
     if (existingCombinedBalance !== null) {
-      const otherTypeBalanceTotal = trackedOtherCodes.reduce(
+      const otherTypeBalanceTotal = Object.keys(runningBalancesByCode).reduce(
         (total, code) => (code === leaveCode ? total : total + (runningBalancesByCode[code] ?? 0)),
         0,
       )
@@ -2132,7 +2300,7 @@ function updateLedgerForwardedBalanceState(state, rows) {
     const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
     if (otherBalance !== null) {
       const leaveCode = normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
-      if (leaveCode === 'WL' || leaveCode === 'MCO6') {
+      if (isLedgerOtherLeaveCode(leaveCode)) {
         state.otherByCode[leaveCode] = otherBalance
       } else {
         state.otherDefault = otherBalance
@@ -2260,6 +2428,7 @@ function buildLedgerPdfTableWidths(preset) {
 function normalizeLedgerLeaveCode(value) {
   const raw = String(value ?? '').trim()
   if (!raw) return ''
+  if (raw.toLowerCase().includes('balance forwarded')) return ''
 
   const compact = raw.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -2303,7 +2472,22 @@ function normalizeLedgerLeaveCode(value) {
     return 'MCO6'
   }
 
+  const codeToken = String(raw).split(/\s+/)[0] ?? ''
+  const sanitizedCodeToken = codeToken.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (
+    sanitizedCodeToken &&
+    sanitizedCodeToken !== 'BALANCE' &&
+    sanitizedCodeToken !== 'FORWARDED' &&
+    sanitizedCodeToken.length <= 10
+  ) {
+    return sanitizedCodeToken
+  }
+
   return ''
+}
+
+function isLedgerOtherLeaveCode(leaveCode) {
+  return leaveCode !== '' && leaveCode !== 'VL' && leaveCode !== 'SL'
 }
 
 function resolveLedgerCellLeaveCode(entry, section) {
@@ -2331,7 +2515,7 @@ function resolveLedgerCellLeaveCode(entry, section) {
   )
 
   if (normalizedSection === 'OTHER') {
-    return rowLeaveCode === 'WL' || rowLeaveCode === 'MCO6' ? rowLeaveCode : ''
+    return isLedgerOtherLeaveCode(rowLeaveCode) ? rowLeaveCode : ''
   }
 
   return rowLeaveCode
@@ -4078,6 +4262,19 @@ async function fetchLeaveCreditsLedgerPayload(controlNo) {
   return probeLedgerEndpoints(endpointEntries)
 }
 
+async function fetchLedgerLeaveBalanceTypes(controlNo) {
+  const normalizedControlNo = String(controlNo ?? '').trim()
+  if (!normalizedControlNo) return []
+
+  const { data } = await api.get('/hr/leave-balances/available-types', {
+    params: {
+      employee_control_no: normalizedControlNo,
+    },
+  })
+
+  return Array.isArray(data?.leave_types) ? data.leave_types : []
+}
+
 async function fetchEmployeeLeaveHistory(controlNo) {
   if (!controlNo) {
     leaveHistory.value = []
@@ -4110,12 +4307,21 @@ async function openLeaveCreditsLedgerDialog(employee) {
   ledgerPaperSize.value = 'A4'
   leaveCreditsLedgerEmployee.value = { ...employee }
   leaveCreditsLedgerRows.value = []
+  leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
   leaveCreditsLedgerError.value = ''
   showLeaveCreditsLedgerDialog.value = true
   leaveCreditsLedgerLoading.value = true
 
   try {
-    const payload = await fetchLeaveCreditsLedgerPayload(controlNo)
+    const [ledgerResult, leaveBalanceTypesResult] = await Promise.allSettled([
+      fetchLeaveCreditsLedgerPayload(controlNo),
+      fetchLedgerLeaveBalanceTypes(controlNo),
+    ])
+    if (ledgerResult.status !== 'fulfilled') {
+      throw ledgerResult.reason
+    }
+
+    const payload = ledgerResult.value
     const payloadEmployee = extractLedgerEmployee(payload)
 
     if (payloadEmployee) {
@@ -4129,7 +4335,16 @@ async function openLeaveCreditsLedgerDialog(employee) {
       normalizeLedgerRow(entry, index),
     )
     const orderedRows = orderLedgerRowsOldestFirst(normalizedRows)
-    leaveCreditsLedgerRows.value = normalizeOtherLedgerBalances(orderedRows)
+    const ledgerRows = normalizeOtherLedgerBalances(orderedRows)
+    leaveCreditsLedgerRows.value = ledgerRows
+
+    if (leaveBalanceTypesResult.status === 'fulfilled') {
+      leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes(
+        leaveBalanceTypesResult.value,
+      )
+    } else {
+      leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
+    }
   } catch (err) {
     const message = err?.isMissingLedgerEndpoint
       ? 'Leave credits ledger is not available right now.'
@@ -4137,9 +4352,36 @@ async function openLeaveCreditsLedgerDialog(employee) {
 
     leaveCreditsLedgerError.value = message
     leaveCreditsLedgerRows.value = []
+    leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
     $q.notify({ type: 'negative', message, position: 'top' })
   } finally {
     leaveCreditsLedgerLoading.value = false
+  }
+}
+
+async function fetchEmployeeDetailsLeaveBadges(controlNo) {
+  const lookupSequence = ++employeeDetailsLeaveBadgesLookupSequence
+  const normalizedControlNo = String(controlNo ?? '').trim()
+
+  if (!normalizedControlNo) {
+    employeeDetailsLeaveBadges.value = []
+    employeeDetailsLeaveBadgesLoading.value = false
+    return
+  }
+
+  employeeDetailsLeaveBadgesLoading.value = true
+  try {
+    const leaveTypes = await fetchLedgerLeaveBalanceTypes(normalizedControlNo)
+    if (lookupSequence !== employeeDetailsLeaveBadgesLookupSequence) return
+
+    employeeDetailsLeaveBadges.value = buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes)
+  } catch {
+    if (lookupSequence !== employeeDetailsLeaveBadgesLookupSequence) return
+    employeeDetailsLeaveBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
+  } finally {
+    if (lookupSequence === employeeDetailsLeaveBadgesLookupSequence) {
+      employeeDetailsLeaveBadgesLoading.value = false
+    }
   }
 }
 
@@ -4607,7 +4849,7 @@ async function saveLeaveCredits() {
     }
 
     const { data } = isEditMode
-      ? await api.put('/hr/leave-balances', payload)
+      ? await api.post('/hr/leave-balances/update', payload)
       : await api.post('/hr/leave-balances', payload)
     const touchedCount = Number(data?.updated_count ?? data?.saved_count)
     const normalizedTouchedCount =
@@ -4747,6 +4989,57 @@ async function saveLeaveCredits() {
   line-height: 1.25;
 }
 
+.employee-details-leave-credits {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.employee-details-leave-credits__label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.employee-details-leave-credits__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 20px;
+}
+
+.employee-details-leave-credits__loading-text {
+  font-size: 0.76rem;
+  color: #6b7280;
+}
+
+.employee-details-leave-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--badge-accent, #475569);
+  background: var(--badge-bg, #f1f5f9);
+  color: var(--badge-accent, #475569);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.employee-details-leave-badge__code {
+  opacity: 0.88;
+}
+
+.employee-details-leave-badge__value {
+  color: #111827;
+  font-weight: 800;
+}
+
 .leave-history-table :deep(.q-table__middle) {
   overflow-x: auto;
 }
@@ -4828,6 +5121,10 @@ async function saveLeaveCredits() {
     justify-content: flex-start;
     gap: 16px;
     width: 100%;
+  }
+
+  .employee-details-leave-credits {
+    align-items: flex-start;
   }
 }
 
