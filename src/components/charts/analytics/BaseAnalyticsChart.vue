@@ -152,10 +152,37 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;')
 }
 
-function resolveTooltipValue(item) {
-  const value = item?.parsed?.x ?? item?.parsed?.y ?? item?.raw ?? 0
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed.toLocaleString() : String(value)
+function resolveTooltipNumericValue(item, indexAxis = 'x') {
+  const valueAxisKey = indexAxis === 'y' ? 'x' : 'y'
+  const categoryAxisKey = indexAxis === 'y' ? 'y' : 'x'
+
+  const valueAxisParsed = item?.parsed?.[valueAxisKey]
+  if (valueAxisParsed !== undefined && valueAxisParsed !== null) {
+    const parsed = Number(valueAxisParsed)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  const categoryAxisParsed = item?.parsed?.[categoryAxisKey]
+  if (categoryAxisParsed !== undefined && categoryAxisParsed !== null) {
+    const parsed = Number(categoryAxisParsed)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  const rawParsed = Number(item?.raw)
+  return Number.isFinite(rawParsed) ? rawParsed : null
+}
+
+function resolveTooltipValue(item, indexAxis = 'x') {
+  const parsedValue = resolveTooltipNumericValue(item, indexAxis)
+  if (parsedValue !== null) {
+    return parsedValue.toLocaleString()
+  }
+
+  return String(item?.raw ?? 0)
 }
 
 function resolveTooltipColor(item) {
@@ -168,6 +195,7 @@ function resolveTooltipColor(item) {
 
 function renderExternalTooltip(context) {
   const { chart, tooltip } = context
+  const indexAxis = chart?.options?.indexAxis ?? 'x'
   const parent = chart.canvas.parentNode
   if (!parent) return
 
@@ -187,7 +215,7 @@ function renderExternalTooltip(context) {
   const rows = tooltip.dataPoints
     .map((item) => {
       const label = item.dataset?.label || item.label || ''
-      const value = resolveTooltipValue(item)
+      const value = resolveTooltipValue(item, indexAxis)
       const color = resolveTooltipColor(item)
 
       return `
@@ -208,13 +236,30 @@ function renderExternalTooltip(context) {
   const canvasRect = chart.canvas.getBoundingClientRect()
   const parentRect = parent.getBoundingClientRect()
   const tooltipWidth = tooltipEl.offsetWidth || 180
-  const left = canvasRect.left - parentRect.left + tooltip.caretX
-  const top = canvasRect.top - parentRect.top + tooltip.caretY
-  const clampedLeft = Math.max(8, Math.min(left, parent.clientWidth - tooltipWidth - 8))
+  const tooltipHeight = tooltipEl.offsetHeight || 64
+  const anchorX = canvasRect.left - parentRect.left + tooltip.caretX
+  const anchorY = canvasRect.top - parentRect.top + tooltip.caretY
+  const edgePadding = 8
+  const pointerOffset = 12
+
+  const rawLeft = anchorX - tooltipWidth / 2
+  const clampedLeft = Math.max(
+    edgePadding,
+    Math.min(rawLeft, parent.clientWidth - tooltipWidth - edgePadding),
+  )
+
+  const spaceAbove = anchorY - edgePadding
+  const spaceBelow = parent.clientHeight - anchorY - edgePadding
+  const placeAbove = spaceBelow < tooltipHeight + pointerOffset && spaceAbove >= tooltipHeight + pointerOffset
+  const rawTop = placeAbove ? anchorY - tooltipHeight - pointerOffset : anchorY + pointerOffset
+  const clampedTop = Math.max(
+    edgePadding,
+    Math.min(rawTop, parent.clientHeight - tooltipHeight - edgePadding),
+  )
 
   tooltipEl.style.opacity = '1'
   tooltipEl.style.left = `${clampedLeft}px`
-  tooltipEl.style.top = `${Math.max(8, top)}px`
+  tooltipEl.style.top = `${clampedTop}px`
 }
 
 const chartData = computed(() => {
@@ -304,8 +349,11 @@ const chartJsOptions = computed(() => {
           },
           label: (context) => {
             const label = context.dataset?.label || context.label || ''
-            const value = Number(context.parsed?.x ?? context.parsed?.y ?? context.raw ?? 0)
-            return `${label}: ${Number.isFinite(value) ? value.toLocaleString() : context.raw}`
+            const value = resolveTooltipNumericValue(
+              context,
+              context.chart?.options?.indexAxis ?? 'x',
+            )
+            return `${label}: ${value !== null ? value.toLocaleString() : context.raw}`
           },
           afterLabel: (context) => {
             if (!isPolarArea) return []
@@ -440,7 +488,7 @@ const chartJsOptions = computed(() => {
   min-width: 168px;
   padding: 8px 10px;
   pointer-events: none;
-  transform: translate(-50%, 8px);
+  transform: none;
   border: 1px solid #dbe3ec;
   border-radius: 6px;
   background: #ffffff;

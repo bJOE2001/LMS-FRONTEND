@@ -186,7 +186,7 @@ import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import { api } from 'boot/axios'
 import NotificationPanel from 'components/NotificationPanel.vue'
-import { hrUserHasModuleAccess } from 'src/utils/hr-module-access'
+import { HR_MODULE_KEYS, hrUserHasModuleAccess } from 'src/utils/hr-module-access'
 
 const route = useRoute()
 const router = useRouter()
@@ -269,12 +269,13 @@ const adminNav = [
   // { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
 ]
 const hrNav = [
-  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
-  { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in' },
-  { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts' },
-  { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
+  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard', moduleKey: HR_MODULE_KEYS.dashboard },
+  { path: '/hr/analytics', label: 'Analytics', icon: 'analytics', moduleKey: HR_MODULE_KEYS.reportsMonitoring },
+  { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: HR_MODULE_KEYS.applications },
+  { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: HR_MODULE_KEYS.cocApplications },
+  { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: HR_MODULE_KEYS.employeeManagement },
+  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts', moduleKey: HR_MODULE_KEYS.userManagement },
+  { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart', moduleKey: HR_MODULE_KEYS.reportsMonitoring },
 ]
 
 function canAccessHrModule(moduleKey) {
