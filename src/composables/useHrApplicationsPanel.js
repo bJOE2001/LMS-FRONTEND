@@ -19,6 +19,7 @@ const releaseLoading = ref(false)
 const undoReceiveLoading = ref(false)
 const undoReleaseLoading = ref(false)
 const timelineLoading = ref(false)
+const payStatusOverrideLoading = ref(false)
 const applications = ref([])
 const tablePagination = ref({
   page: 1,
@@ -473,6 +474,7 @@ function normalizeBackendApplicationShape(application, index = 0) {
     pending_update: application?.pending_update ?? null,
     pending_update_reason: application?.pending_update_reason ?? '',
     pending_update_action_type: application?.pending_update_action_type ?? null,
+    pending_update_previous_status: application?.pending_update_previous_status ?? null,
     ...(normalizedHasPendingUpdateRequest === null
       ? {}
       : { has_pending_update_request: normalizedHasPendingUpdateRequest }),
@@ -480,6 +482,7 @@ function normalizeBackendApplicationShape(application, index = 0) {
     latest_update_request_action_type: application?.latest_update_request_action_type ?? null,
     latest_update_request_payload: application?.latest_update_request_payload ?? null,
     latest_update_request_reason: application?.latest_update_request_reason ?? '',
+    latest_update_request_previous_status: application?.latest_update_request_previous_status ?? null,
     latest_update_requested_at: application?.latest_update_requested_at ?? null,
     latest_update_reviewed_at: application?.latest_update_reviewed_at ?? null,
     latest_update_review_remarks: application?.latest_update_review_remarks ?? '',
@@ -5095,6 +5098,183 @@ function getSelectedDatePayStatusColumns(app, columnCount = 3) {
   return columns
 }
 
+function isPreviouslyApprovedUpdateWorkflow(app) {
+  if (!app || isCocApplication(app)) return false
+
+  const previousStatusCandidates = [
+    app?.pending_update_previous_status,
+    app?.latest_update_request_previous_status,
+  ]
+
+  return previousStatusCandidates.some(
+    (status) => String(status || '').trim().toUpperCase() === 'APPROVED',
+  )
+}
+
+function canOverrideApplicationPayStatus(app) {
+  if (!app || typeof app !== 'object') return false
+  if (isCocApplication(app)) return false
+  if (app?.is_monetization === true) return false
+  if (getApplicationRawStatusKey(app) !== 'PENDING_HR') return false
+  if (isPendingUpdateWorkflowCycle(app) || isPreviouslyApprovedUpdateWorkflow(app)) return false
+  if (isCtoLeaveApplication(app)) return false
+
+  const leaveTypeLabel =
+    getCurrentLeaveTypeLabel(app) ||
+    app?.leaveType ||
+    app?.leave_type_name ||
+    ''
+  if (resolveApplicationLeaveTypeCategory(app) === 'EVENT' || isEventBasedLeaveType(leaveTypeLabel)) {
+    return false
+  }
+
+  return getSelectedDatePayStatusRows(app).length > 0
+}
+
+function buildPayStatusOverridePayload(app, targetEntry = {}) {
+  const rows = getSelectedDatePayStatusRows(app)
+  const targetDateKey = String(targetEntry?.dateKey || '').trim()
+  const nextPayStatus = normalizePayStatusCode(targetEntry?.nextPayStatus) === 'WOP' ? 'WOP' : 'WP'
+
+  const selectedDatePayStatus = rows.reduce((acc, row) => {
+    const dateKey = String(row?.dateKey || '').trim()
+    if (!dateKey) return acc
+
+    acc[dateKey] = row?.payStatus === 'WOP' ? 'WOP' : 'WP'
+    return acc
+  }, {})
+
+  if (targetDateKey) {
+    selectedDatePayStatus[targetDateKey] = nextPayStatus
+  }
+
+  const payStatuses = Object.values(selectedDatePayStatus)
+  const hasWithPay = payStatuses.some((status) => status === 'WP')
+  const hasWithoutPay = payStatuses.some((status) => status === 'WOP')
+
+  return {
+    pay_mode: hasWithoutPay && !hasWithPay ? 'WOP' : 'WP',
+    selected_date_pay_status: selectedDatePayStatus,
+  }
+}
+
+function getPayStatusOverrideDateLabel(entry = {}) {
+  const rawDate = String(entry?.dateKey || entry?.dateText || '').trim()
+  if (!rawDate) return 'this date'
+
+  return formatDate(rawDate) || rawDate
+}
+
+function getPayStatusOverrideConfirmationCopy(entry = {}) {
+  const currentPayStatus = normalizePayStatusCode(entry?.payStatus) === 'WOP' ? 'WOP' : 'WP'
+  const nextPayStatus = normalizePayStatusCode(entry?.nextPayStatus) === 'WOP' ? 'WOP' : 'WP'
+  const dateLabel = getPayStatusOverrideDateLabel(entry)
+
+  return {
+    title: 'Override Pay Status',
+    message: `Change ${dateLabel} from ${currentPayStatus} to ${nextPayStatus}?`,
+    color: nextPayStatus === 'WOP' ? 'negative' : 'positive',
+  }
+}
+
+async function updateApplicationPayStatus(application, id, entry = {}) {
+  payStatusOverrideLoading.value = true
+  try {
+    const response = await api.post(
+      `/hr/leave-applications/${id}/pay-status/update`,
+      buildPayStatusOverridePayload(application, entry),
+    )
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication =
+        normalizeBackendApplicationShape({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        }) ||
+        ({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        })
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      applyLeaveApplicationUpdate(mergedApplication)
+      await fetchLatestHrLeaveApplication(mergedApplication)
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'Application pay status updated.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to update this application pay status.')
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    payStatusOverrideLoading.value = false
+  }
+}
+
+async function overrideApplicationPayStatus(target, entry = {}) {
+  const application = resolveApplication(target) || target
+  if (!canOverrideApplicationPayStatus(application)) {
+    q.notify({
+      type: 'negative',
+      message: 'WOP/WP can only be changed during CHRMO Certification before final approval.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this leave application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const confirmationCopy = getPayStatusOverrideConfirmationCopy(entry)
+
+  return new Promise((resolve) => {
+    q.dialog({
+      class: 'hr-receive-required-dialog',
+      title: confirmationCopy.title,
+      message: confirmationCopy.message,
+      cancel: {
+        label: 'No',
+        flat: true,
+        color: 'grey-7',
+        class: 'hr-receive-required-dialog__button',
+      },
+      ok: {
+        label: 'Yes',
+        color: confirmationCopy.color,
+        unelevated: true,
+        class: 'hr-receive-required-dialog__button',
+      },
+      persistent: true,
+    })
+      .onOk(async () => {
+        resolve(await updateApplicationPayStatus(application, id, entry))
+      })
+      .onCancel(() => {
+        resolve(false)
+      })
+  })
+}
+
 function getPendingUpdateDatePayStatusRows(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return []
@@ -6302,6 +6482,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     applyLeaveApplicationUpdate,
     buildApplicationTimeline,
     canEditApplication,
+    canOverrideApplicationPayStatus,
     canPrintCocCertificate,
     canRecallApplication,
     canCmoCbmoReviewApplication,
@@ -6474,11 +6655,13 @@ async function handleDialogMutationSuccess(payload = {}) {
     openActionConfirm,
     openDetails,
     openEdit,
+    overrideApplicationPayStatus,
     openRecall,
     openReject,
     openTimeline,
     parseDateTimeValue,
     parseSelectedDatesValue,
+    payStatusOverrideLoading,
     pickFirstDefinedValue,
     printCocCertificate,
     recallDialogApplication,
