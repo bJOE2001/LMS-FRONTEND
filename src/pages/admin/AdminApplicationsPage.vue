@@ -550,6 +550,16 @@
               </div>
             </div>
 
+            <div
+              v-if="isTerminalLeaveApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Estimated Amount</div>
+              <div class="text-weight-medium">
+                {{ getTerminalLeaveEstimatedAmountDisplay(selectedApp) }}
+              </div>
+            </div>
+
             <div class="admin-application-details-item admin-application-details-item--inclusive">
               <div class="admin-application-details-label">
                 {{ selectedApp.is_monetization ? 'Days to Monetize' : 'Inclusive Dates' }}
@@ -983,10 +993,63 @@ const {
 } = useAdminApplicationsPage()
 
 const DISAPPROVED_STATUS_COLOR = 'red'
+const TERMINAL_LEAVE_ESTIMATE_FACTOR = 0.0478087
+const terminalLeaveAmountFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 const inclusiveDatePatterns = [
   /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/g,
   /\b[A-Z][a-z]{2}\s+\d{1,2}\s+\d{4}\b/g,
 ]
+
+function truncateCurrencyValue(value, fractionDigits = 2) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+
+  const factor = 10 ** fractionDigits
+  if (!Number.isFinite(factor) || factor <= 0) return null
+
+  return numericValue < 0
+    ? Math.ceil(numericValue * factor) / factor
+    : Math.floor(numericValue * factor) / factor
+}
+
+function isTerminalLeaveApplication(app) {
+  const leaveTypeLabel = String(
+    app?.leave_type_name ?? app?.leaveType ?? '',
+  )
+    .trim()
+    .toLowerCase()
+
+  return leaveTypeLabel === 'terminal leave'
+}
+
+function getTerminalLeaveEstimatedAmountValue(app) {
+  const explicitAmount = Number(app?.terminal_leave_estimated_amount)
+  if (Number.isFinite(explicitAmount) && explicitAmount >= 0) {
+    return explicitAmount
+  }
+
+  const totalCredits = Number(app?.total_days ?? app?.duration_value ?? app?.days)
+  const monthlyRate = Number(app?.rate_mon ?? app?.salary)
+  if (!Number.isFinite(totalCredits) || totalCredits <= 0) return null
+  if (!Number.isFinite(monthlyRate) || monthlyRate <= 0) return null
+
+  return totalCredits * monthlyRate * TERMINAL_LEAVE_ESTIMATE_FACTOR
+}
+
+function getTerminalLeaveEstimatedAmountDisplay(app) {
+  const estimatedAmount = getTerminalLeaveEstimatedAmountValue(app)
+  if (!Number.isFinite(estimatedAmount)) return 'N/A'
+
+  const truncatedEstimatedAmount = truncateCurrencyValue(estimatedAmount)
+  return truncatedEstimatedAmount === null
+    ? 'N/A'
+    : terminalLeaveAmountFormatter.format(truncatedEstimatedAmount)
+}
 
 function normalizeDisapprovedStatusLabel(statusValue) {
   const normalizedStatus = String(statusValue || '').trim()
