@@ -2306,40 +2306,6 @@ function roundLedgerNumericValue(value) {
   return Math.round((numericValue + Number.EPSILON) * 1000) / 1000
 }
 
-function normalizeOtherLedgerBalances(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return Array.isArray(rows) ? rows : []
-
-  const runningBalancesByCode = {}
-
-  return rows.map((row) => {
-    const leaveCode = normalizeLedgerLeaveCode(row?.leaveTypeCode || row?.particulars)
-    if (!isLedgerOtherLeaveCode(leaveCode)) return row
-
-    const earnedAmount = parseLedgerSignedQuantityValue(row?.otherEarned) ?? 0
-    const withPayAmount = parseLedgerSignedQuantityValue(row?.otherAbsUndWp) ?? 0
-    const delta = roundLedgerNumericValue(earnedAmount + withPayAmount)
-    const nextFromDelta = roundLedgerNumericValue((runningBalancesByCode[leaveCode] ?? 0) + delta)
-
-    const existingCombinedBalance = parseLedgerSignedQuantityValue(row?.otherBalance)
-    let nextBalance = nextFromDelta
-
-    if (existingCombinedBalance !== null) {
-      const otherTypeBalanceTotal = Object.keys(runningBalancesByCode).reduce(
-        (total, code) => (code === leaveCode ? total : total + (runningBalancesByCode[code] ?? 0)),
-        0,
-      )
-      nextBalance = roundLedgerNumericValue(existingCombinedBalance - otherTypeBalanceTotal)
-    }
-
-    runningBalancesByCode[leaveCode] = nextBalance
-
-    return {
-      ...row,
-      otherBalance: normalizeLedgerQuantityValue(nextBalance),
-    }
-  })
-}
-
 function buildLedgerRowsForPaper(rows, preset, options = {}) {
   const normalizedRows = Array.isArray(rows)
     ? rows.map((entry, index) => ({
@@ -2393,9 +2359,11 @@ function updateLedgerForwardedBalanceState(state, rows) {
 
     const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
     if (otherBalance !== null) {
-      const leaveCode = normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
-      if (isLedgerOtherLeaveCode(leaveCode)) {
-        state.otherByCode[leaveCode] = otherBalance
+      const balanceKey =
+        normalizeLedgerTextValue(row.balanceKey) ||
+        normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
+      if (isLedgerOtherLeaveCode(balanceKey)) {
+        state.otherByCode[balanceKey] = otherBalance
       } else {
         state.otherDefault = otherBalance
       }
@@ -3959,6 +3927,9 @@ function normalizeLedgerRow(entry, index) {
       ['id', 'ledger_id', 'ledgerId', 'entry_id', 'entryId'],
       `ledger-${index}`,
     ),
+    balanceKey: normalizeLedgerTextValue(
+      pickFirstDefined(entry, ['balance_key', 'balanceKey', 'other_balance_key', 'otherBalanceKey']),
+    ),
     period:
       inclusivePeriod ||
       normalizeLedgerTextValue(
@@ -4436,7 +4407,7 @@ async function openLeaveCreditsLedgerDialog(employee) {
       normalizeLedgerRow(entry, index),
     )
     const orderedRows = orderLedgerRowsOldestFirst(normalizedRows)
-    const ledgerRows = normalizeOtherLedgerBalances(orderedRows)
+    const ledgerRows = orderedRows
     leaveCreditsLedgerRows.value = ledgerRows
 
     if (leaveBalanceTypesResult.status === 'fulfilled') {
