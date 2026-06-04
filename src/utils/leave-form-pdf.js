@@ -1228,6 +1228,61 @@ function getOfficeDepartmentFontSize(value) {
   return 9
 }
 
+const CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS = new Set([
+  'SP LEGISLATIVE',
+  'SP SECRETARIAT',
+  'CVMO',
+])
+
+function normalizeOfficeAcronymToken(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+}
+
+function resolveLeaveApplicantOfficeAcronym(app) {
+  const candidates = [
+    app?.officeAcronym,
+    app?.office_acronym,
+    app?.hrisOfficeAcronym,
+    app?.hris_office_acronym,
+    app?.departmentOfficeAbbr,
+    app?.department_office_abbr,
+    app?.employee?.officeAcronym,
+    app?.employee?.office_acronym,
+    app?.employee?.hrisOfficeAcronym,
+    app?.employee?.hris_office_acronym,
+    app?.employee?.departmentOfficeAbbr,
+    app?.employee?.department_office_abbr,
+    app?.raw?.officeAcronym,
+    app?.raw?.office_acronym,
+    app?.raw?.hrisOfficeAcronym,
+    app?.raw?.hris_office_acronym,
+    app?.raw?.departmentOfficeAbbr,
+    app?.raw?.department_office_abbr,
+    app?.raw?.employee?.officeAcronym,
+    app?.raw?.employee?.office_acronym,
+    app?.raw?.employee?.hrisOfficeAcronym,
+    app?.raw?.employee?.hris_office_acronym,
+    app?.raw?.employee?.departmentOfficeAbbr,
+    app?.raw?.employee?.department_office_abbr,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedOfficeAcronym = normalizeOfficeAcronymToken(candidate)
+    if (normalizedOfficeAcronym) {
+      return normalizedOfficeAcronym
+    }
+  }
+
+  return ''
+}
+
+function shouldUseCityViceMayorApprovedForSignatory(app) {
+  return CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS.has(resolveLeaveApplicantOfficeAcronym(app))
+}
+
 function toFiniteNumber(value) {
   if (value == null || value === '') return null
   const numericValue = Number(value)
@@ -1916,6 +1971,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showWithinPhilippines =
     (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
   const showAbroad = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Abroad'
+  const useCityViceMayorApprovedForSignatory = shouldUseCityViceMayorApprovedForSignatory(app)
   const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
     app,
     isAbroad: showAbroad,
@@ -1924,10 +1980,18 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     cityViceMayorSignatory,
     baseRecommendationSignatory,
   })
+  const approvedForSignatory = useCityViceMayorApprovedForSignatory
+    ? cityViceMayorSignatory
+    : mayorSignatory
+  const approvedForSignatoryFallbackDesignation = useCityViceMayorApprovedForSignatory
+    ? 'City Vice Mayor'
+    : 'City Mayor'
   const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
     recommendationSignatory.fullName,
   )
-  const mayorSignatoryName = formatSignatoryNameWithMiddleInitial(mayorSignatory.fullName)
+  const approvedForSignatoryName = formatSignatoryNameWithMiddleInitial(
+    approvedForSignatory.fullName,
+  )
   const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
   const showOutPatient = isSick && normalizedSickDetail === 'Out Patient'
   const showMastersDegree = isStudy && studyDetail === 'Masters Degree'
@@ -2584,7 +2648,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       body: [
                         [
                           {
-                            text: mayorSignatoryName || ' ',
+                            text: approvedForSignatoryName || ' ',
                             fontSize: 10,
                             bold: true,
                             alignment: 'center',
@@ -2606,7 +2670,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     },
                   },
                   {
-                    text: mayorSignatory.designation || 'City Mayor',
+                    text:
+                      approvedForSignatory.designation || approvedForSignatoryFallbackDesignation,
                     fontSize: 9,
                     alignment: 'center',
                     margin: [0, 2, 0, 6],
