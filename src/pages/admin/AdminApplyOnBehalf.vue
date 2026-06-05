@@ -305,7 +305,7 @@
                 <div class="text-subtitle1 text-weight-bold q-mb-md">Details of Leave</div>
 
                 <div v-if="isVacationType" class="dialog-detail-options">
-                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave:</div>
+                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave / MC06:</div>
                 <q-option-group v-model="form.vacationDetail" :options="[{ label: 'Within the Philippines', value: 'Within the Philippines' }, { label: 'Abroad (Specify)', value: 'Abroad' }]" type="radio" color="green-8" />
                 <q-input v-if="form.vacationDetail === 'Abroad'" v-model="form.vacationSpecify" outlined dense label="Specify destination" placeholder="Enter Destination" class="form-input q-mt-sm" />
                 <q-input v-if="form.vacationDetail === 'Within the Philippines'" v-model="form.vacationSpecify" outlined dense label="Specify location" placeholder="Enter Location" class="form-input q-mt-sm" />
@@ -732,6 +732,7 @@ const showSuccess = ref(false)
 const dialogSummaryLoading = ref(Boolean(props.inDialog))
 const selectedDateDurations = ref({})
 const selectedDatePayStatuses = ref({})
+const forcedAbroadWeekendDateKeys = new Set()
 const selectedDateHalfDayPortions = ref({})
 const calendarDateWarning = ref('')
 const calendarDateWarningDate = ref('')
@@ -1647,11 +1648,14 @@ const selectedLeaveTypeRequiresDocuments = computed(() =>
 )
 
 const showDetailsOfLeave = computed(() => {
-  const types = ['Vacation Leave', 'Sick Leave']
+  const types = ['Vacation Leave', 'Special Privilege Leave', 'Sick Leave']
   return types.includes(selectedLeaveTypeName.value) || selectedLeaveTypeRequiresDocuments.value
 })
 
-const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation Leave')
+const isVacationType = computed(() => ['Vacation Leave', 'Special Privilege Leave'].includes(selectedLeaveTypeName.value))
+const isAbroadWeekendWopType = computed(() =>
+  isVacationType.value && form.value.vacationDetail === 'Abroad',
+)
 const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
 const moveDialogActionsUp = computed(() => props.inDialog && !isMonetization.value && showDetailsOfLeave.value)
 
@@ -1932,7 +1936,7 @@ function onLeaveTypeChange(newValue) {
   const preservedReason = form.value.reason
   const selectedLeaveType = allLeaveTypes.value.find((leaveType) => leaveType.id === newValue)
 
-  form.value.vacationDetail = selectedLeaveType?.name === 'Vacation Leave'
+  form.value.vacationDetail = ['Vacation Leave', 'Special Privilege Leave'].includes(selectedLeaveType?.name || '')
     ? 'Within the Philippines'
     : ''
   form.value.vacationSpecify = ''
@@ -2502,6 +2506,47 @@ function applySickLeaveDisplayPayStatusPolicy() {
   })
 }
 
+function isWeekendDate(date) {
+  const parsedDate = parseIsoDateValue(date)
+  if (!(parsedDate instanceof Date) || Number.isNaN(parsedDate.getTime())) return false
+
+  const dayOfWeek = parsedDate.getDay()
+  return dayOfWeek === 0 || dayOfWeek === 6
+}
+
+function applyAbroadWeekendPayStatusPolicy() {
+  const sortedDates = [...sortedSelectedDates.value]
+  const activeDates = new Set(sortedDates)
+
+  Array.from(forcedAbroadWeekendDateKeys).forEach((date) => {
+    if (!activeDates.has(date)) {
+      forcedAbroadWeekendDateKeys.delete(date)
+      return
+    }
+
+    if (!isAbroadWeekendWopType.value && selectedDatePayStatuses.value[date] === 'without_pay') {
+      selectedDatePayStatuses.value[date] = 'with_pay'
+    }
+
+    if (!isAbroadWeekendWopType.value) {
+      forcedAbroadWeekendDateKeys.delete(date)
+    }
+  })
+
+  if (!isAbroadWeekendWopType.value) {
+    return
+  }
+
+  sortedDates.forEach((date) => {
+    if (!isWeekendDate(date)) {
+      return
+    }
+
+    selectedDatePayStatuses.value[date] = 'without_pay'
+    forcedAbroadWeekendDateKeys.add(date)
+  })
+}
+
 function applyCtoDisplayPayStatusPolicy() {
   if (isMonetization.value || !isCtoType.value) return
 
@@ -2632,6 +2677,7 @@ function toggleSelectedDateDuration(date) {
     selectedDateHalfDayPortions.value[date] = 'AM'
   }
 
+  applyAbroadWeekendPayStatusPolicy()
   applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
 }
@@ -2655,6 +2701,12 @@ function selectedDatePayStatusLabel(date) {
 }
 
 function toggleSelectedDatePayStatus(date) {
+  if (isAbroadWeekendWopType.value && isWeekendDate(date)) {
+    applyAbroadWeekendPayStatusPolicy()
+    $q.notify({ type: 'info', message: 'Weekend dates stay WOP when the leave detail is Abroad.' })
+    return
+  }
+
   if (isCtoType.value) {
     applyCtoDisplayPayStatusPolicy()
     $q.notify({ type: 'info', message: 'CTO applications stay WP-only. Use half day or whole day blocks instead.' })
@@ -2793,6 +2845,7 @@ watch(selectedDates, (dates) => {
   syncSelectedDateDurations(normalized)
   syncSelectedDatePayStatuses(normalized)
   syncSelectedDateHalfDayPortions(normalized)
+  applyAbroadWeekendPayStatusPolicy()
   applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
 
@@ -2813,8 +2866,9 @@ watch(selectedDates, (dates) => {
 }, { deep: true })
 
 watch(
-  [sortedSelectedDates, selectedDateTotalDays, isSickType, isCtoType, isMonetization],
+  [sortedSelectedDates, selectedDateTotalDays, isSickType, isCtoType, isMonetization, isAbroadWeekendWopType],
   () => {
+    applyAbroadWeekendPayStatusPolicy()
     applyCtoDisplayPayStatusPolicy()
     applySickLeaveDisplayPayStatusPolicy()
   },
