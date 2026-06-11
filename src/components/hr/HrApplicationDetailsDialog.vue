@@ -454,6 +454,24 @@
             </div>
           </div>
           <div
+            v-if="slVlCrossDeductionSummary"
+            class="hr-application-details-item hr-application-details-item--full"
+          >
+            <div class="text-caption text-grey-7">SL/VL Cross Deduction</div>
+            <div class="hr-application-cross-deduction-list">
+              <div
+                v-for="item in slVlCrossDeductionSummary.items"
+                :key="item.label"
+                class="hr-application-cross-deduction-row"
+              >
+                <span class="text-caption text-grey-7">{{ item.label }}</span>
+                <span class="text-weight-medium hr-application-cross-deduction-value">
+                  {{ item.value }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div
             v-if="!isCocApplication(application) && shouldShowDetailsRemarks(application)"
             class="hr-application-details-item"
           >
@@ -816,6 +834,96 @@ const shouldShowFooterActions = computed(() => {
   )
 })
 
+const slVlCrossDeductionSummary = computed(() => buildSlVlCrossDeductionSummary(props.application))
+
+function toRoundedDayValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return 0
+
+  return Math.round(numericValue * 1000) / 1000
+}
+
+function formatDayValue(value) {
+  return toRoundedDayValue(value).toLocaleString('en-US', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })
+}
+
+function getCrossDeductionLeaveTypeName(app) {
+  return String(
+    props.getCurrentLeaveTypeLabel(app) || app?.leave_type_name || app?.leaveType || '',
+  )
+    .trim()
+    .toLowerCase()
+}
+
+function resolveDeductibleDayValue(app) {
+  const candidates = [
+    app?.deductible_days,
+    app?.with_pay_days,
+    app?.requested_total_days,
+    app?.actual_total_days,
+    app?.display_total_days,
+    app?.days,
+    app?.total_days,
+  ]
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate)
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return Math.round(numericValue * 1000) / 1000
+    }
+  }
+
+  return 0
+}
+
+function buildSlVlCrossDeductionSummary(app) {
+  if (!app || typeof app !== 'object') return null
+
+  const leaveTypeName = getCrossDeductionLeaveTypeName(app)
+  if (leaveTypeName !== 'sick leave' && leaveTypeName !== 'vacation leave') {
+    return null
+  }
+
+  const linkedVacationDays = toRoundedDayValue(app?.linked_vacation_leave_deducted_days)
+  const linkedSickDays = toRoundedDayValue(app?.linked_sick_leave_deducted_days)
+  if (linkedVacationDays <= 0 && linkedSickDays <= 0) {
+    return null
+  }
+
+  const deductibleDays = resolveDeductibleDayValue(app)
+  const primaryDeductionDays = Math.max(
+    deductibleDays - linkedVacationDays - linkedSickDays,
+    0,
+  )
+  const items = []
+
+  if (primaryDeductionDays > 0) {
+    items.push({
+      label: leaveTypeName === 'sick leave' ? 'Sick Leave charged' : 'Vacation Leave charged',
+      value: `${formatDayValue(primaryDeductionDays)} day(s)`,
+    })
+  }
+
+  if (linkedVacationDays > 0) {
+    items.push({
+      label: 'Vacation Leave cross-deducted',
+      value: `${formatDayValue(linkedVacationDays)} day(s)`,
+    })
+  }
+
+  if (linkedSickDays > 0) {
+    items.push({
+      label: 'Sick Leave cross-deducted',
+      value: `${formatDayValue(linkedSickDays)} day(s)`,
+    })
+  }
+
+  return items.length ? { items } : null
+}
+
 function getCurrentInclusiveDateEntryCount(app) {
   const currentPayStatusRows = props.getSelectedDatePayStatusRows(app)
   if (currentPayStatusRows.length) return currentPayStatusRows.length
@@ -1086,6 +1194,23 @@ function handleOverridePayStatus(entry) {
 
 .hr-application-details-item--full {
   grid-column: 1 / -1;
+}
+
+.hr-application-cross-deduction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-application-cross-deduction-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hr-application-cross-deduction-value {
+  text-align: right;
 }
 
 .hr-application-details-label {

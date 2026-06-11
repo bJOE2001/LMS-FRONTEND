@@ -5131,7 +5131,7 @@ function canOverrideApplicationPayStatus(app) {
   return getSelectedDatePayStatusRows(app).length > 0
 }
 
-function buildPayStatusOverridePayload(app, targetEntry = {}) {
+function buildPayStatusOverrideSelectedDatePayStatusMap(app, targetEntry = {}) {
   const rows = getSelectedDatePayStatusRows(app)
   const targetDateKey = String(targetEntry?.dateKey || '').trim()
   const nextPayStatus = normalizePayStatusCode(targetEntry?.nextPayStatus) === 'WOP' ? 'WOP' : 'WP'
@@ -5148,6 +5148,12 @@ function buildPayStatusOverridePayload(app, targetEntry = {}) {
     selectedDatePayStatus[targetDateKey] = nextPayStatus
   }
 
+  return selectedDatePayStatus
+}
+
+function buildPayStatusOverridePayload(app, targetEntry = {}) {
+  const selectedDatePayStatus = buildPayStatusOverrideSelectedDatePayStatusMap(app, targetEntry)
+
   const payStatuses = Object.values(selectedDatePayStatus)
   const hasWithPay = payStatuses.some((status) => status === 'WP')
   const hasWithoutPay = payStatuses.some((status) => status === 'WOP')
@@ -5155,25 +5161,179 @@ function buildPayStatusOverridePayload(app, targetEntry = {}) {
   return {
     pay_mode: hasWithoutPay && !hasWithPay ? 'WOP' : 'WP',
     selected_date_pay_status: selectedDatePayStatus,
+    allow_sl_vl_cross_deduction: shouldAllowPayStatusOverrideSlVlCrossDeduction(app, targetEntry),
   }
+}
+
+function resolvePayStatusOverrideSlVlCrossDeductionContext(app) {
+  if (!app || typeof app !== 'object') return null
+
+  const leaveTypeKey = normalizeLeaveBalanceLookupKey(
+    getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || '',
+  )
+  const primaryAvailableBalance = getCurrentLeaveBalanceValue(app)
+  if (!Number.isFinite(primaryAvailableBalance)) return null
+
+  if (leaveTypeKey === normalizeLeaveBalanceLookupKey('Sick Leave')) {
+    const alternateAvailableBalance = getLeaveBalanceValueByTypeLabel(app, 'Vacation Leave')
+    if (!Number.isFinite(alternateAvailableBalance)) return null
+
+    return {
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Vacation Leave',
+      primaryAvailableBalance,
+    }
+  }
+
+  if (leaveTypeKey === normalizeLeaveBalanceLookupKey('Vacation Leave')) {
+    const alternateAvailableBalance = getLeaveBalanceValueByTypeLabel(app, 'Sick Leave')
+    if (!Number.isFinite(alternateAvailableBalance)) return null
+
+    return {
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Sick Leave',
+      primaryAvailableBalance,
+    }
+  }
+
+  return null
+}
+
+function getLeaveBalanceValueByTypeLabel(app, leaveTypeLabel = '') {
+  const entry = findLeaveBalanceEntry(app, null, leaveTypeLabel)
+  if (!entry || !Number.isFinite(Number(entry.balance))) return null
+
+  return Number(entry.balance)
+}
+
+function resolvePayStatusOverrideSelectedDateStatusMap(app, targetEntry = null) {
+  if (targetEntry && typeof targetEntry === 'object') {
+    return normalizeMapKeysWithIsoAlias(
+      toSelectedDatePayStatusMap(buildPayStatusOverrideSelectedDatePayStatusMap(app, targetEntry)),
+    )
+  }
+
+  return normalizeMapKeysWithIsoAlias(
+    toSelectedDatePayStatusMap(app?.selected_date_pay_status),
+  )
+}
+
+function resolvePayStatusOverrideAlternateDeductionDays(app, selectedDateStatusMap = null) {
+  const context = resolvePayStatusOverrideSlVlCrossDeductionContext(app)
+  if (!context) return null
+
+  const rows = getSelectedDatePayStatusRows(app)
+  if (!rows.length) return null
+
+  const coverageWeights = getSelectedDateCoverageWeights(app)
+  let remainingPrimaryBalance = Math.max(context.primaryAvailableBalance, 0)
+  let alternateDeductionDays = 0
+
+  rows.forEach((row) => {
+    const dateKey = String(row?.dateKey || '').trim()
+    if (!dateKey) return
+
+    const payStatus =
+      normalizePayStatusCode(selectedDateStatusMap?.[dateKey] ?? row?.payStatus) === 'WOP'
+        ? 'WOP'
+        : 'WP'
+    if (payStatus === 'WOP') return
+
+    const rawWeight = Number(coverageWeights[dateKey])
+    const dateWeight =
+      Number.isFinite(rawWeight) && rawWeight > 0
+        ? rawWeight
+        : String(row?.coverageLabel || '').toLowerCase().startsWith('half')
+          ? 0.5
+          : 1
+
+    if (remainingPrimaryBalance + 1e-9 >= dateWeight) {
+      remainingPrimaryBalance = Math.max(remainingPrimaryBalance - dateWeight, 0)
+      return
+    }
+
+    alternateDeductionDays += dateWeight
+  })
+
+  return Math.round(alternateDeductionDays * 1000) / 1000
+}
+
+function resolvePayStatusOverrideProjectedCrossDeduction(app, targetEntry = null) {
+  const context = resolvePayStatusOverrideSlVlCrossDeductionContext(app)
+  if (!context) return null
+
+  const projectedAlternateDeductionDays = resolvePayStatusOverrideAlternateDeductionDays(
+    app,
+    resolvePayStatusOverrideSelectedDateStatusMap(app, targetEntry),
+  )
+
+  if (
+    !Number.isFinite(projectedAlternateDeductionDays)
+    || projectedAlternateDeductionDays <= 1e-9
+    || projectedAlternateDeductionDays > context.alternateAvailableBalance + 1e-9
+  ) {
+    return null
+  }
+
+  return {
+    ...context,
+    projectedAlternateDeductionDays,
+  }
+}
+
+function shouldAllowPayStatusOverrideSlVlCrossDeduction(app, targetEntry = null) {
+  return resolvePayStatusOverrideProjectedCrossDeduction(app, targetEntry) !== null
 }
 
 function getPayStatusOverrideDateLabel(entry = {}) {
   const rawDate = String(entry?.dateKey || entry?.dateText || '').trim()
-  if (!rawDate) return 'this date'
+  if (!rawDate) return 'This date'
 
   return formatDate(rawDate) || rawDate
 }
 
-function getPayStatusOverrideConfirmationCopy(entry = {}) {
+function getPayStatusOverrideConfirmationCopy(app, entry = {}) {
   const currentPayStatus = normalizePayStatusCode(entry?.payStatus) === 'WOP' ? 'WOP' : 'WP'
   const nextPayStatus = normalizePayStatusCode(entry?.nextPayStatus) === 'WOP' ? 'WOP' : 'WP'
   const dateLabel = getPayStatusOverrideDateLabel(entry)
+  const crossDeductionPreview = resolvePayStatusOverrideProjectedCrossDeduction(app, entry)
+
+  if (currentPayStatus === nextPayStatus) {
+    return {
+      title: 'Override Pay Status',
+      message: `No pay-status change is needed for ${dateLabel}.`,
+      color: 'primary',
+      okLabel: 'Continue',
+      cancelLabel: 'Cancel',
+    }
+  }
+
+  if (nextPayStatus === 'WOP') {
+    return {
+      title: 'Set date to WOP?',
+      message: `${dateLabel} will be marked as without pay. Do you want to continue?`,
+      color: 'negative',
+      okLabel: 'Yes, set WOP',
+      cancelLabel: 'Cancel',
+    }
+  }
+
+  if (crossDeductionPreview) {
+    return {
+      title: 'Keep This Leave With Pay?',
+      message: `${formatDayValue(crossDeductionPreview.projectedAlternateDeductionDays)} day(s) will be deducted from ${crossDeductionPreview.alternateLeaveTypeLabel} to keep this leave with pay. Continue?`,
+      color: 'primary',
+      okLabel: 'Continue',
+      cancelLabel: 'Cancel',
+    }
+  }
 
   return {
-    title: 'Override Pay Status',
-    message: `Change ${dateLabel} from ${currentPayStatus} to ${nextPayStatus}?`,
-    color: nextPayStatus === 'WOP' ? 'negative' : 'positive',
+    title: 'Set date to WP?',
+    message: `${dateLabel} will be marked as with pay. Do you want to continue?`,
+    color: 'primary',
+    okLabel: 'Yes, set WP',
+    cancelLabel: 'Cancel',
   }
 }
 
@@ -5245,7 +5405,7 @@ async function overrideApplicationPayStatus(target, entry = {}) {
     return false
   }
 
-  const confirmationCopy = getPayStatusOverrideConfirmationCopy(entry)
+  const confirmationCopy = getPayStatusOverrideConfirmationCopy(application, entry)
 
   return new Promise((resolve) => {
     q.dialog({
@@ -5253,13 +5413,13 @@ async function overrideApplicationPayStatus(target, entry = {}) {
       title: confirmationCopy.title,
       message: confirmationCopy.message,
       cancel: {
-        label: 'No',
+        label: confirmationCopy.cancelLabel,
         flat: true,
         color: 'grey-7',
         class: 'hr-receive-required-dialog__button',
       },
       ok: {
-        label: 'Yes',
+        label: confirmationCopy.okLabel,
         color: confirmationCopy.color,
         unelevated: true,
         class: 'hr-receive-required-dialog__button',

@@ -872,6 +872,8 @@ function isCertificationEntryLikeObject(value) {
     'total_credits',
     'less_this_application',
     'deducted_days',
+    'balance_after_application',
+    'balanceAfterApplication',
     'balance',
     'leave_balance',
     'remaining_balance',
@@ -900,6 +902,8 @@ function createCertificationEntry(label, value, options = {}) {
     let totalEarned = value.total_earned ?? value.total_credits
     let lessThisApplication = value.less_this_application ?? value.deducted_days
     const fallbackBalance =
+      value.balance_after_application ??
+      value.balanceAfterApplication ??
       value.balance ??
       value.leave_balance ??
       value.remaining_balance ??
@@ -1018,6 +1022,7 @@ function buildCertificationEntryMap(app, options = {}) {
   const entries = new Map()
 
   collectCertificationEntries(entries, app?.certificationLeaveCredits, '', options)
+  collectCertificationEntries(entries, app?.certification_leave_credits, '', options)
 
   if (!entries.size) {
     const fallbackEntry = createCertificationEntry(
@@ -1064,6 +1069,50 @@ function buildCertificationColumns(app, options = {}) {
     mergedSelectedEntry ||
       createEmptyCertificationEntry(selectedFallbackLabel || selectedLabel || 'Leave Credits'),
   ]
+}
+
+function resolveExplicitCertificationLessThisApplicationValue(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null
+
+  const candidates = [
+    source.less_this_application,
+    source.lessThisApplication,
+    source.deducted_days,
+    source.deductedDays,
+  ]
+
+  for (const candidate of candidates) {
+    const parsedNumber = toCreditNumber(candidate)
+    if (parsedNumber !== null) return parsedNumber
+  }
+
+  return null
+}
+
+function hasExplicitCertificationLessThisApplication(source) {
+  if (!source) return false
+
+  if (typeof source === 'string') {
+    const parsedSource = parseCertificationSourceCandidate(source)
+    return parsedSource !== null
+      ? hasExplicitCertificationLessThisApplication(parsedSource)
+      : false
+  }
+
+  if (Array.isArray(source)) {
+    return source.some((item) => hasExplicitCertificationLessThisApplication(item))
+  }
+
+  if (typeof source !== 'object') return false
+
+  if (resolveExplicitCertificationLessThisApplicationValue(source) !== null) {
+    return true
+  }
+
+  return Object.entries(source).some(([key, value]) => {
+    if (key === 'as_of_date' || value == null) return false
+    return hasExplicitCertificationLessThisApplication(value)
+  })
 }
 
 function applyCertificationLessThisApplicationOverride(
@@ -1216,7 +1265,6 @@ function buildCertificationTable(columns) {
 
 function normalizeOfficeDepartment(value) {
   return String(value || '')
-    .replace(/^office\s+of\s+the\s+/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -1917,32 +1965,41 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     : '________________'
 
   const approvedForSection = resolveApprovedForSectionValues(app)
-  const cert = app.certificationLeaveCredits || {}
+  const certificationSource =
+    app.certificationLeaveCredits ||
+    app.certification_leave_credits ||
+    {}
+  const cert = certificationSource
   const asOfDate = cert.as_of_date || ''
   const certificationLessThisApplicationDays =
     pickFirstFiniteNumber(app?.deductible_days) ?? approvedForSection.withPayDays
+  const hasExplicitCertificationLessThisApplicationValues =
+    hasExplicitCertificationLessThisApplication(certificationSource)
   const baseCertificationColumns = buildCertificationColumns(app, {
     inferMissingTotalFromBalance: !isApproved,
     forceDualVacationSick:
       isMonetization && (includesVacationMonetization || includesSickMonetization),
   })
-  const certificationColumns =
-    isMonetization && monetizationComponents.length > 0
-      ? applyMonetizationCertificationLessThisApplicationOverride(
-          baseCertificationColumns,
-          monetizationComponents,
-          {
-            preserveExistingBalance: isApproved,
-          },
-        )
-      : applyCertificationLessThisApplicationOverride(
-          baseCertificationColumns,
-          resolvedLeaveType,
-          certificationLessThisApplicationDays,
-          {
-            preserveExistingBalance: isApproved,
-          },
-        )
+  let certificationColumns = baseCertificationColumns
+
+  if (isMonetization && monetizationComponents.length > 0) {
+    certificationColumns = applyMonetizationCertificationLessThisApplicationOverride(
+      baseCertificationColumns,
+      monetizationComponents,
+      {
+        preserveExistingBalance: isApproved,
+      },
+    )
+  } else if (!hasExplicitCertificationLessThisApplicationValues) {
+    certificationColumns = applyCertificationLessThisApplicationOverride(
+      baseCertificationColumns,
+      resolvedLeaveType,
+      certificationLessThisApplicationDays,
+      {
+        preserveExistingBalance: isApproved,
+      },
+    )
+  }
 
   const inclusiveDates = resolveInclusiveDatesLabel(app)
   const b = 0.5 // border width
