@@ -1269,11 +1269,56 @@ function normalizeOfficeDepartment(value) {
     .trim()
 }
 
-function getOfficeDepartmentFontSize(value) {
+function getOfficeDepartmentLayoutConfig(value) {
   const officeText = normalizeOfficeDepartment(value)
-  if (officeText.length > 55) return 7.2
-  if (officeText.length > 40) return 7.8
-  return 9
+
+  if (officeText.length > 85) {
+    return {
+      cellMargin: [6, 5, 6, 4],
+      columnWidth: '39%',
+      fontSize: 6.2,
+      lineHeight: 0.92,
+      valueMargin: [0, 2, 0, 0],
+    }
+  }
+
+  if (officeText.length > 70) {
+    return {
+      cellMargin: [6, 6, 6, 5],
+      columnWidth: '38%',
+      fontSize: 6.6,
+      lineHeight: 0.95,
+      valueMargin: [0, 2, 0, 0],
+    }
+  }
+
+  if (officeText.length > 55) {
+    return {
+      cellMargin: [7, 7, 7, 6],
+      columnWidth: '37%',
+      fontSize: 7.1,
+      lineHeight: 0.98,
+      valueMargin: [0, 3, 0, 0],
+    }
+  }
+
+  if (officeText.length > 40) {
+    return {
+      cellMargin: [8, 7, 8, 6],
+      columnWidth: '36%',
+      fontSize: 7.8,
+      lineHeight: 1.02,
+      valueMargin: [0, 3, 0, 0],
+    }
+  }
+
+  return {
+    cellMargin: [8, 8, 8, 8],
+    columnWidth: '35%',
+    fontSize: 9,
+    lineHeight: 1.05,
+    valueMargin: [0, 4, 0, 0],
+  }
 }
 
 const CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS = new Set([
@@ -1909,7 +1954,7 @@ function openPdfDocument(pdfDocument, options = {}) {
 export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const app = await enrichAppWithDepartmentHead(mergeLocalLeaveApplicationDetails(sourceApp))
   const office = normalizeOfficeDepartment(app.office || '')
-  const officeFontSize = getOfficeDepartmentFontSize(office)
+  const officeLayout = getOfficeDepartmentLayoutConfig(office)
   const resolvedLeaveType = resolvePrintableLeaveType(app)
   const lt = resolvedLeaveType.toLowerCase()
   const monetizationComponents = resolveMonetizationLeaveCreditComponents(app)
@@ -2082,19 +2127,20 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
       // ═══ SECTION 1–5: Basic info (sample layout: uppercase labels, values bold/underlined) ═══
       {
         table: {
-          widths: ['35%', '65%'],
+          widths: [officeLayout.columnWidth, '*'],
           body: [
             [
               {
                 stack: [
                   { text: '1.  OFFICE/DEPARTMENT:', bold: true, fontSize: 8 },
                   underlinedInfoValue(office, {
-                    fontSize: officeFontSize,
-                    margin: [0, 4, 0, 0],
+                    fontSize: officeLayout.fontSize,
+                    lineHeight: officeLayout.lineHeight,
+                    margin: officeLayout.valueMargin,
                   }),
                 ],
                 border: [true, true, false, true],
-                margin: [8, 8],
+                margin: officeLayout.cellMargin,
               },
               {
                 table: {
