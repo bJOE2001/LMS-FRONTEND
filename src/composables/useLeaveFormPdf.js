@@ -376,7 +376,6 @@ function resolveSickSpecifyValue(app, normalizedSickDetail, fallbackValue = '') 
 
 function normalizeOfficeDepartment(value) {
   return String(value || '')
-    .replace(/^office\s+of\s+the\s+/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -896,6 +895,8 @@ function isCertificationEntryLikeObject(value) {
     'daysUsed',
     'application_days',
     'applicationDays',
+    'balance_after_application',
+    'balanceAfterApplication',
     'balance',
     'leave_balance',
     'leaveBalance',
@@ -945,6 +946,8 @@ function createCertificationEntry(label, value) {
       value.application_days ??
       value.applicationDays
     const fallbackBalance =
+      value.balance_after_application ??
+      value.balanceAfterApplication ??
       value.balance ??
       value.leave_balance ??
       value.leaveBalance ??
@@ -1150,6 +1153,50 @@ function buildCertificationColumns(app) {
   ]
 }
 
+function resolveExplicitCertificationLessThisApplicationValue(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null
+
+  const candidates = [
+    source.less_this_application,
+    source.lessThisApplication,
+    source.deducted_days,
+    source.deductedDays,
+  ]
+
+  for (const candidate of candidates) {
+    const parsedNumber = toCreditNumber(candidate)
+    if (parsedNumber !== null) return parsedNumber
+  }
+
+  return null
+}
+
+function hasExplicitCertificationLessThisApplication(source) {
+  if (!source) return false
+
+  if (typeof source === 'string') {
+    const parsedSource = parseCertificationSourceCandidate(source)
+    return parsedSource !== null
+      ? hasExplicitCertificationLessThisApplication(parsedSource)
+      : false
+  }
+
+  if (Array.isArray(source)) {
+    return source.some((item) => hasExplicitCertificationLessThisApplication(item))
+  }
+
+  if (typeof source !== 'object') return false
+
+  if (resolveExplicitCertificationLessThisApplicationValue(source) !== null) {
+    return true
+  }
+
+  return Object.entries(source).some(([key, value]) => {
+    if (key === 'as_of_date' || value == null) return false
+    return hasExplicitCertificationLessThisApplication(value)
+  })
+}
+
 function applyCertificationLessThisApplicationOverride(
   columns,
   selectedLeaveType,
@@ -1318,14 +1365,22 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const status = printableApp.status || ''
   const recommendationSignatory = getRecommendationSignatory(printableApp)
   const approvedForSection = resolveApprovedForSectionValues(printableApp)
-  const cert =
+  const certificationSource =
     printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
+  const cert = certificationSource
   const asOfDate = cert.as_of_date || ''
-  const certificationColumns = applyCertificationLessThisApplicationOverride(
-    buildCertificationColumns(printableApp),
-    lt,
-    approvedForSection.withPayDays,
-  )
+  const hasExplicitCertificationLessThisApplicationValues =
+    hasExplicitCertificationLessThisApplication(certificationSource)
+  const baseCertificationColumns = buildCertificationColumns(printableApp)
+  let certificationColumns = baseCertificationColumns
+
+  if (!hasExplicitCertificationLessThisApplicationValues) {
+    certificationColumns = applyCertificationLessThisApplicationOverride(
+      baseCertificationColumns,
+      lt,
+      approvedForSection.withPayDays,
+    )
+  }
   const vacationDetail = resolveVacationDetailValue(
     printableApp,
     getApplicationDetailValue(printableApp, 'vacation_detail', 'vacationDetail', 'vacation_type'),

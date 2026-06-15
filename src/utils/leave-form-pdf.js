@@ -872,6 +872,8 @@ function isCertificationEntryLikeObject(value) {
     'total_credits',
     'less_this_application',
     'deducted_days',
+    'balance_after_application',
+    'balanceAfterApplication',
     'balance',
     'leave_balance',
     'remaining_balance',
@@ -900,6 +902,8 @@ function createCertificationEntry(label, value, options = {}) {
     let totalEarned = value.total_earned ?? value.total_credits
     let lessThisApplication = value.less_this_application ?? value.deducted_days
     const fallbackBalance =
+      value.balance_after_application ??
+      value.balanceAfterApplication ??
       value.balance ??
       value.leave_balance ??
       value.remaining_balance ??
@@ -1018,6 +1022,7 @@ function buildCertificationEntryMap(app, options = {}) {
   const entries = new Map()
 
   collectCertificationEntries(entries, app?.certificationLeaveCredits, '', options)
+  collectCertificationEntries(entries, app?.certification_leave_credits, '', options)
 
   if (!entries.size) {
     const fallbackEntry = createCertificationEntry(
@@ -1064,6 +1069,50 @@ function buildCertificationColumns(app, options = {}) {
     mergedSelectedEntry ||
       createEmptyCertificationEntry(selectedFallbackLabel || selectedLabel || 'Leave Credits'),
   ]
+}
+
+function resolveExplicitCertificationLessThisApplicationValue(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null
+
+  const candidates = [
+    source.less_this_application,
+    source.lessThisApplication,
+    source.deducted_days,
+    source.deductedDays,
+  ]
+
+  for (const candidate of candidates) {
+    const parsedNumber = toCreditNumber(candidate)
+    if (parsedNumber !== null) return parsedNumber
+  }
+
+  return null
+}
+
+function hasExplicitCertificationLessThisApplication(source) {
+  if (!source) return false
+
+  if (typeof source === 'string') {
+    const parsedSource = parseCertificationSourceCandidate(source)
+    return parsedSource !== null
+      ? hasExplicitCertificationLessThisApplication(parsedSource)
+      : false
+  }
+
+  if (Array.isArray(source)) {
+    return source.some((item) => hasExplicitCertificationLessThisApplication(item))
+  }
+
+  if (typeof source !== 'object') return false
+
+  if (resolveExplicitCertificationLessThisApplicationValue(source) !== null) {
+    return true
+  }
+
+  return Object.entries(source).some(([key, value]) => {
+    if (key === 'as_of_date' || value == null) return false
+    return hasExplicitCertificationLessThisApplication(value)
+  })
 }
 
 function applyCertificationLessThisApplicationOverride(
@@ -1216,16 +1265,115 @@ function buildCertificationTable(columns) {
 
 function normalizeOfficeDepartment(value) {
   return String(value || '')
-    .replace(/^office\s+of\s+the\s+/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-function getOfficeDepartmentFontSize(value) {
+function getOfficeDepartmentLayoutConfig(value) {
   const officeText = normalizeOfficeDepartment(value)
-  if (officeText.length > 55) return 7.2
-  if (officeText.length > 40) return 7.8
-  return 9
+
+  if (officeText.length > 85) {
+    return {
+      cellMargin: [6, 5, 6, 4],
+      columnWidth: '39%',
+      fontSize: 6.2,
+      lineHeight: 0.92,
+      valueMargin: [0, 2, 0, 0],
+    }
+  }
+
+  if (officeText.length > 70) {
+    return {
+      cellMargin: [6, 6, 6, 5],
+      columnWidth: '38%',
+      fontSize: 6.6,
+      lineHeight: 0.95,
+      valueMargin: [0, 2, 0, 0],
+    }
+  }
+
+  if (officeText.length > 55) {
+    return {
+      cellMargin: [7, 7, 7, 6],
+      columnWidth: '37%',
+      fontSize: 7.1,
+      lineHeight: 0.98,
+      valueMargin: [0, 3, 0, 0],
+    }
+  }
+
+  if (officeText.length > 40) {
+    return {
+      cellMargin: [8, 7, 8, 6],
+      columnWidth: '36%',
+      fontSize: 7.8,
+      lineHeight: 1.02,
+      valueMargin: [0, 3, 0, 0],
+    }
+  }
+
+  return {
+    cellMargin: [8, 8, 8, 8],
+    columnWidth: '35%',
+    fontSize: 9,
+    lineHeight: 1.05,
+    valueMargin: [0, 4, 0, 0],
+  }
+}
+
+const CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS = new Set([
+  'SP LEGISLATIVE',
+  'SP SECRETARIAT',
+  'CVMO',
+])
+
+function normalizeOfficeAcronymToken(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+}
+
+function resolveLeaveApplicantOfficeAcronym(app) {
+  const candidates = [
+    app?.officeAcronym,
+    app?.office_acronym,
+    app?.hrisOfficeAcronym,
+    app?.hris_office_acronym,
+    app?.departmentOfficeAbbr,
+    app?.department_office_abbr,
+    app?.employee?.officeAcronym,
+    app?.employee?.office_acronym,
+    app?.employee?.hrisOfficeAcronym,
+    app?.employee?.hris_office_acronym,
+    app?.employee?.departmentOfficeAbbr,
+    app?.employee?.department_office_abbr,
+    app?.raw?.officeAcronym,
+    app?.raw?.office_acronym,
+    app?.raw?.hrisOfficeAcronym,
+    app?.raw?.hris_office_acronym,
+    app?.raw?.departmentOfficeAbbr,
+    app?.raw?.department_office_abbr,
+    app?.raw?.employee?.officeAcronym,
+    app?.raw?.employee?.office_acronym,
+    app?.raw?.employee?.hrisOfficeAcronym,
+    app?.raw?.employee?.hris_office_acronym,
+    app?.raw?.employee?.departmentOfficeAbbr,
+    app?.raw?.employee?.department_office_abbr,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedOfficeAcronym = normalizeOfficeAcronymToken(candidate)
+    if (normalizedOfficeAcronym) {
+      return normalizedOfficeAcronym
+    }
+  }
+
+  return ''
+}
+
+function shouldUseCityViceMayorApprovedForSignatory(app) {
+  return CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS.has(resolveLeaveApplicantOfficeAcronym(app))
 }
 
 function toFiniteNumber(value) {
@@ -1806,7 +1954,7 @@ function openPdfDocument(pdfDocument, options = {}) {
 export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const app = await enrichAppWithDepartmentHead(mergeLocalLeaveApplicationDetails(sourceApp))
   const office = normalizeOfficeDepartment(app.office || '')
-  const officeFontSize = getOfficeDepartmentFontSize(office)
+  const officeLayout = getOfficeDepartmentLayoutConfig(office)
   const resolvedLeaveType = resolvePrintableLeaveType(app)
   const lt = resolvedLeaveType.toLowerCase()
   const monetizationComponents = resolveMonetizationLeaveCreditComponents(app)
@@ -1862,32 +2010,41 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     : '________________'
 
   const approvedForSection = resolveApprovedForSectionValues(app)
-  const cert = app.certificationLeaveCredits || {}
+  const certificationSource =
+    app.certificationLeaveCredits ||
+    app.certification_leave_credits ||
+    {}
+  const cert = certificationSource
   const asOfDate = cert.as_of_date || ''
   const certificationLessThisApplicationDays =
     pickFirstFiniteNumber(app?.deductible_days) ?? approvedForSection.withPayDays
+  const hasExplicitCertificationLessThisApplicationValues =
+    hasExplicitCertificationLessThisApplication(certificationSource)
   const baseCertificationColumns = buildCertificationColumns(app, {
     inferMissingTotalFromBalance: !isApproved,
     forceDualVacationSick:
       isMonetization && (includesVacationMonetization || includesSickMonetization),
   })
-  const certificationColumns =
-    isMonetization && monetizationComponents.length > 0
-      ? applyMonetizationCertificationLessThisApplicationOverride(
-          baseCertificationColumns,
-          monetizationComponents,
-          {
-            preserveExistingBalance: isApproved,
-          },
-        )
-      : applyCertificationLessThisApplicationOverride(
-          baseCertificationColumns,
-          resolvedLeaveType,
-          certificationLessThisApplicationDays,
-          {
-            preserveExistingBalance: isApproved,
-          },
-        )
+  let certificationColumns = baseCertificationColumns
+
+  if (isMonetization && monetizationComponents.length > 0) {
+    certificationColumns = applyMonetizationCertificationLessThisApplicationOverride(
+      baseCertificationColumns,
+      monetizationComponents,
+      {
+        preserveExistingBalance: isApproved,
+      },
+    )
+  } else if (!hasExplicitCertificationLessThisApplicationValues) {
+    certificationColumns = applyCertificationLessThisApplicationOverride(
+      baseCertificationColumns,
+      resolvedLeaveType,
+      certificationLessThisApplicationDays,
+      {
+        preserveExistingBalance: isApproved,
+      },
+    )
+  }
 
   const inclusiveDates = resolveInclusiveDatesLabel(app)
   const b = 0.5 // border width
@@ -1916,6 +2073,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showWithinPhilippines =
     (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
   const showAbroad = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Abroad'
+  const useCityViceMayorApprovedForSignatory = shouldUseCityViceMayorApprovedForSignatory(app)
   const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
     app,
     isAbroad: showAbroad,
@@ -1924,10 +2082,18 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     cityViceMayorSignatory,
     baseRecommendationSignatory,
   })
+  const approvedForSignatory = useCityViceMayorApprovedForSignatory
+    ? cityViceMayorSignatory
+    : mayorSignatory
+  const approvedForSignatoryFallbackDesignation = useCityViceMayorApprovedForSignatory
+    ? 'City Vice Mayor'
+    : 'City Mayor'
   const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
     recommendationSignatory.fullName,
   )
-  const mayorSignatoryName = formatSignatoryNameWithMiddleInitial(mayorSignatory.fullName)
+  const approvedForSignatoryName = formatSignatoryNameWithMiddleInitial(
+    approvedForSignatory.fullName,
+  )
   const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
   const showOutPatient = isSick && normalizedSickDetail === 'Out Patient'
   const showMastersDegree = isStudy && studyDetail === 'Masters Degree'
@@ -1961,19 +2127,20 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
       // ═══ SECTION 1–5: Basic info (sample layout: uppercase labels, values bold/underlined) ═══
       {
         table: {
-          widths: ['35%', '65%'],
+          widths: [officeLayout.columnWidth, '*'],
           body: [
             [
               {
                 stack: [
                   { text: '1.  OFFICE/DEPARTMENT:', bold: true, fontSize: 8 },
                   underlinedInfoValue(office, {
-                    fontSize: officeFontSize,
-                    margin: [0, 4, 0, 0],
+                    fontSize: officeLayout.fontSize,
+                    lineHeight: officeLayout.lineHeight,
+                    margin: officeLayout.valueMargin,
                   }),
                 ],
                 border: [true, true, false, true],
-                margin: [8, 8],
+                margin: officeLayout.cellMargin,
               },
               {
                 table: {
@@ -2584,7 +2751,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       body: [
                         [
                           {
-                            text: mayorSignatoryName || ' ',
+                            text: approvedForSignatoryName || ' ',
                             fontSize: 10,
                             bold: true,
                             alignment: 'center',
@@ -2606,7 +2773,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     },
                   },
                   {
-                    text: mayorSignatory.designation || 'City Mayor',
+                    text:
+                      approvedForSignatory.designation || approvedForSignatoryFallbackDesignation,
                     fontSize: 9,
                     alignment: 'center',
                     margin: [0, 2, 0, 6],

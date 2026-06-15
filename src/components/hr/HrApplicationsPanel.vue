@@ -373,6 +373,8 @@
     :has-mobile-application-actions="hasMobileApplicationActions"
     :can-edit-application="canEditApplication"
     :can-recall-application="canRecallApplication"
+    :can-override-application-pay-status="canOverrideApplicationPayStatus"
+    :pay-status-override-loading="payStatusOverrideLoading"
     :get-final-status-for-status-column="getFinalStatusForStatusColumn"
     :get-status-tooltip-for-status-column="getStatusTooltipForStatusColumn"
     :get-approve-action-label="getApproveActionLabel"
@@ -383,6 +385,7 @@
     @open-action-confirm="openActionConfirm"
     @open-recall="openRecall"
     @print-certificate="printCocCertificate"
+    @override-pay-status="overrideApplicationPayStatus"
   />
 
   <AdminApplicationCalendarDialog

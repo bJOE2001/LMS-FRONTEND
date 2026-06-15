@@ -290,9 +290,22 @@
                         rounded
                         :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
                         text-color="white"
-                        :label="entry.payStatus"
-                        class="hr-application-pay-status-badge"
-                      />
+                        :class="[
+                          'hr-application-pay-status-badge',
+                          { 'hr-application-pay-status-badge--clickable': canShowPayStatusOverride(entry) },
+                        ]"
+                        :role="canShowPayStatusOverride(entry) ? 'button' : null"
+                        :tabindex="canShowPayStatusOverride(entry) ? 0 : null"
+                        :aria-label="canShowPayStatusOverride(entry) ? getPayStatusOverrideTooltip(entry) : null"
+                        @click.stop="handleOverridePayStatus(entry)"
+                        @keyup.enter.stop="handleOverridePayStatus(entry)"
+                        @keyup.space.stop.prevent="handleOverridePayStatus(entry)"
+                      >
+                        {{ entry.payStatus }}
+                        <q-tooltip v-if="canShowPayStatusOverride(entry)">
+                          {{ getPayStatusOverrideTooltip(entry) }}
+                        </q-tooltip>
+                      </q-badge>
                     </div>
                   </div>
                 </div>
@@ -388,9 +401,22 @@
                     rounded
                     :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
                     text-color="white"
-                    :label="entry.payStatus"
-                    class="hr-application-pay-status-badge"
-                  />
+                    :class="[
+                      'hr-application-pay-status-badge',
+                      { 'hr-application-pay-status-badge--clickable': canShowPayStatusOverride(entry) },
+                    ]"
+                    :role="canShowPayStatusOverride(entry) ? 'button' : null"
+                    :tabindex="canShowPayStatusOverride(entry) ? 0 : null"
+                    :aria-label="canShowPayStatusOverride(entry) ? getPayStatusOverrideTooltip(entry) : null"
+                    @click.stop="handleOverridePayStatus(entry)"
+                    @keyup.enter.stop="handleOverridePayStatus(entry)"
+                    @keyup.space.stop.prevent="handleOverridePayStatus(entry)"
+                  >
+                    {{ entry.payStatus }}
+                    <q-tooltip v-if="canShowPayStatusOverride(entry)">
+                      {{ getPayStatusOverrideTooltip(entry) }}
+                    </q-tooltip>
+                  </q-badge>
                 </div>
               </div>
             </div>
@@ -425,6 +451,24 @@
             >
               {{ application.startDate ? formatInclusiveDateLabel(application.startDate) : 'N/A' }} -
               {{ application.endDate ? formatInclusiveDateLabel(application.endDate) : 'N/A' }}
+            </div>
+          </div>
+          <div
+            v-if="slVlCrossDeductionSummary"
+            class="hr-application-details-item hr-application-details-item--full"
+          >
+            <div class="text-caption text-grey-7">SL/VL Cross Deduction</div>
+            <div class="hr-application-cross-deduction-list">
+              <div
+                v-for="item in slVlCrossDeductionSummary.items"
+                :key="item.label"
+                class="hr-application-cross-deduction-row"
+              >
+                <span class="text-caption text-grey-7">{{ item.label }}</span>
+                <span class="text-weight-medium hr-application-cross-deduction-value">
+                  {{ item.value }}
+                </span>
+              </div>
             </div>
           </div>
           <div
@@ -695,6 +739,14 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
+  canOverrideApplicationPayStatus: {
+    type: Function,
+    default: () => false,
+  },
+  payStatusOverrideLoading: {
+    type: Boolean,
+    default: false,
+  },
   getFinalStatusForStatusColumn: {
     type: Function,
     default: (app) => String(app?.displayStatus || '').trim(),
@@ -724,6 +776,7 @@ const emit = defineEmits([
   'open-action-confirm',
   'open-recall',
   'print-certificate',
+  'override-pay-status',
 ])
 
 const dialogModel = computed({
@@ -781,6 +834,96 @@ const shouldShowFooterActions = computed(() => {
   )
 })
 
+const slVlCrossDeductionSummary = computed(() => buildSlVlCrossDeductionSummary(props.application))
+
+function toRoundedDayValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return 0
+
+  return Math.round(numericValue * 1000) / 1000
+}
+
+function formatDayValue(value) {
+  return toRoundedDayValue(value).toLocaleString('en-US', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })
+}
+
+function getCrossDeductionLeaveTypeName(app) {
+  return String(
+    props.getCurrentLeaveTypeLabel(app) || app?.leave_type_name || app?.leaveType || '',
+  )
+    .trim()
+    .toLowerCase()
+}
+
+function resolveDeductibleDayValue(app) {
+  const candidates = [
+    app?.deductible_days,
+    app?.with_pay_days,
+    app?.requested_total_days,
+    app?.actual_total_days,
+    app?.display_total_days,
+    app?.days,
+    app?.total_days,
+  ]
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate)
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return Math.round(numericValue * 1000) / 1000
+    }
+  }
+
+  return 0
+}
+
+function buildSlVlCrossDeductionSummary(app) {
+  if (!app || typeof app !== 'object') return null
+
+  const leaveTypeName = getCrossDeductionLeaveTypeName(app)
+  if (leaveTypeName !== 'sick leave' && leaveTypeName !== 'vacation leave') {
+    return null
+  }
+
+  const linkedVacationDays = toRoundedDayValue(app?.linked_vacation_leave_deducted_days)
+  const linkedSickDays = toRoundedDayValue(app?.linked_sick_leave_deducted_days)
+  if (linkedVacationDays <= 0 && linkedSickDays <= 0) {
+    return null
+  }
+
+  const deductibleDays = resolveDeductibleDayValue(app)
+  const primaryDeductionDays = Math.max(
+    deductibleDays - linkedVacationDays - linkedSickDays,
+    0,
+  )
+  const items = []
+
+  if (primaryDeductionDays > 0) {
+    items.push({
+      label: leaveTypeName === 'sick leave' ? 'Sick Leave charged' : 'Vacation Leave charged',
+      value: `${formatDayValue(primaryDeductionDays)} day(s)`,
+    })
+  }
+
+  if (linkedVacationDays > 0) {
+    items.push({
+      label: 'Vacation Leave cross-deducted',
+      value: `${formatDayValue(linkedVacationDays)} day(s)`,
+    })
+  }
+
+  if (linkedSickDays > 0) {
+    items.push({
+      label: 'Sick Leave cross-deducted',
+      value: `${formatDayValue(linkedSickDays)} day(s)`,
+    })
+  }
+
+  return items.length ? { items } : null
+}
+
 function getCurrentInclusiveDateEntryCount(app) {
   const currentPayStatusRows = props.getSelectedDatePayStatusRows(app)
   if (currentPayStatusRows.length) return currentPayStatusRows.length
@@ -831,6 +974,29 @@ function handleOpenRecall() {
 function handlePrintCertificate() {
   if (!props.application) return
   emit('print-certificate', props.application)
+}
+
+function canShowPayStatusOverride(entry) {
+  if (!props.application || !entry) return false
+  return props.canOverrideApplicationPayStatus(props.application, entry)
+}
+
+function getNextPayStatus(entry) {
+  return entry?.payStatus === 'WOP' ? 'WP' : 'WOP'
+}
+
+function getPayStatusOverrideTooltip(entry) {
+  const nextStatus = getNextPayStatus(entry)
+  const dateLabel = formatInclusiveDateEntry(entry)
+  return dateLabel ? `Change ${dateLabel} to ${nextStatus}` : `Change to ${nextStatus}`
+}
+
+function handleOverridePayStatus(entry) {
+  if (!props.application || !entry || !canShowPayStatusOverride(entry)) return
+  emit('override-pay-status', props.application, {
+    ...entry,
+    nextPayStatus: getNextPayStatus(entry),
+  })
 }
 </script>
 
@@ -1030,6 +1196,23 @@ function handlePrintCertificate() {
   grid-column: 1 / -1;
 }
 
+.hr-application-cross-deduction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-application-cross-deduction-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hr-application-cross-deduction-value {
+  text-align: right;
+}
+
 .hr-application-details-label {
   font-size: 0.66rem;
   font-weight: 700;
@@ -1150,6 +1333,20 @@ function handlePrintCertificate() {
   flex: 0 0 auto;
   min-width: 42px;
   justify-content: center;
+}
+
+.hr-application-pay-status-badge--clickable {
+  cursor: pointer;
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.hr-application-pay-status-badge--clickable:hover,
+.hr-application-pay-status-badge--clickable:focus-visible {
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.28);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .hr-application-coverage-badge {

@@ -256,6 +256,18 @@
 
             <div class="employee-details-header__meta">
               <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Monthly Rate</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ employeeMonthlyRateLabel }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Estimated Terminal Leave</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ employeeTerminalLeaveEstimatedAmountLabel }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
                 <div class="text-caption text-grey-6">Office</div>
                 <div class="text-body2 text-weight-medium employee-details-header__meta-value">
                   {{ resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-' }}
@@ -264,6 +276,7 @@
               <div class="employee-details-header__meta-item">
                 <div class="text-caption text-grey-6">Status</div>
                 <q-badge
+                  class="employee-details-header__status-badge"
                   :color="statusBadgeColor(selectedEmployee.status)"
                   :label="displayStatusLabel(selectedEmployee.status)"
                   rounded
@@ -1010,6 +1023,19 @@ const LEDGER_BALANCE_BADGE_META = Object.freeze({
     background: LEDGER_BALANCE_BADGE_UNIFORM_PALETTE.background,
   },
 })
+const TERMINAL_LEAVE_CONSTANT_FACTOR = 0.0478087
+const terminalLeaveEstimateFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+const currencyFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 const ledgerColumnWidths = LEDGER_COLUMN_WIDTH_UNITS.map(
   (width) => `${(width / LEDGER_COLUMN_WIDTH_TOTAL) * 100}%`,
@@ -1074,6 +1100,12 @@ const calendarPreviewEmployeeName = computed(() => {
 
   return String(fallbackName || 'Employee').trim().toUpperCase()
 })
+const employeeTerminalLeaveEstimatedAmountLabel = computed(() =>
+  formatEmployeeTerminalLeaveAmount(selectedEmployee.value),
+)
+const employeeMonthlyRateLabel = computed(() =>
+  formatEmployeeMonthlyRate(selectedEmployee.value),
+)
 const calendarPreviewDateStates = computed(() => {
   const dateStates = new Map()
 
@@ -1966,6 +1998,68 @@ function formatDate(value) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function roundCurrencyValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+  return Math.round((numericValue + Number.EPSILON) * 100) / 100
+}
+
+function truncateCurrencyValue(value, fractionDigits = 2) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+
+  const factor = 10 ** fractionDigits
+  if (!Number.isFinite(factor) || factor <= 0) return null
+
+  return numericValue < 0
+    ? Math.ceil(numericValue * factor) / factor
+    : Math.floor(numericValue * factor) / factor
+}
+
+function resolveEmployeeTerminalLeaveAmount(employee) {
+  const apiEstimatedAmount = parseLedgerSignedQuantityValue(employee?.terminal_leave_estimated_amount)
+  if (apiEstimatedAmount !== null) {
+    return apiEstimatedAmount
+  }
+
+  const vacationLeaveBalance = parseLedgerSignedQuantityValue(employee?.vl_balance)
+  const sickLeaveBalance = parseLedgerSignedQuantityValue(employee?.sl_balance)
+  const monthlyRate = parseLedgerSignedQuantityValue(employee?.rate_mon)
+  if (vacationLeaveBalance === null || sickLeaveBalance === null || monthlyRate === null) {
+    return null
+  }
+
+  return (sickLeaveBalance + vacationLeaveBalance) * monthlyRate * TERMINAL_LEAVE_CONSTANT_FACTOR
+}
+
+function formatEmployeeTerminalLeaveAmount(employee) {
+  const terminalLeaveAmount = resolveEmployeeTerminalLeaveAmount(employee)
+  if (terminalLeaveAmount === null) {
+    return '-'
+  }
+
+  const truncatedTerminalLeaveAmount = truncateCurrencyValue(terminalLeaveAmount)
+
+  return truncatedTerminalLeaveAmount === null
+    ? '-'
+    : terminalLeaveEstimateFormatter.format(truncatedTerminalLeaveAmount)
+}
+
+function resolveEmployeeMonthlyRate(employee) {
+  const monthlyRate = parseLedgerSignedQuantityValue(employee?.rate_mon)
+
+  return monthlyRate === null ? null : roundCurrencyValue(monthlyRate)
+}
+
+function formatEmployeeMonthlyRate(employee) {
+  const monthlyRate = resolveEmployeeMonthlyRate(employee)
+  if (monthlyRate === null) {
+    return '-'
+  }
+
+  return currencyFormatter.format(monthlyRate)
+}
+
 function formatLedgerActionDate(value) {
   if (!value) return ''
 
@@ -2212,40 +2306,6 @@ function roundLedgerNumericValue(value) {
   return Math.round((numericValue + Number.EPSILON) * 1000) / 1000
 }
 
-function normalizeOtherLedgerBalances(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return Array.isArray(rows) ? rows : []
-
-  const runningBalancesByCode = {}
-
-  return rows.map((row) => {
-    const leaveCode = normalizeLedgerLeaveCode(row?.leaveTypeCode || row?.particulars)
-    if (!isLedgerOtherLeaveCode(leaveCode)) return row
-
-    const earnedAmount = parseLedgerSignedQuantityValue(row?.otherEarned) ?? 0
-    const withPayAmount = parseLedgerSignedQuantityValue(row?.otherAbsUndWp) ?? 0
-    const delta = roundLedgerNumericValue(earnedAmount + withPayAmount)
-    const nextFromDelta = roundLedgerNumericValue((runningBalancesByCode[leaveCode] ?? 0) + delta)
-
-    const existingCombinedBalance = parseLedgerSignedQuantityValue(row?.otherBalance)
-    let nextBalance = nextFromDelta
-
-    if (existingCombinedBalance !== null) {
-      const otherTypeBalanceTotal = Object.keys(runningBalancesByCode).reduce(
-        (total, code) => (code === leaveCode ? total : total + (runningBalancesByCode[code] ?? 0)),
-        0,
-      )
-      nextBalance = roundLedgerNumericValue(existingCombinedBalance - otherTypeBalanceTotal)
-    }
-
-    runningBalancesByCode[leaveCode] = nextBalance
-
-    return {
-      ...row,
-      otherBalance: normalizeLedgerQuantityValue(nextBalance),
-    }
-  })
-}
-
 function buildLedgerRowsForPaper(rows, preset, options = {}) {
   const normalizedRows = Array.isArray(rows)
     ? rows.map((entry, index) => ({
@@ -2299,9 +2359,11 @@ function updateLedgerForwardedBalanceState(state, rows) {
 
     const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
     if (otherBalance !== null) {
-      const leaveCode = normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
-      if (isLedgerOtherLeaveCode(leaveCode)) {
-        state.otherByCode[leaveCode] = otherBalance
+      const balanceKey =
+        normalizeLedgerTextValue(row.balanceKey) ||
+        normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
+      if (isLedgerOtherLeaveCode(balanceKey)) {
+        state.otherByCode[balanceKey] = otherBalance
       } else {
         state.otherDefault = otherBalance
       }
@@ -2460,10 +2522,17 @@ function normalizeLedgerLeaveCode(value) {
   }
 
   if (
+    compact === 'spl' ||
+    compact === 'soloparentleave' ||
+    compact === 'soloparent'
+  ) {
+    return 'SPL'
+  }
+
+  if (
     compact === 'mco6' ||
     compact === 'mc06' ||
     compact === 'mo6' ||
-    compact === 'spl' ||
     compact === 'specialprivilege' ||
     compact === 'specialprivilegeleave' ||
     compact.startsWith('mco6') ||
@@ -3858,6 +3927,9 @@ function normalizeLedgerRow(entry, index) {
       ['id', 'ledger_id', 'ledgerId', 'entry_id', 'entryId'],
       `ledger-${index}`,
     ),
+    balanceKey: normalizeLedgerTextValue(
+      pickFirstDefined(entry, ['balance_key', 'balanceKey', 'other_balance_key', 'otherBalanceKey']),
+    ),
     period:
       inclusivePeriod ||
       normalizeLedgerTextValue(
@@ -4335,7 +4407,7 @@ async function openLeaveCreditsLedgerDialog(employee) {
       normalizeLedgerRow(entry, index),
     )
     const orderedRows = orderLedgerRowsOldestFirst(normalizedRows)
-    const ledgerRows = normalizeOtherLedgerBalances(orderedRows)
+    const ledgerRows = orderedRows
     leaveCreditsLedgerRows.value = ledgerRows
 
     if (leaveBalanceTypesResult.status === 'fulfilled') {
@@ -4975,7 +5047,7 @@ async function saveLeaveCredits() {
 
 .employee-details-header__meta {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 20px;
   flex-wrap: wrap;
@@ -4983,10 +5055,17 @@ async function saveLeaveCredits() {
 
 .employee-details-header__meta-item {
   min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .employee-details-header__meta-value {
   line-height: 1.25;
+}
+
+.employee-details-header__status-badge {
+  align-self: flex-start;
 }
 
 .employee-details-leave-credits {
