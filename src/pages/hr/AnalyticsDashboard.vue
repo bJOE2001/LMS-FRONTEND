@@ -139,15 +139,6 @@
             />
           </div>
           <div
-            v-if="chartMatches('Average Leave Days by Age Group', 'age average leave days')"
-            :class="chartColumn('col-12 col-md-4')"
-          >
-            <AverageLeaveDaysByAgeGroupChart
-              :chart="charts.averageLeaveDaysByAgeGroup"
-              :loading="analyticsStore.loading"
-            />
-          </div>
-          <div
             v-if="chartMatches('Gender Distribution', 'gender profile')"
             :class="chartColumn('col-12 col-md-4')"
           >
@@ -243,7 +234,6 @@ import LeaveUsageByGenerationChart from 'components/charts/analytics/LeaveUsageB
 import GenerationLeaveTrendChart from 'components/charts/analytics/GenerationLeaveTrendChart.vue'
 import AgeGroupDistributionChart from 'components/charts/analytics/AgeGroupDistributionChart.vue'
 import LeaveUsageByAgeGroupChart from 'components/charts/analytics/LeaveUsageByAgeGroupChart.vue'
-import AverageLeaveDaysByAgeGroupChart from 'components/charts/analytics/AverageLeaveDaysByAgeGroupChart.vue'
 import GenderDistributionChart from 'components/charts/analytics/GenderDistributionChart.vue'
 import LeaveTypeByGenderChart from 'components/charts/analytics/LeaveTypeByGenderChart.vue'
 import GenderLeaveTrendChart from 'components/charts/analytics/GenderLeaveTrendChart.vue'
@@ -266,7 +256,6 @@ const demographicChartLabels = [
   'Generation Leave Trend',
   'Age Group Distribution',
   'Leave Usage by Age Group',
-  'Average Leave Days by Age Group',
   'Gender Distribution',
   'Leave Type by Gender',
   'Gender Leave Trend',

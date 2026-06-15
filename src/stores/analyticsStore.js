@@ -13,7 +13,6 @@ const CHART_KEYS = [
   'generationLeaveTrend',
   'ageGroupDistribution',
   'leaveUsageByAgeGroup',
-  'averageLeaveDaysByAgeGroup',
   'genderDistribution',
   'leaveTypeByGender',
   'genderLeaveTrend',

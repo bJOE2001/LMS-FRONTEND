@@ -198,7 +198,6 @@ export function printAnalyticsDashboardPdf({
             width: '34%',
             stack: [
               buildSimpleTable('Gender Distribution', charts.genderDistribution?.labels, charts.genderDistribution?.series, 'Employees'),
-              buildSeriesTable('Average Leave Days by Age Group', charts.averageLeaveDaysByAgeGroup, 'Average Days'),
             ],
           },
         ],
