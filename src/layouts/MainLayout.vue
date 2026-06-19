@@ -271,6 +271,7 @@ const adminNav = [
 const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard', moduleKey: 'dashboard' },
   { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: 'applications' },
+  { path: '/hr/application-edit-requests', label: 'Edit Requests', icon: 'edit_note', moduleKey: 'applications', ownerOnly: true },
   { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: 'coc_applications' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: 'employee_management' },
   { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts', moduleKey: 'user_management' },
@@ -283,7 +284,10 @@ function canAccessHrModule(moduleKey) {
 
 const navItems = computed(() => {
   if (leaveStore.userRole === 'hr') {
-    return hrNav.filter((item) => canAccessHrModule(item.moduleKey))
+    return hrNav.filter((item) => {
+      if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
+      return canAccessHrModule(item.moduleKey)
+    })
   }
   // Admin and department_admin see the admin menu (not HR)
   if (leaveStore.userRole === 'admin' || leaveStore.userRole === 'department_admin') return adminNav

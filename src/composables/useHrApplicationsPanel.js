@@ -2668,11 +2668,14 @@ const rejectTargetApp = ref(null)
 const recallTargetApp = ref(null)
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
-const showApplicationEditAction = false
+const showApplicationEditAction = true
 const recallDialogApplication = computed(() => recallTargetApp.value || selectedApp.value)
 
 function canEditApplication(app) {
-  return getApplicationRawStatusKey(app) === 'PENDING_HR' && !isCocApplication(app)
+  if (!app || isCocApplication(app)) return false
+
+  const editableStatuses = new Set(['PENDING_HR', 'APPROVED'])
+  return editableStatuses.has(getApplicationRawStatusKey(app))
 }
 
 function getApplicationLeaveTypeName(app) {

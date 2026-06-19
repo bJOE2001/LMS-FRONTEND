@@ -1,108 +1,186 @@
 <template>
   <q-dialog v-model="dialogModel" persistent class="hr-edit-dialog">
     <q-card class="hr-edit-card">
-      <q-card-section class="bg-primary text-white">
-        <div class="text-h6">Edit Application</div>
-      </q-card-section>
-      <q-form @submit.prevent="handleSave">
-        <q-card-section v-if="formModel && formModel.id">
-          <div class="row q-col-gutter-md">
-            <div class="col-12 col-md-6">
-              <q-input
-                :model-value="formModel.employeeName"
-                outlined
-                dense
-                label="Employee"
-                readonly
-              />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input
-                :model-value="formModel.leaveTypeLabel"
-                outlined
-                dense
-                label="Leave Type"
-                readonly
-              />
-            </div>
-            <template v-if="!formModel.isMonetization">
-              <div class="col-12 col-md-6">
-                <q-input
-                  :model-value="formModel.startDate"
-                  type="date"
-                  outlined
-                  dense
-                  label="Start Date"
-                  @update:model-value="handleDateFieldUpdate('startDate', $event)"
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  :model-value="formModel.endDate"
-                  type="date"
-                  outlined
-                  dense
-                  label="End Date"
-                  @update:model-value="handleDateFieldUpdate('endDate', $event)"
-                />
-              </div>
-            </template>
-            <div class="col-12 col-md-6">
-              <q-input
-                :model-value="formModel.totalDays"
-                type="number"
-                min="1"
-                outlined
-                dense
-                :readonly="!formModel.isMonetization"
-                :hint="
-                  formModel.isMonetization
-                    ? 'Days to monetize'
-                    : 'Auto-computed from selected date range'
-                "
-                label="Days"
-                @update:model-value="updateField('totalDays', $event)"
-              />
-            </div>
-            <div
-              class="col-12"
-              v-if="!formModel.isMonetization && Array.isArray(formModel.selectedDates) && formModel.selectedDates.length"
-            >
-              <div class="text-caption text-grey-7 q-mb-xs">Selected Dates</div>
-              <div class="text-caption">
-                {{ formModel.selectedDates.map((d) => formatDate(d)).join(', ') }}
-              </div>
-            </div>
-            <div class="col-12">
-              <q-input
-                :model-value="formModel.reason"
-                type="textarea"
-                rows="4"
-                outlined
-                label="Reason"
-                @update:model-value="updateField('reason', $event)"
-              />
-            </div>
-            <div class="col-12">
-              <q-input
-                :model-value="formModel.remarks"
-                type="textarea"
-                rows="3"
-                outlined
-                label="Remarks (optional)"
-                @update:model-value="updateField('remarks', $event)"
-              />
+      <q-card-section class="hr-edit-header bg-primary text-white">
+        <div class="row items-start no-wrap q-gutter-sm">
+          <q-avatar size="42px" class="hr-edit-header__icon">
+            <q-icon name="edit_note" size="24px" />
+          </q-avatar>
+          <div class="col">
+            <div class="text-h6">{{ editDialogTitle }}</div>
+            <div class="text-caption text-white hr-edit-header__caption">
+              {{ editDialogCaption }}
             </div>
           </div>
+          <q-btn flat dense round icon="close" aria-label="Close edit dialog" @click="dialogModel = false" />
+        </div>
+      </q-card-section>
+
+      <q-form @submit.prevent="handleSave">
+        <q-card-section v-if="formModel && formModel.id" class="hr-edit-content">
+          <div class="hr-edit-section">
+            <div class="hr-edit-section__title">Application</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-md-6">
+                <q-input
+                  :model-value="formModel.employeeName"
+                  outlined
+                  dense
+                  label="Employee"
+                  readonly
+                />
+              </div>
+              <div class="col-12 col-md-6">
+                <q-input
+                  :model-value="formModel.leaveTypeLabel"
+                  outlined
+                  dense
+                  label="Leave Type"
+                  readonly
+                />
+              </div>
+
+              <div v-if="!formModel.isMonetization" class="col-12">
+                <div class="hr-edit-working-days-layout">
+                  <div class="hr-edit-calendar-panel">
+                    <div class="hr-edit-calendar-panel__header">
+                      <div>
+                        <div class="hr-edit-calendar-panel__title">
+                          Number of Working Days Applied
+                        </div>
+                        <div class="hr-edit-calendar-panel__caption">Select Leave Dates</div>
+                      </div>
+                      <q-badge rounded color="green-1" text-color="green-9">
+                        {{ formatDayValue(totalRequestedDays) }} day(s)
+                      </q-badge>
+                    </div>
+
+                    <q-date
+                      :model-value="formModel.selectedDates"
+                      multiple
+                      mask="YYYY-MM-DD"
+                      color="green-8"
+                      minimal
+                      flat
+                      :default-year-month="calendarDefaultYearMonth"
+                      :options="isSelectableWorkingDate"
+                      class="hr-edit-working-days-calendar"
+                      @update:model-value="handleSelectedDatesUpdate"
+                    />
+                  </div>
+
+                  <div class="hr-edit-pay-ledger-panel">
+                    <div class="row items-center justify-between q-gutter-sm hr-edit-section__heading">
+                      <div>
+                        <div class="hr-edit-section__title">Selected Dates</div>
+                      </div>
+                    </div>
+
+                    <div v-if="formModel.payStatusRows.length" class="hr-edit-date-grid">
+                      <div class="hr-edit-date-grid__head">
+                        <div>Date</div>
+                        <div>Coverage</div>
+                        <div>Pay Status</div>
+                        <div>WP</div>
+                        <div>W/oP</div>
+                      </div>
+
+                      <div
+                        v-for="row in formModel.payStatusRows"
+                        :key="row.dateKey"
+                        class="hr-edit-date-grid__row"
+                      >
+                        <div class="hr-edit-date-grid__cell hr-edit-date-grid__cell--date" data-label="Date">
+                          {{ formatDate(row.dateKey) || row.dateKey }}
+                        </div>
+                        <div class="hr-edit-date-grid__cell" data-label="Coverage">
+                          <q-select
+                            :model-value="row.coverageCode"
+                            :options="coverageOptions"
+                            outlined
+                            dense
+                            emit-value
+                            map-options
+                            @update:model-value="updateCoverage(row.dateKey, $event)"
+                          />
+                        </div>
+                        <div class="hr-edit-date-grid__cell" data-label="Pay Status">
+                          <q-btn-toggle
+                            :model-value="row.payStatus"
+                            dense
+                            unelevated
+                            no-caps
+                            toggle-color="primary"
+                            color="grey-2"
+                            text-color="grey-8"
+                            :options="payStatusOptions"
+                            class="hr-edit-pay-toggle"
+                            @update:model-value="updatePayStatus(row.dateKey, $event)"
+                          />
+                        </div>
+                        <div
+                          class="hr-edit-date-grid__cell hr-edit-date-grid__cell--ledger"
+                          :class="{ 'hr-edit-date-grid__cell--inactive': row.payStatus !== 'WP' }"
+                          data-label="WP"
+                        >
+                          <q-input
+                            v-if="row.payStatus === 'WP'"
+                            :model-value="formatDeductionValue(row.withPayDays)"
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            outlined
+                            dense
+                            class="hr-edit-ledger-input"
+                            :class="{ 'hr-edit-ledger-input--wp': row.payStatus === 'WP' }"
+                            @update:model-value="updateWithPayDays(row.dateKey, $event)"
+                          />
+                        </div>
+                        <div
+                          class="hr-edit-date-grid__cell hr-edit-date-grid__cell--ledger"
+                          :class="{ 'hr-edit-date-grid__cell--inactive': row.payStatus !== 'WOP' }"
+                          data-label="W/oP"
+                        >
+                          <q-input
+                            v-if="row.payStatus === 'WOP'"
+                            :model-value="formatDeductionValue(row.withoutPayDays)"
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            outlined
+                            dense
+                            class="hr-edit-ledger-input"
+                            :class="{ 'hr-edit-ledger-input--wop': row.payStatus === 'WOP' }"
+                            @update:model-value="updateWithoutPayDays(row.dateKey, $event)"
+                          >
+                            <q-tooltip>
+                              W/oP value appears in the ledger only and does not deduct leave credits
+                            </q-tooltip>
+                          </q-input>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-else class="hr-edit-empty-dates">
+                      <q-icon name="event_busy" size="22px" />
+                      <span>No leave dates available for this application.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" @click="dialogModel = false" />
+
+        <q-card-actions align="right" class="hr-edit-actions">
+          <q-btn flat label="Cancel" :disable="submitLoading" @click="dialogModel = false" />
           <q-btn
             unelevated
             color="primary"
-            label="Save Changes"
+            :label="submitButtonLabel"
             type="submit"
-            :loading="saveLoading"
+            :loading="submitLoading"
           />
         </q-card-actions>
       </q-form>
@@ -114,6 +192,7 @@
 import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
+import { useAuthStore } from 'src/stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const props = defineProps({
@@ -137,13 +216,56 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 const $q = useQuasar()
-const saveLoading = ref(false)
+const authStore = useAuthStore()
 const formModel = ref(getEmptyEditForm())
+const submitLoading = ref(false)
+
+const payStatusOptions = [
+  { label: 'WP', value: 'WP' },
+  { label: 'WOP', value: 'WOP' },
+]
+
+const coverageOptions = [
+  { label: 'Whole Day', value: 'whole' },
+  { label: 'Half Day (AM)', value: 'half_am' },
+  { label: 'Half Day (PM)', value: 'half_pm' },
+]
 
 const dialogModel = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 })
+
+const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
+
+const editDialogTitle = computed(() =>
+  isHrAdmin.value ? 'Edit Application' : 'Request Application Edit',
+)
+
+const editDialogCaption = computed(() =>
+  isHrAdmin.value
+    ? 'Direct HR Admin correction preview'
+    : 'HR Staff correction request preview',
+)
+
+const submitButtonLabel = computed(() =>
+  isHrAdmin.value ? 'Apply Changes' : 'Submit Request',
+)
+
+const calendarDefaultYearMonth = computed(() => {
+  const anchorDate =
+    formModel.value.selectedDates[0] ||
+    formModel.value.startDate ||
+    toIsoDate(new Date())
+  const isoDate = toIsoDate(anchorDate) || toIsoDate(new Date())
+  const [year, month] = isoDate.split('-')
+
+  return `${year}/${month}`
+})
+
+const totalRequestedDays = computed(() =>
+  sumRowsByStatus(formModel.value.payStatusRows, () => true),
+)
 
 watch(
   () => [props.modelValue, props.application],
@@ -162,26 +284,76 @@ watch(
   },
 )
 
-function updateField(field, value) {
+function handleSelectedDatesUpdate(value) {
+  const selectedDates = normalizeSelectedDates(Array.isArray(value) ? value : value ? [value] : [])
+    .filter(isWeekdayIsoDate)
+
+  const payStatusRows = buildPayStatusRows(
+    props.application,
+    selectedDates,
+    formModel.value.payStatusRows,
+  )
+
   formModel.value = {
-    ...(formModel.value || {}),
-    [field]: value,
+    ...formModel.value,
+    selectedDates,
+    startDate: selectedDates[0] || '',
+    endDate: selectedDates[selectedDates.length - 1] || '',
+    payStatusRows,
+    totalDays: sumRowsByStatus(payStatusRows, () => true),
   }
 }
 
-function handleDateFieldUpdate(field, value) {
-  const nextForm = {
-    ...(formModel.value || {}),
-    [field]: value,
-  }
+function updatePayStatus(dateKey, value) {
+  const nextPayStatus = normalizePayStatusCode(value)
 
-  if (!nextForm.isMonetization) {
-    const generatedDates = buildWeekdayDateRange(nextForm.startDate, nextForm.endDate)
-    nextForm.selectedDates = Array.isArray(generatedDates) ? generatedDates : []
-    nextForm.totalDays = nextForm.selectedDates.length
+  formModel.value = {
+    ...formModel.value,
+    payStatusRows: formModel.value.payStatusRows.map((row) =>
+      row.dateKey === dateKey
+        ? buildPayStatusUpdatedRow(row, nextPayStatus)
+        : row,
+    ),
   }
+}
 
-  formModel.value = nextForm
+function updateCoverage(dateKey, value) {
+  const nextCoverageCode = normalizeCoverageCode(value)
+
+  formModel.value = {
+    ...formModel.value,
+    payStatusRows: formModel.value.payStatusRows.map((row) =>
+      row.dateKey === dateKey
+        ? buildCoverageUpdatedRow(row, nextCoverageCode)
+        : row,
+    ),
+  }
+}
+
+function updateWithPayDays(dateKey, value) {
+  formModel.value = {
+    ...formModel.value,
+    payStatusRows: formModel.value.payStatusRows.map((row) =>
+      row.dateKey === dateKey
+        ? {
+            ...row,
+            withPayDays: normalizeDeductionValue(value),
+            deductionDays: normalizeDeductionValue(value),
+          }
+        : row,
+    ),
+  }
+}
+
+function updateWithoutPayDays(dateKey, value) {
+  formModel.value = {
+    ...formModel.value,
+    payStatusRows: formModel.value.payStatusRows.map((row) =>
+      row.dateKey === dateKey
+        ? { ...row, withoutPayDays: normalizeDeductionValue(value) }
+        : row,
+    ),
+  }
 }
 
 function getEmptyEditForm() {
@@ -196,13 +368,131 @@ function getEmptyEditForm() {
     originalStartDate: '',
     originalEndDate: '',
     totalDays: 0,
-    reason: '',
-    remarks: '',
     selectedDates: [],
+    payStatusRows: [],
   }
 }
 
+function buildFormFromApplication(application) {
+  const form = getEmptyEditForm()
+  if (!application || typeof application !== 'object') return form
+
+  const selectedDates = normalizeSelectedDates(
+    application?.selected_dates ?? application?.selectedDates,
+  ).filter(isWeekdayIsoDate)
+  const startDate = toIsoDate(application?.startDate ?? application?.start_date) || selectedDates[0] || ''
+  const endDate =
+    toIsoDate(application?.endDate ?? application?.end_date) || selectedDates[selectedDates.length - 1] || ''
+  const preservedDates = selectedDates.length
+    ? selectedDates
+    : buildWeekdayDateRange(startDate, endDate)
+  const payStatusRows = buildPayStatusRows(application, preservedDates)
+  const parsedDays =
+    props.getActualRequestedDayCount(application) ??
+    Number(application?.days ?? application?.total_days ?? application?.duration_value)
+
+  return {
+    id: application?.id ?? '',
+    employeeName: application?.employeeName || application?.employee_name || '',
+    leaveTypeLabel: `${application?.leaveType || application?.leave_type_name || ''}${
+      application?.is_monetization ? ' (Monetization)' : ''
+    }`,
+    leaveTypeId: application?.leave_type_id ?? null,
+    isMonetization: Boolean(application?.is_monetization),
+    startDate,
+    endDate,
+    originalStartDate: startDate,
+    originalEndDate: endDate,
+    totalDays:
+      Number.isFinite(parsedDays) && parsedDays > 0
+        ? parsedDays
+        : sumRowsByStatus(payStatusRows, () => true),
+    selectedDates: preservedDates,
+    payStatusRows,
+  }
+}
+
+function buildPayStatusRows(application, selectedDates, previousRows = []) {
+  const previousRowsByDate = new Map(
+    (Array.isArray(previousRows) ? previousRows : []).map((row) => [row.dateKey, row]),
+  )
+  const payStatusMap = normalizeMapKeysWithIsoAlias(
+    toValueMap(application?.selected_date_pay_status ?? application?.selectedDatePayStatus, normalizePayStatusCode),
+  )
+  const coverageMap = normalizeMapKeysWithIsoAlias(
+    toValueMap(application?.selected_date_coverage ?? application?.selectedDateCoverage, normalizeCoverageCode),
+  )
+  const halfDayPortionMap = normalizeMapKeysWithIsoAlias(
+    toValueMap(
+      application?.selected_date_half_day_portion ??
+        application?.selectedDateHalfDayPortion ??
+        application?.selected_date_half_day_period ??
+        application?.selectedDateHalfDayPeriod,
+      normalizeHalfDayPortion,
+    ),
+  )
+  const fallbackStatus = normalizePayStatusCode(application?.pay_mode)
+
+  return (Array.isArray(selectedDates) ? selectedDates : []).map((dateValue, index) => {
+    const dateKey = toIsoDate(dateValue) || String(dateValue || '').trim()
+    const previousRow = previousRowsByDate.get(dateKey)
+    const sourceCoverageCode =
+      previousRow?.coverageCode ||
+      coverageMap[dateKey] ||
+      coverageMap[String(index)] ||
+      coverageMap[String(index + 1)] ||
+      'whole'
+    const halfDayPortion =
+      previousRow?.halfDayPortion ||
+      halfDayPortionMap[dateKey] ||
+      halfDayPortionMap[String(index)] ||
+      halfDayPortionMap[String(index + 1)] ||
+      ''
+    const coverageCode = resolveCoverageCode(sourceCoverageCode, halfDayPortion)
+    const payStatus =
+      previousRow?.payStatus ||
+      payStatusMap[dateKey] ||
+      payStatusMap[String(index)] ||
+      payStatusMap[String(index + 1)] ||
+      fallbackStatus
+    const coverageWeight = getCoverageWeight(coverageCode)
+    const defaultWithPayDays = payStatus === 'WP' ? coverageWeight : 0
+    const defaultWithoutPayDays = payStatus === 'WOP' ? coverageWeight : 0
+    const withPayDays = normalizeDeductionValue(
+      previousRow?.withPayDays ??
+        previousRow?.deductionDays ??
+        application?.deductible_days_by_date?.[dateKey] ??
+        application?.selected_date_deduction?.[dateKey],
+      defaultWithPayDays,
+    )
+    const withoutPayDays = normalizeDeductionValue(
+      previousRow?.withoutPayDays ??
+        application?.without_pay_days_by_date?.[dateKey] ??
+        application?.wop_days_by_date?.[dateKey] ??
+        application?.selected_date_without_pay?.[dateKey] ??
+        application?.selected_date_wop?.[dateKey],
+      defaultWithoutPayDays,
+    )
+
+    return {
+      dateKey,
+      coverageCode,
+      coverageWeight,
+      coverageLabel: getCoverageLabel(coverageCode),
+      halfDayPortion: getCoverageHalfDayPortion(coverageCode),
+      payStatus,
+      withPayDays,
+      withoutPayDays,
+      deductionDays: withPayDays,
+    }
+  })
+}
+
 function toIsoDate(value) {
+  if (value instanceof Date) {
+    return formatIsoDate(value)
+  }
+
   const raw = String(value || '').trim()
   if (!raw) return ''
 
@@ -218,9 +508,24 @@ function toIsoDate(value) {
   return `${year}-${month}-${day}`
 }
 
-function normalizeSelectedDates(dates) {
-  if (!Array.isArray(dates)) return []
-  return [...new Set(dates.map((date) => toIsoDate(date)).filter(Boolean))].sort()
+function normalizeSelectedDates(value) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map((date) => toIsoDate(date)).filter(Boolean))].sort()
+}
+
+function isSelectableWorkingDate(value) {
+  return isWeekdayIsoDate(toIsoDate(value))
+}
+
+function isWeekdayIsoDate(value) {
+  const isoDate = toIsoDate(value)
+  if (!isoDate) return false
+
+  const parsedDate = new Date(`${isoDate}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return false
+
+  const day = parsedDate.getDay()
+  return day !== 0 && day !== 6
 }
 
 function formatIsoDate(date) {
@@ -248,149 +553,641 @@ function buildWeekdayDateRange(startDate, endDate) {
   return dates
 }
 
-function buildFormFromApplication(application) {
-  const form = getEmptyEditForm()
-  if (!application || typeof application !== 'object') return form
+function toValueMap(value, normalizer) {
+  const parsed = parseJsonCandidate(value)
 
-  const selectedDates = normalizeSelectedDates(application?.selected_dates)
-  const startDate = toIsoDate(application?.startDate) || selectedDates[0] || ''
-  const endDate = toIsoDate(application?.endDate) || selectedDates[selectedDates.length - 1] || ''
-  const preservedDates = selectedDates.length
-    ? selectedDates
-    : buildWeekdayDateRange(startDate, endDate)
-  const parsedDays = props.getActualRequestedDayCount(application) ?? Number(application?.days)
+  if (Array.isArray(parsed)) {
+    return parsed.reduce((acc, entry, index) => {
+      const normalized = normalizer(entry)
+      if (normalized) acc[String(index)] = normalized
+      return acc
+    }, {})
+  }
 
-  return {
-    id: application?.id ?? '',
-    employeeName: application?.employeeName || '',
-    leaveTypeLabel: `${application?.leaveType || ''}${application?.is_monetization ? ' (Monetization)' : ''}`,
-    leaveTypeId: application?.leave_type_id ?? null,
-    isMonetization: Boolean(application?.is_monetization),
-    startDate,
-    endDate,
-    originalStartDate: startDate,
-    originalEndDate: endDate,
-    totalDays: Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : preservedDates.length,
-    reason: application?.reason || '',
-    remarks: application?.remarks || '',
-    selectedDates: preservedDates,
+  if (parsed && typeof parsed === 'object') {
+    return Object.entries(parsed).reduce((acc, [key, entry]) => {
+      const normalized = normalizer(entry)
+      if (normalized) acc[String(key)] = normalized
+      return acc
+    }, {})
+  }
+
+  return {}
+}
+
+function parseJsonCandidate(value) {
+  if (typeof value !== 'string') return value
+
+  const trimmed = value.trim()
+  if (!trimmed) return {}
+
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return {}
   }
 }
 
-async function updateApplicationDetails(id, payload) {
-  try {
-    await api.post(`/hr/leave-applications/${id}/update`, payload)
-    return
-  } catch (err) {
-    const statusCode = err?.response?.status
-    if (statusCode !== 404 && statusCode !== 405) {
-      throw err
-    }
+function normalizeMapKeysWithIsoAlias(source) {
+  return Object.entries(source || {}).reduce((acc, [key, value]) => {
+    const normalizedKey = String(key || '').trim()
+    if (!normalizedKey) return acc
+
+    acc[normalizedKey] = value
+    const isoKey = toIsoDate(normalizedKey)
+    if (isoKey) acc[isoKey] = value
+    return acc
+  }, {})
+}
+
+function normalizePayStatusCode(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, '')
+
+  if (normalized === 'WOP' || normalized === 'WITHOUTPAY') return 'WOP'
+  return 'WP'
+}
+
+function normalizeCoverageCode(value) {
+  if (value && typeof value === 'object') {
+    return normalizeCoverageCode(
+      value.coverage ??
+        value.value ??
+        value.code ??
+        value.type ??
+        value.day ??
+        value.portion,
+    )
   }
 
-  await api.post(`/hr/leave-applications/${id}`, payload)
+  const numericValue = Number(value)
+  if (Number.isFinite(numericValue)) {
+    return numericValue <= 0.5 ? 'half_am' : 'whole'
+  }
+
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+  if (normalized.includes('pm')) return 'half_pm'
+  if (normalized.includes('am')) return 'half_am'
+  if (normalized.includes('half') || normalized === '0.5') return 'half_am'
+  return 'whole'
+}
+
+function normalizeHalfDayPortion(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+
+  if (normalized === 'AM' || normalized.includes('MORNING')) return 'AM'
+  if (normalized === 'PM' || normalized.includes('AFTERNOON')) return 'PM'
+  return ''
+}
+
+function resolveCoverageCode(coverageCode, halfDayPortion = '') {
+  const normalizedCoverageCode = normalizeCoverageCode(coverageCode)
+  if (normalizedCoverageCode === 'whole') return 'whole'
+
+  const normalizedPortion = normalizeHalfDayPortion(halfDayPortion)
+  return normalizedPortion === 'PM' ? 'half_pm' : 'half_am'
+}
+
+function getCoverageWeight(value) {
+  return normalizeCoverageCode(value) === 'whole' ? 1 : 0.5
+}
+
+function getCoverageLabel(value) {
+  const normalizedCoverageCode = normalizeCoverageCode(value)
+  if (normalizedCoverageCode === 'half_am') return 'Half Day (AM)'
+  if (normalizedCoverageCode === 'half_pm') return 'Half Day (PM)'
+  return 'Whole Day'
+}
+
+function getCoverageHalfDayPortion(value) {
+  const normalizedCoverageCode = normalizeCoverageCode(value)
+  if (normalizedCoverageCode === 'half_am') return 'AM'
+  if (normalizedCoverageCode === 'half_pm') return 'PM'
+  return ''
+}
+
+function getRowDayWeight(row) {
+  const numericWeight = Number(row?.coverageWeight)
+  if (Number.isFinite(numericWeight) && numericWeight > 0) return numericWeight
+  return getCoverageWeight(row?.coverageCode)
+}
+
+function getRowWithPayLedgerValue(row) {
+  return normalizeDeductionValue(row?.withPayDays ?? row?.deductionDays)
+}
+
+function getRowWithoutPayLedgerValue(row) {
+  return normalizeDeductionValue(row?.withoutPayDays)
+}
+
+function sumRowsByStatus(rows, predicate) {
+  const total = (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+    if (!predicate(row)) return sum
+    return sum + getRowDayWeight(row)
+  }, 0)
+
+  return Math.round(total * 1000) / 1000
+}
+
+function normalizeDeductionValue(value, fallback = 0) {
+  const numericValue = Number(value)
+  if (Number.isFinite(numericValue) && numericValue >= 0) {
+    return Math.round(numericValue * 1000) / 1000
+  }
+
+  const fallbackValue = Number(fallback)
+  if (Number.isFinite(fallbackValue) && fallbackValue >= 0) {
+    return Math.round(fallbackValue * 1000) / 1000
+  }
+
+  return 0
+}
+
+function buildCoverageUpdatedRow(row, coverageCode) {
+  const previousCoverageWeight = getRowDayWeight(row)
+  const previousWithPayDays = getRowWithPayLedgerValue(row)
+  const previousWithoutPayDays = getRowWithoutPayLedgerValue(row)
+  const nextCoverageCode = normalizeCoverageCode(coverageCode)
+  const nextCoverageWeight = getCoverageWeight(nextCoverageCode)
+  const shouldSyncWithPayDays =
+    Math.abs(previousWithPayDays - previousCoverageWeight) < 0.0001 ||
+    previousWithPayDays === 0
+  const shouldSyncWithoutPayDays =
+    Math.abs(previousWithoutPayDays - previousCoverageWeight) < 0.0001 ||
+    previousWithoutPayDays === 0
+  const withPayDays =
+    row?.payStatus === 'WP' && shouldSyncWithPayDays
+      ? nextCoverageWeight
+      : previousWithPayDays
+  const withoutPayDays =
+    row?.payStatus === 'WOP' && shouldSyncWithoutPayDays
+      ? nextCoverageWeight
+      : previousWithoutPayDays
+
+  return {
+    ...row,
+    coverageCode: nextCoverageCode,
+    coverageWeight: nextCoverageWeight,
+    coverageLabel: getCoverageLabel(nextCoverageCode),
+    halfDayPortion: getCoverageHalfDayPortion(nextCoverageCode),
+    withPayDays,
+    withoutPayDays,
+    deductionDays: withPayDays,
+  }
+}
+
+function buildPayStatusUpdatedRow(row, payStatus) {
+  const rowWeight = getRowDayWeight(row)
+  const currentWithPayDays = getRowWithPayLedgerValue(row)
+  const currentWithoutPayDays = getRowWithoutPayLedgerValue(row)
+  const nextWithPayDays =
+    payStatus === 'WP'
+      ? currentWithPayDays || currentWithoutPayDays || rowWeight
+      : 0
+  const nextWithoutPayDays =
+    payStatus === 'WOP'
+      ? currentWithoutPayDays || currentWithPayDays || rowWeight
+      : 0
+
+  return {
+    ...row,
+    payStatus,
+    withPayDays: nextWithPayDays,
+    withoutPayDays: nextWithoutPayDays,
+    deductionDays: nextWithPayDays,
+  }
+}
+
+function formatDayValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return '0'
+  return Number.isInteger(numericValue)
+    ? String(numericValue)
+    : numericValue.toLocaleString('en-US', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 3,
+      })
+}
+
+function formatDeductionValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return '0.000'
+  return numericValue.toFixed(3)
+}
+
+function buildEditPayload() {
+  const payStatusRows = (formModel.value.payStatusRows || []).map((row) => ({
+    date_key: row.dateKey,
+    coverage_code: row.coverageCode,
+    half_day_portion: row.halfDayPortion || getCoverageHalfDayPortion(row.coverageCode),
+    pay_status: normalizePayStatusCode(row.payStatus),
+    with_pay_days: normalizeDeductionValue(row.withPayDays),
+    without_pay_days: normalizeDeductionValue(row.withoutPayDays),
+  }))
+
+  return {
+    selected_dates: [...(formModel.value.selectedDates || [])],
+    pay_status_rows: payStatusRows,
+  }
 }
 
 async function handleSave() {
   if (!formModel.value.id) return
 
-  if (!String(formModel.value.reason || '').trim()) {
+  if (!formModel.value.payStatusRows.length) {
     $q.notify({
       type: 'warning',
-      message: 'Please provide a reason.',
+      message: 'Please add at least one leave date.',
       position: 'top',
     })
     return
   }
 
-  if (!formModel.value.isMonetization) {
-    if (!formModel.value.startDate || !formModel.value.endDate) {
-      $q.notify({
-        type: 'warning',
-        message: 'Please provide a valid start and end date.',
-        position: 'top',
-      })
-      return
-    }
-
-    if (formModel.value.endDate < formModel.value.startDate) {
-      $q.notify({
-        type: 'warning',
-        message: 'End date must be on or after start date.',
-        position: 'top',
-      })
-      return
-    }
-  }
-
-  let selectedDates = [...formModel.value.selectedDates]
-  if (!formModel.value.isMonetization) {
-    const dateRangeChanged =
-      formModel.value.startDate !== formModel.value.originalStartDate ||
-      formModel.value.endDate !== formModel.value.originalEndDate
-    if (dateRangeChanged || selectedDates.length === 0) {
-      selectedDates = buildWeekdayDateRange(formModel.value.startDate, formModel.value.endDate)
-    }
-
-    if (!selectedDates.length) {
-      $q.notify({
-        type: 'warning',
-        message: 'Selected date range must include at least one weekday.',
-        position: 'top',
-      })
-      return
-    }
-  }
-
-  const totalDays = formModel.value.isMonetization
-    ? Number(formModel.value.totalDays)
-    : selectedDates.length
-
-  if (!Number.isFinite(totalDays) || totalDays < 1) {
-    $q.notify({
-      type: 'warning',
-      message: 'Days must be at least 1.',
-      position: 'top',
-    })
-    return
-  }
-
-  const payload = {
-    total_days: totalDays,
-    reason: String(formModel.value.reason).trim(),
-    remarks: String(formModel.value.remarks || '').trim() || null,
-  }
-
-  if (formModel.value.leaveTypeId) {
-    payload.leave_type_id = formModel.value.leaveTypeId
-  }
-
-  if (formModel.value.isMonetization) {
-    payload.is_monetization = true
-  } else {
-    payload.start_date = formModel.value.startDate
-    payload.end_date = formModel.value.endDate
-    payload.selected_dates = selectedDates
-  }
-
-  saveLoading.value = true
+  submitLoading.value = true
   try {
-    await updateApplicationDetails(formModel.value.id, payload)
+    const response = await api.post(
+      `/hr/leave-applications/${encodeURIComponent(formModel.value.id)}/edit`,
+      buildEditPayload(),
+    )
+    const message = String(response?.data?.message || '').trim()
+
     $q.notify({
       type: 'positive',
-      message: 'Application details updated.',
+      message:
+        message ||
+        (isHrAdmin.value
+          ? 'Application edit applied successfully.'
+          : 'Application edit request submitted.'),
       position: 'top',
     })
+
     dialogModel.value = false
     emit('saved', {
+      actionType: isHrAdmin.value ? 'edit' : 'edit-request',
       applicationId: formModel.value.id,
-      application: props.application,
+      application: response?.data?.application || props.application,
+      editRequest: response?.data?.edit_request || null,
     })
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to update this application right now.')
+    const msg = resolveApiErrorMessage(err, 'Unable to save this application edit right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
-    saveLoading.value = false
+    submitLoading.value = false
   }
 }
 </script>
+
+<!-- Unscoped: q-dialog teleports to <body>, so scoped styles will not reliably apply -->
+<style>
+.hr-edit-dialog .q-dialog__inner--minimized {
+  padding: 16px;
+}
+
+.hr-edit-dialog .q-dialog__inner--minimized > div {
+  width: min(1180px, calc(100vw - 32px));
+  max-width: min(1180px, calc(100vw - 32px));
+}
+
+.hr-edit-card {
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hr-edit-header {
+  flex: 0 0 auto;
+  padding: 16px 20px;
+}
+
+.hr-edit-header__icon {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.hr-edit-header__caption {
+  opacity: 0.86;
+}
+
+.hr-edit-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 18px 20px 8px;
+}
+
+.hr-edit-section {
+  padding: 14px 0;
+  border-top: 1px solid #edf0f4;
+}
+
+.hr-edit-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.hr-edit-section__heading {
+  margin-bottom: 10px;
+}
+
+.hr-edit-section__title {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.hr-edit-working-days-layout {
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.hr-edit-calendar-panel {
+  width: 100%;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.hr-edit-calendar-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.hr-edit-calendar-panel__title {
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.hr-edit-calendar-panel__caption {
+  color: #374151;
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-top: 14px;
+}
+
+.hr-edit-working-days-calendar {
+  width: 100%;
+  min-width: 0 !important;
+  box-shadow: none;
+}
+
+.hr-edit-working-days-calendar.q-date,
+.hr-edit-working-days-calendar .q-date {
+  width: 100%;
+  min-width: 0 !important;
+  box-shadow: none;
+}
+
+.hr-edit-working-days-calendar .q-date__header {
+  display: none;
+}
+
+.hr-edit-working-days-calendar .q-date__content {
+  width: 100%;
+}
+
+.hr-edit-working-days-calendar .q-date__navigation {
+  min-height: 30px;
+  padding: 0 2px;
+  margin-bottom: 4px;
+}
+
+.hr-edit-working-days-calendar .q-date__navigation .q-btn {
+  min-height: 26px;
+  padding: 2px 4px;
+}
+
+.hr-edit-working-days-calendar .q-date__navigation .q-btn__content {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.hr-edit-working-days-calendar .q-date__calendar-weekdays {
+  color: #9ca3af;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.hr-edit-working-days-calendar .q-date__calendar-item {
+  height: 28px;
+  padding: 0;
+}
+
+.hr-edit-working-days-calendar .q-date__calendar-item > div,
+.hr-edit-working-days-calendar .q-date__calendar-item .q-btn {
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px !important;
+}
+
+.hr-edit-working-days-calendar .q-date__calendar-item--out {
+  opacity: 0.35;
+}
+
+.hr-edit-pay-ledger-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.hr-edit-date-grid {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hr-edit-date-grid__head,
+.hr-edit-date-grid__row {
+  display: grid;
+  grid-template-columns:
+    minmax(104px, 0.9fr) minmax(108px, 0.9fr) minmax(120px, 0.85fr)
+    minmax(90px, 0.72fr) minmax(90px, 0.72fr);
+  align-items: center;
+  min-width: 0;
+}
+
+.hr-edit-date-grid__head {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.hr-edit-date-grid__row {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.hr-edit-date-grid__row:last-child {
+  border-bottom: 0;
+}
+
+.hr-edit-date-grid__head > div,
+.hr-edit-date-grid__cell {
+  min-width: 0;
+  padding: 8px;
+}
+
+.hr-edit-date-grid__cell--date {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.hr-edit-date-grid__cell--inactive {
+  min-height: 32px;
+}
+
+.hr-edit-pay-toggle {
+  border-radius: 6px;
+}
+
+.hr-edit-pay-toggle .q-btn {
+  min-width: 48px;
+}
+
+.hr-edit-date-grid .q-field {
+  min-width: 0;
+}
+
+.hr-edit-ledger-input .q-field__control {
+  min-height: 32px;
+  background: #f8fafc;
+}
+
+.hr-edit-ledger-input .q-field__native {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hr-edit-ledger-input--wp .q-field__control {
+  background: #f0fdf4;
+}
+
+.hr-edit-ledger-input--wp .q-field__native {
+  color: #15803d;
+}
+
+.hr-edit-ledger-input--wop .q-field__control {
+  background: #fff5f5;
+}
+
+.hr-edit-ledger-input--wop .q-field__native {
+  color: #b91c1c;
+}
+
+.hr-edit-empty-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 14px;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.hr-edit-actions {
+  flex: 0 0 auto;
+  padding: 12px 20px 18px;
+  border-top: 1px solid #edf0f4;
+}
+
+@media (max-width: 780px) {
+  .hr-edit-dialog .q-dialog__inner--minimized {
+    padding: 10px;
+  }
+
+  .hr-edit-dialog .q-dialog__inner--minimized > div {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+  }
+
+  .hr-edit-header {
+    padding: 14px 16px;
+  }
+
+  .hr-edit-content {
+    padding: 14px 14px 6px;
+  }
+
+  .hr-edit-working-days-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-edit-calendar-panel,
+  .hr-edit-pay-ledger-panel {
+    width: 100%;
+  }
+
+  .hr-edit-date-grid__head,
+  .hr-edit-date-grid__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-edit-date-grid {
+    border: 0;
+    overflow: visible;
+  }
+
+  .hr-edit-date-grid__head {
+    display: none;
+  }
+
+  .hr-edit-date-grid__row {
+    gap: 8px;
+    align-items: start;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+
+  .hr-edit-date-grid__row:last-child {
+    margin-bottom: 0;
+  }
+
+  .hr-edit-date-grid__cell {
+    padding: 0;
+  }
+
+  .hr-edit-date-grid__cell::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .hr-edit-date-grid__cell--date {
+    grid-column: 1 / -1;
+  }
+
+  .hr-edit-date-grid__cell--inactive {
+    display: none;
+  }
+
+}
+</style>

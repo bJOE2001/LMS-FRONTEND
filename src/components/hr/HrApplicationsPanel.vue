@@ -1521,8 +1521,8 @@ export default defineComponent({
 }
 
 .hr-edit-dialog .q-dialog__inner--minimized > div {
-  width: min(700px, calc(100vw - 32px));
-  max-width: min(700px, calc(100vw - 32px));
+  width: min(1180px, calc(100vw - 32px));
+  max-width: min(1180px, calc(100vw - 32px));
 }
 
 .hr-edit-card {

@@ -17,6 +17,7 @@ const HR_MODULE_ROUTE_REQUIREMENTS = [
   { prefix: '/hr/access-control', moduleKey: HR_MODULE_KEYS.accessControl },
   { prefix: '/hr/user-management', moduleKey: HR_MODULE_KEYS.userManagement },
   { prefix: '/hr/coc-applications', moduleKey: HR_MODULE_KEYS.cocApplications },
+  { prefix: '/hr/application-edit-requests', moduleKey: HR_MODULE_KEYS.applications },
   { prefix: '/hr/applications', moduleKey: HR_MODULE_KEYS.applications },
   { prefix: '/hr/employees', moduleKey: HR_MODULE_KEYS.employeeManagement },
   { prefix: '/hr/reports', moduleKey: HR_MODULE_KEYS.reportsMonitoring },

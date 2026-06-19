@@ -951,7 +951,18 @@ function prettifyLeaveBalanceLabel(value) {
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
   if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'spl' || lower === 'special privilege') return 'Special Privilege Leave'
   if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+  if (lower === 'solo parent' || lower === 'solo parent leave') return 'Solo Parent Leave'
+  if (
+    lower === 'cl' ||
+    lower === 'calamity' ||
+    lower === 'calamity leave' ||
+    lower === 'special emergency' ||
+    lower === 'special emergency leave' ||
+    lower === 'special emergency calamity leave' ||
+    lower === 'special emergency (calamity) leave'
+  ) return 'Special Emergency (Calamity) Leave'
 
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
@@ -986,6 +997,37 @@ function toLeaveBalanceAcronym(value) {
 
 function getLeaveBalanceTypeKey(value) {
   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+const FORCED_LEAVE_TYPE_KEY = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
+const VACATION_LEAVE_TYPE_KEY = getLeaveBalanceTypeKey('Vacation Leave')
+const VACATION_BACKED_LEAVE_TYPE_KEYS = [
+  'Special Privilege Leave',
+  'Wellness Leave',
+  'Solo Parent Leave',
+  'Special Emergency (Calamity) Leave',
+].map((leaveTypeName) => getLeaveBalanceTypeKey(leaveTypeName))
+
+function getLeaveTypeBalanceValue(leaveType) {
+  const numericValue = Number(
+    leaveType?.balance ??
+      leaveType?.remaining_balance ??
+      leaveType?.available_balance ??
+      leaveType?.credits,
+  )
+
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+function shouldShowLeaveTypeOption(leaveType) {
+  if (getLeaveBalanceTypeKey(leaveType?.name) !== FORCED_LEAVE_TYPE_KEY) return true
+
+  const balanceValue = getLeaveTypeBalanceValue(leaveType)
+  return balanceValue === null || balanceValue > 0
+}
+
+function isVacationBackedLeaveTypeKey(leaveTypeKey) {
+  return VACATION_BACKED_LEAVE_TYPE_KEYS.includes(getLeaveBalanceTypeKey(leaveTypeKey))
 }
 
 function addLeaveBalanceEntry(entries, seen, label, value) {
@@ -1507,6 +1549,7 @@ function getVacationLeaveTypeId() {
 
 function sortLeaveTypeOptions(leaveTypes) {
   return [...leaveTypes]
+    .filter(shouldShowLeaveTypeOption)
     .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
     .map((leaveType) => ({
       label: getLeaveTypeDisplayLabel(leaveType.name),
@@ -1586,6 +1629,12 @@ const selectedLeaveTypeBalanceValue = computed(() => {
   const leaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
   if (!leaveTypeKey) return null
 
+  return resolveLeaveBalanceValueForTypeKey(leaveTypeKey)
+})
+
+function resolveLeaveBalanceValueForTypeKey(leaveTypeKey) {
+  if (!leaveTypeKey) return null
+
   const matchedEntry = resolvedLeaveBalanceEntries.value.find(
     (entry) => getLeaveBalanceTypeKey(entry.label) === leaveTypeKey,
   )
@@ -1594,7 +1643,7 @@ const selectedLeaveTypeBalanceValue = computed(() => {
 
   const numericValue = Number(matchedEntry.value)
   return Number.isFinite(numericValue) ? numericValue : null
-})
+}
 
 const pendingSelectedLeaveDays = computed(() =>
   selfApplicationsForBalance.value
@@ -1616,12 +1665,46 @@ function resolvePendingLeaveDaysForTypeKey(leaveTypeKey) {
 }
 
 const availableSelectedLeaveBalance = computed(() => {
-  if (selectedLeaveTypeBalanceValue.value === null) return null
-  return Math.max(0, selectedLeaveTypeBalanceValue.value - pendingSelectedLeaveDays.value)
+  const leaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
+  const selectedAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(leaveTypeKey)
+  if (selectedAvailableBalance === null) return null
+
+  if (leaveTypeKey === FORCED_LEAVE_TYPE_KEY) {
+    const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
+    if (selectedAvailableBalance <= 0 || vacationAvailableBalance <= 0) return 0
+
+    return Math.max(0, vacationAvailableBalance)
+  }
+
+  if (isVacationBackedLeaveTypeKey(leaveTypeKey)) {
+    const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
+
+    return Math.max(0, selectedAvailableBalance + vacationAvailableBalance)
+  }
+
+  return selectedAvailableBalance
 })
+
+const forcedLeaveVacationBalanceWarning = computed(() => {
+  if (getLeaveBalanceTypeKey(selectedLeaveTypeName.value) !== FORCED_LEAVE_TYPE_KEY) return ''
+
+  const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
+  return vacationAvailableBalance <= 0
+    ? 'Mandatory / Forced Leave requires available Vacation Leave balance.'
+    : ''
+})
+
+function resolveAvailableLeaveBalanceForTypeKey(leaveTypeKey) {
+  const balanceValue = resolveLeaveBalanceValueForTypeKey(leaveTypeKey)
+  if (balanceValue === null) return null
+
+  return Math.max(0, balanceValue - resolvePendingLeaveDaysForTypeKey(leaveTypeKey))
+}
 
 function getLeaveBalanceWarningForTotal(totalDays) {
   if (isMonetization.value || totalDays <= 0) return ''
+  if (forcedLeaveVacationBalanceWarning.value) return forcedLeaveVacationBalanceWarning.value
+
   const trackedBalance = selectedLeaveTypeBalanceValue.value
   if (trackedBalance === null) return ''
 
@@ -3495,6 +3578,11 @@ async function onSubmit() {
   if (maxDaysWarning.value) {
       $q.notify({ type: 'negative', message: maxDaysWarning.value })
       return
+  }
+
+  if (forcedLeaveVacationBalanceWarning.value) {
+    $q.notify({ type: 'negative', message: forcedLeaveVacationBalanceWarning.value, position: 'top' })
+    return
   }
 
   if (leaveBalanceWarning.value) {
