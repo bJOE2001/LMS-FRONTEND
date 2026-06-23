@@ -22,9 +22,11 @@ const undoReleaseLoading = ref(false)
 const timelineLoading = ref(false)
 const payStatusOverrideLoading = ref(false)
 const applications = ref([])
+const isServerPaginatedLeaveView = normalizeApplicationType(options?.applicationType) === 'LEAVE'
 const tablePagination = ref({
   page: 1,
   rowsPerPage: 10,
+  ...(isServerPaginatedLeaveView ? { rowsNumber: 0 } : {}),
 })
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
@@ -32,6 +34,7 @@ const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationT
 const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
   .toLowerCase()
+let applicationsRequestSequence = 0
 const searchableStatusValues = new Set([
   'pending',
   'approved',
@@ -2504,7 +2507,7 @@ function getApplicationSearchTokenSet(app) {
 }
 
 const applicationsForTable = computed(() => {
-  const queryTokens = getSearchTokens(statusSearch.value)
+  const queryTokens = isServerPaginatedLeaveView ? [] : getSearchTokens(statusSearch.value)
   const rows = applications.value.filter((app) => {
     if (isCancelledByUser(app)) return false
     if (applicationTypeFilter.value && getApplicationType(app) !== applicationTypeFilter.value) {
@@ -2516,7 +2519,7 @@ const applicationsForTable = computed(() => {
       !isPendingEditRequest(app) &&
       !(applicationTypeFilter.value === 'COC' && getApplicationType(app) === 'COC')
     if (shouldHidePendingAdmin) return false
-    return matchesEmploymentTypeFilter(app)
+    return isServerPaginatedLeaveView || matchesEmploymentTypeFilter(app)
   })
   if (!queryTokens.length) return groupApplicationsForDisplay(rows)
 
@@ -2767,7 +2770,26 @@ function mapApplicationsForPanel(applicationsForDisplay = []) {
   })
 }
 
-async function fetchApplications() {
+function applyLeaveServerPagination(payload, requestedPage, requestedRowsPerPage) {
+  const pagination = payload?.pagination && typeof payload.pagination === 'object'
+    ? payload.pagination
+    : {}
+
+  tablePagination.value = {
+    ...tablePagination.value,
+    page: Number(pagination.current_page) || requestedPage,
+    rowsPerPage: Number(pagination.per_page) || requestedRowsPerPage,
+    rowsNumber: Math.max(Number(pagination.total) || 0, 0),
+  }
+}
+
+async function fetchApplications(options = {}) {
+  const requestSequence = ++applicationsRequestSequence
+  const requestedPage = Math.max(Number(options?.page ?? tablePagination.value.page) || 1, 1)
+  const requestedRowsPerPage = Math.max(
+    Number(options?.rowsPerPage ?? tablePagination.value.rowsPerPage) || 10,
+    1,
+  )
   loading.value = true
   try {
     if (applicationTypeFilter.value === 'COC') {
@@ -2790,7 +2812,16 @@ async function fetchApplications() {
     }
 
     if (applicationTypeFilter.value === 'LEAVE') {
-      const leaveApplicationsResponse = await api.get('/hr/leave-applications')
+      const leaveApplicationsResponse = await api.get('/hr/leave-applications', {
+        params: {
+          page: requestedPage,
+          per_page: requestedRowsPerPage,
+          search: String(statusSearch.value || '').trim() || undefined,
+          employment_type: employmentTypeFilter.value || undefined,
+        },
+      })
+      if (requestSequence !== applicationsRequestSequence) return
+
       const leaveApplications = normalizeBackendApplications(
         extractApplicationsFromPayload(leaveApplicationsResponse?.data),
       )
@@ -2804,6 +2835,11 @@ async function fetchApplications() {
       )
 
       applications.value = mapApplicationsForPanel(applicationsForDisplay)
+      applyLeaveServerPagination(
+        leaveApplicationsResponse?.data,
+        requestedPage,
+        requestedRowsPerPage,
+      )
       return
     }
 
@@ -2830,6 +2866,8 @@ async function fetchApplications() {
 
     applications.value = mapApplicationsForPanel(applicationsForDisplay)
   } catch (err) {
+    if (requestSequence !== applicationsRequestSequence) return
+
     const msg = resolveApiErrorMessage(err, 'Unable to load applications right now.')
     q.notify({
       type: 'negative',
@@ -2837,8 +2875,19 @@ async function fetchApplications() {
       position: 'top',
     })
   } finally {
-    loading.value = false
+    if (requestSequence === applicationsRequestSequence) {
+      loading.value = false
+    }
   }
+}
+
+function handleTableRequest({ pagination } = {}) {
+  if (!isServerPaginatedLeaveView) return
+
+  return fetchApplications({
+    page: pagination?.page,
+    rowsPerPage: pagination?.rowsPerPage,
+  })
 }
 
 onMounted(fetchApplications)
@@ -2862,6 +2911,10 @@ watch(
 
 watch([statusSearch, employmentTypeFilter], () => {
   tablePagination.value.page = 1
+
+  if (isServerPaginatedLeaveView) {
+    fetchApplications({ page: 1 })
+  }
 })
 
 watch(showEditDialog, (isOpen) => {
@@ -6798,6 +6851,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getStoredRecallDateKeys,
     getVisibleDateSetForDisplay,
     handleApplicationRowClick,
+    handleTableRequest,
     handleConfirmRequestReject,
     handleDialogMutationSuccess,
     hasApplicationAttachment,
@@ -6816,6 +6870,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     isApplicationEditCancellationRequest,
     isCancelledByUser,
     isCocApplication,
+    isServerPaginatedLeaveView,
     isCancellationRequestAction,
     isRecallRequestAction,
     isEditUpdateRequest,
@@ -6931,4 +6986,3 @@ async function handleDialogMutationSuccess(payload = {}) {
     viewApplicationAttachment,
   }
 }
-

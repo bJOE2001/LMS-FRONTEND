@@ -14,6 +14,7 @@
         <div class="col applications-panel-toolbar__search">
           <q-input
             v-model="statusSearch"
+            :debounce="350"
             dense
             outlined
             clearable
@@ -46,12 +47,13 @@
       row-key="application_uid"
       flat
       v-model:pagination="tablePagination"
-      :rows-per-page-options="[10]"
+      :rows-per-page-options="isServerPaginatedLeaveView ? [10, 25, 50] : [10]"
       :loading="loading"
       :class="[
         'applications-table applications-table--interactive',
         { 'applications-table--coc-only': isCocOnlyView },
       ]"
+      @request="handleTableRequest"
       @row-click="handleApplicationRowClick"
     >
       <template #no-data>
@@ -1651,4 +1653,3 @@ export default defineComponent({
   }
 }
 </style>
-
