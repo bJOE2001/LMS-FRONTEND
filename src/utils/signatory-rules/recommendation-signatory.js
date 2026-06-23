@@ -19,6 +19,23 @@ export function resolveRecommendationSignatoryByApplicantType({
     return cityViceMayorRecommendation
   }
 
+  if (isAbroad || isWithinPhilippines) {
+    const departmentHeadRecommendation = resolveDepartmentHeadRecommendationSignatory({
+      app,
+      isAbroad,
+      mayorSignatory,
+      baseRecommendationSignatory,
+    })
+
+    if (departmentHeadRecommendation) {
+      return departmentHeadRecommendation
+    }
+
+    return resolveNormalEmployeeRecommendationSignatory({
+      baseRecommendationSignatory,
+    })
+  }
+
   const spMemberRecommendation = resolveSpMemberRecommendationSignatory({
     app,
     isAbroad,
@@ -38,10 +55,6 @@ export function resolveRecommendationSignatoryByApplicantType({
   })
   if (departmentHeadRecommendation) {
     return departmentHeadRecommendation
-  }
-
-  if (isAbroad) {
-    return mayorSignatory
   }
 
   return resolveNormalEmployeeRecommendationSignatory({

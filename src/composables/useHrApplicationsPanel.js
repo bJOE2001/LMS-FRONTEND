@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { generateCocCertificatePdf } from 'src/utils/coc-certificate-pdf'
+import { isAbroadLeaveApplication } from 'src/utils/leave-application-details'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
@@ -1230,7 +1231,7 @@ function enumerateInclusiveDateRange(startDateValue, endDateValue) {
   return dates.filter(Boolean)
 }
 
-function formatGroupedInclusiveDateLines(dateValues) {
+function formatGroupedInclusiveDateLines(dateValues, expandConsecutiveDays = false) {
   if (!Array.isArray(dateValues) || dateValues.length === 0) return []
 
   const groupedByMonthYear = new Map()
@@ -1258,6 +1259,10 @@ function formatGroupedInclusiveDateLines(dateValues) {
     .map((group) => {
     const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
     if (!uniqueDays.length) return ''
+
+    if (expandConsecutiveDays) {
+      return `${group.monthName} ${uniqueDays.join(', ')}, ${group.year}`
+    }
 
     const dayRanges = []
     let rangeStart = uniqueDays[0]
@@ -2153,7 +2158,7 @@ function getApplicationInclusiveDateLines(app) {
 
   const dateSet = getVisibleDateSetForDisplay(app)
   if (dateSet.length > 0) {
-    const groupedDates = formatGroupedInclusiveDateLines(dateSet)
+    const groupedDates = formatGroupedInclusiveDateLines(dateSet, isAbroadLeaveApplication(app))
     if (groupedDates.length > 0) return groupedDates
   }
 

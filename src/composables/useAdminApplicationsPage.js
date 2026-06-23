@@ -10,6 +10,7 @@ import {
 import { generateRequestChangesApprovedLeavePdf } from 'src/utils/request-changes-approved-leave-pdf'
 import { generateRecallFormPdf } from 'src/utils/recall-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { isAbroadLeaveApplication } from 'src/utils/leave-application-details'
 import { printAdminApplicationsPdf } from 'src/utils/admin-applications-pdf'
 import {
   getApplicationRequestedDayCount,
@@ -2059,7 +2060,7 @@ export function useAdminApplicationsPage() {
     return dates.filter(Boolean)
   }
 
-  function formatGroupedInclusiveDateLines(dateValues) {
+  function formatGroupedInclusiveDateLines(dateValues, expandConsecutiveDays = false) {
     if (!Array.isArray(dateValues) || dateValues.length === 0) return []
 
     const groupedByMonthYear = new Map()
@@ -2087,6 +2088,10 @@ export function useAdminApplicationsPage() {
       .map((group) => {
         const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
         if (!uniqueDays.length) return ''
+
+        if (expandConsecutiveDays) {
+          return `${group.monthName} ${uniqueDays.join(', ')}, ${group.year}`
+        }
 
         const dayRanges = []
         let rangeStart = uniqueDays[0]
@@ -2823,9 +2828,14 @@ export function useAdminApplicationsPage() {
       })
     }
 
+    const expandConsecutiveDays = isAbroadLeaveApplication(app)
+
     if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
       const visibleDateSet = getVisibleDateSetForDisplay(app)
-      const groupedSelectedDates = formatGroupedInclusiveDateLines(visibleDateSet)
+      const groupedSelectedDates = formatGroupedInclusiveDateLines(
+        visibleDateSet,
+        expandConsecutiveDays,
+      )
       if (groupedSelectedDates.length > 0) return groupedSelectedDates
     }
 
@@ -2833,7 +2843,10 @@ export function useAdminApplicationsPage() {
       const startDate = app.startDate || app.endDate
       const endDate = app.endDate || app.startDate
       const rangedDates = enumerateInclusiveDateRange(startDate, endDate)
-      const groupedRangeDates = formatGroupedInclusiveDateLines(rangedDates)
+      const groupedRangeDates = formatGroupedInclusiveDateLines(
+        rangedDates,
+        expandConsecutiveDays,
+      )
       if (groupedRangeDates.length > 0) return groupedRangeDates
     }
 

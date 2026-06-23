@@ -4,18 +4,6 @@ function normalizeText(value) {
   return String(value || '').trim()
 }
 
-function normalizeControlNo(value) {
-  return normalizeText(value).replace(/^0+/, '')
-}
-
-function normalizeComparableName(value) {
-  return normalizeText(value)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 function ensureHonorificPrefix(value, honorific = 'HON.') {
   const normalizedName = normalizeText(value)
   if (!normalizedName) return ''
@@ -66,22 +54,26 @@ export function getDepartmentHeadSignature(app) {
 }
 
 export function isDepartmentHeadApplicant(app) {
-  const head = app?.departmentHead || app?.department_head || {}
-  const headControlNo = normalizeControlNo(head?.control_no)
-  const applicantControlNo = normalizeControlNo(
-    app?.employee_control_no || app?.employeeControlNo || app?.employee?.control_no,
+  const designationCandidates = [
+    app?.designation,
+    app?.position,
+    app?.position_title,
+    app?.employeeDesignation,
+    app?.employee_designation,
+    app?.employee?.designation,
+    app?.employee?.position,
+    app?.employee?.position_title,
+    app?.raw?.designation,
+    app?.raw?.position,
+    app?.raw?.position_title,
+    app?.raw?.employee?.designation,
+    app?.raw?.employee?.position,
+    app?.raw?.employee?.position_title,
+  ]
+
+  return designationCandidates.some((designation) =>
+    normalizeDesignationToken(designation).includes('CITY GOVERNMENT DEPARTMENT HEAD'),
   )
-
-  if (headControlNo && applicantControlNo) {
-    return headControlNo === applicantControlNo
-  }
-
-  const headName = normalizeComparableName(buildFullName(head))
-  const applicantName = normalizeComparableName(
-    app?.employeeName || app?.employee_name || app?.applicantName || app?.applicant_name,
-  )
-
-  return Boolean(headName) && Boolean(applicantName) && headName === applicantName
 }
 
 export function getMayorSignature(app) {

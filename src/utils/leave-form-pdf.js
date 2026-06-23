@@ -12,8 +12,11 @@ import {
   getChrmoLeaveInChargeSignatory,
   getMayorSignature,
   getRecommendationSignatory,
+  isDepartmentHeadApplicant,
 } from './department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
+import { isAbroadLeaveApplication } from './leave-application-details'
+import { isCityViceMayorApplicant } from './signatory-rules/applicant-role-utils'
 import { resolveRecommendationSignatoryByApplicantType } from './signatory-rules/recommendation-signatory'
 
 // pdfmake v0.3.x font initialization
@@ -1633,13 +1636,34 @@ function isTwoConsecutiveDateRange(dateKeys) {
   return expectedNextDate.getTime() === secondDate.getTime()
 }
 
+function enumerateInclusiveDateKeys(startDateKey, endDateKey) {
+  const startDate = toDateFromIsoKey(startDateKey)
+  const endDate = toDateFromIsoKey(endDateKey)
+  if (!startDate || !endDate) return []
+
+  const firstDate = startDate <= endDate ? startDate : endDate
+  const lastDate = startDate <= endDate ? endDate : startDate
+  const dateKeys = []
+  const cursor = new Date(firstDate)
+
+  while (cursor <= lastDate) {
+    const year = cursor.getFullYear()
+    const month = String(cursor.getMonth() + 1).padStart(2, '0')
+    const day = String(cursor.getDate()).padStart(2, '0')
+    dateKeys.push(`${year}-${month}-${day}`)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return dateKeys
+}
+
 function resolveSelectedDateKeys(app) {
   const dateKeyMap = toDateKeyMap(app?.selected_dates)
 
   return Object.keys(dateKeyMap).sort()
 }
 
-function formatGroupedSelectedDateRanges(dateKeys) {
+function formatGroupedSelectedDateRanges(dateKeys, expandConsecutiveDays = false) {
   if (!Array.isArray(dateKeys) || dateKeys.length === 0) return ''
 
   const groupedByMonthYear = new Map()
@@ -1665,6 +1689,10 @@ function formatGroupedSelectedDateRanges(dateKeys) {
     .map((group) => {
       const uniqueDays = [...new Set(group.days)].sort((left, right) => left - right)
       if (!uniqueDays.length) return ''
+
+      if (expandConsecutiveDays) {
+        return `${group.monthName} ${uniqueDays.join(', ')}, ${group.year}`
+      }
 
       const dayRanges = []
       let rangeStart = uniqueDays[0]
@@ -1700,6 +1728,7 @@ function formatGroupedSelectedDateRanges(dateKeys) {
 
 function resolveInclusiveDatesLabel(app) {
   const selectedDateKeys = resolveSelectedDateKeys(app)
+  const expandConsecutiveDays = isAbroadLeaveApplication(app)
 
   if (!selectedDateKeys.length) {
     const startDate = app.start_date || app.startDate
@@ -1709,6 +1738,12 @@ function resolveInclusiveDatesLabel(app) {
 
     if (startDateKey && endDateKey) {
       const sortedDateKeys = [startDateKey, endDateKey].sort()
+
+      if (expandConsecutiveDays) {
+        const rangedDateKeys = enumerateInclusiveDateKeys(sortedDateKeys[0], sortedDateKeys[1])
+        const groupedDateRanges = formatGroupedSelectedDateRanges(rangedDateKeys, true)
+        if (groupedDateRanges) return groupedDateRanges
+      }
 
       if (startDateKey === endDateKey) return fmtDate(startDateKey)
 
@@ -1743,6 +1778,11 @@ function resolveInclusiveDatesLabel(app) {
   const hasHalfDaySelection = formattedDates.some(
     (label) => label.includes('(Half Day)') || label.includes('(AM)') || label.includes('(PM)'),
   )
+  if (!hasHalfDaySelection && expandConsecutiveDays) {
+    const groupedDateRanges = formatGroupedSelectedDateRanges(selectedDateKeys, true)
+    if (groupedDateRanges) return groupedDateRanges
+  }
+
   if (!hasHalfDaySelection && isContinuousDateRange(selectedDateKeys)) {
     if (selectedDateKeys.length === 1) return fmtDate(selectedDateKeys[0])
     if (isTwoConsecutiveDateRange(selectedDateKeys)) {
@@ -2073,7 +2113,10 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showWithinPhilippines =
     (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
   const showAbroad = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Abroad'
-  const useCityViceMayorApprovedForSignatory = shouldUseCityViceMayorApprovedForSignatory(app)
+  const useCityViceMayorApprovedForSignatory =
+    shouldUseCityViceMayorApprovedForSignatory(app) &&
+    !isDepartmentHeadApplicant(app) &&
+    !isCityViceMayorApplicant(app)
   const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
     app,
     isAbroad: showAbroad,
