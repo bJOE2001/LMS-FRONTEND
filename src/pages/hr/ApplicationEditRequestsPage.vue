@@ -99,6 +99,7 @@
                 unelevated
                 dense
                 round
+                size="sm"
                 icon="check"
                 color="positive"
                 :loading="approveLoadingId === props.row.id"
@@ -111,6 +112,7 @@
                 outline
                 dense
                 round
+                size="sm"
                 icon="close"
                 color="negative"
                 :loading="rejectLoadingId === props.row.id"

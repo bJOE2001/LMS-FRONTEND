@@ -2266,11 +2266,40 @@ function buildHalfDayInclusiveDateLines(source) {
 
   if (!rows.some((row) => row.isHalfDay)) return []
 
-  return rows.map((row) => {
+  const lines = []
+  let wholeDayDateSet = []
+
+  const appendWholeDayLines = () => {
+    if (!wholeDayDateSet.length) return
+
+    const groupedLines = formatGroupedInclusiveDateLines(wholeDayDateSet)
+    lines.push(
+      ...(groupedLines.length
+        ? groupedLines
+        : wholeDayDateSet.map((dateValue) => formatDate(dateValue))),
+    )
+    wholeDayDateSet = []
+  }
+
+  for (const row of rows) {
+    if (!row.isHalfDay) {
+      wholeDayDateSet.push(row.dateKey)
+      continue
+    }
+
+    appendWholeDayLines()
+
     const dateText = formatDate(row.dateKey) || row.dateKey
-    if (!row.isHalfDay) return dateText
-    return row.halfDayPortion ? `${dateText} (${row.halfDayPortion})` : `${dateText} (Half Day)`
-  })
+    lines.push(
+      row.halfDayPortion
+        ? `${dateText} (${row.halfDayPortion})`
+        : `${dateText} (Half Day)`,
+    )
+  }
+
+  appendWholeDayLines()
+
+  return lines
 }
 
 function getPendingUpdatePayload(app) {

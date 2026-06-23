@@ -2129,6 +2129,51 @@ export function useAdminApplicationsPage() {
       .filter(Boolean)
   }
 
+  function formatCoverageAwareInclusiveDateLines(indicatorRows, expandConsecutiveDays = false) {
+    if (!Array.isArray(indicatorRows) || indicatorRows.length === 0) return []
+
+    const lines = []
+    let wholeDayDateSet = []
+
+    const appendWholeDayLines = () => {
+      if (!wholeDayDateSet.length) return
+
+      const groupedLines = formatGroupedInclusiveDateLines(
+        wholeDayDateSet,
+        expandConsecutiveDays,
+      )
+
+      lines.push(
+        ...(groupedLines.length
+          ? groupedLines
+          : wholeDayDateSet.map((dateValue) => formatDate(dateValue))),
+      )
+      wholeDayDateSet = []
+    }
+
+    for (const entry of indicatorRows) {
+      const coverageLabel = String(entry?.coverageLabel || '').trim()
+      if (!coverageLabel.startsWith('Half Day')) {
+        wholeDayDateSet.push(entry?.dateKey)
+        continue
+      }
+
+      appendWholeDayLines()
+
+      const dateText = String(entry?.dateText || '').trim()
+      const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
+      lines.push(
+        halfDayPortion === 'AM' || halfDayPortion === 'PM'
+          ? `${dateText} (${halfDayPortion})`
+          : `${dateText} (Half Day)`,
+      )
+    }
+
+    appendWholeDayLines()
+
+    return lines
+  }
+
   function parseSelectedDatesValue(value) {
     if (Array.isArray(value)) return value
     if (typeof value !== 'string') return []
@@ -2814,18 +2859,10 @@ export function useAdminApplicationsPage() {
       indicatorRows.length &&
       indicatorRows.some((entry) => entry?.coverageLabel?.startsWith('Half Day'))
     ) {
-      return indicatorRows.map((entry) => {
-        const dateText = String(entry?.dateText || '').trim()
-        const coverageLabel = String(entry?.coverageLabel || '').trim()
-        if (!coverageLabel.startsWith('Half Day')) return dateText
-
-        const halfDayPortion = String(entry?.halfDayPortion || '')
-          .trim()
-          .toUpperCase()
-        return halfDayPortion === 'AM' || halfDayPortion === 'PM'
-          ? `${dateText} (${halfDayPortion})`
-          : `${dateText} (Half Day)`
-      })
+      return formatCoverageAwareInclusiveDateLines(
+        indicatorRows,
+        isAbroadLeaveApplication(app),
+      )
     }
 
     const expandConsecutiveDays = isAbroadLeaveApplication(app)
@@ -3704,20 +3741,7 @@ export function useAdminApplicationsPage() {
         String(entry?.coverageLabel || '').startsWith('Half Day'),
       )
     ) {
-      return requestedIndicatorRows
-        .map((entry) => {
-          const dateText = String(entry?.dateText || '').trim()
-          const coverageLabel = String(entry?.coverageLabel || '').trim()
-          if (!coverageLabel.startsWith('Half Day')) return dateText
-
-          const halfDayPortion = String(entry?.halfDayPortion || '')
-            .trim()
-            .toUpperCase()
-          return halfDayPortion === 'AM' || halfDayPortion === 'PM'
-            ? `${dateText} (${halfDayPortion})`
-            : `${dateText} (Half Day)`
-        })
-        .join(', ')
+      return formatCoverageAwareInclusiveDateLines(requestedIndicatorRows).join(', ')
     }
 
     return formatDateSetSummary(resolveDateSetFromSource(pendingPayload))
