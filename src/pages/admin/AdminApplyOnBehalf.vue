@@ -2559,14 +2559,13 @@ function countWorkingDaysFromNextDay(lastAbsentDate, filedDate) {
   return count
 }
 
-function countWorkingDaysBeforeDate(filedDate, targetDate) {
+function countWorkingDaysFromFiledDateBeforeDate(filedDate, targetDate) {
   if (!(filedDate instanceof Date) || Number.isNaN(filedDate.getTime())) return 0
   if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) return 0
   if (targetDate <= filedDate) return 0
 
   let count = 0
   const cursor = new Date(filedDate.getFullYear(), filedDate.getMonth(), filedDate.getDate())
-  cursor.setDate(cursor.getDate() + 1)
 
   while (cursor < targetDate) {
     const dayOfWeek = cursor.getDay()
@@ -3640,11 +3639,14 @@ async function onSubmit() {
       const firstAvailmentDate = parseIsoDateValue(sortedSelectedDatesPayload[0])
       const nowDate = new Date()
       const filedDate = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate())
-      const workingDaysBeforeAvailment = countWorkingDaysBeforeDate(filedDate, firstAvailmentDate)
-      if (workingDaysBeforeAvailment < 5) {
+      const workingDaysBeforeAvailment = countWorkingDaysFromFiledDateBeforeDate(
+        filedDate,
+        firstAvailmentDate,
+      )
+      if (workingDaysBeforeAvailment < 3) {
         $q.notify({
           type: 'negative',
-          message: 'CTO applications must be submitted at least 5 working days before the first availment date.',
+          message: 'CTO applications must be submitted at least 3 working days before the first availment date.',
         })
         loading.value = false
         return

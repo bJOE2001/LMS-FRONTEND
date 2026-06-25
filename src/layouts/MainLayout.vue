@@ -5,6 +5,7 @@
       v-model="leftDrawer"
       show-if-above
       :width="260"
+      :breakpoint="599"
       side="left"
       behavior="default"
       class="side-panel-fixed text-white bg-primary"
@@ -178,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLeaveStore } from 'stores/leave-store'
@@ -212,14 +213,6 @@ function closeNotifMenu() {
 
 const isDark = computed(() => $q.dark.isActive)
 const isNotificationsPage = computed(() => route.name === 'notifications')
-
-watch(
-  () => $q.screen.gt.sm,
-  (isDesktop, wasDesktop) => {
-    if (isDesktop === wasDesktop) return
-    leftDrawer.value = isDesktop
-  },
-)
 
 // When authenticated, refresh user from API so department_admin gets department_id/department
 // only when local auth payload is missing. Avoid refetching on every route mount.
@@ -364,7 +357,7 @@ async function doLogout() {
   transition: none !important;
 }
 
-/* Desktop only: fixed sidebar + synced transitions */
+/* Standard sidebar: fixed drawer + synced content offset */
 @media (min-width: 600px) {
   .layout-no-scroll :deep(.q-drawer) {
     position: fixed !important;
@@ -380,9 +373,13 @@ async function doLogout() {
   .layout-ready .layout-main-content {
     transition: padding-left 0.2s ease !important;
   }
+
+  .layout-no-scroll :deep(.q-drawer__backdrop) {
+    display: none !important;
+  }
 }
 
-/* Mobile: let Quasar handle drawer as overlay natively */
+/* Phone: let Quasar handle the drawer as an overlay natively */
 @media (max-width: 599px) {
   .layout-no-scroll :deep(.q-drawer) {
     z-index: 3000;

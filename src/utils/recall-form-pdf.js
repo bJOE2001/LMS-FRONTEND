@@ -6,6 +6,7 @@ pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 const HEADER_BAR_COLOR = '#0f6b3a'
 const DEFAULT_MAYOR_NAME = 'REY T. UY'
 const DEFAULT_MAYOR_TITLE = 'City Mayor'
+const DEFAULT_FROM = 'THE LOCAL CHIEF EXECUTIVE'
 
 function normalizeText(value) {
   return String(value ?? '')
@@ -41,28 +42,40 @@ function formatDateLong(value) {
 }
 
 function buildHeader(logoBase64) {
-  const headerBarHeight = 18
-  const smallRectTopOffset = 35
-  const headerTextSize = 10
+  const headerBarHeight = 17
+  const smallRectTopOffset = 38
+  const headerTextSize = 11
   const leftInset = 6
   const officeBandPaddingTop = Math.max(0, Math.floor((headerBarHeight - headerTextSize) / 2))
 
   return {
     columns: [
       {
-        width: 28,
+        width: 34,
         margin: [0, smallRectTopOffset, 8, 0],
-        canvas: [{ type: 'rect', x: 0, y: 0, w: 22, h: headerBarHeight, color: HEADER_BAR_COLOR }],
+        canvas: [{ type: 'rect', x: 0, y: 0, w: 28, h: headerBarHeight, color: HEADER_BAR_COLOR }],
       },
       logoBase64
-        ? { width: 78, image: logoBase64, fit: [72, 72], margin: [0, 0, 8, 0] }
-        : { width: 78, text: '' },
+        ? { width: 82, image: logoBase64, fit: [76, 76], margin: [0, 0, 8, 0] }
+        : { width: 82, text: '' },
       {
         width: '*',
         stack: [
-          { text: 'REPUBLIC OF THE PHILIPPINES', fontSize: 7, margin: [leftInset, 0, 0, 0] },
-          { text: 'PROVINCE OF DAVAO DEL NORTE', fontSize: 7, margin: [leftInset, 0, 0, 0] },
-          { text: 'CITY OF TAGUM', fontSize: 14, bold: true, margin: [leftInset, 0, 0, 0] },
+          {
+            text: 'REPUBLIC OF THE PHILIPPINES',
+            color: HEADER_BAR_COLOR,
+            bold: true,
+            fontSize: 7,
+            margin: [leftInset, 1, 0, 0],
+          },
+          {
+            text: 'PROVINCE OF DAVAO DEL NORTE',
+            color: HEADER_BAR_COLOR,
+            bold: true,
+            fontSize: 7,
+            margin: [leftInset, 0, 0, 0],
+          },
+          { text: 'CITY OF TAGUM', fontSize: 16, bold: true, margin: [leftInset, 0, 0, 0] },
           {
             table: {
               widths: ['*'],
@@ -95,11 +108,11 @@ function buildHeader(logoBase64) {
       },
     ],
     columnGap: 0,
-    margin: [0, 0, 0, 16],
+    margin: [0, 0, 0, 20],
   }
 }
 
-function detailRow(label, value) {
+function detailRow(label, value, options = {}) {
   return {
     columns: [
       { width: 72, text: label, fontSize: 10 },
@@ -107,17 +120,60 @@ function detailRow(label, value) {
       {
         width: '*',
         text: normalizeText(value),
-        bold: true,
+        bold: options.bold !== false,
         fontSize: 10,
         characterSpacing: 0.1,
+      },
+    ],
+    margin: [0, 0, 0, options.marginBottom ?? 12],
+  }
+}
+
+function recipientDetailRow(name, position) {
+  return {
+    columns: [
+      { width: 72, text: 'To', fontSize: 10 },
+      { width: 12, text: ':', fontSize: 10, alignment: 'center' },
+      {
+        width: '*',
+        table: {
+          widths: ['*'],
+          body: [
+            [
+              {
+                text: normalizeText(name).toUpperCase(),
+                bold: true,
+                fontSize: 10,
+                margin: [4, 0, 4, 1],
+              },
+            ],
+            [
+              {
+                text: normalizeText(position) || ' ',
+                fontSize: 9,
+                margin: [4, 1, 4, 1],
+              },
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: (index) => (index > 0 ? 0.7 : 0),
+          vLineWidth: () => 0,
+          hLineColor: () => '#333333',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
       },
     ],
     margin: [0, 0, 0, 12],
   }
 }
 
-function paragraph(text, options = {}) {
-  const paragraphText = options.indent === false ? text : `          ${text}`
+function paragraph(content, options = {}) {
+  const text = Array.isArray(content) ? content : [{ text: content }]
+  const paragraphText = options.indent === false ? text : [{ text: '          ' }, ...text]
 
   return {
     text: paragraphText,
@@ -129,23 +185,123 @@ function paragraph(text, options = {}) {
   }
 }
 
+function normalizeRecallLeaveType(value) {
+  const normalized = normalizeText(value).toLowerCase()
+  if (normalized.includes('mandatory') && normalized.includes('forced')) return 'forced leave'
+
+  return normalized || 'leave'
+}
+
+function buildFirstParagraph(data) {
+  if (data.firstParagraph) return data.firstParagraph
+
+  return [
+    { text: 'In view of the exigency of services at the ' },
+    { text: data.officeName, decoration: 'underline' },
+    { text: ', you are hereby recalled from your scheduled and approved ' },
+    { text: data.leaveType },
+    { text: ' with inclusive dates on ' },
+    { text: data.inclusiveDates, decoration: 'underline' },
+    { text: '.' },
+  ]
+}
+
+function buildFooterIcon(type) {
+  const iconPaths = {
+    location: `
+      <path d="M9 3.4a3.8 3.8 0 0 0-3.8 3.8c0 2.8 3.8 7.1 3.8 7.1s3.8-4.3 3.8-7.1A3.8 3.8 0 0 0 9 3.4Z" fill="#ffffff"/>
+      <circle cx="9" cy="7.2" r="1.4" fill="#d8df2a"/>
+    `,
+    phone: `
+      <path d="M5.1 3.9 7 3.4l1.3 3.1-1.5 1c.8 1.8 2 3 3.8 3.8l1-1.5 3.1 1.3-.5 1.9c-.2.8-1 1.3-1.8 1.2-4.5-.8-8-4.3-8.8-8.8-.1-.7.6-1.4 1.5-1.5Z" fill="#ffffff"/>
+    `,
+    email: `
+      <rect x="4" y="5.2" width="10" height="7.6" rx="1.1" fill="none" stroke="#ffffff" stroke-width="1.4"/>
+      <path d="m4.7 6.1 4.3 3.3 4.3-3.3" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    `,
+  }
+
+  return `
+    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="9" cy="9" r="8.2" fill="${HEADER_BAR_COLOR}"/>
+      ${iconPaths[type] || ''}
+    </svg>
+  `
+}
+
+function footerContact(icon, text, width) {
+  return {
+    width,
+    columns: [
+      {
+        width: 21,
+        svg: buildFooterIcon(icon),
+        fit: [17, 17],
+        margin: [0, 0, 4, 0],
+      },
+      {
+        width: '*',
+        text,
+      },
+    ],
+    columnGap: 0,
+  }
+}
+
+function buildFooter() {
+  return {
+    columns: [
+      footerContact('location', '2nd Floor, City Hall of Tagum,\nJV Ayala Ave., Brgy. Apokon', 220),
+      footerContact('phone', '(084) 645 3300\nLocal 203', 125),
+      footerContact('email', 'mayoruytagumcity@gmail.com', '*'),
+    ],
+    color: HEADER_BAR_COLOR,
+    bold: true,
+    fontSize: 7.5,
+    lineHeight: 1.1,
+    columnGap: 10,
+    margin: [45, 0, 30, 0],
+  }
+}
+
 function resolveRecallFormData(source = {}) {
   const inclusiveDates = normalizeText(source.inclusiveDates || source.inclusive_dates)
-  const defaultFirstParagraph = inclusiveDates
-    ? `In view of the exigency of services, you are hereby recalled from your scheduled and approved leave with inclusive dates on ${inclusiveDates}.`
-    : 'In view of the exigency of services, you are hereby recalled from your scheduled and approved leave.'
 
   return {
-    officeOrderNo: normalizeText(source.officeOrderNo || source.office_order_no) || '___',
-    seriesYear: normalizeText(source.seriesYear || source.series_year) || String(new Date().getFullYear()),
-    date: formatDateLong(source.date || source.orderDate || source.order_date) || formatDateLong(new Date()),
-    recipientName:
-      normalizeText(source.recipientName || source.recipient_name || source.employeeName || source.employee_name),
-    from: normalizeText(source.from || source.fromOffice || source.from_office),
+    memorandumOrderNo:
+      normalizeText(
+        source.memorandumOrderNo ||
+          source.memorandum_order_no ||
+          source.officeOrderNo ||
+          source.office_order_no,
+      ) || '___',
+    seriesYear:
+      normalizeText(source.seriesYear || source.series_year) || String(new Date().getFullYear()),
+    date:
+      formatDateLong(source.date || source.orderDate || source.order_date) ||
+      formatDateLong(new Date()),
+    recipientName: normalizeText(
+      source.recipientName || source.recipient_name || source.employeeName || source.employee_name,
+    ),
+    recipientPosition: normalizeText(
+      source.recipientPosition ||
+        source.recipient_position ||
+        source.employeePosition ||
+        source.employee_position ||
+        source.designation,
+    ),
+    from: normalizeText(source.from) || DEFAULT_FROM,
     subject: normalizeText(source.subject) || 'RECALL ORDER',
-    firstParagraph:
-      normalizeText(source.firstParagraph || source.first_paragraph) ||
-      defaultFirstParagraph,
+    officeName:
+      normalizeText(
+        source.officeName ||
+          source.office_name ||
+          source.requestingOffice ||
+          source.requesting_office,
+      ) || 'REQUESTING OFFICE',
+    inclusiveDates,
+    leaveType: normalizeRecallLeaveType(source.leaveType || source.leave_type),
+    firstParagraph: normalizeText(source.firstParagraph || source.first_paragraph),
     secondParagraph:
       normalizeText(source.secondParagraph || source.second_paragraph) ||
       'As such, your unused leave credits shall be restored in accordance to the Civil Service Rules and Regulations.',
@@ -153,11 +309,13 @@ function resolveRecallFormData(source = {}) {
       normalizeText(source.thirdParagraph || source.third_paragraph) ||
       'For your information and guidance.',
     mayorName:
-      normalizeText(source.mayorName || source.mayor_name || source.signatoryName || source.signatory_name) ||
-      DEFAULT_MAYOR_NAME,
+      normalizeText(
+        source.mayorName || source.mayor_name || source.signatoryName || source.signatory_name,
+      ) || DEFAULT_MAYOR_NAME,
     mayorTitle:
-      normalizeText(source.mayorTitle || source.mayor_title || source.signatoryTitle || source.signatory_title) ||
-      DEFAULT_MAYOR_TITLE,
+      normalizeText(
+        source.mayorTitle || source.mayor_title || source.signatoryTitle || source.signatory_title,
+      ) || DEFAULT_MAYOR_TITLE,
   }
 }
 
@@ -167,42 +325,49 @@ export function buildRecallFormDocDefinition(formData = {}, logoBase64 = null) {
   return {
     pageSize: 'A4',
     pageOrientation: 'portrait',
-    pageMargins: [24, 18, 24, 34],
+    pageMargins: [30, 18, 30, 68],
+    footer: buildFooter,
     content: [
       buildHeader(logoBase64),
       {
         stack: [
           {
             text: [
-              { text: 'OFFICE ORDER NO. ', bold: true },
-              { text: `${data.officeOrderNo}, S. ${data.seriesYear}`, bold: true },
+              { text: 'MEMORANDUM ORDER NO. ', bold: true },
+              { text: `${data.memorandumOrderNo}, S. ${data.seriesYear}`, bold: true },
             ],
             fontSize: 10,
             margin: [0, 0, 0, 2],
           },
-          { text: data.date, fontSize: 10, margin: [0, 0, 0, 18] },
-          detailRow('To', data.recipientName),
-          detailRow('From', data.from),
-          detailRow('Subject', data.subject),
+          { text: data.date, fontSize: 10, margin: [0, 0, 0, 20] },
+          recipientDetailRow(data.recipientName, data.recipientPosition),
+          detailRow('From', data.from, { marginBottom: 14 }),
+          detailRow('Subject', data.subject, { marginBottom: 0 }),
         ],
-        margin: [48, 0, 36, 2],
+        margin: [48, 0, 36, 12],
       },
       {
         canvas: [
-          { type: 'line', x1: 0, y1: 0, x2: 547, y2: 0, lineWidth: 1, lineColor: '#111111' },
-          { type: 'line', x1: 0, y1: 3, x2: 547, y2: 3, lineWidth: 1, lineColor: '#111111' },
+          { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#111111' },
+          { type: 'line', x1: 0, y1: 3, x2: 535, y2: 3, lineWidth: 1, lineColor: '#111111' },
         ],
-        margin: [0, 0, 0, 24],
+        margin: [0, 0, 0, 22],
       },
-      paragraph(data.firstParagraph),
+      paragraph(buildFirstParagraph(data)),
       paragraph(data.secondParagraph),
-      paragraph(data.thirdParagraph, { margin: [48, 4, 36, 46] }),
+      paragraph(data.thirdParagraph, { margin: [48, 6, 36, 50] }),
       {
-        stack: [
-          { text: data.mayorName.toUpperCase(), bold: true, fontSize: 10 },
-          { text: data.mayorTitle, fontSize: 10, margin: [0, 2, 0, 0] },
+        columns: [
+          { width: '*', text: '' },
+          {
+            width: 165,
+            stack: [
+              { text: data.mayorName.toUpperCase(), bold: true, fontSize: 10 },
+              { text: data.mayorTitle, fontSize: 10, margin: [0, 2, 0, 0] },
+            ],
+          },
         ],
-        margin: [390, 0, 0, 0],
+        margin: [0, 0, 24, 0],
       },
     ],
     defaultStyle: {

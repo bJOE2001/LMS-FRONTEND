@@ -6003,28 +6003,22 @@ export function useAdminApplicationsPage() {
       application?.leaveType || application?.leave_type || 'leave',
     )
     const inclusiveDatesText = formatDateSetSummary(recallSelectedDates)
-    const officeForClause = officeForParagraph
-      ? officeForParagraph
-          .replace(/^office\s+of\s+/i, '')
-          .replace(/^the\s+/i, '')
-          .replace(/\bofficer\b$/i, 'Office')
-          .trim()
-      : ''
-    const officeClause = officeForClause
-      ? /\boffice\b/i.test(officeForClause)
-        ? ` at the ${officeForClause}`
-        : ` at the ${officeForClause} Office`
-      : ''
+    const recipientPosition = String(
+      application?.employee?.designation ??
+        application?.designation ??
+        application?.position ??
+        application?.position_name ??
+        application?.positionName ??
+        '',
+    ).trim()
 
     await generateRecallFormPdf({
       date: new Date().toISOString(),
       recipientName: getApplicationEmployeeDisplayName(application) || 'Employee',
-      fromOffice: requestingOffice || 'REQUESTING OFFICE',
-      showCityHeader: false,
+      recipientPosition,
+      officeName: officeForParagraph || requestingOffice || 'REQUESTING OFFICE',
+      leaveType: leaveTypeLabel,
       inclusiveDates: inclusiveDatesText,
-      firstParagraph:
-        `In view of the exigency of services${officeClause}, you are hereby recalled from your scheduled and approved ${String(leaveTypeLabel || 'leave').toLowerCase()} ` +
-        `with inclusive dates on ${inclusiveDatesText}.`,
     })
   }
 
