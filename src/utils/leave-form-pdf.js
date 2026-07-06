@@ -27,6 +27,23 @@ const BOX_SIZE = 7
 const BOX_LW = 0.5
 const HEADER_BAR_COLOR = '#0f6b3a'
 
+function resolveDocumentVerification(app) {
+  const verification =
+    app?.document_verification ||
+    app?.documentVerification ||
+    app?.raw?.document_verification ||
+    app?.raw?.documentVerification ||
+    null
+  const token = String(verification?.token || '').trim()
+
+  if (!token.startsWith('LMS-LEAVE:')) return null
+
+  return {
+    token,
+    reference: String(verification?.reference || '').trim(),
+  }
+}
+
 function toBase64(url) {
   return fetch(url)
     .then((response) => response.blob())
@@ -41,7 +58,12 @@ function toBase64(url) {
     )
 }
 
-function buildCocStyleLeaveHeader(logoBase64, borderWidth, employeeStatusLabel = '') {
+function buildCocStyleLeaveHeader(
+  logoBase64,
+  borderWidth,
+  employeeStatusLabel = '',
+  documentVerification = null,
+) {
   const compactHeaderBarHeight = 17
   const compactSmallBarTopOffset = 33
   const compactHeaderTextLeftInset = 6
@@ -104,6 +126,22 @@ function buildCocStyleLeaveHeader(logoBase64, borderWidth, employeeStatusLabel =
                   },
                 ],
               },
+              ...(documentVerification
+                ? [
+                    {
+                      width: 64,
+                      stack: [
+                        {
+                          qr: documentVerification.token,
+                          fit: 64,
+                          eccLevel: 'L',
+                          alignment: 'center',
+                        },
+                      ],
+                      margin: [0, -1, -12, 0],
+                    },
+                  ]
+                : []),
               {
                 width: 100,
                 table: {
@@ -1993,6 +2031,7 @@ function openPdfDocument(pdfDocument, options = {}) {
 // ─── main builder ──────────────────────────────────────────────────────────
 export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const app = await enrichAppWithDepartmentHead(mergeLocalLeaveApplicationDetails(sourceApp))
+  const documentVerification = resolveDocumentVerification(app)
   const office = normalizeOfficeDepartment(app.office || '')
   const officeLayout = getOfficeDepartmentLayoutConfig(office)
   const resolvedLeaveType = resolvePrintableLeaveType(app)
@@ -2156,7 +2195,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
 
     content: [
       // ═══ TOP HEADER ═══
-      buildCocStyleLeaveHeader(logoBase64, b, employeeStatusLabel),
+      buildCocStyleLeaveHeader(logoBase64, b, employeeStatusLabel, documentVerification),
 
       // Title
       {
