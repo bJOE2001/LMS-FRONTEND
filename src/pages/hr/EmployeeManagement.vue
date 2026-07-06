@@ -136,13 +136,13 @@
               >
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
-                <div>
-                  <div class="text-weight-medium">
-                    {{ getEmployeeColumnDisplayName(props.row) }}
-                  </div>
-                  <div v-if="props.row.designation" class="text-caption text-grey-6">
-                    {{ props.row.designation }}
-                  </div>
+              <div>
+                <div class="text-weight-medium">
+                  {{ getEmployeeColumnDisplayName(props.row) }}
+                </div>
+                <div v-if="props.row.designation" class="text-caption text-grey-6">
+                  {{ props.row.designation }}
+                </div>
                 <q-badge
                   v-if="isDepartmentHeadRecord(props.row)"
                   color="blue-8"
@@ -270,7 +270,9 @@
               <div class="employee-details-header__meta-item">
                 <div class="text-caption text-grey-6">Office</div>
                 <div class="text-body2 text-weight-medium employee-details-header__meta-value">
-                  {{ resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-' }}
+                  {{
+                    resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-'
+                  }}
                 </div>
               </div>
               <div class="employee-details-header__meta-item">
@@ -594,7 +596,11 @@
                     icon="add"
                     color="primary"
                     label="Add Row"
-                    :disable="savingCocImport || loadingCocImportEntries || cocImportForm.entries.length >= 200"
+                    :disable="
+                      savingCocImport ||
+                      loadingCocImportEntries ||
+                      cocImportForm.entries.length >= 200
+                    "
                     @click="addCocImportEntry"
                   />
                 </div>
@@ -614,7 +620,12 @@
                   <div class="row items-center justify-between q-mb-sm">
                     <div class="row items-center q-gutter-sm">
                       <div class="text-subtitle2 text-weight-medium">Entry #{{ index + 1 }}</div>
-                      <q-badge v-if="isExistingCocImportEntry(entry)" color="blue-8" text-color="white" label="Saved" />
+                      <q-badge
+                        v-if="isExistingCocImportEntry(entry)"
+                        color="blue-8"
+                        text-color="white"
+                        label="Saved"
+                      />
                     </div>
                     <q-btn
                       flat
@@ -631,7 +642,11 @@
                       @click="removeCocImportEntry(index)"
                     >
                       <q-tooltip>
-                        {{ isExistingCocImportEntry(entry) ? 'Saved entries cannot be removed here.' : 'Remove row' }}
+                        {{
+                          isExistingCocImportEntry(entry)
+                            ? 'Saved entries cannot be removed here.'
+                            : 'Remove row'
+                        }}
                       </q-tooltip>
                     </q-btn>
                   </div>
@@ -846,11 +861,20 @@ const employeeColumns = [
     field: (row) => resolveOfficeAcronymLabel(row),
     sortable: true,
   },
+  {
+    name: 'assigned_office',
+    label: 'Assigned Office',
+    align: 'left',
+    field: (row) => resolveAssignedOfficeAcronymLabel(row),
+    sortable: true,
+  },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
 ]
 const visibleEmployeeColumns = computed(() =>
   $q.screen.lt.sm
-    ? employeeColumns.filter((column) => !['control_no', 'status'].includes(column.name))
+    ? employeeColumns.filter(
+        (column) => !['control_no', 'status', 'assigned_office'].includes(column.name),
+      )
     : employeeColumns,
 )
 const creditEmployeeNoOptionMessage = computed(() => {
@@ -858,7 +882,10 @@ const creditEmployeeNoOptionMessage = computed(() => {
     return 'Searching employees...'
   }
 
-  if (normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length < CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH) {
+  if (
+    normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length <
+    CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH
+  ) {
     return 'Type at least 2 characters to search employees.'
   }
 
@@ -1098,14 +1125,14 @@ const calendarPreviewEmployeeName = computed(() => {
     'name',
   ])
 
-  return String(fallbackName || 'Employee').trim().toUpperCase()
+  return String(fallbackName || 'Employee')
+    .trim()
+    .toUpperCase()
 })
 const employeeTerminalLeaveEstimatedAmountLabel = computed(() =>
   formatEmployeeTerminalLeaveAmount(selectedEmployee.value),
 )
-const employeeMonthlyRateLabel = computed(() =>
-  formatEmployeeMonthlyRate(selectedEmployee.value),
-)
+const employeeMonthlyRateLabel = computed(() => formatEmployeeMonthlyRate(selectedEmployee.value))
 const calendarPreviewDateStates = computed(() => {
   const dateStates = new Map()
 
@@ -1387,7 +1414,7 @@ function getEmployeeColumnDisplayName(employee) {
   const middleInitial = getMiddleInitial(middlename)
 
   if (surname && firstname) {
-    return [ `${surname}, ${firstname}`, middleInitial ].filter(Boolean).join(' ')
+    return [`${surname}, ${firstname}`, middleInitial].filter(Boolean).join(' ')
   }
 
   return getEmployeeFullName(employee)
@@ -1428,6 +1455,29 @@ function formatLedgerHeadingOffice(employee) {
   const office = getLedgerEmployeeOffice(employee)
   const officeCode = resolveOfficeAcronymLabel(employee)
   return (officeCode && officeCode !== '-' ? officeCode : office) || 'N/A'
+}
+
+function resolveAssignedOfficeAcronymLabel(row) {
+  if (!row || !row.assigned_department_id) return '-'
+  const candidates = [
+    row.assignedDepartmentAcronym,
+    row.assigned_department_acronym,
+    row.officeAcronym,
+    row.office_acronym,
+    row.assigned_department_name,
+    row.office,
+    row.employee?.assignedDepartmentAcronym,
+    row.employee?.assigned_department_acronym,
+    row.employee?.officeAcronym,
+    row.employee?.office_acronym,
+    row.employee?.assigned_department_name,
+    row.employee?.office,
+  ]
+  for (const c of candidates) {
+    const text = String(c || '').trim()
+    if (text) return text
+  }
+  return '-'
 }
 
 function resolveLedgerPreviewIdentityFontSize(value) {
@@ -1757,7 +1807,9 @@ function buildCreditEmployeeLookupCacheKey(departmentId, searchText) {
 }
 
 function isCreditEmployeeLookupAbortError(error) {
-  const errorCode = String(error?.code ?? '').trim().toUpperCase()
+  const errorCode = String(error?.code ?? '')
+    .trim()
+    .toUpperCase()
   const errorName = String(error?.name ?? '').trim()
   return errorCode === 'ERR_CANCELED' || errorName === 'AbortError' || errorName === 'CanceledError'
 }
@@ -1778,7 +1830,8 @@ function buildCreditEmployeeLookupParams(rawSearchValue) {
   return {
     departmentId,
     searchText: resolvedSearchText,
-    shouldLookup: departmentId !== null || normalizedRawSearchValue.length >= CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH,
+    shouldLookup:
+      departmentId !== null || normalizedRawSearchValue.length >= CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH,
   }
 }
 
@@ -2017,7 +2070,9 @@ function truncateCurrencyValue(value, fractionDigits = 2) {
 }
 
 function resolveEmployeeTerminalLeaveAmount(employee) {
-  const apiEstimatedAmount = parseLedgerSignedQuantityValue(employee?.terminal_leave_estimated_amount)
+  const apiEstimatedAmount = parseLedgerSignedQuantityValue(
+    employee?.terminal_leave_estimated_amount,
+  )
   if (apiEstimatedAmount !== null) {
     return apiEstimatedAmount
   }
@@ -2190,9 +2245,10 @@ function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
       }
 
       const leaveTypeId = Number(leaveType?.id ?? leaveType?.leave_type_id)
-      const customCode = Number.isInteger(leaveTypeId) && leaveTypeId > 0
-        ? `LT-${leaveTypeId}`
-        : `LT-NAME-${normalizeLeaveTypeName(leaveTypeName) || index}`
+      const customCode =
+        Number.isInteger(leaveTypeId) && leaveTypeId > 0
+          ? `LT-${leaveTypeId}`
+          : `LT-NAME-${normalizeLeaveTypeName(leaveTypeName) || index}`
       const customLabel = resolveLedgerCustomLeaveBadgeLabel(leaveTypeName)
       if (customBadgeCodes.has(customCode)) return
 
@@ -2521,11 +2577,7 @@ function normalizeLedgerLeaveCode(value) {
     return 'WL'
   }
 
-  if (
-    compact === 'spl' ||
-    compact === 'soloparentleave' ||
-    compact === 'soloparent'
-  ) {
+  if (compact === 'spl' || compact === 'soloparentleave' || compact === 'soloparent') {
     return 'SPL'
   }
 
@@ -2560,7 +2612,9 @@ function isLedgerOtherLeaveCode(leaveCode) {
 }
 
 function resolveLedgerCellLeaveCode(entry, section) {
-  const normalizedSection = String(section ?? '').trim().toUpperCase()
+  const normalizedSection = String(section ?? '')
+    .trim()
+    .toUpperCase()
 
   if (normalizedSection === 'VL') return 'VL'
   if (normalizedSection === 'SL') return 'SL'
@@ -3373,12 +3427,14 @@ function buildLedgerInclusiveRangeText(entry) {
 }
 
 function resolveLeaveHistoryInclusiveDateParts(entry) {
-  const explicitDatesValue = parseInclusiveDatesValue(pickFirstDefined(entry, [
-    'inclusive_dates',
-    'inclusiveDates',
-    'selected_dates',
-    'selectedDates',
-  ]))
+  const explicitDatesValue = parseInclusiveDatesValue(
+    pickFirstDefined(entry, [
+      'inclusive_dates',
+      'inclusiveDates',
+      'selected_dates',
+      'selectedDates',
+    ]),
+  )
   if (explicitDatesValue.length > 0) {
     const explicitParts = sortAndNormalizeLedgerDatePartsList(
       explicitDatesValue.map((value) => parseLedgerDateParts(value)).filter(Boolean),
@@ -3497,10 +3553,7 @@ function getLeaveHistoryCalendarState(entry) {
 }
 
 function getLeaveHistoryPendingUpdatePayload(entry) {
-  const candidates = [
-    entry?.pending_update,
-    entry?.latest_update_request_payload,
-  ]
+  const candidates = [entry?.pending_update, entry?.latest_update_request_payload]
 
   for (const candidate of candidates) {
     if (!candidate) continue
@@ -3827,16 +3880,13 @@ function syncCalendarPreviewDecorations() {
             160,
             Math.min(CALENDAR_PREVIEW_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)),
           )
-          const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+          const cellCenter = cellRect.left - calendarRect.left + cellRect.width / 2
           const popupLeft = Math.max(
             8,
-            Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8),
+            Math.min(cellCenter - popupWidth * 0.58, calendarWidth - popupWidth - 8),
           )
-          const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
-          const arrowLeft = Math.max(
-            16,
-            Math.min(cellCenter - popupLeft - 6, popupWidth - 18),
-          )
+          const popupTop = Math.max(6, cellRect.top - calendarRect.top - 56)
+          const arrowLeft = Math.max(16, Math.min(cellCenter - popupLeft - 6, popupWidth - 18))
 
           nextWarningStyle = {
             width: `${popupWidth}px`,
@@ -3928,7 +3978,12 @@ function normalizeLedgerRow(entry, index) {
       `ledger-${index}`,
     ),
     balanceKey: normalizeLedgerTextValue(
-      pickFirstDefined(entry, ['balance_key', 'balanceKey', 'other_balance_key', 'otherBalanceKey']),
+      pickFirstDefined(entry, [
+        'balance_key',
+        'balanceKey',
+        'other_balance_key',
+        'otherBalanceKey',
+      ]),
     ),
     period:
       inclusivePeriod ||
@@ -4562,12 +4617,16 @@ function isExistingCocImportEntry(entry) {
 }
 
 function isEditableImportedCocApplication(application) {
-  const rawStatus = String(application?.rawStatus ?? application?.raw_status ?? application?.status ?? '')
+  const rawStatus = String(
+    application?.rawStatus ?? application?.raw_status ?? application?.status ?? '',
+  )
     .trim()
     .toUpperCase()
   if (rawStatus !== 'APPROVED') return false
 
-  const remarks = String(application?.remarks ?? '').trim().toLowerCase()
+  const remarks = String(application?.remarks ?? '')
+    .trim()
+    .toLowerCase()
   if (!remarks.startsWith('coc balance import (hr)')) return false
 
   const creditedHours = Number(application?.credited_hours)
@@ -4726,12 +4785,16 @@ async function saveCocImports() {
     const createdCount = Number(data?.created_count ?? data?.imported_count ?? 0)
     const updatedCount = Number(data?.updated_count ?? 0)
     const savedCount = Number(data?.saved_count ?? payload.entries.length)
-    const normalizedCreatedCount = Number.isFinite(createdCount) && createdCount > 0 ? createdCount : 0
-    const normalizedUpdatedCount = Number.isFinite(updatedCount) && updatedCount > 0 ? updatedCount : 0
+    const normalizedCreatedCount =
+      Number.isFinite(createdCount) && createdCount > 0 ? createdCount : 0
+    const normalizedUpdatedCount =
+      Number.isFinite(updatedCount) && updatedCount > 0 ? updatedCount : 0
     const normalizedSavedCount =
       Number.isFinite(savedCount) && savedCount > 0 ? savedCount : payload.entries.length
     const updatedBalance = Number(data?.updated_balance)
-    const balanceLabel = Number.isFinite(updatedBalance) ? ` Updated CTO balance: ${updatedBalance}.` : ''
+    const balanceLabel = Number.isFinite(updatedBalance)
+      ? ` Updated CTO balance: ${updatedBalance}.`
+      : ''
     const detailParts = []
     if (normalizedCreatedCount > 0) {
       detailParts.push(`${normalizedCreatedCount} added`)
