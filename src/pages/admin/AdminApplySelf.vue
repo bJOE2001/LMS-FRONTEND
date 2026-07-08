@@ -326,10 +326,36 @@
                 <div class="text-subtitle1 text-weight-bold q-mb-md">Details of Leave</div>
 
                 <div v-if="isVacationType" class="dialog-detail-options">
-                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave / MC06:</div>
+                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave:</div>
                 <q-option-group v-model="form.vacationDetail" :options="[{ label: 'Within the Philippines', value: 'Within the Philippines' }, { label: 'Abroad (Specify)', value: 'Abroad' }]" type="radio" color="primary" />
                 <q-input v-if="form.vacationDetail === 'Abroad'" v-model="form.vacationSpecify" outlined dense label="Specify destination" placeholder="Enter Destination" class="form-input q-mt-sm" />
                 <q-input v-if="form.vacationDetail === 'Within the Philippines'" v-model="form.vacationSpecify" outlined dense label="Specify location" placeholder="Enter Location" class="form-input q-mt-sm" />
+                </div>
+
+                <div v-if="isSpecialPrivilegeType" class="dialog-detail-options">
+                <div class="text-body2 text-weight-medium q-mb-sm">In case of Special Privilege Leave (MC06):</div>
+                <q-select
+                  v-model="form.splDetail"
+                  :options="specialPrivilegeReasons"
+                  outlined
+                  dense
+                  emit-value
+                  map-options
+                  clearable
+                  label="Select Special Privilege Reason *"
+                  placeholder="Select reason"
+                  class="form-input q-mt-sm"
+                />
+                <q-input
+                  v-if="form.splDetail"
+                  v-model="form.splSpecify"
+                  outlined
+                  dense
+                  label="Specify details *"
+                  placeholder="Enter details"
+                  class="form-input q-mt-sm"
+                  :rules="[val => !!val || 'Field is required']"
+                />
                 </div>
 
                 <div v-if="isSickType" class="dialog-detail-options">
@@ -693,6 +719,7 @@ import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useSickIllnessOptions } from 'src/composables/useSickIllnessOptions'
+import { useSpecialPrivilegeReasons } from 'src/composables/useSpecialPrivilegeReasons'
 import { saveLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 import {
   enumerateInclusiveDates,
@@ -756,6 +783,8 @@ const form = ref({
   leaveTypeOther: '',
   vacationDetail: '',
   vacationSpecify: '',
+  splDetail: '',
+  splSpecify: '',
   sickDetail: '',
   sickSpecify: '',
   sickSpecifyOther: '',
@@ -801,6 +830,11 @@ const {
   sickIllnessOptions,
   fetchSickIllnessOptions,
 } = useSickIllnessOptions()
+
+const {
+  specialPrivilegeReasons,
+  fetchSpecialPrivilegeReasons,
+} = useSpecialPrivilegeReasons()
 
 function resolveSingleFile(value) {
   if (!value) return null
@@ -1568,6 +1602,7 @@ function ensureDefaultLeaveType() {
 
 onMounted(async () => {
   void fetchSickIllnessOptions()
+  void fetchSpecialPrivilegeReasons()
 
   const u = authStore.user
   form.value.office = u?.department_name || u?.department?.name || ''
@@ -1790,7 +1825,8 @@ const showDetailsOfLeave = computed(() => {
   const types = ['Vacation Leave', 'Special Privilege Leave', 'Sick Leave']
   return types.includes(selectedLeaveTypeName.value) || selectedLeaveTypeRequiresDocuments.value
 })
-const isVacationType = computed(() => ['Vacation Leave', 'Special Privilege Leave'].includes(selectedLeaveTypeName.value))
+const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation Leave')
+const isSpecialPrivilegeType = computed(() => selectedLeaveTypeName.value === 'Special Privilege Leave')
 const isAbroadWeekendWopType = computed(() =>
   isVacationType.value && form.value.vacationDetail === 'Abroad',
 )
@@ -2078,10 +2114,12 @@ const monetizationSubmitDisabled = computed(() => {
 
 function onLeaveTypeChange() {
   allowSlVlCrossDeduction.value = false
-  form.value.vacationDetail = ['Vacation Leave', 'Special Privilege Leave'].includes(selectedLeaveTypeName.value)
+  form.value.vacationDetail = selectedLeaveTypeName.value === 'Vacation Leave'
     ? 'Within the Philippines'
     : ''
   form.value.vacationSpecify = ''
+  form.value.splDetail = ''
+  form.value.splSpecify = ''
   form.value.sickDetail = ''
   form.value.sickSpecify = ''
   form.value.sickSpecifyOther = ''
@@ -3660,6 +3698,19 @@ async function onSubmit() {
       }
     }
 
+    if (isSpecialPrivilegeType.value) {
+      if (!String(form.value.splDetail || '').trim()) {
+        $q.notify({ type: 'negative', message: 'Please select a reason for Special Privilege Leave.' })
+        loading.value = false
+        return
+      }
+      if (!String(form.value.splSpecify || '').trim()) {
+        $q.notify({ type: 'negative', message: 'Please specify details for Special Privilege Leave.' })
+        loading.value = false
+        return
+      }
+    }
+
     if (isSickType.value) {
       if (!String(form.value.sickDetail || '').trim()) {
         $q.notify({ type: 'negative', message: 'Please select In Hospital or Out Patient for Sick Leave.' })
@@ -3708,6 +3759,8 @@ async function onSubmit() {
     const leaveDetailsPayload = {
       vacation_detail: form.value.vacationDetail,
       vacation_specify: form.value.vacationSpecify,
+      spl_detail: form.value.splDetail,
+      spl_specify: form.value.splSpecify,
       sick_detail: form.value.sickDetail,
       sick_specify: resolvedSickIllness.value,
       women_specify: form.value.womenSpecify,
@@ -3745,6 +3798,8 @@ async function onSubmit() {
       attachment_submitted: Boolean(selectedAttachmentFile),
       vacation_detail: leaveDetailsPayload.vacation_detail,
       vacation_specify: leaveDetailsPayload.vacation_specify,
+      spl_detail: leaveDetailsPayload.spl_detail,
+      spl_specify: leaveDetailsPayload.spl_specify,
       sick_detail: leaveDetailsPayload.sick_detail,
       sick_specify: leaveDetailsPayload.sick_specify,
       women_specify: leaveDetailsPayload.women_specify,

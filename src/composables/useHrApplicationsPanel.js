@@ -4081,15 +4081,6 @@ function confirmApplicationReceive(target = selectedApp.value) {
   const application = resolveApplication(target) || target
   if (!canReceiveApplication(application)) return false
 
-  if (!isCocApplication(application) && !shouldUseUpdateReceiveEndpoint(application)) {
-    const applicationId = getApplicationId(application)
-    router.push({
-      name: 'hr-leave-form-scanner',
-      query: applicationId ? { application: applicationId } : {},
-    })
-    return true
-  }
-
   const confirmationCopy = getReceiveConfirmationCopy(application)
   q.dialog({
     class: 'hr-receive-required-dialog',
@@ -6133,14 +6124,6 @@ async function markApplicationReceived(target = selectedApp.value) {
       type: 'negative',
       message: 'Unable to identify this leave application.',
       position: 'top',
-    })
-    return false
-  }
-
-  if (!shouldUseUpdateReceiveEndpoint(application)) {
-    await router.push({
-      name: 'hr-leave-form-scanner',
-      query: { application: id },
     })
     return false
   }

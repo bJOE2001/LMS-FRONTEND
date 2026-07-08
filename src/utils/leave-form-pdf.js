@@ -288,6 +288,8 @@ const CONFIRMED_LEAVE_DETAIL_FIELDS = Object.freeze([
   'women_specify',
   'study_detail',
   'other_purpose',
+  'spl_detail',
+  'spl_specify',
 ])
 
 function readConfirmedLeaveDetailField(sources, fieldName) {
@@ -2146,12 +2148,15 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const womenSpecify = leaveDetails.women_specify
   const studyDetail = leaveDetails.study_detail
   const otherPurpose = leaveDetails.other_purpose
+  const splDetail = leaveDetails.spl_detail
+  const splSpecify = leaveDetails.spl_specify
+  const resolvedSplText = [splDetail, splSpecify].filter(Boolean).join(' - ')
   const normalizedVacationDetail = normalizeVacationDetailValue(vacationDetail)
   const normalizedSickDetail = normalizeSickDetailValue(sickDetail)
   const resolvedSickSpecify = sickSpecify
   const showWithinPhilippines =
-    (isVacation || isSpecPriv) && normalizedVacationDetail === 'Within the Philippines'
-  const showAbroad = (isVacation || isSpecPriv) && normalizedVacationDetail === 'Abroad'
+    (isVacation && normalizedVacationDetail === 'Within the Philippines') || isSpecPriv
+  const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
   const useCityViceMayorApprovedForSignatory =
     shouldUseCityViceMayorApprovedForSignatory(app) &&
     !isDepartmentHeadApplicant(app) &&
@@ -2471,7 +2476,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     showWithinPhilippines,
                     buildSpecifiedDetailLabel(
                       'Within the Philippines',
-                      showWithinPhilippines ? vacationSpecify : '',
+                      isSpecPriv ? resolvedSplText : (showWithinPhilippines ? vacationSpecify : ''),
                       {
                         emptyLine: '___________________',
                       },

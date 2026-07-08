@@ -1444,6 +1444,9 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const otherPurpose = String(
     getApplicationDetailValue(printableApp, 'other_purpose', 'otherPurpose', 'purpose'),
   ).trim()
+  const splDetail = getApplicationDetailValue(printableApp, 'spl_detail', 'splDetail')
+  const splSpecify = getApplicationDetailValue(printableApp, 'spl_specify', 'splSpecify')
+  const resolvedSplText = [splDetail, splSpecify].filter(Boolean).join(' - ')
   const normalizedVacationDetail = normalizeVacationDetailValue(vacationDetail)
   const isVacation = lt === 'Vacation Leave'
   const isSpecialPrivilege = lt === 'Special Privilege Leave'
@@ -1453,7 +1456,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const resolvedSickSpecify =
     sickSpecify || (isSick ? String(printableApp.reason || '').trim() : '')
   const showWithinPhilippines =
-    (isVacation || isSpecialPrivilege) && normalizedVacationDetail === 'Within the Philippines'
+    (isVacation && normalizedVacationDetail === 'Within the Philippines') || isSpecialPrivilege
   const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
   const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
   const showOutPatient =
@@ -1595,7 +1598,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
         showWithinPhilippines,
         buildSpecifiedDetailLabel(
           'Within the Philippines',
-          showWithinPhilippines ? vacationSpecify : '',
+          isSpecialPrivilege ? resolvedSplText : (showWithinPhilippines ? vacationSpecify : ''),
           {
             emptyLine: '___________________',
           },
