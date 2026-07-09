@@ -4145,6 +4145,34 @@ export function useAdminApplicationsPage() {
     return entries
   }
 
+  function isCancellationHistoryEntry(entry) {
+    const action = String(entry?.action || '').trim().toUpperCase()
+    const stage = String(entry?.stage || '').trim().toLowerCase()
+    const remarks = String(entry?.remarks || '').trim().toLowerCase()
+
+    return (
+      action.includes('CANCEL') ||
+      stage.includes('cancelled') ||
+      stage.includes('canceled') ||
+      remarks.startsWith('cancelled') ||
+      remarks.startsWith('canceled')
+    )
+  }
+
+  function resolveDepartmentDisapprovalHistoryEntry(app) {
+    return findLatestStatusHistoryEntry(app, (entry) => {
+      const action = String(entry?.action || '').trim().toUpperCase()
+      const stage = String(entry?.stage || '').trim().toLowerCase()
+
+      return (
+        (action === 'ADMIN_REJECTED' ||
+          stage.includes('department admin rejected') ||
+          stage.includes('department recommendation disapproved')) &&
+        !isCancellationHistoryEntry(entry)
+      )
+    })
+  }
+
   function buildApplicationTimeline(app) {
     if (!app) return []
 
@@ -4243,7 +4271,10 @@ export function useAdminApplicationsPage() {
       const isApprovedCancellationRequest =
         isAdminCancellationRequest(app) && getAdminLatestUpdateRequestStatus(app) === 'APPROVED'
 
-      if (resolveDepartmentAdminActionDateValue(app)) {
+      const deptDisapprovalEntry = resolveDepartmentDisapprovalHistoryEntry(app)
+      const isDeptDisapproved = Boolean(deptDisapprovalEntry)
+
+      if (resolveDepartmentAdminActionDateValue(app) && !isDeptDisapproved) {
         entries.push({
           title: 'Department Recommendation Completed',
           subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
@@ -4254,8 +4285,14 @@ export function useAdminApplicationsPage() {
         })
       }
 
+      const disapprovalTitle = isApprovedCancellationRequest
+        ? 'Application Cancelled'
+        : isDeptDisapproved
+          ? 'Department Recommendation Disapproved'
+          : 'CHRMO Certification Disapproved'
+
       entries.push({
-        title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Disapproved',
+        title: disapprovalTitle,
         subtitle: disapprovedAt,
         description: isApprovedCancellationRequest
           ? formatRecentRemarks(app) ||
@@ -4430,6 +4467,40 @@ export function useAdminApplicationsPage() {
 
   function finalizeApplicationTimelineEntries(app, entries) {
     if (!Array.isArray(entries) || !entries.length) return []
+
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'REJECTED') {
+      const cleanedTimeline = entries.filter(
+        (entry) =>
+          !isReceivedTimelineEntryTitle(entry) &&
+          !isReleasedTimelineEntryTitle(entry) &&
+          !isTimelineEntryTitle(entry, 'Application Closed'),
+      )
+
+      const deptDisapprovalEntry = resolveDepartmentDisapprovalHistoryEntry(app)
+      const isDeptDisapproved = Boolean(deptDisapprovalEntry)
+
+      if (!isDeptDisapproved) {
+        if (isApplicationReceivedByHr(app)) {
+          const cycleReceivedEntry = buildReceivedTimelineEntry(app, null)
+          const receivedInsertIndex = getReceivedTimelineInsertionIndex(app, cleanedTimeline)
+          cleanedTimeline.splice(receivedInsertIndex, 0, cycleReceivedEntry)
+        }
+      }
+
+      const disapprovedAt = formatDateTime(resolveDisapprovedDateValue(app)) || 'Application closed'
+      const disapprovedBy = resolveDisapprovalActor(app)
+      cleanedTimeline.push({
+        title: 'Application Closed',
+        subtitle: disapprovedAt,
+        description: 'Application workflow is complete.',
+        icon: 'task_alt',
+        color: 'positive',
+        actor: disapprovedBy,
+      })
+
+      return cleanedTimeline.map((entry) => adjustPendingHrTimelineEntryForReceive(app, entry))
+    }
 
     const existingReceivedEntry = entries.find((entry) => isReceivedTimelineEntryTitle(entry))
     const existingReleasedEntry = entries.find((entry) => isReleasedTimelineEntryTitle(entry))

@@ -478,6 +478,10 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    pendingReceive: {
+      type: Boolean,
+      default: false,
+    },
   },
   components: {
     AdminApplicationCalendarDialog,
@@ -515,6 +519,7 @@ export default defineComponent({
     const panel = useHrApplicationsPanel({
       applicationType: props.applicationType,
       applicationSource: props.applicationSource,
+      pendingReceive: props.pendingReceive,
     })
     const showCalendarPreviewDialog = ref(false)
     const calendarPreviewApp = ref(null)

@@ -1,6 +1,7 @@
 export const HR_MODULE_KEYS = Object.freeze({
   dashboard: 'dashboard',
   applications: 'applications',
+  receiving: 'receiving',
   cocApplications: 'coc_applications',
   employeeManagement: 'employee_management',
   userManagement: 'user_management',
@@ -17,6 +18,7 @@ const HR_MODULE_ROUTE_REQUIREMENTS = [
   { prefix: '/hr/access-control', moduleKey: HR_MODULE_KEYS.accessControl },
   { prefix: '/hr/user-management', moduleKey: HR_MODULE_KEYS.userManagement },
   { prefix: '/hr/coc-applications', moduleKey: HR_MODULE_KEYS.cocApplications },
+  { prefix: '/hr/receiving', moduleKey: HR_MODULE_KEYS.receiving },
   { prefix: '/hr/application-edit-requests', moduleKey: HR_MODULE_KEYS.applications },
   { prefix: '/hr/applications', moduleKey: HR_MODULE_KEYS.applications },
   { prefix: '/hr/employees', moduleKey: HR_MODULE_KEYS.employeeManagement },
@@ -32,6 +34,7 @@ const HR_MODULE_ROUTE_REQUIREMENTS = [
 const HR_MODULE_NAV_PRIORITY = [
   { moduleKey: HR_MODULE_KEYS.dashboard, path: '/hr/dashboard' },
   { moduleKey: HR_MODULE_KEYS.applications, path: '/hr/applications' },
+  { moduleKey: HR_MODULE_KEYS.receiving, path: '/hr/receiving' },
   { moduleKey: HR_MODULE_KEYS.cocApplications, path: '/hr/coc-applications' },
   { moduleKey: HR_MODULE_KEYS.employeeManagement, path: '/hr/employees' },
   { moduleKey: HR_MODULE_KEYS.userManagement, path: '/hr/user-management' },

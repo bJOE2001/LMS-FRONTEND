@@ -30,6 +30,7 @@ const tablePagination = ref({
 })
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
+const pendingReceiveFilter = ref(Boolean(options?.pendingReceive || false))
 const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationType))
 const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
@@ -891,6 +892,9 @@ function getEditRequestBadgeLabel(app) {
   if (status === 'PENDING') {
     if (isRecallRequestAction(app)) {
       if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+      if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+      if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+      if (stageStatus === 'Pending Update Review') return labelPrefix + ' Pending HR'
       return 'Recall Request Pending HR'
     }
 
@@ -903,6 +907,9 @@ function getEditRequestBadgeLabel(app) {
     }
     if (!isCancellationRequestAction(app)) {
       if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+      if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+      if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+      if (stageStatus === 'Pending Update Review') return labelPrefix + ' Pending HR'
       return 'CHRMO Certification'
     }
   }
@@ -931,7 +938,13 @@ function getEditRequestStatusLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
   if (status === 'PENDING') {
     const rawStatus = getApplicationRawStatusKey(app)
-    if (rawStatus === 'PENDING_HR') return 'CHRMO Certification'
+    if (rawStatus === 'PENDING_HR') {
+      const stageStatus = getLeaveWorkflowStageStatus(app)
+      if (stageStatus === 'Pending Update Receive') return 'Edit Request Pending Receive'
+      if (stageStatus === 'Pending Update Release') return 'Edit Request Pending Release'
+      if (stageStatus === 'Pending Update Review') return 'Edit Request Pending HR'
+      return 'CHRMO Certification'
+    }
     if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
     return 'Pending Review'
   }
@@ -2513,6 +2526,9 @@ const applicationsForTable = computed(() => {
     if (applicationTypeFilter.value && getApplicationType(app) !== applicationTypeFilter.value) {
       return false
     }
+    if (pendingReceiveFilter.value && !canReceiveApplication(app)) {
+      return false
+    }
     const rawStatus = getApplicationRawStatusKey(app)
     const shouldHidePendingAdmin =
       rawStatus === 'PENDING_ADMIN' &&
@@ -2818,6 +2834,7 @@ async function fetchApplications(options = {}) {
           per_page: requestedRowsPerPage,
           search: String(statusSearch.value || '').trim() || undefined,
           employment_type: employmentTypeFilter.value || undefined,
+          pending_receive: pendingReceiveFilter.value ? 1 : undefined,
         },
       })
       if (requestSequence !== applicationsRequestSequence) return
@@ -6752,6 +6769,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     editTargetApp,
     employmentTypeFilter,
     employmentTypeFilterLabel,
+    pendingReceiveFilter,
     enumerateInclusiveDateRange,
     expandApplicationsForDisplay,
     extractApplicationsFromPayload,
