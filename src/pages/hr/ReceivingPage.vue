@@ -1,24 +1,34 @@
 <template>
   <q-page class="q-pa-md">
-    <div class="row items-center justify-between q-mb-lg">
-      <h1 class="text-h4 text-weight-bold q-ma-none">Receiving Applications</h1>
-      <div class="row q-gutter-x-sm">
+    <div class="row items-center justify-between q-mb-md no-wrap q-gutter-x-sm">
+      <h1 class="text-weight-bold q-ma-none ellipsis" :class="$q.screen.lt.sm ? 'text-h6' : 'text-h4'" style="line-height: 1.2;">
+        Receiving Applications
+      </h1>
+      
+      <div class="row q-gutter-x-xs no-wrap">
         <q-btn
           unelevated
           no-caps
           color="secondary"
           icon="download"
-          label="Export"
+          :label="$q.screen.lt.sm ? '' : 'Export'"
           @click="showExportDialog = true"
-        />
+          :padding="$q.screen.lt.sm ? 'sm' : 'sm md'"
+        >
+          <q-tooltip v-if="$q.screen.lt.sm">Export</q-tooltip>
+        </q-btn>
+        
         <q-btn
           unelevated
           no-caps
           color="primary"
           icon="qr_code_scanner"
-          label="Scan Form"
+          :label="$q.screen.lt.sm ? '' : 'Scan Form'"
           @click="showScanner = true"
-        />
+          :padding="$q.screen.lt.sm ? 'sm' : 'sm md'"
+        >
+          <q-tooltip v-if="$q.screen.lt.sm">Scan Form</q-tooltip>
+        </q-btn>
       </div>
     </div>
 
