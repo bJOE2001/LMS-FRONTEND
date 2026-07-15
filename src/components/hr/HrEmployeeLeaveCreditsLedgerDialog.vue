@@ -233,7 +233,22 @@
                           {{ entry.otherAbsUndWop }}
                         </span>
                       </td>
-                      <td class="ledger-table__cell--action">{{ entry.actionTaken }}</td>
+                      <td class="ledger-table__cell--action">
+                        <div class="row items-center justify-center no-wrap">
+                          <span style="white-space: pre-line;">{{ entry.actionTaken }}</span>
+                          <q-btn
+                            v-if="entry.isEditableAccrual"
+                            icon="edit"
+                            size="xs"
+                            color="primary"
+                            flat
+                            dense
+                            class="q-ml-xs"
+                            title="Edit this accrual"
+                            @click="emit('edit-accrual', entry)"
+                          />
+                        </div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -361,7 +376,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'print'])
+const emit = defineEmits(['update:modelValue', 'print', 'edit-accrual'])
 
 const dialogModel = computed({
   get: () => props.modelValue,

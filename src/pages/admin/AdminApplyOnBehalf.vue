@@ -2148,7 +2148,12 @@ const sortedSelectedDates = computed(() =>
 )
 
 function getSelectedDateTotalForDates(dates, durations = selectedDateDurations.value) {
-  return dates.reduce((total, date) => total + ((durations?.[date] === 'half_day') ? 0.5 : 1), 0)
+  return dates.reduce((total, date) => {
+    if (isAbroadWeekendWopType.value && isWeekendDate(date)) {
+      return total
+    }
+    return total + ((durations?.[date] === 'half_day') ? 0.5 : 1)
+  }, 0)
 }
 
 function getSelectedDateCreditTotalForDates(
@@ -3008,7 +3013,12 @@ function enforceCreditBasedPayStatusLimit() {
 
 const selectedDateTotalDays = computed(() =>
   sortedSelectedDates.value.reduce(
-    (total, date) => total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1),
+    (total, date) => {
+      if (isAbroadWeekendWopType.value && isWeekendDate(date)) {
+        return total
+      }
+      return total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1)
+    },
     0,
   ),
 )

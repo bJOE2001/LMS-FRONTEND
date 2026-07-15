@@ -419,6 +419,14 @@
       :rendered-pages="ledgerRenderedPages"
       :value-class-resolver="ledgerValueClass"
       @print="printLeaveCreditsLedger"
+      @edit-accrual="openAccrualEditDialog"
+    />
+
+    <!-- Edit Accruals Dialog -->
+    <HrEmployeeLeaveAccrualsEditDialog
+      v-model="showAccrualsEditDialog"
+      :accrual-ids="selectedAccrualIds"
+      @saved="onAccrualsSaved"
     />
 
     <!-- Manual Leave Credits Dialog -->
@@ -741,6 +749,7 @@ import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { api } from 'src/boot/axios'
 import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
 import HrEmployeeLeaveCreditsLedgerDialog from 'src/components/hr/HrEmployeeLeaveCreditsLedgerDialog.vue'
+import HrEmployeeLeaveAccrualsEditDialog from 'src/components/hr/HrEmployeeLeaveAccrualsEditDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
@@ -785,6 +794,8 @@ const showLeaveCreditsLedgerDialog = ref(false)
 const leaveCreditsLedgerEmployee = ref(null)
 const leaveCreditsLedgerRows = ref([])
 const leaveCreditsLedgerBalanceBadges = ref([])
+const showAccrualsEditDialog = ref(false)
+const selectedAccrualIds = ref([])
 const leaveCreditsLedgerLoading = ref(false)
 const leaveCreditsLedgerError = ref('')
 const printingLeaveCreditsLedger = ref(false)
@@ -3169,6 +3180,24 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
   }
 }
 
+function openAccrualEditDialog(entry) {
+  if (entry && entry.accrualIds && entry.accrualIds.length > 0) {
+    selectedAccrualIds.value = entry.accrualIds
+    showAccrualsEditDialog.value = true
+  }
+}
+
+async function onAccrualsSaved() {
+  if (leaveCreditsLedgerEmployee.value) {
+    // Delay refresh to allow the edit dialog's close transition to finish.
+    // This prevents a Quasar focus trap warning caused by the edit button 
+    // being destroyed before focus can be returned to it.
+    setTimeout(async () => {
+      await openLeaveCreditsLedgerDialog(leaveCreditsLedgerEmployee.value)
+    }, 350)
+  }
+}
+
 function printLeaveCreditsLedger() {
   if (!leaveCreditsLedgerEmployee.value) {
     $q.notify({
@@ -3970,6 +3999,12 @@ function normalizeLedgerRow(entry, index) {
       'type',
     ]) || particulars,
   )
+  
+  const accrualIds = Array.isArray(entry?.accrual_ids) ? entry.accrual_ids : []
+  const actionTakenStr = String(entry?.action_taken || entry?.actionTaken || '').trim()
+  const isMonthlyAccrual = actionTakenStr === 'Monthly accrual'
+  const isVlSl = leaveTypeCode === 'VL' || leaveTypeCode === 'SL' || (typeof particulars === 'string' && (particulars.includes('VL') || particulars.includes('SL')))
+  const isEditableAccrual = accrualIds.length > 0 && isMonthlyAccrual && isVlSl
 
   return {
     id: pickFirstDefined(
@@ -4202,6 +4237,8 @@ function normalizeLedgerRow(entry, index) {
       ]),
     ),
     actionTaken: buildLedgerActionText(entry),
+    accrualIds,
+    isEditableAccrual,
   }
 }
 
