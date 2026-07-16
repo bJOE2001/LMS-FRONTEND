@@ -237,7 +237,7 @@
                         <div class="row items-center justify-center no-wrap">
                           <span style="white-space: pre-line;">{{ entry.actionTaken }}</span>
                           <q-btn
-                            v-if="entry.isEditableAccrual"
+                            v-if="entry.isEditableAccrual && isHrAdmin"
                             icon="edit"
                             size="xs"
                             color="primary"
@@ -292,6 +292,10 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useAuthStore } from 'src/stores/auth-store'
+
+const authStore = useAuthStore()
+const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
 
 const props = defineProps({
   modelValue: {
