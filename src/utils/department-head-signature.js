@@ -54,26 +54,7 @@ export function getDepartmentHeadSignature(app) {
 }
 
 export function isDepartmentHeadApplicant(app) {
-  const designationCandidates = [
-    app?.designation,
-    app?.position,
-    app?.position_title,
-    app?.employeeDesignation,
-    app?.employee_designation,
-    app?.employee?.designation,
-    app?.employee?.position,
-    app?.employee?.position_title,
-    app?.raw?.designation,
-    app?.raw?.position,
-    app?.raw?.position_title,
-    app?.raw?.employee?.designation,
-    app?.raw?.employee?.position,
-    app?.raw?.employee?.position_title,
-  ]
-
-  return designationCandidates.some((designation) =>
-    normalizeDesignationToken(designation).includes('CITY GOVERNMENT DEPARTMENT HEAD'),
-  )
+  return Boolean(app?.is_department_head || app?.isDepartmentHead)
 }
 
 export function getMayorSignature(app) {
