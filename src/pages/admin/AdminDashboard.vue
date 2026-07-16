@@ -210,7 +210,7 @@
               icon="print"
               label="Print Applications"
               size="sm"
-              @click="printApplicationsPdf"
+              @click="showPrintDialog = true"
             />
           </div>
         </div>
@@ -434,6 +434,11 @@
     </q-card>
 
     <!-- View dialog -->
+    <AdminPrintApplicationsDialog
+      v-model="showPrintDialog"
+      @print="printApplicationsPdf"
+    />
+
     <q-dialog v-model="showDetailsDialog" persistent position="standard">
       <q-card
         v-if="selectedApp"
@@ -755,6 +760,7 @@ import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
+import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
@@ -1042,6 +1048,7 @@ const applicationsPagination = ref({
   rowsPerPage: 10,
 })
 const showDetailsDialog = ref(false)
+const showPrintDialog = ref(false)
 const showDisapproveDialog = ref(false)
 const showConfirmActionDialog = ref(false)
 const showActionResultDialog = ref(false)
@@ -2534,13 +2541,14 @@ function getApplicationStatusLabel(app) {
       .replace(/^HR Certification(?: Completed)?$/i, (match) =>
         match.replace(/^HR Certification/i, 'CHRMO Certification'),
       )
+      .replace(/\b(rejected|disapproved)\b/gi, 'Not Certified')
   }
 
   if (app?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
   if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
   if (app?.rawStatus === 'APPROVED') return 'Approved'
   if (app?.rawStatus === 'RECALLED') return 'Recalled'
-  if (app?.rawStatus === 'REJECTED') return 'Disapproved'
+  if (app?.rawStatus === 'REJECTED') return 'Not Certified'
   return 'Unknown'
 }
 
@@ -3033,33 +3041,7 @@ function resolveDisapprovedDateValue(app) {
   )
 }
 
-function resolveProcessedBy(app) {
-  if (app?.processedBy) return app.processedBy
-  if (isCancelledByUser(app)) return resolveCancelledActor(app)
-  if (app?.rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
-  if (app?.rawStatus === 'APPROVED') return resolveHrActor(app)
-  if (app?.rawStatus === 'RECALLED') return resolveRecallActor(app)
-  if (app?.rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
-  return 'N/A'
-}
 
-function resolveReviewedDateValue(app) {
-  if (app?.reviewedAt) return app.reviewedAt
-  if (isCancelledByUser(app)) return app?.cancelledAt || app?.disapprovedAt || null
-  if (app?.rawStatus === 'PENDING_HR') return app?.adminActionAt || null
-  if (app?.rawStatus === 'APPROVED') return app?.hrActionAt || app?.adminActionAt || null
-  if (app?.rawStatus === 'RECALLED') {
-    return resolveRecallDateValue(app) || app?.hrActionAt || app?.adminActionAt || null
-  }
-  if (app?.rawStatus === 'REJECTED')
-    return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
-  return null
-}
-
-function formatReviewedDate(app) {
-  const reviewedDate = resolveReviewedDateValue(app)
-  return reviewedDate ? formatDate(reviewedDate) : 'N/A'
-}
 
 function getApplicationStatusPriority(app) {
   if (app?.rawStatus === 'PENDING_ADMIN') return 0
@@ -3379,8 +3361,26 @@ async function printApplication(app) {
   }
 }
 
-function printApplicationsPdf() {
-  const rowsToPrint = applicationsForTable.value
+function printApplicationsPdf(dateRange = null) {
+  let rowsToPrint = applicationsForTable.value
+
+  if (dateRange && (dateRange.from || dateRange.to)) {
+    const from = dateRange.from ? new Date(dateRange.from) : null
+    const to = dateRange.to ? new Date(dateRange.to) : null
+
+    rowsToPrint = rowsToPrint.filter((app) => {
+      const appDate = new Date(app.dateFiled || app.created_at)
+      if (Number.isNaN(appDate.getTime())) return true // keep if unknown
+
+      if (from && appDate < from) return false
+      if (to) {
+        const toEnd = new Date(to)
+        toEnd.setHours(23, 59, 59, 999)
+        if (appDate > toEnd) return false
+      }
+      return true
+    })
+  }
 
   if (!rowsToPrint.length) {
     $q.notify({ type: 'warning', message: 'No applications available to print.', position: 'top' })
@@ -3408,18 +3408,14 @@ function printApplicationsPdf() {
       { text: 'Inclusive Dates', style: 'tableHeader' },
       { text: 'Duration', style: 'tableHeader' },
       { text: 'Status', style: 'tableHeader' },
-      { text: 'Processed By', style: 'tableHeader' },
-      { text: 'Reviewed Date', style: 'tableHeader' },
     ],
     ...rowsToPrint.map((app) => [
-      `${app.employeeName || ''}${app.employee_control_no ? `\n${app.employee_control_no}` : ''}`,
+      `${app.employeeName || ''}`,
       app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
       formatDate(app.dateFiled) || 'N/A',
       getApplicationInclusiveDateLines(app).join('\n'),
       getApplicationDurationDisplay(app),
       getApplicationStatusLabel(app),
-      resolveProcessedBy(app),
-      formatReviewedDate(app),
     ]),
   ]
 
@@ -3434,7 +3430,7 @@ function printApplicationsPdf() {
       {
         table: {
           headerRows: 1,
-          widths: ['*', '*', 72, 125, 38, 68, 100, 82],
+          widths: ['*', '*', 82, 135, 48, 88],
           body: tableBody,
         },
         layout: {

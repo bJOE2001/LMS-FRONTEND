@@ -63,7 +63,7 @@
               icon="print"
               label="Print Applications"
               size="sm"
-              @click="printApplicationsPdf"
+              @click="showPrintDialog = true"
             />
           </div>
         </div>
@@ -261,6 +261,11 @@
       :view-application-attachment="viewApplicationAttachment"
       :get-timeline-entry-tone="getTimelineEntryTone"
       :get-timeline-entry-icon="getTimelineEntryIcon"
+    />
+
+    <AdminPrintApplicationsDialog
+      v-model="showPrintDialog"
+      @print="(dateRange) => printApplicationsPdf(dateRange, getFinalStatusForStatusColumn)"
     />
 
     <q-dialog
@@ -857,6 +862,7 @@ import AdminApplicationDisapproveDialog from 'src/components/admin/AdminApplicat
 import AdminApplicationActionResultDialog from 'src/components/admin/AdminApplicationActionResultDialog.vue'
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 import AdminApplicationRecallRequestDialog from 'src/components/admin/AdminApplicationRecallRequestDialog.vue'
+import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
 import { api } from 'src/boot/axios'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
 import { computed, onMounted, ref } from 'vue'
@@ -896,6 +902,7 @@ const {
   showConfirmActionDialog,
   showActionResultDialog,
   showRecallRequestDialog,
+  showPrintDialog,
   selectedApp,
   selectedAppTimeline,
   recallRequestDialogApplication,

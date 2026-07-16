@@ -3279,7 +3279,7 @@ export function useAdminApplicationsPage() {
       return 'CMO/CVMO Review'
     }
     if (queueStageKey === 'PENDING_RELEASE') {
-      if (isApplicationReleased(app)) return 'Approved'
+      if (isApplicationReleased(app)) return 'Released'
       return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
     }
 
@@ -3292,7 +3292,7 @@ export function useAdminApplicationsPage() {
       return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
     }
     if (rawStatus === 'APPROVED') {
-      if (isApplicationReleased(app)) return 'Approved'
+      if (isApplicationReleased(app)) return 'Released'
       if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
       return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CVMO Review'
     }
@@ -3302,6 +3302,7 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusLabel(app) {
     if (isCancelledByUser(app)) return 'Cancelled'
+    if (isApplicationReleased(app)) return 'Released'
 
     const cocReleaseStageStatus = getCocReleaseStageStatus(app)
     if (cocReleaseStageStatus) return cocReleaseStageStatus
@@ -3312,12 +3313,19 @@ export function useAdminApplicationsPage() {
     if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
 
     if (rawStatus === 'RECALLED') return 'Recalled'
-    if (rawStatus === 'REJECTED') return 'Disapproved'
+    if (rawStatus === 'REJECTED') return 'Not Certified'
     if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
     if (rawStatus === 'PENDING_HR') return 'CHRMO Certification'
     if (rawStatus === 'APPROVED') return 'Approved'
 
-    if (app?.status) return app.status
+    if (app?.status) {
+      return String(app.status)
+        .trim()
+        .replace(/^HR Certification(?: Completed)?$/i, (match) =>
+          match.replace(/^HR Certification/i, 'CHRMO Certification'),
+        )
+        .replace(/\b(rejected|disapproved)\b/gi, 'Not Certified')
+    }
     return 'Unknown'
   }
 
@@ -5442,38 +5450,7 @@ export function useAdminApplicationsPage() {
     return app?.disapproved_at || null
   }
 
-  function resolveProcessedBy(app) {
-    if (app?.processed_by) return app.processed_by
-    if (isCancelledByUser(app)) return resolveCancelledActor(app)
-    const rawStatus = getApplicationRawStatus(app)
-    if (rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
-    if (rawStatus === 'APPROVED') return resolveHrActor(app)
-    if (rawStatus === 'RECALLED') return resolveRecallActor(app)
-    if (rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
-    return 'N/A'
-  }
 
-  function resolveReviewedDateValue(app) {
-    const reviewedAt = app?.reviewed_at
-    if (reviewedAt) return reviewedAt
-    if (isCancelledByUser(app)) return app?.cancelled_at || app?.disapproved_at || null
-
-    const rawStatus = getApplicationRawStatus(app)
-    if (rawStatus === 'PENDING_HR') return app?.admin_action_at || null
-    if (rawStatus === 'APPROVED') return app?.hr_action_at || app?.admin_action_at || null
-    if (rawStatus === 'RECALLED') {
-      return resolveRecallDateValue(app) || app?.hr_action_at || app?.admin_action_at || null
-    }
-    if (rawStatus === 'REJECTED') {
-      return app?.disapproved_at || app?.hr_action_at || app?.admin_action_at || null
-    }
-    return null
-  }
-
-  function formatReviewedDate(app) {
-    const reviewedDate = resolveReviewedDateValue(app)
-    return reviewedDate ? formatDate(reviewedDate) : 'N/A'
-  }
 
   function normalizeQueueGroupStatusToken(value) {
     const normalized = String(value || '')
@@ -6356,8 +6333,28 @@ export function useAdminApplicationsPage() {
     }
   }
 
-  function printApplicationsPdf() {
-    const rowsToPrint = applicationsForTable.value
+  const showPrintDialog = ref(false)
+
+  function printApplicationsPdf(dateRange = null, customStatusLabelFn = null) {
+    let rowsToPrint = applicationsForTable.value
+
+    if (dateRange && (dateRange.from || dateRange.to)) {
+      const from = dateRange.from ? new Date(dateRange.from) : null
+      const to = dateRange.to ? new Date(dateRange.to) : null
+
+      rowsToPrint = rowsToPrint.filter((app) => {
+        const appDate = new Date(app.dateFiled || app.created_at)
+        if (Number.isNaN(appDate.getTime())) return true // keep if unknown
+
+        if (from && appDate < from) return false
+        if (to) {
+          const toEnd = new Date(to)
+          toEnd.setHours(23, 59, 59, 999)
+          if (appDate > toEnd) return false
+        }
+        return true
+      })
+    }
 
     if (!rowsToPrint.length) {
       $q.notify({
@@ -6374,9 +6371,7 @@ export function useAdminApplicationsPage() {
       formatDate,
       getApplicationInclusiveDateLines,
       getApplicationDurationDisplay,
-      getApplicationStatusLabel,
-      resolveProcessedBy,
-      formatReviewedDate,
+      getApplicationStatusLabel: customStatusLabelFn || getApplicationStatusLabel,
     })
   }
 
@@ -6656,6 +6651,7 @@ export function useAdminApplicationsPage() {
     showConfirmActionDialog,
     showActionResultDialog,
     showRecallRequestDialog,
+    showPrintDialog,
     selectedApp,
     recallRequestDialogApplication,
     selectedAppTimeline,
