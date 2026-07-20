@@ -482,6 +482,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    pendingRelease: {
+      type: Boolean,
+      default: false,
+    },
   },
   components: {
     AdminApplicationCalendarDialog,
@@ -520,6 +524,7 @@ export default defineComponent({
       applicationType: props.applicationType,
       applicationSource: props.applicationSource,
       pendingReceive: props.pendingReceive,
+      pendingRelease: props.pendingRelease,
     })
     const showCalendarPreviewDialog = ref(false)
     const calendarPreviewApp = ref(null)

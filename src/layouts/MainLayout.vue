@@ -265,6 +265,7 @@ const hrNav = [
   { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard', moduleKey: 'dashboard' },
   { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: 'applications' },
   { path: '/hr/receiving', label: 'Receiving Application', icon: 'move_to_inbox', moduleKey: 'receiving' },
+  { path: '/hr/releasing', label: 'Releasing Application', icon: 'outbox', moduleKey: 'releasing' },
   { path: '/hr/application-edit-requests', label: 'Edit Requests', icon: 'edit_note', moduleKey: 'applications', ownerOnly: true },
   { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: 'coc_applications' },
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: 'employee_management' },

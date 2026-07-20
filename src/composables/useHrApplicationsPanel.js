@@ -31,6 +31,7 @@ const tablePagination = ref({
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
 const pendingReceiveFilter = ref(Boolean(options?.pendingReceive || false))
+const pendingReleaseFilter = ref(Boolean(options?.pendingRelease || false))
 const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationType))
 const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
@@ -2529,6 +2530,12 @@ const applicationsForTable = computed(() => {
     if (pendingReceiveFilter.value && !canReceiveApplication(app)) {
       return false
     }
+    if (pendingReleaseFilter.value && !canReleaseApplication(app)) {
+      return false
+    }
+    if (!pendingReleaseFilter.value && !pendingReceiveFilter.value && canReleaseApplication(app)) {
+      return false
+    }
     const rawStatus = getApplicationRawStatusKey(app)
     const shouldHidePendingAdmin =
       rawStatus === 'PENDING_ADMIN' &&
@@ -2835,6 +2842,7 @@ async function fetchApplications(options = {}) {
           search: String(statusSearch.value || '').trim() || undefined,
           employment_type: employmentTypeFilter.value || undefined,
           pending_receive: pendingReceiveFilter.value ? 1 : undefined,
+          pending_release: pendingReleaseFilter.value ? 1 : undefined,
         },
       })
       if (requestSequence !== applicationsRequestSequence) return
@@ -6770,6 +6778,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     employmentTypeFilter,
     employmentTypeFilterLabel,
     pendingReceiveFilter,
+    pendingReleaseFilter,
     enumerateInclusiveDateRange,
     expandApplicationsForDisplay,
     extractApplicationsFromPayload,

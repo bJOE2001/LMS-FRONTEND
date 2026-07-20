@@ -25,6 +25,7 @@ const routes = [
       { path: 'hr/access-control', name: 'hr-access-control', component: () => import('pages/hr/AccessControlPage.vue') },
       { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
       { path: 'hr/receiving', name: 'hr-receiving', component: () => import('pages/hr/ReceivingPage.vue') },
+      { path: 'hr/releasing', name: 'hr-releasing', component: () => import('pages/hr/ReleasingPage.vue') },
       { path: 'hr/application-edit-requests', name: 'hr-application-edit-requests', component: () => import('pages/hr/ApplicationEditRequestsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
