@@ -16,7 +16,10 @@ import {
 } from './department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
 import { isAbroadLeaveApplication } from './leave-application-details'
-import { isCityViceMayorApplicant } from './signatory-rules/applicant-role-utils'
+import {
+  isCityViceMayorApplicant,
+  isSangguniangPanlungsodMemberIApplicant,
+} from './signatory-rules/applicant-role-utils'
 import { resolveRecommendationSignatoryByApplicantType } from './signatory-rules/recommendation-signatory'
 
 // pdfmake v0.3.x font initialization
@@ -2160,7 +2163,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const useCityViceMayorApprovedForSignatory =
     shouldUseCityViceMayorApprovedForSignatory(app) &&
     !isDepartmentHeadApplicant(app) &&
-    !isCityViceMayorApplicant(app)
+    !isCityViceMayorApplicant(app) &&
+    !isSangguniangPanlungsodMemberIApplicant(app)
   const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
     app,
     isAbroad: showAbroad,

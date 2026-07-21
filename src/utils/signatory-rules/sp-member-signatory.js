@@ -3,7 +3,6 @@ import { isSangguniangPanlungsodMemberIApplicant } from './applicant-role-utils'
 export function resolveSpMemberRecommendationSignatory({
   app,
   isAbroad,
-  isWithinPhilippines,
   mayorSignatory,
   cityViceMayorSignatory,
 }) {
@@ -15,9 +14,5 @@ export function resolveSpMemberRecommendationSignatory({
     return mayorSignatory
   }
 
-  if (isWithinPhilippines) {
-    return cityViceMayorSignatory
-  }
-
-  return null
+  return cityViceMayorSignatory
 }

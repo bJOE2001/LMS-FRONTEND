@@ -61,21 +61,15 @@ function getDesignationCandidates(app) {
   ]
 }
 
-export function isElectiveApplicant(app) {
-  return getEmploymentStatusCandidates(app).some((candidate) =>
-    normalizeRoleToken(candidate).includes('ELECTIVE'),
-  )
-}
-
-export function isSangguniangPanlungsodMemberIApplicant(app) {
-  if (!isElectiveApplicant(app)) return false
-
+export function isCityMayorApplicant(app) {
   return getDesignationCandidates(app).some((candidate) => {
     const normalizedDesignation = normalizeRoleToken(candidate)
     if (!normalizedDesignation) return false
     return (
-      normalizedDesignation.includes('SANGGUNIANG PANLUNGSOD MEMBER I') ||
-      normalizedDesignation.includes('SANGGUNIANG PANLUNGSOD MEMBER 1')
+      normalizedDesignation.includes('CITY MAYOR') ||
+      (normalizedDesignation.includes('MAYOR') &&
+        normalizedDesignation.includes('CITY') &&
+        !normalizedDesignation.includes('VICE'))
     )
   })
 }
@@ -89,4 +83,29 @@ export function isCityViceMayorApplicant(app) {
       (normalizedDesignation.includes('VICE MAYOR') && normalizedDesignation.includes('CITY'))
     )
   })
+}
+
+export function isElectiveApplicant(app) {
+  if (isCityMayorApplicant(app) || isCityViceMayorApplicant(app)) {
+    return false
+  }
+
+  const hasElectiveStatus = getEmploymentStatusCandidates(app).some((candidate) =>
+    normalizeRoleToken(candidate).includes('ELECTIVE'),
+  )
+
+  const hasSpMemberDesignation = getDesignationCandidates(app).some((candidate) => {
+    const normalizedDesignation = normalizeRoleToken(candidate)
+    if (!normalizedDesignation) return false
+    return (
+      normalizedDesignation.includes('SANGGUNIANG PANLUNGSOD MEMBER') ||
+      normalizedDesignation.includes('SP MEMBER')
+    )
+  })
+
+  return hasElectiveStatus || hasSpMemberDesignation
+}
+
+export function isSangguniangPanlungsodMemberIApplicant(app) {
+  return isElectiveApplicant(app)
 }
