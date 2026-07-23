@@ -3680,7 +3680,14 @@ export function useAdminApplicationsPage() {
   function getApplicationEditRequestRequestedAt(app) {
     if (!hasApplicationEditRequest(app)) return 'N/A'
 
-    const requestedAt = app?.latest_update_requested_at || app?.updated_at || null
+    const requestedAt =
+      app?.pending_update_requested_at ||
+      app?.pendingUpdateRequestedAt ||
+      app?.latest_update_requested_at ||
+      app?.latestUpdateRequestedAt ||
+      app?.updated_at ||
+      app?.updatedAt ||
+      null
 
     return formatDateTime(requestedAt) || 'N/A'
   }

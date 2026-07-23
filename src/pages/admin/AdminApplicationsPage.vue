@@ -468,7 +468,7 @@
               class="row items-center q-col-gutter-md q-mt-sm"
             >
               <div class="col-12 col-md-8 admin-application-requested-changes-meta">
-                <div>
+                <div v-if="getApplicationEditRequestRequestedAt(selectedApp) !== 'N/A'">
                   <strong>Requested At:</strong>
                   {{ getApplicationEditRequestRequestedAt(selectedApp) }}
                 </div>

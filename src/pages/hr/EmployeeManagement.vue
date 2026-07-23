@@ -448,7 +448,7 @@
           </q-banner>
 
           <div class="row q-col-gutter-md">
-            <div class="col-12">
+            <div class="col-12 col-sm-7">
               <q-select
                 ref="creditEmployeeSelect"
                 v-model="leaveCreditForm.employee_control_no"
@@ -466,7 +466,6 @@
                 input-debounce="300"
                 clearable
                 label="Employee Name *"
-                hint="Type at least 2 characters, e.g. CICTMO Juan"
                 :loading="loadingCreditEmployees"
                 :disable="isLeaveCreditsEditMode"
                 @filter="filterCreditEmployeeOptions"
@@ -490,6 +489,27 @@
                   </q-item>
                 </template>
               </q-select>
+            </div>
+            <div class="col-12 col-sm-5">
+              <q-input
+                v-model="leaveCreditForm.as_of_date"
+                outlined
+                dense
+                label="As of Date *"
+                :rules="[(val) => !!val || 'As of date is required']"
+              >
+                <template #append>
+                  <q-icon name="event" class="cursor-pointer">
+                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                      <q-date v-model="leaveCreditForm.as_of_date" mask="YYYY-MM-DD">
+                        <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                          <q-btn v-close-popup label="Close" color="primary" flat no-caps />
+                        </div>
+                      </q-date>
+                    </q-popup-proxy>
+                  </q-icon>
+                </template>
+              </q-input>
             </div>
             <div class="col-12">
               <div class="row items-start justify-between q-col-gutter-sm">
@@ -1620,6 +1640,9 @@ async function fetchCreditLeaveTypes(employeeControlNo = '', options = {}) {
         .filter((type) => isManualAddLeaveCreditType(type)),
     )
     if (prefillFromCurrentBalances) {
+      if (data?.as_of_date) {
+        leaveCreditForm.value.as_of_date = String(data.as_of_date)
+      }
       const balances = {}
 
       for (const leaveType of creditLeaveTypes.value) {
@@ -3190,7 +3213,7 @@ function openAccrualEditDialog(entry) {
 async function onAccrualsSaved() {
   if (leaveCreditsLedgerEmployee.value) {
     // Delay refresh to allow the edit dialog's close transition to finish.
-    // This prevents a Quasar focus trap warning caused by the edit button 
+    // This prevents a Quasar focus trap warning caused by the edit button
     // being destroyed before focus can be returned to it.
     setTimeout(async () => {
       await openLeaveCreditsLedgerDialog(leaveCreditsLedgerEmployee.value)
@@ -3999,7 +4022,7 @@ function normalizeLedgerRow(entry, index) {
       'type',
     ]) || particulars,
   )
-  
+
   const accrualIds = Array.isArray(entry?.accrual_ids) ? entry.accrual_ids : []
   const actionTakenStr = String(entry?.action_taken || entry?.actionTaken || '').trim()
   const isMonthlyAccrual = actionTakenStr === 'Monthly accrual'
@@ -4549,8 +4572,17 @@ async function fetchEmployeeDetailsLeaveBadges(controlNo) {
   }
 }
 
+function getTodayIsoDate() {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function defaultLeaveCreditForm() {
   return {
+    as_of_date: getTodayIsoDate(),
     employee_control_no: '',
     balances: buildLeaveCreditBalanceState(),
   }
@@ -4942,6 +4974,9 @@ function leaveCreditValidationError() {
   if (!employeeControlNo) return 'Employee is required.'
   if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
 
+  const asOfDate = String(leaveCreditForm.value.as_of_date ?? '').trim()
+  if (!asOfDate) return 'As of date is required.'
+
   if (loadingCreditLeaveTypes.value) return 'Leave types are still loading.'
   if (!creditLeaveTypes.value.length) return 'No credit-based leave types are available.'
 
@@ -5010,10 +5045,12 @@ async function saveLeaveCredits() {
   savingLeaveCredits.value = true
   try {
     const employeeControlNo = String(leaveCreditForm.value.employee_control_no).trim()
+    const asOfDate = String(leaveCreditForm.value.as_of_date ?? '').trim()
     const entries = getEnteredLeaveCreditEntries()
     const isEditMode = isLeaveCreditsEditMode.value
     const payload = {
       employee_control_no: employeeControlNo,
+      as_of_date: asOfDate || getTodayIsoDate(),
       balances: entries.map((entry) => ({
         leave_type_id: Number(entry.leaveType.id),
         balance: Number(entry.balance),

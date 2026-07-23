@@ -121,7 +121,10 @@
             </div>
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Request Details</div>
-              <div class="hr-application-requested-changes-line">
+              <div
+                v-if="getApplicationEditRequestRequestedAt(application) !== 'N/A'"
+                class="hr-application-requested-changes-line"
+              >
                 <span class="hr-application-requested-changes-key">Requested At:</span>
                 <span class="hr-application-requested-changes-value">{{
                   getApplicationEditRequestRequestedAt(application)
@@ -140,7 +143,7 @@
             class="row items-center q-col-gutter-md q-mt-sm"
           >
             <div class="col-12 col-md-8 hr-application-requested-changes-meta">
-              <div>
+              <div v-if="getApplicationEditRequestRequestedAt(application) !== 'N/A'">
                 <strong>Requested At:</strong>
                 {{ getApplicationEditRequestRequestedAt(application) }}
               </div>
