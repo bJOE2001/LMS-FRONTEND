@@ -76,6 +76,19 @@
                       </div>
                     </div>
 
+                    <div v-if="crossDeductionInfo" class="hr-edit-cross-deduction-banner q-mb-sm">
+                      <q-icon name="swap_horiz" size="20px" color="deep-purple-8" />
+                      <div>
+                        <span class="text-weight-bold text-deep-purple-9">Cross-Deduction Active:</span>
+                        Borrowing
+                        <q-badge color="deep-purple-8" text-color="white" class="q-mx-xs text-weight-bold">
+                          {{ formatDayValue(crossDeductionInfo.borrowedDays) }} day(s)
+                        </q-badge>
+                        from <strong>{{ crossDeductionInfo.alternateLeaveTypeLabel }}</strong> to cover
+                        <strong>{{ crossDeductionInfo.primaryLeaveTypeLabel }}</strong>.
+                      </div>
+                    </div>
+
                     <div v-if="formModel.payStatusRows.length" class="hr-edit-date-grid">
                       <div class="hr-edit-date-grid__head">
                         <div>Date</div>
@@ -110,7 +123,7 @@
                             dense
                             unelevated
                             no-caps
-                            toggle-color="primary"
+                            :toggle-color="row.payStatus === 'WOP' ? 'negative' : 'positive'"
                             color="grey-2"
                             text-color="grey-8"
                             :options="payStatusOptions"
@@ -267,6 +280,27 @@ const totalRequestedDays = computed(() =>
   sumRowsByStatus(formModel.value.payStatusRows, () => true),
 )
 
+const crossDeductionInfo = computed(() => {
+  if (!props.application || !formModel.value.payStatusRows.length) return null
+  const checkResult = checkLeaveBalanceSufficiency(
+    props.application,
+    formModel.value.payStatusRows,
+  )
+  if (checkResult.ok && checkResult.requiresCrossDeduction) {
+    return {
+      borrowedDays: checkResult.projectedAlternateDeductionDays,
+      alternateLeaveTypeLabel: checkResult.alternateLeaveTypeLabel,
+      primaryLeaveTypeLabel: String(
+        props.application?.leaveType ||
+          props.application?.leave_type_name ||
+          props.application?.leave_type?.name ||
+          'Leave',
+      ).trim(),
+    }
+  }
+  return null
+})
+
 watch(
   () => [props.modelValue, props.application],
   () => {
@@ -304,15 +338,70 @@ function handleSelectedDatesUpdate(value) {
   }
 }
 
-function updatePayStatus(dateKey, value) {
+async function updatePayStatus(dateKey, value) {
+  const targetRow = formModel.value.payStatusRows.find((row) => row.dateKey === dateKey)
+  if (!targetRow) return
+
+  const currentPayStatus = normalizePayStatusCode(targetRow.payStatus)
   const nextPayStatus = normalizePayStatusCode(value)
+
+  if (currentPayStatus === nextPayStatus) return
+
+  const formattedDate = props.formatDate(dateKey) || dateKey
+
+  let title = nextPayStatus === 'WOP' ? 'Set date to WOP?' : 'Set date to WP?'
+  let message = `${formattedDate} will be marked as ${
+    nextPayStatus === 'WOP' ? 'without pay (WOP)' : 'with pay (WP)'
+  }. Do you want to continue?`
+  let okColor = nextPayStatus === 'WOP' ? 'negative' : 'primary'
+  let okLabel = `Yes, set ${nextPayStatus}`
+
+  if (nextPayStatus === 'WP') {
+    const projectedRows = formModel.value.payStatusRows.map((row) =>
+      row.dateKey === dateKey ? buildPayStatusUpdatedRow(row, nextPayStatus) : row,
+    )
+    const checkResult = checkLeaveBalanceSufficiency(props.application, projectedRows)
+
+    if (!checkResult.ok) {
+      $q.notify({
+        type: 'negative',
+        message: checkResult.reason || 'Insufficient leave balance for With Pay status.',
+        position: 'top',
+      })
+      return
+    }
+
+    if (checkResult.requiresCrossDeduction) {
+      title = 'Keep Leave With Pay?'
+      message = `${formatDayValue(
+        checkResult.projectedAlternateDeductionDays,
+      )} day(s) will be deducted from ${
+        checkResult.alternateLeaveTypeLabel
+      } to keep this date with pay. Continue?`
+      okColor = 'primary'
+      okLabel = 'Continue'
+    }
+  }
+
+  const confirmed = await new Promise((resolve) => {
+    $q.dialog({
+      title,
+      message,
+      ok: { label: okLabel, color: okColor, unelevated: true },
+      cancel: { label: 'Cancel', flat: true },
+      persistent: true,
+    })
+      .onOk(() => resolve(true))
+      .onCancel(() => resolve(false))
+      .onDismiss(() => resolve(false))
+  })
+
+  if (!confirmed) return
 
   formModel.value = {
     ...formModel.value,
     payStatusRows: formModel.value.payStatusRows.map((row) =>
-      row.dateKey === dateKey
-        ? buildPayStatusUpdatedRow(row, nextPayStatus)
-        : row,
+      row.dateKey === dateKey ? buildPayStatusUpdatedRow(row, nextPayStatus) : row,
     ),
   }
 }
@@ -766,13 +855,8 @@ function buildPayStatusUpdatedRow(row, payStatus) {
 
 function formatDayValue(value) {
   const numericValue = Number(value)
-  if (!Number.isFinite(numericValue)) return '0'
-  return Number.isInteger(numericValue)
-    ? String(numericValue)
-    : numericValue.toLocaleString('en-US', {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 3,
-      })
+  if (!Number.isFinite(numericValue)) return '0.000'
+  return numericValue.toFixed(3)
 }
 
 function formatDeductionValue(value) {
@@ -781,7 +865,165 @@ function formatDeductionValue(value) {
   return numericValue.toFixed(3)
 }
 
-function buildEditPayload() {
+function normalizeLeaveBalanceKey(name = '') {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function getBalanceFromApp(app, leaveTypeLabel) {
+  const targetKey = normalizeLeaveBalanceKey(leaveTypeLabel)
+  if (!targetKey || !app) return null
+
+  const isSick = targetKey === normalizeLeaveBalanceKey('Sick Leave')
+  const isVacation = targetKey === normalizeLeaveBalanceKey('Vacation Leave')
+
+  if (isSick) {
+    const directVal = Number(app?.sl_balance ?? app?.sick_leave_balance ?? app?.sickLeaveBalance)
+    if (Number.isFinite(directVal)) return directVal
+  }
+
+  if (isVacation) {
+    const directVal = Number(app?.vl_balance ?? app?.vacation_leave_balance ?? app?.vacationLeaveBalance)
+    if (Number.isFinite(directVal)) return directVal
+  }
+
+  let sources = Array.isArray(app?.leave_balances)
+    ? app.leave_balances
+    : Array.isArray(app?.leaveBalances)
+      ? app.leaveBalances
+      : Array.isArray(app?.employee_leave_balances)
+        ? app.employee_leave_balances
+        : []
+
+  if (!sources.length && app?.certificationLeaveCredits && typeof app.certificationLeaveCredits === 'object') {
+    sources = Object.values(app.certificationLeaveCredits)
+  }
+
+  for (const item of sources) {
+    if (!item || typeof item !== 'object') continue
+    const itemKey = normalizeLeaveBalanceKey(
+      item?.leave_type_name || item?.leaveTypeName || item?.name || item?.leave_type?.name || item?.label,
+    )
+    if (itemKey === targetKey) {
+      const val = Number(
+        item?.available_balance ??
+          item?.available_balance_days ??
+          item?.balance_after_application ??
+          item?.balance ??
+          item?.remaining_balance,
+      )
+      if (Number.isFinite(val)) return val
+    }
+  }
+
+  // Secondary fallback if sick/vacation bucket exists in certificationLeaveCredits
+  if (isSick && app?.certificationLeaveCredits?.sick) {
+    const val = Number(
+      app.certificationLeaveCredits.sick.available_balance ??
+        app.certificationLeaveCredits.sick.balance ??
+        app.certificationLeaveCredits.sick.balance_after_application,
+    )
+    if (Number.isFinite(val)) return val
+  }
+
+  if (isVacation && app?.certificationLeaveCredits?.vacation) {
+    const val = Number(
+      app.certificationLeaveCredits.vacation.available_balance ??
+        app.certificationLeaveCredits.vacation.balance ??
+        app.certificationLeaveCredits.vacation.balance_after_application,
+    )
+    if (Number.isFinite(val)) return val
+  }
+
+  return null
+}
+
+function resolveSlVlCrossDeductionContext(app) {
+  if (!app || typeof app !== 'object') return null
+  const leaveTypeLabel = String(
+    app?.leaveType || app?.leave_type_name || app?.leave_type?.name || '',
+  ).trim()
+  const normKey = normalizeLeaveBalanceKey(leaveTypeLabel)
+
+  const primaryAvailableBalance = getBalanceFromApp(app, leaveTypeLabel)
+  if (!Number.isFinite(primaryAvailableBalance)) return null
+
+  if (normKey === normalizeLeaveBalanceKey('Sick Leave')) {
+    const alternateAvailableBalance = getBalanceFromApp(app, 'Vacation Leave')
+    if (!Number.isFinite(alternateAvailableBalance)) return null
+    return {
+      primaryAvailableBalance,
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Vacation Leave',
+    }
+  }
+
+  if (normKey === normalizeLeaveBalanceKey('Vacation Leave')) {
+    const alternateAvailableBalance = getBalanceFromApp(app, 'Sick Leave')
+    if (!Number.isFinite(alternateAvailableBalance)) return null
+    return {
+      primaryAvailableBalance,
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Sick Leave',
+    }
+  }
+
+  return null
+}
+
+function checkLeaveBalanceSufficiency(app, payStatusRows) {
+  if (!app || typeof app !== 'object') return { ok: true }
+
+  const leaveTypeLabel = String(
+    app?.leaveType || app?.leave_type_name || app?.leave_type?.name || '',
+  ).trim()
+
+  const primaryAvailableBalance = getBalanceFromApp(app, leaveTypeLabel)
+
+  const totalWpDays = (payStatusRows || []).reduce((sum, row) => {
+    if (normalizePayStatusCode(row.payStatus) !== 'WP') return sum
+    const weight = Number(row.withPayDays ?? row.deductionDays ?? row.coverageWeight)
+    return sum + (Number.isFinite(weight) && weight > 0 ? weight : 0)
+  }, 0)
+
+  if (totalWpDays <= 1e-9) return { ok: true }
+  if (!Number.isFinite(primaryAvailableBalance)) return { ok: true }
+
+  if (primaryAvailableBalance + 1e-9 >= totalWpDays) {
+    return { ok: true, requiresCrossDeduction: false }
+  }
+
+  const crossContext = resolveSlVlCrossDeductionContext(app)
+  if (crossContext) {
+    const primaryBal = Math.max(crossContext.primaryAvailableBalance, 0)
+    const alternateBal = Math.max(crossContext.alternateAvailableBalance, 0)
+    const combinedBalance = Math.round((primaryBal + alternateBal) * 1000) / 1000
+    const neededFromAlternate = Math.round((totalWpDays - primaryBal) * 1000) / 1000
+
+    if (totalWpDays > combinedBalance + 1e-9) {
+      return {
+        ok: false,
+        reason: `Insufficient balance in both ${leaveTypeLabel} (${formatDayValue(primaryBal)}) and ${crossContext.alternateLeaveTypeLabel} (${formatDayValue(alternateBal)}). Combined available balance is ${formatDayValue(combinedBalance)} day(s), but ${formatDayValue(totalWpDays)} day(s) are set to With Pay.`,
+      }
+    }
+
+    return {
+      ok: true,
+      requiresCrossDeduction: true,
+      projectedAlternateDeductionDays: neededFromAlternate,
+      alternateLeaveTypeLabel: crossContext.alternateLeaveTypeLabel,
+    }
+  }
+
+  return {
+    ok: false,
+    reason: `Insufficient balance for ${leaveTypeLabel}. Available balance is ${formatDayValue(primaryAvailableBalance)} day(s), but ${formatDayValue(totalWpDays)} day(s) are set to With Pay.`,
+  }
+}
+
+function buildEditPayload(allowCrossDeduction = false) {
   const payStatusRows = (formModel.value.payStatusRows || []).map((row) => ({
     date_key: row.dateKey,
     coverage_code: row.coverageCode,
@@ -794,6 +1036,7 @@ function buildEditPayload() {
   return {
     selected_dates: [...(formModel.value.selectedDates || [])],
     pay_status_rows: payStatusRows,
+    allow_sl_vl_cross_deduction: Boolean(allowCrossDeduction),
   }
 }
 
@@ -809,11 +1052,27 @@ async function handleSave() {
     return
   }
 
+  const checkResult = checkLeaveBalanceSufficiency(
+    props.application,
+    formModel.value.payStatusRows,
+  )
+
+  if (!checkResult.ok) {
+    $q.notify({
+      type: 'negative',
+      message: checkResult.reason || 'Insufficient leave balance for With Pay status.',
+      position: 'top',
+    })
+    return
+  }
+
+  const allowCrossDeduction = Boolean(checkResult.requiresCrossDeduction)
+
   submitLoading.value = true
   try {
     const response = await api.post(
       `/hr/leave-applications/${encodeURIComponent(formModel.value.id)}/edit`,
-      buildEditPayload(),
+      buildEditPayload(allowCrossDeduction),
     )
     const message = String(response?.data?.message || '').trim()
 
@@ -1056,12 +1315,35 @@ async function handleSave() {
   min-height: 32px;
 }
 
+.hr-edit-cross-deduction-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(103, 58, 183, 0.09) 0%, rgba(103, 58, 183, 0.04) 100%);
+  border: 1px solid rgba(103, 58, 183, 0.25);
+  color: #311b92;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .hr-edit-pay-toggle {
   border-radius: 6px;
 }
 
 .hr-edit-pay-toggle .q-btn {
   min-width: 48px;
+}
+
+.hr-edit-pay-toggle .bg-negative {
+  background: #c10015 !important;
+  color: #ffffff !important;
+}
+
+.hr-edit-pay-toggle .bg-positive {
+  background: #21ba45 !important;
+  color: #ffffff !important;
 }
 
 .hr-edit-date-grid .q-field {

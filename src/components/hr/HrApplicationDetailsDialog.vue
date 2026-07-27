@@ -293,22 +293,9 @@
                         rounded
                         :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
                         text-color="white"
-                        :class="[
-                          'hr-application-pay-status-badge',
-                          { 'hr-application-pay-status-badge--clickable': canShowPayStatusOverride(entry) },
-                        ]"
-                        :role="canShowPayStatusOverride(entry) ? 'button' : null"
-                        :tabindex="canShowPayStatusOverride(entry) ? 0 : null"
-                        :aria-label="canShowPayStatusOverride(entry) ? getPayStatusOverrideTooltip(entry) : null"
-                        @click.stop="handleOverridePayStatus(entry)"
-                        @keyup.enter.stop="handleOverridePayStatus(entry)"
-                        @keyup.space.stop.prevent="handleOverridePayStatus(entry)"
-                      >
-                        {{ entry.payStatus }}
-                        <q-tooltip v-if="canShowPayStatusOverride(entry)">
-                          {{ getPayStatusOverrideTooltip(entry) }}
-                        </q-tooltip>
-                      </q-badge>
+                        :label="entry.payStatus"
+                        class="hr-application-pay-status-badge"
+                      />
                     </div>
                   </div>
                 </div>
@@ -404,22 +391,9 @@
                     rounded
                     :color="entry.payStatus === 'WOP' ? 'negative' : 'positive'"
                     text-color="white"
-                    :class="[
-                      'hr-application-pay-status-badge',
-                      { 'hr-application-pay-status-badge--clickable': canShowPayStatusOverride(entry) },
-                    ]"
-                    :role="canShowPayStatusOverride(entry) ? 'button' : null"
-                    :tabindex="canShowPayStatusOverride(entry) ? 0 : null"
-                    :aria-label="canShowPayStatusOverride(entry) ? getPayStatusOverrideTooltip(entry) : null"
-                    @click.stop="handleOverridePayStatus(entry)"
-                    @keyup.enter.stop="handleOverridePayStatus(entry)"
-                    @keyup.space.stop.prevent="handleOverridePayStatus(entry)"
-                  >
-                    {{ entry.payStatus }}
-                    <q-tooltip v-if="canShowPayStatusOverride(entry)">
-                      {{ getPayStatusOverrideTooltip(entry) }}
-                    </q-tooltip>
-                  </q-badge>
+                    :label="entry.payStatus"
+                    class="hr-application-pay-status-badge"
+                  />
                 </div>
               </div>
             </div>
@@ -977,29 +951,6 @@ function handleOpenRecall() {
 function handlePrintCertificate() {
   if (!props.application) return
   emit('print-certificate', props.application)
-}
-
-function canShowPayStatusOverride(entry) {
-  if (!props.application || !entry) return false
-  return props.canOverrideApplicationPayStatus(props.application, entry)
-}
-
-function getNextPayStatus(entry) {
-  return entry?.payStatus === 'WOP' ? 'WP' : 'WOP'
-}
-
-function getPayStatusOverrideTooltip(entry) {
-  const nextStatus = getNextPayStatus(entry)
-  const dateLabel = formatInclusiveDateEntry(entry)
-  return dateLabel ? `Change ${dateLabel} to ${nextStatus}` : `Change to ${nextStatus}`
-}
-
-function handleOverridePayStatus(entry) {
-  if (!props.application || !entry || !canShowPayStatusOverride(entry)) return
-  emit('override-pay-status', props.application, {
-    ...entry,
-    nextPayStatus: getNextPayStatus(entry),
-  })
 }
 </script>
 
