@@ -946,7 +946,6 @@ const {
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
   hasApplicationEditRequest,
-  getApplicationEditRequestStatusLabel,
   getApplicationEditRequestApprovedBadgeLabel,
   getApplicationEditRequestSectionTitle,
   getApplicationEditRequestChangeSummaryLabel,
@@ -1129,6 +1128,11 @@ function getDisplayApplicationStatusColor(app) {
 }
 
 function getFinalStatusForStatusColumn(app) {
+  const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
+  if (updateRequestBadgeLabel) {
+    return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
+  }
+
   const resolvedStatus = String(app?.displayStatus || getApplicationStatusLabel(app) || '').trim()
   const normalizedResolvedStatus = resolvedStatus.toUpperCase()
 
@@ -1147,18 +1151,6 @@ function getFinalStatusForStatusColumn(app) {
   }
 
   if (isApplicationReleased(app)) return 'Released'
-
-  const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
-  if (updateRequestBadgeLabel) {
-    return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
-  }
-
-  if (hasApplicationEditRequest(app)) {
-    const editRequestStatusLabel = getApplicationEditRequestStatusLabel(app)
-    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') {
-      return normalizeDisapprovedStatusLabel(editRequestStatusLabel)
-    }
-  }
 
   return getDisplayApplicationStatusLabel(app)
 }

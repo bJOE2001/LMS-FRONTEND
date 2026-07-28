@@ -920,7 +920,7 @@ function getEditRequestBadgeLabel(app) {
     }
     return labelPrefix + ' Approved'
   }
-  if (status === 'REJECTED') return labelPrefix + ' Disapproved'
+  if (status === 'REJECTED') return ''
   return ''
 }
 
@@ -2474,13 +2474,6 @@ function getApplicationSearchStatusLabel(app) {
     return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
   }
 
-  if (hasApplicationEditRequest(app)) {
-    const editRequestStatusLabel = getEditRequestStatusLabel(app)
-    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') {
-      return normalizeDisapprovedStatusLabel(editRequestStatusLabel)
-    }
-  }
-
   return normalizeDisapprovedStatusLabel(
     getApplicationStatusLabel(app) || app?.displayStatus,
   )
@@ -3722,7 +3715,10 @@ function getEditRequestTimelineEntries(app) {
   const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
   const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
   const isRejectedByAdmin =
-    rejectionMeta && String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN'
+    rejectionMeta &&
+    (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
+      resolvedStatus === 'REJECTED' ||
+      getLatestUpdateRequestStatus(app) === 'REJECTED')
 
   entries.push({
     title: terminology.submittedTitle,
@@ -3743,17 +3739,19 @@ function getEditRequestTimelineEntries(app) {
       icon: 'pending_actions',
       color: 'warning',
     })
-  } else if (isRejectedByAdmin && rejectionMeta) {
+  } else if (rejectionMeta || resolvedStatus === 'REJECTED') {
+    const actorName = rejectionMeta?.reviewedBy || resolveDepartmentAdminActor(app)
+    const reviewRemarks = rejectionMeta?.reviewRemarks
     entries.push({
-      title: terminology.adminRejectedTitle,
-      subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-      description: rejectionMeta.reviewRemarks || terminology.adminRejectedDescription,
+      title: isRejectedByAdmin ? terminology.adminRejectedTitle : terminology.rejectedTitle,
+      subtitle: formatDateTime(rejectionMeta?.reviewedAt) || 'Reviewed',
+      description: reviewRemarks || (isRejectedByAdmin ? terminology.adminRejectedDescription : terminology.rejectedDescription),
       icon: 'cancel',
       color: 'negative',
-      actor: rejectionMeta.reviewedBy,
+      actor: actorName,
     })
     return entries
-  } else if (!isRecallRequest) {
+  } else if (!isRecallRequest && (approvalMeta || isHrReviewPending || rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED')) {
     entries.push({
       title: terminology.adminApprovedTitle,
       subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
@@ -3789,14 +3787,6 @@ function getEditRequestTimelineEntries(app) {
       description: terminology.pendingHrDescription,
       icon: 'pending_actions',
       color: 'warning',
-    })
-  } else {
-    entries.push({
-      title: terminology.pendingHrTitle,
-      subtitle: 'On Process',
-      description: 'This stage starts after department admin review.',
-      icon: 'radio_button_unchecked',
-      color: 'grey-5',
     })
   }
 

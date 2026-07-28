@@ -1339,9 +1339,15 @@ export function useAdminApplicationsPage() {
       app?.latest_update_request_action_type ||
       app?.pending_update_action_type,
     )
+    const requestedAt = app?.latest_update_requested_at || app?.pending_update_requested_at
     const entries = getStatusHistoryEntries(app)
     for (let index = entries.length - 1; index >= 0; index -= 1) {
       const entry = entries[index] || {}
+      const entryTimestamp = resolveStatusHistoryTimestamp(entry)
+
+      if (requestedAt && !isTimestampOnOrAfter(entryTimestamp, requestedAt)) {
+        continue
+      }
       const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
       const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
       const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
@@ -1376,20 +1382,7 @@ export function useAdminApplicationsPage() {
         return 'REJECTED'
       }
 
-      if (
-        ['ADMIN_REJECTED', 'HR_REJECTED'].includes(actionToken) &&
-        (hasUpdateRequestContext ||
-          stageToken.includes('edit request') ||
-          stageToken.includes('request update') ||
-          stageToken.includes('recall request') ||
-          stageToken.includes('cancellation request') ||
-          stageToken.includes('cancel request') ||
-          remarksToken.includes('edit request') ||
-          remarksToken.includes('request update') ||
-          remarksToken.includes('recall request') ||
-          remarksToken.includes('cancellation request') ||
-          remarksToken.includes('cancel request'))
-      ) {
+      if (['ADMIN_REJECTED', 'HR_REJECTED'].includes(actionToken) || (hasUpdateRequestContext && actionToken.includes('REJECT'))) {
         return 'REJECTED'
       }
 
@@ -3259,6 +3252,33 @@ export function useAdminApplicationsPage() {
     return getAdminLatestUpdateRequestStatus(app) === 'APPROVED'
   }
 
+  function isPendingUpdateRequestReceivedByHr(app) {
+    if (!isPendingUpdateWorkflowCycle(app)) return isApplicationReceivedByHr(app)
+
+    const queueStageKey = getApplicationQueueStageKey(app)
+    if (queueStageKey === 'PENDING_HR_RECEIVE') return false
+    if (queueStageKey === 'PENDING_HR_REVIEW') return true
+
+    const requestedAt = resolveCurrentUpdateRequestCycleStartValue(app)
+    if (!requestedAt) return false
+
+    const receivedEntry = findStatusHistoryEntry(app, (entry) => {
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+
+      const isReceivedAction =
+        actionToken.includes('RECEIVE') ||
+        stageToken.includes('receive') ||
+        remarksToken.includes('received')
+
+      if (!isReceivedAction) return false
+      return isTimestampOnOrAfter(resolveStatusHistoryTimestamp(entry), requestedAt)
+    })
+
+    return Boolean(receivedEntry)
+  }
+
   function getLeaveWorkflowStageStatus(app) {
     if (!app || isCocApplication(app)) return ''
 
@@ -3266,7 +3286,7 @@ export function useAdminApplicationsPage() {
     if (queueStageKey === 'PENDING_ADMIN') return 'Department Recommendation'
     if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Department Recommendation'
     if (queueStageKey === 'PENDING_HR_RECEIVE') {
-      if (isApplicationReceivedByHr(app)) {
+      if (isPendingUpdateRequestReceivedByHr(app)) {
         return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'CHRMO Certification'
       }
       return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
@@ -3286,7 +3306,7 @@ export function useAdminApplicationsPage() {
     const rawStatus = getApplicationRawStatus(app)
     if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
     if (rawStatus === 'PENDING_HR') {
-      if (isApplicationReceivedByHr(app)) {
+      if (isPendingUpdateRequestReceivedByHr(app)) {
         return isPendingUpdateWorkflowCycle(app) ? 'Pending Update HR Review' : 'CHRMO Certification'
       }
       return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
@@ -3294,6 +3314,9 @@ export function useAdminApplicationsPage() {
     if (rawStatus === 'APPROVED') {
       if (isApplicationReleased(app)) return 'Released'
       if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
+      if (isPendingUpdateWorkflowCycle(app)) {
+        return isPendingUpdateRequestReceivedByHr(app) ? 'Pending Update HR Review' : 'Pending Update Receive'
+      }
       return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CVMO Review'
     }
 
@@ -3374,6 +3397,31 @@ export function useAdminApplicationsPage() {
     return 'grey-6'
   }
 
+  function hasDepartmentAdminApprovedCurrentUpdateCycle(app) {
+    const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+    if (!cycleStart) {
+      return getApplicationRawStatus(app) === 'PENDING_HR'
+    }
+
+    const adminApprovalEntry = findStatusHistoryEntry(app, (entry) => {
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+
+      const isAdminApprovedAction =
+        ['ADMIN_APPROVED', 'DEPARTMENT_APPROVED'].includes(actionToken) ||
+        stageToken.includes('department recommendation completed') ||
+        stageToken.includes('approved by admin') ||
+        remarksToken.includes('approved leave update request and forwarded to hr') ||
+        remarksToken.includes('approved leave cancellation request')
+
+      if (!isAdminApprovedAction) return false
+      return isTimestampOnOrAfter(resolveStatusHistoryTimestamp(entry), cycleStart)
+    })
+
+    return Boolean(adminApprovalEntry) || getApplicationRawStatus(app) === 'PENDING_HR'
+  }
+
   function getEditRequestBadgeLabel(app) {
     const rawStatus = getApplicationRawStatus(app)
     if (
@@ -3395,33 +3443,28 @@ export function useAdminApplicationsPage() {
       return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Department Recommendation'
     }
     if (status === 'PENDING_HR') {
-      if (isRecallRequest) {
-        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
-        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
-        return labelPrefix + ' Pending HR'
+      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Receive') {
+        return labelPrefix + ' Pending Receive'
       }
-      if (isCancelRequest) {
-        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
-        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
-        return labelPrefix + ' Pending HR'
+      if (stageStatus === 'Pending Update Release' || stageStatus === 'Pending Release') {
+        return labelPrefix + ' Pending Release'
       }
-      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Update Release') {
-        return stageStatus
+      if (isRecallRequest || isCancelRequest) {
+        return labelPrefix + ' Pending HR'
       }
       return 'CHRMO Certification'
     }
     if (status === 'PENDING') {
-      if (isRecallRequest) {
-        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
-        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
-        return labelPrefix + ' Pending'
+      if (!hasDepartmentAdminApprovedCurrentUpdateCycle(app)) {
+        return isCancelRequest ? labelPrefix + ' Pending Admin' : 'Department Recommendation'
       }
-      if (isCancelRequest) {
-        if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
-        if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
-        return labelPrefix + ' Pending'
+      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Receive') {
+        return labelPrefix + ' Pending Receive'
       }
-      return 'Pending Update HR Review'
+      if (stageStatus === 'Pending Update Release' || stageStatus === 'Pending Release') {
+        return labelPrefix + ' Pending Release'
+      }
+      return 'CHRMO Certification'
     }
     if (status === 'APPROVED') {
       if (isCancelRequest && stageStatus === 'Pending Update Release') {
@@ -3429,7 +3472,7 @@ export function useAdminApplicationsPage() {
       }
       return labelPrefix + ' Approved'
     }
-    if (status === 'REJECTED') return labelPrefix + ' Disapproved'
+    if (status === 'REJECTED') return ''
     return ''
   }
 
@@ -3437,24 +3480,32 @@ export function useAdminApplicationsPage() {
     const status = getAdminEditRequestBadgeStatus(app)
     if (status === 'PENDING_ADMIN') return 'warning'
     if (status === 'PENDING_HR') return 'blue-6'
-    if (status === 'PENDING') return 'deep-purple-7'
+    if (status === 'PENDING') {
+      if (!hasDepartmentAdminApprovedCurrentUpdateCycle(app)) return 'warning'
+      const stageStatus = getLeaveWorkflowStageStatus(app)
+      if (stageStatus === 'Pending Update Receive' || stageStatus === 'Pending Receive') return 'teal-6'
+      return 'blue-6'
+    }
     if (status === 'APPROVED') return 'positive'
     if (status === 'REJECTED') return 'negative'
     return 'grey-7'
   }
 
   function getAdminEditRequestBadgeStatus(app) {
+    const explicitStatus = getAdminLatestUpdateRequestStatus(app)
+    if (explicitStatus === 'REJECTED') {
+      return 'REJECTED'
+    }
+
     if (!hasAdminEditRequestSignal(app)) {
-      return getAdminLatestUpdateRequestStatus(app)
+      return explicitStatus
     }
 
     const rawStatus = getApplicationRawStatus(app)
     if (rawStatus === 'PENDING_ADMIN') return 'PENDING_ADMIN'
     if (rawStatus === 'PENDING_HR') return 'PENDING_HR'
 
-    const explicitStatus = getAdminLatestUpdateRequestStatus(app)
-
-    if (explicitStatus === 'APPROVED' || explicitStatus === 'REJECTED') {
+    if (explicitStatus === 'APPROVED') {
       return explicitStatus
     }
 
@@ -4079,7 +4130,10 @@ export function useAdminApplicationsPage() {
     const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
     const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
     const isRejectedByAdmin =
-      rejectionMeta && String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN'
+      rejectionMeta &&
+      (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
+        resolvedStatus === 'REJECTED' ||
+        getAdminLatestUpdateRequestStatus(app) === 'REJECTED')
 
     entries.push({
       title: terminology.submittedTitle,
@@ -4100,17 +4154,19 @@ export function useAdminApplicationsPage() {
         icon: 'pending_actions',
         color: 'warning',
       })
-    } else if (isRejectedByAdmin && rejectionMeta) {
+    } else if (rejectionMeta || resolvedStatus === 'REJECTED') {
+      const actorName = rejectionMeta?.reviewedBy || resolveDepartmentAdminActor(app)
+      const reviewRemarks = rejectionMeta?.reviewRemarks
       entries.push({
-        title: terminology.adminRejectedTitle,
-        subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-        description: rejectionMeta.reviewRemarks || terminology.adminRejectedDescription,
+        title: isRejectedByAdmin ? terminology.adminRejectedTitle : terminology.rejectedTitle,
+        subtitle: formatDateTime(rejectionMeta?.reviewedAt) || 'Reviewed',
+        description: reviewRemarks || (isRejectedByAdmin ? terminology.adminRejectedDescription : terminology.rejectedDescription),
         icon: 'cancel',
         color: 'negative',
-        actor: rejectionMeta.reviewedBy,
+        actor: actorName,
       })
       return entries
-    } else if (!isRecallRequest) {
+    } else if (!isRecallRequest && (approvalMeta || isHrReviewPending || rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED')) {
       entries.push({
         title: terminology.adminApprovedTitle,
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
@@ -4146,14 +4202,6 @@ export function useAdminApplicationsPage() {
         description: terminology.pendingHrDescription,
         icon: 'pending_actions',
         color: 'warning',
-      })
-    } else {
-      entries.push({
-        title: terminology.pendingHrTitle,
-        subtitle: 'On Process',
-        description: 'This stage starts after department admin review.',
-        icon: 'radio_button_unchecked',
-        color: 'grey-5',
       })
     }
 
