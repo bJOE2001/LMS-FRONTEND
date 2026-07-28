@@ -947,8 +947,14 @@ function resolveSlVlCrossDeductionContext(app) {
   ).trim()
   const normKey = normalizeLeaveBalanceKey(leaveTypeLabel)
 
-  const primaryAvailableBalance = getBalanceFromApp(app, leaveTypeLabel)
-  if (!Number.isFinite(primaryAvailableBalance)) return null
+  const rawPrimaryBalance = getBalanceFromApp(app, leaveTypeLabel)
+  if (!Number.isFinite(rawPrimaryBalance)) return null
+
+  const currentAppDeduction = Number(app?.deductible_days ?? app?.days ?? app?.duration_value ?? app?.total_days ?? 0)
+  const primaryAvailableBalance = Math.max(
+    rawPrimaryBalance + (Number.isFinite(currentAppDeduction) && currentAppDeduction > 0 ? currentAppDeduction : 0),
+    0,
+  )
 
   if (normKey === normalizeLeaveBalanceKey('Sick Leave')) {
     const alternateAvailableBalance = getBalanceFromApp(app, 'Vacation Leave')
@@ -980,7 +986,15 @@ function checkLeaveBalanceSufficiency(app, payStatusRows) {
     app?.leaveType || app?.leave_type_name || app?.leave_type?.name || '',
   ).trim()
 
-  const primaryAvailableBalance = getBalanceFromApp(app, leaveTypeLabel)
+  const rawPrimaryAvailableBalance = getBalanceFromApp(app, leaveTypeLabel)
+  const currentAppDeduction = Number(app?.deductible_days ?? app?.days ?? app?.duration_value ?? app?.total_days ?? 0)
+  const primaryAvailableBalance = Number.isFinite(rawPrimaryAvailableBalance)
+    ? Math.max(
+        rawPrimaryAvailableBalance +
+          (Number.isFinite(currentAppDeduction) && currentAppDeduction > 0 ? currentAppDeduction : 0),
+        0,
+      )
+    : null
 
   const totalWpDays = (payStatusRows || []).reduce((sum, row) => {
     if (normalizePayStatusCode(row.payStatus) !== 'WP') return sum
