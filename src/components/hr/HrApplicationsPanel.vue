@@ -105,7 +105,7 @@
             <template v-if="props.row?.is_monetization">
               <span class="text-weight-medium text-grey-9 block">N/A</span>
             </template>
-            <template v-else-if="hasPendingDateUpdate(props.row)">
+            <template v-else-if="hasPendingDateUpdate(props.row) && getLatestUpdateRequestStatus(props.row) !== 'APPROVED'">
               <span class="text-caption text-grey-7 block">Current</span>
               <span
                 v-for="(line, index) in getApplicationInclusiveDateColumnLines(props.row)"

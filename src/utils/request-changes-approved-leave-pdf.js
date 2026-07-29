@@ -279,6 +279,64 @@ function formatDateSetSummary(dateSet = []) {
   return groups.map((group) => `${group.month} ${group.days.join(', ')}, ${group.year}`).join(', ')
 }
 
+function formatInclusiveDateSummaryWithCoverage(source) {
+  if (!source || typeof source !== 'object') return ''
+
+  const dateSet = resolveDateSetFromSource(source)
+  const halfDayPortionMap =
+    source?.selected_date_half_day_portion ||
+    source?.selectedDateHalfDayPortion ||
+    source?.half_day_portion ||
+    source?.halfDayPortion ||
+    {}
+
+  const coverageMap =
+    source?.selected_date_coverage ||
+    source?.selectedDateCoverage ||
+    source?.coverage ||
+    {}
+
+  if (dateSet.length) {
+    const formattedDates = dateSet.map((dateValue) => {
+      const formatted = formatDate(dateValue)
+      const portionRaw = String(halfDayPortionMap[dateValue] || '').trim().toUpperCase()
+      const coverageRaw = String(coverageMap[dateValue] || '').trim().toUpperCase()
+
+      let suffix = ''
+      if (portionRaw === 'AM' || portionRaw === 'PM') {
+        suffix = ` (${portionRaw})`
+      } else if (coverageRaw.includes('HALF')) {
+        suffix = ' (Half Day)'
+      }
+
+      return `${formatted}${suffix}`
+    })
+
+    if (formattedDates.length === 1) {
+      return formattedDates[0]
+    }
+
+    if (formattedDates.length === 2) {
+      return `${formattedDates[0]} - ${formattedDates[1]}`
+    }
+
+    return formatDateSetSummary(dateSet)
+  }
+
+  const startDate = source?.start_date || source?.startDate || null
+  const endDate = source?.end_date || source?.endDate || null
+  if (startDate && endDate) {
+    if (startDate === endDate) return formatDate(startDate)
+    return `${formatDate(startDate)} - ${formatDate(endDate)}`
+  }
+
+  if (startDate || endDate) {
+    return formatDate(startDate || endDate)
+  }
+
+  return ''
+}
+
 function resolveFromDateValue(source) {
   const dateSet = resolveDateSetFromSource(source)
   if (dateSet.length) return formatDate(dateSet[0])
@@ -309,34 +367,15 @@ function resolveRequestFormData(app) {
     source?.filed_by ||
     'Employee'
 
-  const currentDateSet = resolveDateSetFromSource(source)
-  const requestedDateSet = resolveDateSetFromSource(payload)
-  const fallbackFromDateIso = toIsoDateString(
-    source?.start_date || source?.startDate || source?.end_date || source?.endDate || '',
-  )
-  const fromDateIso = currentDateSet[0] || fallbackFromDateIso || ''
-  const fromValue = fromDateIso ? formatDate(fromDateIso) : resolveFromDateValue(source)
+  const fromValue = formatInclusiveDateSummaryWithCoverage(source) || resolveFromDateValue(source)
+  let toValue = formatInclusiveDateSummaryWithCoverage(payload)
 
-  let requestedDatesForTo = [...requestedDateSet]
-  if (currentDateSet.length && requestedDateSet.length) {
-    const currentDateLookup = new Set(currentDateSet)
-    const nonOverlappingRequestedDates = requestedDateSet.filter(
-      (dateValue) => !currentDateLookup.has(dateValue),
-    )
-    if (nonOverlappingRequestedDates.length) {
-      requestedDatesForTo = nonOverlappingRequestedDates
-    }
+  if (!toValue) {
+    const requestedDateSet = resolveDateSetFromSource(payload)
+    toValue = requestedDateSet.length
+      ? formatDateSetSummary(requestedDateSet)
+      : formatRequestedDatesList(payload)
   }
-  if (fromDateIso && requestedDatesForTo.length > 1) {
-    const toDatesWithoutFrom = requestedDatesForTo.filter((dateValue) => dateValue !== fromDateIso)
-    if (toDatesWithoutFrom.length) {
-      requestedDatesForTo = toDatesWithoutFrom
-    }
-  }
-
-  const toValue = requestedDatesForTo.length
-    ? formatDateSetSummary(requestedDatesForTo)
-    : formatRequestedDatesList(payload)
 
   const reason = normalizeText(
     app?.latest_update_request_reason ||

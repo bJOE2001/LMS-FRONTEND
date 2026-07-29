@@ -69,13 +69,13 @@
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Inclusive Dates</div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Current:</span>
+                <span class="hr-application-requested-changes-key">{{ getFromLabel(application) }}:</span>
                 <span class="hr-application-requested-changes-value">{{
                   formatInclusiveDateSummary(getApplicationEditRequestFromDates(application))
                 }}</span>
               </div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span class="hr-application-requested-changes-key">{{ getToLabel(application) }}:</span>
                 <span
                   class="
                     hr-application-requested-changes-value
@@ -88,13 +88,13 @@
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Duration</div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Current:</span>
+                <span class="hr-application-requested-changes-key">{{ getFromLabel(application) }}:</span>
                 <span class="hr-application-requested-changes-value">{{
                   getApplicationEditRequestCurrentDuration(application)
                 }}</span>
               </div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span class="hr-application-requested-changes-key">{{ getToLabel(application) }}:</span>
                 <span
                   class="
                     hr-application-requested-changes-value
@@ -248,14 +248,14 @@
               </div>
             </div>
             <div
-              v-else-if="hasPendingDateUpdate(application)"
+              v-else-if="hasPendingDateUpdate(application) && !isEditRequestApproved(application)"
               :class="[
                 'text-weight-medium',
                 'hr-application-date-change-preview',
                 { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
               ]"
             >
-              <div class="text-caption text-grey-7">Current</div>
+              <div class="text-caption text-grey-7">{{ getFromLabel(application) }}</div>
               <template v-if="getSelectedDatePayStatusRows(application).length">
                 <div class="text-weight-medium hr-application-duration-columns">
                   <div
@@ -310,7 +310,7 @@
                 </div>
               </template>
               <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
-                Requested
+                {{ getToLabel(application) }}
               </div>
               <template v-if="getPendingUpdateDatePayStatusRows(application).length">
                 <div class="text-weight-medium hr-application-duration-columns">
@@ -810,6 +810,34 @@ const shouldShowFooterActions = computed(() => {
     props.canPrintCocCertificate(app) || (props.isMobile && props.hasMobileApplicationActions(app))
   )
 })
+
+function isEditRequestApproved(app) {
+  if (!app) return false
+  const latestStatus = String(
+    app?.latest_update_request_status ||
+      app?.latestUpdateRequestStatus ||
+      app?.raw?.latest_update_request_status ||
+      app?.raw?.latestUpdateRequestStatus ||
+      '',
+  )
+    .toUpperCase()
+    .trim()
+
+  if (latestStatus === 'APPROVED') return true
+
+  const mainStatus = String(app?.status || app?.rawStatus || '')
+    .toUpperCase()
+    .trim()
+  return mainStatus.includes('EDIT REQUEST APPROVED') || mainStatus.includes('APPROVED_EDIT_REQUEST')
+}
+
+function getFromLabel(app) {
+  return isEditRequestApproved(app) ? 'Old Date' : 'Current'
+}
+
+function getToLabel(app) {
+  return isEditRequestApproved(app) ? 'Updated Date' : 'Requested'
+}
 
 const slVlCrossDeductionSummary = computed(() => buildSlVlCrossDeductionSummary(props.application))
 

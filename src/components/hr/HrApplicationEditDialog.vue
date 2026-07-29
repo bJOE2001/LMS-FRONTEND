@@ -20,6 +20,15 @@
         <q-card-section v-if="formModel && formModel.id" class="hr-edit-content">
           <div class="hr-edit-section">
             <div class="hr-edit-section__title">Application</div>
+
+            <div v-if="formModel.hasPendingUpdateRequest" class="hr-edit-pending-banner q-mb-md">
+              <q-icon name="update" size="20px" color="teal-8" />
+              <div>
+                <span class="text-weight-bold text-teal-9">Pre-filled from Pending Update Request:</span>
+                Showing the employee's requested changes. You can review, adjust, or save directly.
+              </div>
+            </div>
+
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-6">
                 <q-input
@@ -459,6 +468,55 @@ function getEmptyEditForm() {
     totalDays: 0,
     selectedDates: [],
     payStatusRows: [],
+    hasPendingUpdateRequest: false,
+  }
+}
+
+function getPendingUpdatePayload(app) {
+  const candidates = [
+    app?.pending_update,
+    app?.pendingUpdate,
+    app?.raw?.pending_update,
+    app?.raw?.pendingUpdate,
+    app?.latest_update_request_payload,
+    app?.latestUpdateRequestPayload,
+    app?.raw?.latest_update_request_payload,
+    app?.raw?.latestUpdateRequestPayload,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    if (candidate && typeof candidate === 'object') return candidate
+
+    if (typeof candidate !== 'string') continue
+    const trimmed = candidate.trim()
+    if (!trimmed) continue
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') return parsed
+    } catch {
+      // Ignore
+    }
+  }
+
+  return null
+}
+
+function resolveEditSourceApplication(application) {
+  if (!application || typeof application !== 'object') return application
+  const payload = getPendingUpdatePayload(application)
+  if (!payload || typeof payload !== 'object') return application
+
+  return {
+    ...application,
+    ...payload,
+    id: application.id,
+    employeeName: application.employeeName || application.employee_name,
+    employee_name: application.employee_name || application.employeeName,
+    leaveType: application.leaveType || application.leave_type_name,
+    leave_type_name: application.leave_type_name || application.leaveType,
+    has_pending_update_request: true,
   }
 }
 
@@ -466,28 +524,30 @@ function buildFormFromApplication(application) {
   const form = getEmptyEditForm()
   if (!application || typeof application !== 'object') return form
 
+  const source = resolveEditSourceApplication(application)
+
   const selectedDates = normalizeSelectedDates(
-    application?.selected_dates ?? application?.selectedDates,
+    source?.selected_dates ?? source?.selectedDates,
   ).filter(isWeekdayIsoDate)
-  const startDate = toIsoDate(application?.startDate ?? application?.start_date) || selectedDates[0] || ''
+  const startDate = toIsoDate(source?.startDate ?? source?.start_date) || selectedDates[0] || ''
   const endDate =
-    toIsoDate(application?.endDate ?? application?.end_date) || selectedDates[selectedDates.length - 1] || ''
+    toIsoDate(source?.endDate ?? source?.end_date) || selectedDates[selectedDates.length - 1] || ''
   const preservedDates = selectedDates.length
     ? selectedDates
     : buildWeekdayDateRange(startDate, endDate)
-  const payStatusRows = buildPayStatusRows(application, preservedDates)
+  const payStatusRows = buildPayStatusRows(source, preservedDates)
   const parsedDays =
-    props.getActualRequestedDayCount(application) ??
-    Number(application?.days ?? application?.total_days ?? application?.duration_value)
+    props.getActualRequestedDayCount(source) ??
+    Number(source?.days ?? source?.total_days ?? source?.duration_value)
 
   return {
     id: application?.id ?? '',
     employeeName: application?.employeeName || application?.employee_name || '',
-    leaveTypeLabel: `${application?.leaveType || application?.leave_type_name || ''}${
-      application?.is_monetization ? ' (Monetization)' : ''
+    leaveTypeLabel: `${source?.leaveType || source?.leave_type_name || ''}${
+      source?.is_monetization ? ' (Monetization)' : ''
     }`,
-    leaveTypeId: application?.leave_type_id ?? null,
-    isMonetization: Boolean(application?.is_monetization),
+    leaveTypeId: source?.leave_type_id ?? application?.leave_type_id ?? null,
+    isMonetization: Boolean(source?.is_monetization ?? application?.is_monetization),
     startDate,
     endDate,
     originalStartDate: startDate,
@@ -498,6 +558,7 @@ function buildFormFromApplication(application) {
         : sumRowsByStatus(payStatusRows, () => true),
     selectedDates: preservedDates,
     payStatusRows,
+    hasPendingUpdateRequest: Boolean(source?.has_pending_update_request),
   }
 }
 
@@ -563,13 +624,20 @@ function buildPayStatusRows(application, selectedDates, previousRows = []) {
       defaultWithoutPayDays,
     )
 
+    const resolvedPayStatus =
+      withoutPayDays > 0 && withPayDays === 0
+        ? 'WOP'
+        : withPayDays > 0 && withoutPayDays === 0
+          ? 'WP'
+          : payStatus
+
     return {
       dateKey,
       coverageCode,
       coverageWeight,
       coverageLabel: getCoverageLabel(coverageCode),
       halfDayPortion: getCoverageHalfDayPortion(coverageCode),
-      payStatus,
+      payStatus: resolvedPayStatus,
       withPayDays,
       withoutPayDays,
       deductionDays: withPayDays,
@@ -1118,6 +1186,18 @@ async function handleSave() {
 
 <!-- Unscoped: q-dialog teleports to <body>, so scoped styles will not reliably apply -->
 <style>
+.hr-edit-pending-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  color: #166534;
+}
+
 .hr-edit-dialog .q-dialog__inner--minimized {
   padding: 16px;
 }

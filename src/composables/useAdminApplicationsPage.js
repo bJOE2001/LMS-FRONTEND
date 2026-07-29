@@ -2814,30 +2814,11 @@ export function useAdminApplicationsPage() {
     const payload = getPendingUpdatePayload(app)
     if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
-    const currentIndicatorRows = getSelectedDateIndicatorRows(app)
     const requestedIndicatorRows = getPendingUpdateDateIndicatorRows(app)
-    if (requestedIndicatorRows.length) {
-      if (currentIndicatorRows.length !== requestedIndicatorRows.length) return true
+    if (requestedIndicatorRows.length) return true
 
-      return requestedIndicatorRows.some((requestedRow, index) => {
-        const currentRow = currentIndicatorRows[index]
-        if (!currentRow) return true
-
-        return (
-          requestedRow.dateKey !== currentRow.dateKey ||
-          requestedRow.coverageLabel !== currentRow.coverageLabel ||
-          requestedRow.payStatus !== currentRow.payStatus
-        )
-      })
-    }
-
-    const currentDateSet = resolveDateSetFromSource(app)
     const requestedDateSet = resolveDateSetFromSource(payload)
-    if (!requestedDateSet.length) return false
-    if (!currentDateSet.length) return true
-    if (currentDateSet.length !== requestedDateSet.length) return true
-
-    return requestedDateSet.some((date, index) => date !== currentDateSet[index])
+    return requestedDateSet.length > 0
   }
 
   function getApplicationInclusiveDateLines(app) {
@@ -2846,6 +2827,8 @@ export function useAdminApplicationsPage() {
     if (app.is_monetization) {
       return ['N/A']
     }
+
+    const expandConsecutiveDays = isAbroadLeaveApplication(app)
 
     const indicatorRows = getSelectedDateIndicatorRows(app)
     if (
@@ -2857,8 +2840,6 @@ export function useAdminApplicationsPage() {
         isAbroadLeaveApplication(app),
       )
     }
-
-    const expandConsecutiveDays = isAbroadLeaveApplication(app)
 
     if (Array.isArray(app.selected_dates) && app.selected_dates.length > 0) {
       const visibleDateSet = getVisibleDateSetForDisplay(app)

@@ -1658,7 +1658,7 @@ function shouldShowApplicationEditRequestDateComparison(app) {
 
 function shouldShowApplicationEditRequestSection(app) {
   if (!hasApplicationEditRequest(app)) return false
-  return getLatestUpdateRequestStatus(app) !== 'APPROVED'
+  return true
 }
 
 function getApplicationEditRequestFromDates(app) {
@@ -2079,30 +2079,11 @@ function hasPendingDateUpdate(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
-  const currentIndicatorRows = getSelectedDatePayStatusRows(app)
   const requestedIndicatorRows = getPendingUpdateDatePayStatusRows(app)
-  if (requestedIndicatorRows.length) {
-    if (currentIndicatorRows.length !== requestedIndicatorRows.length) return true
+  if (requestedIndicatorRows.length) return true
 
-    return requestedIndicatorRows.some((requestedRow, index) => {
-      const currentRow = currentIndicatorRows[index]
-      if (!currentRow) return true
-
-      return (
-        requestedRow.dateKey !== currentRow.dateKey ||
-        requestedRow.coverageLabel !== currentRow.coverageLabel ||
-        requestedRow.payStatus !== currentRow.payStatus
-      )
-    })
-  }
-
-  const currentDateSet = resolveDateSetFromSource(app)
   const requestedDateSet = resolveDateSetFromSource(payload)
-  if (!requestedDateSet.length) return false
-  if (!currentDateSet.length) return true
-  if (currentDateSet.length !== requestedDateSet.length) return true
-
-  return requestedDateSet.some((date, index) => date !== currentDateSet[index])
+  return requestedDateSet.length > 0
 }
 
 function resolveRequestedDurationSnapshot(app) {
