@@ -21,14 +21,6 @@
           <div class="hr-edit-section">
             <div class="hr-edit-section__title">Application</div>
 
-            <div v-if="formModel.hasPendingUpdateRequest" class="hr-edit-pending-banner q-mb-md">
-              <q-icon name="update" size="20px" color="teal-8" />
-              <div>
-                <span class="text-weight-bold text-teal-9">Pre-filled from Pending Update Request:</span>
-                Showing the employee's requested changes. You can review, adjust, or save directly.
-              </div>
-            </div>
-
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-6">
                 <q-input
@@ -64,18 +56,64 @@
                       </q-badge>
                     </div>
 
-                    <q-date
-                      :model-value="formModel.selectedDates"
-                      multiple
-                      mask="YYYY-MM-DD"
-                      color="green-8"
-                      minimal
-                      flat
-                      :default-year-month="calendarDefaultYearMonth"
-                      :options="isSelectableWorkingDate"
-                      class="hr-edit-working-days-calendar"
-                      @update:model-value="handleSelectedDatesUpdate"
-                    />
+                    <div class="hr-edit-calendar-wrapper" @click="handleCalendarClick">
+                      <q-date
+                        :model-value="formModel.selectedDates"
+                        multiple
+                        mask="YYYY-MM-DD"
+                        color="green-8"
+                        minimal
+                        flat
+                        :default-year-month="calendarDefaultYearMonth"
+                        :options="isSelectableWorkingDate"
+                        class="hr-edit-working-days-calendar"
+                        @navigation="handleCalendarNavigation"
+                        @update:model-value="handleSelectedDatesUpdate"
+                      />
+
+                      <!-- Floating Mini Dialog Inside Calendar -->
+                      <transition name="q-transition--scale">
+                        <div
+                          v-if="activeBlockedDateWarning"
+                          class="hr-edit-calendar-mini-dialog"
+                        >
+                          <div class="row items-start no-wrap q-gutter-xs">
+                            <q-avatar
+                              :icon="activeBlockedDateWarning.isEditRequestLocked ? 'lock' : 'warning'"
+                              :color="activeBlockedDateWarning.isEditRequestLocked ? 'amber-1' : 'red-1'"
+                              :text-color="activeBlockedDateWarning.isEditRequestLocked ? 'amber-9' : 'red-7'"
+                              size="30px"
+                              class="q-mr-xs"
+                            />
+                            <div class="col">
+                              <div
+                                class="text-caption text-weight-bold"
+                                :class="activeBlockedDateWarning.isEditRequestLocked ? 'text-amber-9' : 'text-red-9'"
+                              >
+                                {{ activeBlockedDateWarning.formattedDate }} {{ activeBlockedDateWarning.isEditRequestLocked ? 'Locked' : 'is unavailable:' }}
+                              </div>
+                              <div class="text-caption text-grey-9 q-mt-xs" style="line-height: 1.35;">
+                                <template v-if="activeBlockedDateWarning.isEditRequestLocked">
+                                  {{ activeBlockedDateWarning.lockedMessage || 'Date changes are locked for this application.' }}
+                                </template>
+                                <template v-else>
+                                  Employee already has an <strong>{{ activeBlockedDateWarning.status }} {{ activeBlockedDateWarning.leaveType }}</strong> application.
+                                </template>
+                              </div>
+                            </div>
+                            <q-btn
+                              flat
+                              round
+                              dense
+                              icon="close"
+                              size="xs"
+                              color="grey-6"
+                              @click.stop="activeBlockedDateWarning = null"
+                            />
+                          </div>
+                        </div>
+                      </transition>
+                    </div>
                   </div>
 
                   <div class="hr-edit-pay-ledger-panel">
@@ -217,6 +255,11 @@ import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
+import {
+  isBlockingLeaveApplication,
+  getApplicationBlockingDates,
+} from 'src/utils/leave-date-locking'
+
 const props = defineProps({
   modelValue: {
     type: Boolean,
@@ -225,6 +268,10 @@ const props = defineProps({
   application: {
     type: Object,
     default: null,
+  },
+  allApplications: {
+    type: Array,
+    default: () => [],
   },
   getActualRequestedDayCount: {
     type: Function,
@@ -241,6 +288,172 @@ const $q = useQuasar()
 const authStore = useAuthStore()
 const formModel = ref(getEmptyEditForm())
 const submitLoading = ref(false)
+const fetchedApplications = ref([])
+
+async function loadEmployeeApplications() {
+  if (!props.application) return
+  try {
+    const response = await api.get('/hr/leave-applications')
+    const list = response?.data?.data || response?.data || []
+    if (Array.isArray(list)) {
+      fetchedApplications.value = list
+    }
+  } catch {
+    fetchedApplications.value = []
+  }
+}
+
+const existingApplications = computed(() => {
+  const source = props.allApplications?.length ? props.allApplications : fetchedApplications.value
+  return Array.isArray(source) ? source : []
+})
+
+const blockedDatesSet = computed(() => {
+  const dates = new Set()
+  const currentAppId = String(props.application?.id || '')
+  const currentControlNo = String(
+    props.application?.employee_control_no ||
+      props.application?.control_no ||
+      props.application?.employee?.control_no ||
+      '',
+  ).trim()
+
+  if (!currentControlNo) return dates
+
+  existingApplications.value.forEach((app) => {
+    const appControlNo = String(
+      app?.employee_control_no || app?.control_no || app?.employee?.control_no || '',
+    ).trim()
+    const appId = String(app?.id || '')
+
+    if (
+      appControlNo === currentControlNo &&
+      appId !== currentAppId &&
+      isBlockingLeaveApplication(app)
+    ) {
+      const blocked = getApplicationBlockingDates(app)
+      blocked.forEach((d) => dates.add(d))
+    }
+  })
+
+  return dates
+})
+
+const calendarView = ref({
+  year: new Date().getFullYear(),
+  month: new Date().getMonth() + 1,
+})
+
+const activeBlockedDateWarning = ref(null)
+
+function handleCalendarNavigation(view) {
+  if (view && view.year && view.month) {
+    calendarView.value = {
+      year: Number(view.year),
+      month: Number(view.month),
+    }
+  }
+}
+
+const blockedDateDetailsMap = computed(() => {
+  const map = new Map()
+  const currentAppId = String(props.application?.id || '')
+  const currentControlNo = String(
+    props.application?.employee_control_no ||
+      props.application?.control_no ||
+      props.application?.employee?.control_no ||
+      '',
+  ).trim()
+
+  if (!currentControlNo) return map
+
+  existingApplications.value.forEach((app) => {
+    const appControlNo = String(
+      app?.employee_control_no || app?.control_no || app?.employee?.control_no || '',
+    ).trim()
+    const appId = String(app?.id || '')
+
+    if (
+      appControlNo === currentControlNo &&
+      appId !== currentAppId &&
+      isBlockingLeaveApplication(app)
+    ) {
+      const blocked = getApplicationBlockingDates(app)
+      const rawStatus = String(app?.status || app?.displayStatus || '').toUpperCase()
+      const isApproved = rawStatus.includes('APPROVED')
+      const statusLabel = isApproved ? 'Approved' : 'Pending'
+      const leaveType = app?.leaveType || app?.leave_type_name || 'Leave'
+
+      blocked.forEach((d) => {
+        map.set(d, {
+          dateIso: d,
+          formattedDate: props.formatDate ? props.formatDate(d) : d,
+          status: statusLabel,
+          leaveType: leaveType,
+          appId: app?.id,
+        })
+      })
+    }
+  })
+
+  return map
+})
+
+const isEditRequestDateLocked = computed(() => {
+  const app = props.application
+  if (!app) return false
+  const updateStatus = String(
+    app?.latest_update_request_status ?? app?.latestUpdateRequestStatus ?? '',
+  ).toUpperCase()
+  if (updateStatus === 'APPROVED' || updateStatus === 'PENDING') return true
+
+  const badgeLabel = String(
+    app?.edit_request_badge_label ?? app?.latest_update_request_badge_label ?? app?.displayStatus ?? '',
+  ).toUpperCase()
+  return (
+    badgeLabel.includes('EDIT REQUEST') ||
+    badgeLabel.includes('UPDATE REQUEST') ||
+    badgeLabel.includes('CANCEL REQUEST') ||
+    badgeLabel.includes('RECALL REQUEST')
+  )
+})
+
+const lockedReasonMessage = computed(() => {
+  const app = props.application
+  const updateStatus = String(
+    app?.latest_update_request_status ?? app?.latestUpdateRequestStatus ?? '',
+  ).toUpperCase()
+  if (updateStatus === 'PENDING') {
+    return 'This application has an Edit Request in progress. Date modifications are locked to prevent conflicts.'
+  }
+  return 'This application has an Approved Edit Request. Dates can no longer be modified.'
+})
+
+function handleCalendarClick(event) {
+  if (isEditRequestDateLocked.value) {
+    activeBlockedDateWarning.value = {
+      formattedDate: 'Date Modification',
+      isEditRequestLocked: true,
+      lockedMessage: lockedReasonMessage.value,
+    }
+    return
+  }
+
+  const dayCell = event.target?.closest?.('.q-date__calendar-item')
+  if (!dayCell || dayCell.classList.contains('q-date__calendar-item--fill')) return
+
+  const day = Number.parseInt(String(dayCell.textContent || '').trim(), 10)
+  if (!Number.isInteger(day) || day < 1 || day > 31) return
+
+  const dateIso = `${calendarView.value.year}-${String(calendarView.value.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  const conflict = blockedDateDetailsMap.value.get(dateIso)
+
+  if (conflict) {
+    activeBlockedDateWarning.value = conflict
+  } else {
+    activeBlockedDateWarning.value = null
+  }
+}
 
 const payStatusOptions = [
   { label: 'WP', value: 'WP' },
@@ -322,14 +535,18 @@ watch(
 watch(
   () => props.modelValue,
   (isOpen) => {
-    if (isOpen) return
+    if (isOpen) {
+      activeBlockedDateWarning.value = null
+      loadEmployeeApplications()
+      return
+    }
+    activeBlockedDateWarning.value = null
     formModel.value = getEmptyEditForm()
   },
 )
 
 function handleSelectedDatesUpdate(value) {
   const selectedDates = normalizeSelectedDates(Array.isArray(value) ? value : value ? [value] : [])
-    .filter(isWeekdayIsoDate)
 
   const payStatusRows = buildPayStatusRows(
     props.application,
@@ -528,13 +745,13 @@ function buildFormFromApplication(application) {
 
   const selectedDates = normalizeSelectedDates(
     source?.selected_dates ?? source?.selectedDates,
-  ).filter(isWeekdayIsoDate)
+  )
   const startDate = toIsoDate(source?.startDate ?? source?.start_date) || selectedDates[0] || ''
   const endDate =
     toIsoDate(source?.endDate ?? source?.end_date) || selectedDates[selectedDates.length - 1] || ''
   const preservedDates = selectedDates.length
     ? selectedDates
-    : buildWeekdayDateRange(startDate, endDate)
+    : buildDateRange(startDate, endDate)
   const payStatusRows = buildPayStatusRows(source, preservedDates)
   const parsedDays =
     props.getActualRequestedDayCount(source) ??
@@ -671,18 +888,12 @@ function normalizeSelectedDates(value) {
 }
 
 function isSelectableWorkingDate(value) {
-  return isWeekdayIsoDate(toIsoDate(value))
-}
-
-function isWeekdayIsoDate(value) {
+  if (isEditRequestDateLocked.value) {
+    return false
+  }
   const isoDate = toIsoDate(value)
   if (!isoDate) return false
-
-  const parsedDate = new Date(`${isoDate}T00:00:00`)
-  if (Number.isNaN(parsedDate.getTime())) return false
-
-  const day = parsedDate.getDay()
-  return day !== 0 && day !== 6
+  return !blockedDatesSet.value.has(isoDate)
 }
 
 function formatIsoDate(date) {
@@ -692,7 +903,7 @@ function formatIsoDate(date) {
   return `${year}-${month}-${day}`
 }
 
-function buildWeekdayDateRange(startDate, endDate) {
+function buildDateRange(startDate, endDate) {
   if (!startDate || !endDate) return []
   if (endDate < startDate) return []
 
@@ -702,10 +913,7 @@ function buildWeekdayDateRange(startDate, endDate) {
 
   const dates = []
   for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
-    const day = cursor.getDay()
-    if (day !== 0 && day !== 6) {
-      dates.push(formatIsoDate(cursor))
-    }
+    dates.push(formatIsoDate(cursor))
   }
   return dates
 }
@@ -1564,6 +1772,43 @@ async function handleSave() {
   .hr-edit-date-grid__cell--inactive {
     display: none;
   }
+}
 
+.hr-edit-approved-locked-banner {
+  display: flex;
+  align-items: center;
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.hr-edit-calendar-wrapper {
+  position: relative;
+}
+
+.hr-edit-calendar-mini-dialog {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 20;
+  background: #ffffff;
+  border: 1.5px solid #fca5a5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  animation: miniDialogPop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes miniDialogPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 </style>

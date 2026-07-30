@@ -88,13 +88,13 @@
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Duration</div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">{{ getFromLabel(application) }}:</span>
+                <span class="hr-application-requested-changes-key">{{ getDurationFromLabel(application) }}:</span>
                 <span class="hr-application-requested-changes-value">{{
                   getApplicationEditRequestCurrentDuration(application)
                 }}</span>
               </div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">{{ getToLabel(application) }}:</span>
+                <span class="hr-application-requested-changes-key">{{ getDurationToLabel(application) }}:</span>
                 <span
                   class="
                     hr-application-requested-changes-value
@@ -837,6 +837,14 @@ function getFromLabel(app) {
 
 function getToLabel(app) {
   return isEditRequestApproved(app) ? 'Updated Date' : 'Requested'
+}
+
+function getDurationFromLabel(app) {
+  return isEditRequestApproved(app) ? 'Old Duration' : 'Current'
+}
+
+function getDurationToLabel(app) {
+  return isEditRequestApproved(app) ? 'Updated Duration' : 'Requested'
 }
 
 const slVlCrossDeductionSummary = computed(() => buildSlVlCrossDeductionSummary(props.application))

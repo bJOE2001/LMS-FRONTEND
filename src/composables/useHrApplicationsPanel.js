@@ -1664,6 +1664,52 @@ function shouldShowApplicationEditRequestSection(app) {
 function getApplicationEditRequestFromDates(app) {
   if (!hasApplicationEditRequest(app)) return 'N/A'
 
+  const indicatorRows = getSelectedDatePayStatusRows(app)
+  if (
+    indicatorRows.length &&
+    indicatorRows.some((entry) => String(entry?.coverageLabel || '').startsWith('Half Day'))
+  ) {
+    return formatCoverageAwareInclusiveDateLines(
+      indicatorRows,
+      isAbroadLeaveApplication(app),
+    ).join(', ')
+  }
+
+  const payload = getPendingUpdatePayload(app)
+  if (payload && typeof payload === 'object') {
+    const previousDates = payload.previous_selected_dates || payload.previousSelectedDates
+    if (Array.isArray(previousDates) && previousDates.length > 0) {
+      const expandConsecutiveDays = isAbroadLeaveApplication(app)
+      const formatted = formatGroupedInclusiveDateLines(previousDates, expandConsecutiveDays)
+      if (formatted.length > 0) return formatted.join(', ')
+    }
+    if (payload.previous_start_date || payload.previousStartDate) {
+      const startDate = payload.previous_start_date || payload.previousStartDate
+      const endDate = payload.previous_end_date || payload.previousEndDate || startDate
+      const dates = enumerateInclusiveDateRange(startDate, endDate)
+      if (dates.length > 0) {
+        const expandConsecutiveDays = isAbroadLeaveApplication(app)
+        const formatted = formatGroupedInclusiveDateLines(dates, expandConsecutiveDays)
+        if (formatted.length > 0) return formatted.join(', ')
+      }
+    }
+  }
+
+  const updateRequests = Array.isArray(app?.update_requests)
+    ? app.update_requests
+    : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
+  for (const req of updateRequests) {
+    const reqPayload = req?.requested_payload || req?.payload
+    if (reqPayload && typeof reqPayload === 'object') {
+      const pDates = reqPayload.previous_selected_dates || reqPayload.previousSelectedDates
+      if (Array.isArray(pDates) && pDates.length > 0) {
+        const expandConsecutiveDays = isAbroadLeaveApplication(app)
+        const formatted = formatGroupedInclusiveDateLines(pDates, expandConsecutiveDays)
+        if (formatted.length > 0) return formatted.join(', ')
+      }
+    }
+  }
+
   const inclusiveDateLines = getApplicationInclusiveDateLines(app)
   return inclusiveDateLines.length ? inclusiveDateLines.join(', ') : 'N/A'
 }
@@ -1677,6 +1723,28 @@ function getApplicationEditRequestToDates(app) {
 
 function getApplicationEditRequestCurrentDuration(app) {
   if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const payload = getPendingUpdatePayload(app)
+  if (payload && typeof payload === 'object') {
+    const previousDays = payload.previous_total_days ?? payload.previousTotalDays
+    if (Number.isFinite(Number(previousDays)) && Number(previousDays) > 0) {
+      return `${formatDayValue(previousDays)} day(s)`
+    }
+  }
+
+  const updateRequests = Array.isArray(app?.update_requests)
+    ? app.update_requests
+    : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
+  for (const req of updateRequests) {
+    const reqPayload = req?.requested_payload || req?.payload
+    if (reqPayload && typeof reqPayload === 'object') {
+      const pDays = reqPayload.previous_total_days ?? reqPayload.previousTotalDays
+      if (Number.isFinite(Number(pDays)) && Number(pDays) > 0) {
+        return `${formatDayValue(pDays)} day(s)`
+      }
+    }
+  }
+
   return getApplicationDurationDisplay(app) || 'N/A'
 }
 

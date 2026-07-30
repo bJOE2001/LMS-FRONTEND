@@ -402,13 +402,13 @@
               <div class="admin-application-requested-changes-item">
                 <div class="admin-application-requested-changes-title">Inclusive Dates</div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Current:</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Date:' : 'Current:' }}</span>
                   <span class="admin-application-requested-changes-value">{{
                     formatInclusiveDateSummary(getApplicationEditRequestFromDates(selectedApp))
                   }}</span>
                 </div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Requested:</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Updated Date:' : 'Requested:' }}</span>
                   <span
                     class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
                     >{{
@@ -421,13 +421,13 @@
               <div class="admin-application-requested-changes-item">
                 <div class="admin-application-requested-changes-title">Duration</div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Current:</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Duration:' : 'Current:' }}</span>
                   <span class="admin-application-requested-changes-value">{{
                     getApplicationEditRequestCurrentDuration(selectedApp)
                   }}</span>
                 </div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Requested:</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Updated Duration:' : 'Requested:' }}</span>
                   <span
                     class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
                     >{{ getApplicationEditRequestRequestedDuration(selectedApp) }}</span

@@ -426,6 +426,7 @@
   <HrApplicationEditDialog
     v-model="showEditDialog"
     :application="editTargetApp"
+    :all-applications="applications"
     :format-date="formatDate"
     :get-actual-requested-day-count="getActualRequestedDayCount"
     @saved="handleDialogMutationSuccess"
