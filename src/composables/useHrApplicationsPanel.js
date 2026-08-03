@@ -3270,13 +3270,10 @@ function resolveHrActor(app) {
 }
 
 function resolveFinalApprovalDateValue(app) {
-  const directValue =
-    app?.hr_action_at ||
-    app?.reviewed_at
-  if (directValue) return directValue
+  if (app?.hr_action_at) return app.hr_action_at
 
   const historyEntry = resolveHrApprovalHistoryEntry(app)
-  return resolveStatusHistoryTimestamp(historyEntry)
+  return resolveStatusHistoryTimestamp(historyEntry) || null
 }
 
 function getStatusHistoryEntries(app) {
@@ -3660,9 +3657,24 @@ function resolveEditRequestRejectionMeta(app) {
 function getPreEditHrApprovalTimelineEntry(app) {
   if (!hasEditRequestSignal(app)) return null
 
+  const previousStatus = String(
+    app?.pending_update_previous_status ??
+      app?.latest_update_request_previous_status ??
+      '',
+  )
+    .trim()
+    .toUpperCase()
+
+  const hrApprovalHistoryEntry = resolveHrApprovalHistoryEntry(app)
+  const isActuallyApprovedByHr =
+    previousStatus === 'APPROVED' ||
+    Boolean(app?.hr_action_at) ||
+    Boolean(hrApprovalHistoryEntry)
+
+  if (!isActuallyApprovedByHr) return null
+
   const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
   const approvedBy = resolveHrActor(app)
-  if (!approvedAt && approvedBy === 'Unknown') return null
 
   const requestLabel = isRecallRequestAction(app)
     ? 'recall request'
