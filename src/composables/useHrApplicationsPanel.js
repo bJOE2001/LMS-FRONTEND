@@ -4110,6 +4110,20 @@ function shouldUseUpdateReceiveEndpoint(app) {
   if (!app || isCocApplication(app)) return false
   if (getApplicationRawStatusKey(app) !== 'PENDING_HR') return false
   if (getLatestUpdateRequestStatus(app) !== 'PENDING') return false
+
+  const previousStatus = String(
+    app?.pending_update_previous_status ??
+      app?.latest_update_request_previous_status ??
+      '',
+  )
+    .trim()
+    .toUpperCase()
+
+  const isPendingApprovedUpdate =
+    isTruthyBackendFlag(app?.has_pending_update_request) || previousStatus === 'APPROVED'
+
+  if (!isPendingApprovedUpdate) return false
+
   return Boolean(resolveCurrentUpdateRequestCycleStartValue(app))
 }
 
