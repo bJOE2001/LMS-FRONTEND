@@ -26,7 +26,7 @@
                   src="~src/assets/images/LEAVE-MONITORING-SYSTEM-LOGO copy.png"
                   alt="LMS Logo"
                   class="login-logo-img"
-                />  
+                />
               </div>
               <h5 class="q-mt-md q-mb-xs text-weight-bold text-dark">Welcome back</h5>
               <p class="text-grey-6 q-mb-none text-body2">Sign in to your LMS account</p>
@@ -41,7 +41,7 @@
                   placeholder="Enter your username"
                   outlined
                   dense
-                  :rules="[val => !!val || 'Username is required']"
+                  :rules="[(val) => !!val || 'Username is required']"
                   class="login-input"
                 >
                   <template #prepend>
@@ -58,7 +58,7 @@
                   placeholder="Enter your password"
                   outlined
                   dense
-                  :rules="[val => !!val || 'Password is required']"
+                  :rules="[(val) => !!val || 'Password is required']"
                   class="login-input"
                 >
                   <template #prepend>
@@ -90,17 +90,15 @@
                 :loading="loading"
               />
             </q-form>
-
           </div>
         </div>
       </div>
     </q-card>
     <div class="login-footer text-center">
-      &copy; 2026 Tagum City Hall. All Rights Reserved. | v1.2.0 |
+      &copy; 2026 Tagum City Hall. All Rights Reserved. | v1.3.0 |
       <router-link to="/development-team" class="login-footer-link">Development Team</router-link>
     </div>
   </q-page>
-
 </template>
 
 <script setup>
@@ -133,7 +131,10 @@ async function onSubmit() {
     })
     authStore.setAuth({
       token: data.token,
-      user: { ...data.user, must_change_password: data.must_change_password ?? data.user?.must_change_password },
+      user: {
+        ...data.user,
+        must_change_password: data.must_change_password ?? data.user?.must_change_password,
+      },
     })
     leaveStore.setUserRole(data.user.role)
     $q.notify({
@@ -146,10 +147,13 @@ async function onSubmit() {
     )
     const route = requiresPasswordChange
       ? '/settings'
-      : (data.redirect_to || data.dashboard_route || '/admin/dashboard')
+      : data.redirect_to || data.dashboard_route || '/admin/dashboard'
     router.push(route)
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to sign in. Please check your credentials and try again.')
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to sign in. Please check your credentials and try again.',
+    )
     $q.notify({
       type: 'negative',
       message: msg,
