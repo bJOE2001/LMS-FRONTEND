@@ -3931,7 +3931,7 @@ function isApplicationReceivedByHr(app) {
 
   if (cycleStart) {
     if (!receivedAt) return false
-    if (!isTimestampOnOrAfter(receivedAt, cycleStart)) return false
+    return isTimestampOnOrAfter(receivedAt, cycleStart)
   }
 
   return Boolean(app?.has_hr_received || resolveReceivedHistoryEntry(app) || receivedAt)
@@ -3941,7 +3941,6 @@ function canReceiveApplication(app) {
   if (!app) return false
   if (isApplicationReceivedByHr(app)) return false
   if (isCancelledByUser(app)) return false
-  if (isRecallRequestAction(app)) return false
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (isCocApplication(app)) return rawStatus === 'APPROVED'
