@@ -408,7 +408,7 @@ async function handleSubmit() {
     },
     ok: {
       unelevated: true,
-      label: 'Confirm & Restore',
+      label: 'Confirm',
       color: 'primary',
       icon: 'check_circle',
     },
