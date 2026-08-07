@@ -403,6 +403,7 @@
       :loading="leaveCreditsLedgerLoading"
       :printing="printingLeaveCreditsLedger"
       :can-print="Boolean(leaveCreditsLedgerEmployee)"
+      :employee="leaveCreditsLedgerEmployee"
       :leave-balance-badges="ledgerBalanceBadges"
       :paper-size="ledgerPaperSize"
       :dialog-style="ledgerDialogStyle"
@@ -420,6 +421,7 @@
       :value-class-resolver="ledgerValueClass"
       @print="printLeaveCreditsLedger"
       @edit-accrual="openAccrualEditDialog"
+      @restored="onLeaveCreditsRestored"
     />
 
     <!-- Edit Accruals Dialog -->
@@ -3218,6 +3220,12 @@ async function onAccrualsSaved() {
     setTimeout(async () => {
       await openLeaveCreditsLedgerDialog(leaveCreditsLedgerEmployee.value)
     }, 350)
+  }
+}
+
+async function onLeaveCreditsRestored() {
+  if (leaveCreditsLedgerEmployee.value) {
+    await openLeaveCreditsLedgerDialog(leaveCreditsLedgerEmployee.value)
   }
 }
 

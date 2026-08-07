@@ -1,15 +1,134 @@
 <template>
-  <q-dialog v-model="dialogModel">
-    <q-card class="rounded-borders leave-ledger-dialog" :style="dialogStyle">
-      <q-card-section class="row items-center q-pb-none">
-        <q-icon name="receipt_long" size="sm" color="secondary" class="q-mr-sm" />
-        <div class="text-h6">Leave Credits Ledger</div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup />
+  <q-dialog
+    v-model="dialogModel"
+    :maximized="isMaximized"
+    transition-show="slide-up"
+    transition-hide="slide-down"
+  >
+    <q-card
+      class="leave-ledger-dialog"
+      :class="{ 'leave-ledger-dialog--maximized': isMaximized }"
+      :style="dialogStyle"
+    >
+      <!-- Tagum Green Header Toolbar -->
+      <q-card-section
+        class="leave-ledger-dialog__header row items-center justify-between text-white q-py-sm q-px-md"
+      >
+        <div class="row items-center q-gutter-x-sm">
+          <q-icon name="receipt_long" size="sm" class="text-green-2" />
+          <span class="text-h6 text-weight-bold tracking-wide">Leave Credits Ledger</span>
+        </div>
+
+        <div class="row items-center q-gutter-x-xs">
+          <!-- Zoom Controls -->
+          <div class="zoom-controls row items-center rounded-borders q-px-xs q-mr-sm gt-xs">
+            <q-btn
+              flat
+              round
+              dense
+              icon="zoom_out"
+              color="white"
+              size="sm"
+              :disable="zoomLevel <= 70"
+              title="Zoom out"
+              @click="zoomOut"
+            />
+            <span class="text-caption text-weight-bold text-white q-px-xs select-none"
+              >{{ zoomLevel }}%</span
+            >
+            <q-btn
+              flat
+              round
+              dense
+              icon="zoom_in"
+              color="white"
+              size="sm"
+              :disable="zoomLevel >= 160"
+              title="Zoom in"
+              @click="zoomIn"
+            />
+            <q-btn
+              flat
+              round
+              dense
+              icon="restart_alt"
+              color="white"
+              size="xs"
+              title="Reset Zoom (100%)"
+              @click="resetZoom"
+            />
+          </div>
+
+          <!-- Maximize Toggle -->
+          <q-btn
+            flat
+            round
+            dense
+            :icon="isMaximized ? 'fullscreen_exit' : 'fullscreen'"
+            color="white"
+            :title="isMaximized ? 'Restore window size' : 'Maximize window'"
+            @click="isMaximized = !isMaximized"
+          />
+          <q-btn icon="close" flat round dense color="white" v-close-popup />
+        </div>
       </q-card-section>
 
-      <q-card-section class="leave-ledger-dialog__body q-pt-sm">
-        <q-banner v-if="error" dense rounded class="bg-orange-1 text-orange-9 q-mb-md">
+      <!-- Clean Mint Balance Summary Badges Bar -->
+      <div
+        v-if="!loading && leaveBalanceBadges.length"
+        class="ledger-balance-sticky-bar row items-center justify-between q-px-md q-py-xs bg-green-1"
+      >
+        <div class="row items-center q-gutter-xs overflow-auto no-wrap fill-width">
+          <span
+            class="text-caption text-weight-bold text-black uppercase tracking-wider q-mr-xs flex-shrink-0"
+          >
+            Balances:
+          </span>
+          <span
+            v-for="badge in leaveBalanceBadges"
+            :key="`sticky-badge-${badge.code}`"
+            class="ledger-summary-chip text-weight-bold"
+            :class="resolveBadgeColorClass(badge.code)"
+          >
+            <span class="chip-code">{{ badge.label }}:</span>
+            <span class="chip-value q-ml-xs">{{ badge.value }}</span>
+          </span>
+        </div>
+
+        <!-- Page Navigator Indicator -->
+        <div
+          v-if="renderedPages.length > 1"
+          class="row items-center q-gutter-x-xs text-caption flex-shrink-0 q-ml-sm"
+        >
+          <q-btn
+            flat
+            dense
+            round
+            icon="chevron_left"
+            size="xs"
+            color="green-9"
+            :disable="activePageIndex <= 0"
+            @click="scrollToPage(activePageIndex - 1)"
+          />
+          <span class="text-weight-bold text-green-10"
+            >Page {{ activePageIndex + 1 }} of {{ renderedPages.length }}</span
+          >
+          <q-btn
+            flat
+            dense
+            round
+            icon="chevron_right"
+            size="xs"
+            color="green-9"
+            :disable="activePageIndex >= renderedPages.length - 1"
+            @click="scrollToPage(activePageIndex + 1)"
+          />
+        </div>
+      </div>
+
+      <!-- Main Stage Body -->
+      <q-card-section class="leave-ledger-dialog__body q-pa-none">
+        <q-banner v-if="error" dense rounded class="bg-orange-1 text-orange-9 q-ma-md">
           <template #avatar>
             <q-icon name="warning" color="orange-8" />
           </template>
@@ -18,21 +137,26 @@
 
         <div
           v-if="loading"
-          class="leave-ledger-dialog__loading row items-center justify-center q-pa-xl text-grey-7"
+          class="leave-ledger-dialog__loading row items-center justify-center q-pa-xl text-grey-8"
         >
-          <q-spinner color="secondary" size="28px" class="q-mr-sm" />
-          <span>Loading leave credits ledger...</span>
+          <q-spinner color="primary" size="36px" class="q-mr-sm" />
+          <span class="text-subtitle2 text-weight-medium">Loading leave credits ledger...</span>
         </div>
 
-        <div v-else class="ledger-preview-stage">
-          <div class="ledger-preview-pages">
+        <div v-else class="ledger-preview-stage" ref="stageContainer">
+          <div
+            class="ledger-preview-pages"
+            :style="{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }"
+          >
             <div
               v-for="(pageRows, pageIndex) in renderedPages"
+              :id="`ledger-page-${pageIndex}`"
               :key="`ledger-page-${pageIndex}`"
               class="ledger-sheet"
               :class="paperSizeClass"
               :style="sheetStyle"
             >
+              <!-- Official Sheet Identity Header -->
               <div class="ledger-sheet__identity">
                 <div class="ledger-sheet__identity-name" :style="identityNameStyle">
                   {{ employeeHeadingName }}
@@ -68,6 +192,7 @@
                 </div>
               </div>
 
+              <!-- Main Official Ledger Table -->
               <div class="ledger-table-wrap">
                 <table class="ledger-table">
                   <colgroup>
@@ -91,13 +216,22 @@
                       >
                         <span class="ledger-table__stacked-head">Particulars</span>
                       </th>
-                      <th colspan="4" class="ledger-table__section-head">
+                      <th
+                        colspan="4"
+                        class="ledger-table__section-head ledger-table__section-head--vl"
+                      >
                         <span class="ledger-table__stacked-head">Vacation Leave</span>
                       </th>
-                      <th colspan="4" class="ledger-table__section-head">
+                      <th
+                        colspan="4"
+                        class="ledger-table__section-head ledger-table__section-head--sl"
+                      >
                         <span class="ledger-table__stacked-head">Sick Leave</span>
                       </th>
-                      <th colspan="4" class="ledger-table__section-head">
+                      <th
+                        colspan="4"
+                        class="ledger-table__section-head ledger-table__section-head--other"
+                      >
                         <span class="ledger-table__stacked-head">Other Type of Leave</span>
                       </th>
                       <th
@@ -166,13 +300,17 @@
                     <tr
                       v-for="entry in pageRows"
                       :key="entry.key"
+                      class="ledger-row"
                       :class="{
                         'ledger-table__row--blank': entry.isBlank,
                         'ledger-table__row--balance-forwarded': entry.isBalanceForwarded,
+                        'ledger-table__row--restoration': isRestorationEntry(entry),
                       }"
                     >
                       <td class="ledger-table__cell--period">{{ entry.period }}</td>
-                      <td class="ledger-table__cell--particulars">{{ entry.particulars }}</td>
+                      <td class="ledger-table__cell--particulars" :title="entry.particulars">
+                        {{ entry.particulars }}
+                      </td>
                       <td>
                         <span :class="valueClassResolver(entry.vacationEarned, entry, 'VL')">
                           {{ entry.vacationEarned }}
@@ -235,7 +373,7 @@
                       </td>
                       <td class="ledger-table__cell--action">
                         <div class="row items-center justify-center no-wrap">
-                          <span style="white-space: pre-line;">{{ entry.actionTaken }}</span>
+                          <span style="white-space: pre-line">{{ entry.actionTaken }}</span>
                           <q-btn
                             v-if="entry.isEditableAccrual && isHrAdmin"
                             icon="edit"
@@ -258,49 +396,63 @@
         </div>
       </q-card-section>
 
-      <q-card-actions class="ledger-dialog-actions q-pa-md">
-        <div
-          v-if="!loading && leaveBalanceBadges.length"
-          class="ledger-dialog-actions__balances"
-          aria-label="Leave credit balances"
-        >
-          <span
-            v-for="badge in leaveBalanceBadges"
-            :key="`ledger-badge-${badge.code}`"
-            class="ledger-dialog-balance-badge"
-            :style="badge.style || {}"
-          >
-            <span class="ledger-dialog-balance-badge__code">{{ badge.label }}</span>
-            <span class="ledger-dialog-balance-badge__value">{{ badge.value }}</span>
-          </span>
+      <!-- Clean Light Footer -->
+      <q-card-actions align="right" class="ledger-dialog-actions q-pa-sm q-px-md bg-white border-top">
+        <div class="row items-center q-gutter-x-xs">
+          <q-btn
+            unelevated
+            no-caps
+            label="Restore Leave"
+            color="primary"
+            icon="settings_backup_restore"
+            :disable="loading"
+            class="text-weight-bold"
+            @click="showRestoreDialog = true"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            label="Print Ledger"
+            color="secondary"
+            icon="print"
+            :loading="printing"
+            :disable="loading || !canPrint"
+            class="text-weight-bold"
+            @click="emit('print')"
+          />
         </div>
-        <q-space />
-        <q-btn
-          unelevated
-          no-caps
-          label="Print Ledger"
-          color="secondary"
-          icon="print"
-          :loading="printing"
-          :disable="loading || !canPrint"
-          @click="emit('print')"
-        />
       </q-card-actions>
     </q-card>
+
+    <HrLeaveRestorationDialog
+      v-model="showRestoreDialog"
+      :employee="employee"
+      @restored="handleRestored"
+    />
   </q-dialog>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from 'src/stores/auth-store'
+import HrLeaveRestorationDialog from 'src/components/hr/HrLeaveRestorationDialog.vue'
 
 const authStore = useAuthStore()
 const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
+const showRestoreDialog = ref(false)
+const isMaximized = ref(false)
+const zoomLevel = ref(100)
+const activePageIndex = ref(0)
+const stageContainer = ref(null)
 
 const props = defineProps({
   modelValue: {
     type: Boolean,
     default: false,
+  },
+  employee: {
+    type: Object,
+    default: null,
   },
   error: {
     type: String,
@@ -380,7 +532,11 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'print', 'edit-accrual'])
+const emit = defineEmits(['update:modelValue', 'print', 'edit-accrual', 'restored'])
+
+function handleRestored(data) {
+  emit('restored', data)
+}
 
 const dialogModel = computed({
   get: () => props.modelValue,
@@ -390,6 +546,49 @@ const dialogModel = computed({
 const paperSizeClass = computed(
   () => `ledger-sheet--${String(props.paperSize || 'A4').toLowerCase()}`,
 )
+
+function zoomIn() {
+  if (zoomLevel.value < 160) {
+    zoomLevel.value += 15
+  }
+}
+
+function zoomOut() {
+  if (zoomLevel.value > 70) {
+    zoomLevel.value -= 15
+  }
+}
+
+function resetZoom() {
+  zoomLevel.value = 100
+}
+
+function scrollToPage(index) {
+  if (index < 0 || index >= props.renderedPages.length) return
+  activePageIndex.value = index
+  const el = document.getElementById(`ledger-page-${index}`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+function isRestorationEntry(entry) {
+  if (!entry) return false
+  const particulars = String(entry.particulars || '')
+  return (
+    particulars.toLowerCase().includes('restore leave') ||
+    particulars.toLowerCase().includes('restoration')
+  )
+}
+
+function resolveBadgeColorClass(code) {
+  const c = String(code || '').toUpperCase()
+  if (c.includes('VL')) return 'badge-vl'
+  if (c.includes('SL')) return 'badge-sl'
+  if (c.includes('FL')) return 'badge-fl'
+  if (c.includes('SPL')) return 'badge-spl'
+  return 'badge-other'
+}
 </script>
 
 <style scoped>
@@ -397,10 +596,84 @@ const paperSizeClass = computed(
   width: 96vw;
   max-width: 96vw;
   max-height: 96vh;
-  background: #f4f4f1;
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.25);
+}
+
+.leave-ledger-dialog--maximized {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+}
+
+.leave-ledger-dialog__header {
+  background: linear-gradient(135deg, #1b5e20 0%, #14532d 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.zoom-controls {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ledger-balance-sticky-bar {
+  border-bottom: 1px solid #dcfce7;
+  min-height: 38px;
+  background: #f0fdf4;
+}
+
+.ledger-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.73rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.badge-vl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-sl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-fl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-spl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-other {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.ledger-summary-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .leave-ledger-dialog__body {
@@ -409,20 +682,22 @@ const paperSizeClass = computed(
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: #f1f5f9;
 }
 
 .leave-ledger-dialog__loading {
   flex: 1 1 auto;
   min-height: 0;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .ledger-preview-stage {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 4px;
-  border-radius: 12px;
-  background: #e5e7eb;
+  padding: 16px;
+  background: #e2e8f0;
 }
 
 .ledger-preview-pages {
@@ -430,18 +705,22 @@ const paperSizeClass = computed(
   flex-direction: column;
   gap: 32px;
   align-items: center;
-  padding: 12px 0 28px;
+  padding: 8px 0 32px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ledger-sheet {
   margin: 0 auto;
   border: 1px solid #000000;
   overflow: hidden;
-  background: #fffdf8;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  box-shadow:
+    0 10px 25px -5px rgba(0, 0, 0, 0.15),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
   font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   display: flex;
   flex-direction: column;
+  border-radius: 2px;
 }
 
 .ledger-sheet__identity {
@@ -451,7 +730,7 @@ const paperSizeClass = computed(
   column-gap: 0;
   min-height: 40px;
   padding: 8px 12px 4px;
-  border-bottom: 1px solid #000000;
+  border-bottom: 1.5px solid #000000;
 }
 
 .ledger-sheet__identity-name,
@@ -497,7 +776,7 @@ const paperSizeClass = computed(
 .ledger-sheet__header {
   display: grid;
   grid-template-columns: 34% 13% 29% 24%;
-  border-bottom: 1px solid #000000;
+  border-bottom: 1.5px solid #000000;
 }
 
 .ledger-sheet__field {
@@ -539,9 +818,9 @@ const paperSizeClass = computed(
 .ledger-table th,
 .ledger-table td {
   border: 1px solid #000000;
-  padding: 1px 2px;
-  font-size: 0.64rem;
-  line-height: 1.02;
+  padding: 2px 3px;
+  font-size: 0.65rem;
+  line-height: 1.05;
   vertical-align: middle;
   color: #000000;
   text-align: center;
@@ -551,37 +830,52 @@ const paperSizeClass = computed(
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  background: #fffdf8;
+  background: #f8fafc;
   color: #000000;
   padding: 0;
+  border: 1px solid #000000;
 }
 
 .ledger-table thead tr:first-child th {
-  height: 20px;
+  height: 22px;
 }
 
 .ledger-table thead tr:nth-child(2) th {
-  height: 34px;
+  height: 36px;
 }
 
 .ledger-table thead tr:nth-child(2) .ledger-table__stacked-head {
-  font-size: 0.56rem;
-  line-height: 0.96;
+  font-size: 0.58rem;
+  line-height: 0.98;
   letter-spacing: 0.01em;
   padding: 1px 1px;
 }
 
 .ledger-table td {
-  padding: 1px 3px;
+  padding: 2px 4px;
 }
 
 .ledger-table tbody tr {
-  height: 20px;
+  height: 22px;
+  transition: background-color 0.12s ease;
+}
+
+.ledger-table tbody tr:hover td {
+  background-color: #e6f4ea !important;
+}
+
+.ledger-table__row--blank td {
+  background: #ffffff;
 }
 
 .ledger-table__row--balance-forwarded td {
-  background: #fffdf8;
+  background: #f8fafc;
   font-weight: 700;
+}
+
+.ledger-table__row--restoration td {
+  background: #f0fdf4;
+  font-weight: 600;
 }
 
 .ledger-table__stacked-head {
@@ -606,11 +900,13 @@ const paperSizeClass = computed(
 }
 
 .ledger-table__value--wl {
-  color: #1e5fbf;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .ledger-table__value--mco6 {
-  color: #1b8f3a;
+  color: #15803d;
+  font-weight: 600;
 }
 
 .ledger-table__cell--period,
@@ -620,18 +916,18 @@ const paperSizeClass = computed(
 }
 
 .ledger-table__cell--particulars {
-  font-size: 0.55rem;
+  font-size: 0.58rem;
   line-height: 1;
   font-weight: 600;
 }
 
 .ledger-table__primary-head--particulars .ledger-table__stacked-head {
-  font-size: 0.56rem;
+  font-size: 0.58rem;
   letter-spacing: 0.01em;
 }
 
 .ledger-table__primary-head--action .ledger-table__stacked-head {
-  font-size: 0.52rem;
+  font-size: 0.54rem;
   line-height: 0.94;
   letter-spacing: 0.01em;
   padding: 1px 1px;
@@ -647,50 +943,8 @@ const paperSizeClass = computed(
   font-weight: 600;
 }
 
-.ledger-dialog-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.ledger-dialog-actions__balances {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-
-.ledger-dialog-actions__balances-label {
-  font-size: 0.76rem;
-  font-weight: 700;
-  line-height: 1;
-  color: #4b5563;
-}
-
-.ledger-dialog-balance-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--badge-accent, #9ca3af);
-  background: var(--badge-bg, #f8fafc);
-  color: var(--badge-accent, #374151);
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.ledger-dialog-balance-badge__code {
-  opacity: 0.88;
-}
-
-.ledger-dialog-balance-badge__value {
-  color: #111827;
-  font-weight: 800;
+.border-top {
+  border-top: 1px solid #cbd5e1;
 }
 
 @media (max-width: 900px) {
@@ -717,10 +971,6 @@ const paperSizeClass = computed(
 
   .ledger-dialog-actions {
     align-items: stretch;
-  }
-
-  .ledger-dialog-actions__balances {
-    width: 100%;
   }
 }
 </style>
