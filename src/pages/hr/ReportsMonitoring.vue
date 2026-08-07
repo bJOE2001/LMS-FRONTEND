@@ -264,6 +264,7 @@ import MonetizationReportTable from 'components/report/MonetizationReportTable.v
 import CtoAvailmentReportTable from 'components/report/CtoAvailmentReportTable.vue'
 import CocBalancesReportTable from 'components/report/CocBalancesReportTable.vue'
 import LeaveAvailmentPerOfficeReportTable from 'components/report/LeaveAvailmentPerOfficeReportTable.vue'
+import LeaveAdjustmentReportTable from 'components/report/LeaveAdjustmentReportTable.vue'
 import {
   exportReportsMonitoringCsv,
   exportReportsMonitoringExcel,
@@ -487,6 +488,7 @@ const monetizationRows = computed(() => reportStore.monetizationReports)
 const ctoAvailmentRows = computed(() => reportStore.ctoAvailmentReports)
 const cocBalancesRows = computed(() => reportStore.cocBalanceReports)
 const leaveAvailmentRows = computed(() => reportStore.leaveAvailmentReports)
+const adjustmentRequestsRows = computed(() => reportStore.adjustmentRequestsReports)
 // Mapping of report types to their configurations
 const reportConfigs = {
   lwop: {
@@ -819,6 +821,24 @@ const reportConfigs = {
         align: 'right',
       },
       { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' },
+    ],
+  },
+  adjustmentRequests: {
+    label: 'Summary of Request for Adjustment of Approved Leave Application',
+    component: LeaveAdjustmentReportTable,
+    rows: adjustmentRequestsRows,
+    minTableWidth: '1400px',
+    metricField: null,
+    balanceField: null,
+    columns: [
+      { name: 'no', label: 'NO.', field: 'no', align: 'center' },
+      { name: 'date_of_request', label: 'DATE OF REQUEST', field: 'date_of_request', align: 'left' },
+      { name: 'employee_name', label: 'NAME OF EMPLOYEE', field: 'employee_name', align: 'left' },
+      { name: 'status', label: 'STATUS', field: 'status', align: 'center' },
+      { name: 'office', label: 'OFFICE', field: 'office', align: 'center' },
+      { name: 'from', label: 'FROM', field: 'from', align: 'left' },
+      { name: 'to', label: 'TO', field: 'to', align: 'left' },
+      { name: 'reason', label: 'REASON/S', field: 'reason', align: 'left' },
     ],
   },
 }

@@ -11,6 +11,8 @@ const REPORT_TYPE_ALIASES = {
   cocBalances: 'cocBalances',
   leaveAvailment: 'leaveAvailmentPerOffice',
   leaveAvailmentPerOffice: 'leaveAvailmentPerOffice',
+  adjustmentRequests: 'adjustmentRequests',
+  leaveAdjustments: 'adjustmentRequests',
 }
 
 const REPORT_TYPES = [
@@ -20,6 +22,7 @@ const REPORT_TYPES = [
   'ctoAvailment',
   'cocBalances',
   'leaveAvailmentPerOffice',
+  'adjustmentRequests',
 ]
 
 const REPORT_ENDPOINTS = {
@@ -29,6 +32,7 @@ const REPORT_ENDPOINTS = {
   ctoAvailment: '/hr/reports/cto-availment',
   cocBalances: '/hr/reports/coc-balances',
   leaveAvailmentPerOffice: '/hr/reports/leave-availment',
+  adjustmentRequests: '/hr/reports/adjustment-requests',
 }
 
 function normalizeReportRowsPayload(payload) {
@@ -66,6 +70,7 @@ export const useReportStore = defineStore('reports', () => {
   const ctoAvailmentReports = ref([])
   const cocBalanceReports = ref([])
   const leaveAvailmentReports = ref([])
+  const adjustmentRequestsReports = ref([])
 
   const loadedReports = ref(buildLoadedState())
   const loadingByType = ref(buildLoadingState())
@@ -77,6 +82,7 @@ export const useReportStore = defineStore('reports', () => {
     ctoAvailment: ctoAvailmentReports,
     cocBalances: cocBalanceReports,
     leaveAvailmentPerOffice: leaveAvailmentReports,
+    adjustmentRequests: adjustmentRequestsReports,
   }
 
   const loading = computed(() => Object.values(loadingByType.value).some(Boolean))
@@ -139,6 +145,7 @@ export const useReportStore = defineStore('reports', () => {
     ctoAvailmentReports,
     cocBalanceReports,
     leaveAvailmentReports,
+    adjustmentRequestsReports,
     loadedReports,
     loadingByType,
     loading,
@@ -149,6 +156,7 @@ export const useReportStore = defineStore('reports', () => {
     fetchCtoAvailmentReports: () => fetchReport('ctoAvailment', { force: true }),
     fetchCocBalanceReports: () => fetchReport('cocBalances', { force: true }),
     fetchLeaveAvailmentReports: () => fetchReport('leaveAvailmentPerOffice', { force: true }),
+    fetchAdjustmentRequestsReports: () => fetchReport('adjustmentRequests', { force: true }),
     ensureReportLoaded,
     refreshReport,
     resetReports,

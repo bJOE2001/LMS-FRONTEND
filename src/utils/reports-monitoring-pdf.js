@@ -46,6 +46,7 @@ const REPORT_TITLE_MAP = {
   ctoAvailment: 'REPORT FOR COMPENSATORY TIME OFF (CTO) AVAILMENT',
   cocBalances: 'REPORT OF COMPENSATORY OVERTIME CREDIT (COC) BALANCES',
   leaveAvailmentPerOffice: 'REPORT OF AVAILMENT FOR LEAVE APPLICATION PER OFFICE',
+  adjustmentRequests: 'SUMMARY OF REQUEST FOR ADJUSTMENT OF APPROVED LEAVE APPLICATION',
 }
 
 const PDF_CENTERED_VALUE_COLUMNS = {
@@ -78,6 +79,7 @@ const PDF_CENTERED_VALUE_COLUMNS = {
   ],
   cocBalances: ['totalBalanceHours'],
   leaveAvailmentPerOffice: ['vlFl', 'sl', 'mcCo', 'wlp', 'others', 'totalNoLeave'],
+  adjustmentRequests: ['no', 'date_of_request', 'status', 'office', 'from', 'to'],
 }
 
 function normalizeText(value) {
