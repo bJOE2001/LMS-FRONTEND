@@ -3374,6 +3374,8 @@ function hasEditRequestSignal(app) {
 
   return getStatusHistoryEntries(app).some((entry) => {
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+    if (actionToken.includes('HR_APPLICATION_EDIT')) return false
+    
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const historyRemarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
