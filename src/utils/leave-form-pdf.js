@@ -21,6 +21,7 @@ import {
   isSangguniangPanlungsodMemberIApplicant,
 } from './signatory-rules/applicant-role-utils'
 import { resolveRecommendationSignatoryByApplicantType } from './signatory-rules/recommendation-signatory'
+import { api } from 'boot/axios'
 
 // pdfmake v0.3.x font initialization
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -2887,6 +2888,33 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     defaultStyle: {
       font: 'Roboto',
     },
+  }
+
+  const appId =
+    app?.id ||
+    app?.leave_application_id ||
+    app?.application_id ||
+    sourceApp?.id ||
+    sourceApp?.leave_application_id ||
+    sourceApp?.application_id
+  if (appId) {
+    const endpoint = options?.isErms
+      ? `/erms/leave-applications/${appId}/log-print`
+      : `/leave-applications/${appId}/log-print`
+    api
+      .post(endpoint, {
+        remarks: options?.remarks || 'Printed leave form PDF',
+        printed_by_name: app?.employee_name || sourceApp?.employee_name || null,
+        printed_by_id:
+          app?.employee_control_no ||
+          app?.employeeControlNo ||
+          sourceApp?.employee_control_no ||
+          sourceApp?.employeeControlNo ||
+          null,
+      })
+      .catch((err) => {
+        console.warn('Failed to log print action:', err)
+      })
   }
 
   await openPdfDocument(pdfMake.createPdf(docDefinition), options)

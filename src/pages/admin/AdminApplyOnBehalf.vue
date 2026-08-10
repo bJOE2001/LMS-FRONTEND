@@ -436,11 +436,9 @@
                 <div :class="inDialog ? 'col-12 col-sm-6' : 'col-12 col-md-6'">
                   <label class="input-label">
                     <template v-if="isMco6Leave">Select Leave Dates (max 3)</template>
-                    <template v-else-if="isMaternityLeave || isPaternityLeave">Select Start Date</template>
                     <template v-else>Select Leave Dates</template>
                   </label>
 
-                  <!-- Maternity/Paternity Leave: Single Date Picker -->
                   <div
                     ref="leaveDateCalendarRef"
                     class="leave-date-calendar q-mt-sm"
@@ -448,18 +446,6 @@
                     @click.capture="handleCalendarSurfaceClick"
                   >
                     <q-date
-                      v-if="isMaternityLeave || isPaternityLeave"
-                      v-model="maternityStartDate"
-                      mask="YYYY-MM-DD"
-                      color="green-8"
-                      :options="leaveDateOptions"
-                      style="width: 100%"
-                      @navigation="onCalendarNavigation"
-                    />
-
-                    <!-- Standard Leave: Multi-select -->
-                    <q-date
-                      v-else
                       v-model="selectedDates"
                       multiple
                       mask="YYYY-MM-DD"
@@ -512,7 +498,6 @@
                       <div class="selected-date-duration-label">
                         <span>{{ formatDialogDateChip(d) }}</span>
                         <q-btn
-                          v-if="!(isMaternityLeave || isPaternityLeave)"
                           flat
                           round
                           dense
@@ -625,7 +610,7 @@
                           >
                             {{ selectedDatePayStatusLabel(d) }}
                           </button>
-                          <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" :disable="isMaternityLeave || isPaternityLeave" />
+                          <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" />
                         </div>
                       </q-item-section>
                     </q-item>
@@ -722,7 +707,6 @@ import { useSickIllnessOptions } from 'src/composables/useSickIllnessOptions'
 import { useSpecialPrivilegeReasons } from 'src/composables/useSpecialPrivilegeReasons'
 import { saveLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 import {
-  enumerateInclusiveDates,
   getApplicationBlockingDates,
   getApplicationInformationalDates,
   getBlockingLeaveApplicationState,
@@ -731,7 +715,6 @@ import {
   getInformationalLeaveApplicationState,
   isBlockingLeaveApplication,
   normalizeIsoDate,
-  offsetIsoDate,
 } from 'src/utils/leave-date-locking'
 
 const props = defineProps({
@@ -1759,8 +1742,6 @@ function getSelectionLimitWarningForTotal(totalDays) {
 }
 
 const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'Special Privilege Leave')
-const isMaternityLeave = computed(() => selectedLeaveTypeName.value === 'Maternity Leave')
-const isPaternityLeave = computed(() => selectedLeaveTypeName.value === 'Paternity Leave')
 const isCtoType = computed(() => selectedLeaveTypeName.value === 'CTO Leave')
 const isMonetization = computed(() => selectedLeaveTypeName.value === 'Monetization Leave')
 const isTerminalLeave = computed(() => {
@@ -2343,20 +2324,6 @@ function getLockedDateConflict(dateStr) {
   const normalizedDate = normalizeIsoDate(dateStr)
   if (!normalizedDate) return null
 
-  if (isMaternityLeave.value || isPaternityLeave.value) {
-    const totalDays = isMaternityLeave.value ? 105 : 7
-    const conflictingDate = enumerateInclusiveDates(
-      normalizedDate,
-      offsetIsoDate(normalizedDate, totalDays - 1),
-    ).find((date) => lockedLeaveDates.value.has(date))
-
-    if (!conflictingDate) return null
-    return {
-      date: conflictingDate,
-      state: getLockedDateState(conflictingDate) || 'pending',
-    }
-  }
-
   if (!lockedLeaveDates.value.has(normalizedDate)) return null
 
   return {
@@ -2394,14 +2361,6 @@ function getSelectionLimitWarningForDate(dateStr) {
   if (currentDates.includes(normalizedDate)) return ''
 
   if (!leaveDateOptions.value(toSlash(normalizedDate))) return ''
-
-  if (isMaternityLeave.value || isPaternityLeave.value) {
-    const totalDays = isMaternityLeave.value ? 105 : 7
-    const proposedDates = Array.from({ length: totalDays }, (_, index) =>
-      offsetIsoDate(normalizedDate, index),
-    )
-    return getSelectionLimitWarningForDates(proposedDates)
-  }
 
   return getSelectionLimitWarningForDates([...currentDates, normalizedDate])
 }
@@ -3245,69 +3204,17 @@ const leaveDateOptions = computed(() => {
   return (date) => {
     const dashDate = normalizeIsoDate(date)
 
-    // Maternity/Paternity Leave stays continuous and can still include locked-date checks.
-    if (isMaternityLeave.value || isPaternityLeave.value) {
-      return isLockedDateSelection(dashDate) === false
-    }
-
+    if (isLockedDateSelection(dashDate)) return false
     if (blockedDates.has(dashDate) && selected.includes(dashDate) === false) return false
 
     return true
   }
 })
 
-const maternityStartDate = ref(null)
-
-// Auto-calculate days for Maternity (105) or Paternity (7)
-watch(maternityStartDate, (newDate) => {
-  if (newDate) {
-    if (isLockedDateSelection(newDate)) {
-      showCalendarDateWarning(newDate)
-      maternityStartDate.value = null
-      selectedDates.value = []
-      return
-    }
-
-    clearCalendarDateWarning()
-    let daysCount = 0
-    if (isMaternityLeave.value) daysCount = 105
-    else if (isPaternityLeave.value) daysCount = 7
-    
-    if (daysCount > 0) {
-      const dates = []
-      const start = new Date(newDate)
-      for (let i = 0; i < daysCount; i++) {
-        const d = new Date(start)
-        d.setDate(start.getDate() + i)
-        dates.push(d.toISOString().split('T')[0])
-      }
-      const normalizedDates = normalizeSelectedDates(dates)
-      const limitWarning = getSelectionLimitWarningForDates(normalizedDates)
-      if (limitWarning) {
-        showCalendarDateWarning(newDate, { message: limitWarning })
-        maternityStartDate.value = null
-        selectedDates.value = []
-        return
-      }
-      selectedDates.value = normalizedDates
-    }
-  }
-})
-
-// Reset start date if leave type changes
-watch([isMaternityLeave, isPaternityLeave], ([mat, pat]) => {
-  if (!mat && !pat) maternityStartDate.value = null
-})
-
 watch(unavailableLeaveDates, (dates) => {
   const invalidSelectedDate = selectedDatesList.value.find((date) => dates.has(date))
   if (invalidSelectedDate) {
     selectedDates.value = selectedDatesList.value.filter((date) => dates.has(date) === false)
-  }
-
-  if (maternityStartDate.value && isLockedDateSelection(maternityStartDate.value)) {
-    maternityStartDate.value = null
-    selectedDates.value = []
   }
 
   if (calendarDateWarningDate.value && dates.has(calendarDateWarningDate.value) === false) {
