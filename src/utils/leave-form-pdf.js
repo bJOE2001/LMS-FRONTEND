@@ -2159,8 +2159,8 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const normalizedSickDetail = normalizeSickDetailValue(sickDetail)
   const resolvedSickSpecify = sickSpecify
   const showWithinPhilippines =
-    (isVacation && normalizedVacationDetail === 'Within the Philippines') || isSpecPriv
-  const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
+    ((isVacation || isWellness) && normalizedVacationDetail === 'Within the Philippines') || isSpecPriv
+  const showAbroad = (isVacation || isWellness) && normalizedVacationDetail === 'Abroad'
   const useCityViceMayorApprovedForSignatory =
     shouldUseCityViceMayorApprovedForSignatory(app) &&
     !isDepartmentHeadApplicant(app) &&
@@ -2472,7 +2472,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                 stack: [
                   { text: '6.B  DETAILS OF LEAVE', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
                   {
-                    text: '   In case of Vacation/Special Privilege Leave(MC06):',
+                    text: '   In case of Vacation/Special Privilege/Wellness Leave:',
                     fontSize: 7,
                     italics: true,
                     margin: [4, 0],

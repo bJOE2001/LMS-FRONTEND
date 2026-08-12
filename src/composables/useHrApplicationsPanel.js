@@ -5150,13 +5150,25 @@ function getSelectedDateCoverageWeights(app) {
 
   let defaultCoverageWeight = 1
   const dateCount = dateSet.length
-  if (dateCount > 0 && totalDays > 0) {
-    const halfMatch = Math.abs(dateCount * 0.5 - totalDays) < 0.00001
-    const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
+  
+  const isAbroad = isAbroadLeaveApplication(app)
+  const effectiveDateCount = isAbroad
+    ? dateSet.filter((dateValue) => {
+        const dateStr = toIsoDateString(dateValue)
+        if (!dateStr) return true
+        const dateObj = new Date(dateStr)
+        if (Number.isNaN(dateObj.getTime())) return true
+        return dateObj.getDay() !== 0 && dateObj.getDay() !== 6
+      }).length
+    : dateCount
+
+  if (effectiveDateCount > 0 && totalDays > 0) {
+    const halfMatch = Math.abs(effectiveDateCount * 0.5 - totalDays) < 0.00001
+    const wholeMatch = Math.abs(effectiveDateCount - totalDays) < 0.00001
     if (halfMatch) {
       defaultCoverageWeight = 0.5
     } else if (!wholeMatch) {
-      defaultCoverageWeight = Math.max(Math.min(totalDays / dateCount, 1), 0.5)
+      defaultCoverageWeight = Math.max(Math.min(totalDays / effectiveDateCount, 1), 0.5)
     }
   }
 
