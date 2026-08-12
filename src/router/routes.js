@@ -12,6 +12,7 @@ const routes = [
       { path: 'admin/employees', name: 'admin-employees', component: () => import('pages/admin/AdminEmployees.vue') },
       { path: 'admin/review/:id', name: 'admin-review', component: () => import('pages/admin/ApplicationReview.vue') },
       { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
+      { path: 'admin/print-logs', name: 'admin-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },
 
       // HR
       { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },
@@ -29,6 +30,7 @@ const routes = [
       { path: 'hr/application-edit-requests', name: 'hr-application-edit-requests', component: () => import('pages/hr/ApplicationEditRequestsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
+      { path: 'hr/print-logs', name: 'hr-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },
       { path: 'hr/user-management', name: 'hr-user-management', component: () => import('pages/hr/UserManagement.vue') },
 
       // Common

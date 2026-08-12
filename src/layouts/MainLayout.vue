@@ -126,6 +126,10 @@
                 <q-item-section avatar><q-icon name="admin_panel_settings" /></q-item-section>
                 <q-item-section>Access Control</q-item-section>
               </q-item>
+              <q-item v-if="['admin', 'department_admin', 'guest_admin', 'hr'].includes(leaveStore.userRole)" clickable :to="leaveStore.userRole === 'hr' ? '/hr/print-logs' : '/admin/print-logs'">
+                <q-item-section avatar><q-icon name="print" /></q-item-section>
+                <q-item-section>Print Logs</q-item-section>
+              </q-item>
               <q-item clickable to="/settings">
                 <q-item-section avatar><q-icon name="settings" /></q-item-section>
                 <q-item-section>Settings</q-item-section>
