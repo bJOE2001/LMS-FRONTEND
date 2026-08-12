@@ -1000,7 +1000,7 @@ const LEDGER_PAPER_PRESETS = {
     label: 'A4',
     previewWidth: 794,
     previewHeight: 1123,
-    minimumRows: 50,
+    minimumRows: 46,
     pdfMinimumRows: 46,
     pageSize: 'A4',
     pageMargins: [8, 18, 8, 8],
@@ -1105,8 +1105,8 @@ const ledgerPaperPreset = computed(
 )
 const ledgerSheetStyle = computed(() => ({
   width: `${ledgerPaperPreset.value.previewWidth}px`,
-  height: `${ledgerPaperPreset.value.previewHeight}px`,
   minHeight: `${ledgerPaperPreset.value.previewHeight}px`,
+  height: 'auto',
 }))
 const ledgerDialogStyle = computed(() => ({
   width: `min(${ledgerPaperPreset.value.previewWidth + 96}px, 96vw)`,
@@ -2455,9 +2455,12 @@ function updateLedgerForwardedBalanceState(state, rows) {
         normalizeLedgerTextValue(row.balanceKey) ||
         normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
       if (isLedgerOtherLeaveCode(balanceKey)) {
-        state.otherByCode[balanceKey] = otherBalance
+        state.otherByCode[balanceKey] = {
+          value: otherBalance,
+          code: normalizeLedgerLeaveCode(row.leaveTypeCode) || balanceKey.replace('other:', '')
+        }
       } else {
-        state.otherDefault = otherBalance
+        state.otherDefault = { value: otherBalance, code: '' }
       }
     }
   })
@@ -2469,41 +2472,92 @@ function isLedgerFiniteNumberValue(value) {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
 }
 
-function resolveLedgerForwardedOtherBalance(state) {
-  if (!state) return null
+function buildLedgerBalanceForwardedRows(state, pageIndex) {
+  const rows = []
+  let rowIndex = 0
+  
+  const today = new Date()
+  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthNamesLong = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  
+  const period = `${monthNamesShort[today.getMonth()]} ${today.getFullYear()}`
+  const actionTaken = `${monthNamesLong[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`
 
-  const codedBalances = Object.values(state.otherByCode || {}).filter((value) =>
-    isLedgerFiniteNumberValue(value),
-  )
-  if (codedBalances.length > 0) {
-    const codedTotal = codedBalances.reduce(
-      (total, value) => total + Number(value),
-      isLedgerFiniteNumberValue(state.otherDefault) ? Number(state.otherDefault) : 0,
-    )
-    return roundLedgerNumericValue(codedTotal)
+  if (isLedgerFiniteNumberValue(state?.vacation)) {
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-${rowIndex++}`,
+      id: `ledger-balance-forwarded-${pageIndex}-${rowIndex}`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: 'Balance Forwarded: VL',
+      actionTaken,
+      vacationBalance: normalizeLedgerQuantityValue(state.vacation),
+    })
   }
 
-  return isLedgerFiniteNumberValue(state.otherDefault) ? Number(state.otherDefault) : null
-}
-
-function buildLedgerBalanceForwardedRow(state, pageIndex) {
-  const otherBalance = resolveLedgerForwardedOtherBalance(state)
-
-  return {
-    ...LEDGER_BLANK_ROW_TEMPLATE,
-    key: `ledger-balance-forwarded-${pageIndex}`,
-    id: `ledger-balance-forwarded-${pageIndex}`,
-    isBlank: false,
-    isBalanceForwarded: true,
-    particulars: 'Balance Forwarded',
-    vacationBalance: isLedgerFiniteNumberValue(state?.vacation)
-      ? normalizeLedgerQuantityValue(state.vacation)
-      : '',
-    sickBalance: isLedgerFiniteNumberValue(state?.sick)
-      ? normalizeLedgerQuantityValue(state.sick)
-      : '',
-    otherBalance: otherBalance !== null ? normalizeLedgerQuantityValue(otherBalance) : '',
+  if (isLedgerFiniteNumberValue(state?.sick)) {
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-${rowIndex++}`,
+      id: `ledger-balance-forwarded-${pageIndex}-${rowIndex}`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: 'Balance Forwarded: SL',
+      actionTaken,
+      sickBalance: normalizeLedgerQuantityValue(state.sick),
+    })
   }
+
+  const otherBalances = Object.entries(state?.otherByCode || {})
+    .filter(([, data]) => isLedgerFiniteNumberValue(data?.value !== undefined ? data.value : data))
+    .map(([, data]) => {
+      if (typeof data === 'object' && data !== null) {
+        return { code: data.code, value: data.value }
+      }
+      return { code: '', value: data }
+    })
+
+  if (state?.otherDefault) {
+    const def = state.otherDefault
+    const defVal = typeof def === 'object' && def !== null ? def.value : def
+    if (isLedgerFiniteNumberValue(defVal)) {
+      otherBalances.push({ code: typeof def === 'object' ? def.code : '', value: defVal })
+    }
+  }
+
+  otherBalances.forEach((other) => {
+    let codeLabel = other.code ? `: ${other.code}` : ''
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-${rowIndex++}`,
+      id: `ledger-balance-forwarded-${pageIndex}-${rowIndex}`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: `Balance Forwarded${codeLabel}`,
+      actionTaken,
+      otherBalance: normalizeLedgerQuantityValue(other.value),
+      leaveTypeCode: other.code,
+    })
+  })
+
+  if (rows.length === 0) {
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-0`,
+      id: `ledger-balance-forwarded-${pageIndex}-0`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: 'Balance Forwarded',
+      actionTaken,
+    })
+  }
+
+  return rows
 }
 
 function buildLedgerPagesForPaper(rows, preset, options = {}) {
@@ -2523,11 +2577,10 @@ function buildLedgerPagesForPaper(rows, preset, options = {}) {
 
   while (sourceIndex < sourceRows.length) {
     const shouldAddForwardedRow = pageIndex > 0 && rowsPerPage > 1
-    const sourceRowsPerPage = Math.max(1, rowsPerPage - (shouldAddForwardedRow ? 1 : 0))
+    const forwardedRows = shouldAddForwardedRow ? buildLedgerBalanceForwardedRows(forwardedBalanceState, pageIndex) : []
+    const sourceRowsPerPage = Math.max(1, rowsPerPage - forwardedRows.length)
     const pageSourceRows = sourceRows.slice(sourceIndex, sourceIndex + sourceRowsPerPage)
-    const pageRows = shouldAddForwardedRow
-      ? [buildLedgerBalanceForwardedRow(forwardedBalanceState, pageIndex), ...pageSourceRows]
-      : pageSourceRows
+    const pageRows = [...forwardedRows, ...pageSourceRows]
 
     pages.push(
       buildLedgerRowsForPaper(pageRows, preset, {
@@ -2757,7 +2810,8 @@ function buildLedgerPdfBodyCellMargin(text, options = {}) {
   const lineHeight = Number(options.lineHeight ?? 0.95)
   const rowHeight = Number(options.rowHeight ?? 14.05)
   const lineCount = Math.max(1, String(text || ' ').split('\n').length)
-  const estimatedTextHeight = fontSize * lineHeight * lineCount
+  // pdfMake uses the font's internal ascender/descender which adds about ~1.2x height
+  const estimatedTextHeight = fontSize * lineHeight * 1.2 * lineCount
   const verticalMargin = Math.max(0, (rowHeight - estimatedTextHeight) / 2)
 
   return [0.2, verticalMargin, 0.2, verticalMargin]
@@ -2868,13 +2922,14 @@ function buildLedgerPdfTableBody(rows, preset = {}) {
         bold: Boolean(String(entry.period || '').trim()),
         fontSize: 5.8,
         lineHeight: 0.92,
-        noWrap: false,
+        noWrap: true,
         rowHeight: bodyRowHeight,
       }),
       buildLedgerPdfBodyCell(entry.particulars, {
         bold: Boolean(String(entry.particulars || '').trim()),
-        fontSize: 6.6,
+        fontSize: 5.6,
         lineHeight: 1,
+        noWrap: true,
         rowHeight: bodyRowHeight,
       }),
       buildLedgerPdfValueCell(
@@ -3001,7 +3056,7 @@ function buildLedgerPdfTableBody(rows, preset = {}) {
         bold: Boolean(String(entry.actionTaken || '').trim()),
         fontSize: 6.25,
         lineHeight: 0.92,
-        noWrap: false,
+        noWrap: true,
         rowHeight: bodyRowHeight,
       }),
     ])

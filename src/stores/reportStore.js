@@ -13,6 +13,7 @@ const REPORT_TYPE_ALIASES = {
   leaveAvailmentPerOffice: 'leaveAvailmentPerOffice',
   adjustmentRequests: 'adjustmentRequests',
   leaveAdjustments: 'adjustmentRequests',
+  applicationProcessing: 'applicationProcessing',
 }
 
 const REPORT_TYPES = [
@@ -23,6 +24,7 @@ const REPORT_TYPES = [
   'cocBalances',
   'leaveAvailmentPerOffice',
   'adjustmentRequests',
+  'applicationProcessing',
 ]
 
 const REPORT_ENDPOINTS = {
@@ -33,6 +35,7 @@ const REPORT_ENDPOINTS = {
   cocBalances: '/hr/reports/coc-balances',
   leaveAvailmentPerOffice: '/hr/reports/leave-availment',
   adjustmentRequests: '/hr/reports/adjustment-requests',
+  applicationProcessing: '/hr/reports/application-processing',
 }
 
 function normalizeReportRowsPayload(payload) {
@@ -71,6 +74,7 @@ export const useReportStore = defineStore('reports', () => {
   const cocBalanceReports = ref([])
   const leaveAvailmentReports = ref([])
   const adjustmentRequestsReports = ref([])
+  const applicationProcessingReports = ref([])
 
   const loadedReports = ref(buildLoadedState())
   const loadingByType = ref(buildLoadingState())
@@ -83,6 +87,7 @@ export const useReportStore = defineStore('reports', () => {
     cocBalances: cocBalanceReports,
     leaveAvailmentPerOffice: leaveAvailmentReports,
     adjustmentRequests: adjustmentRequestsReports,
+    applicationProcessing: applicationProcessingReports,
   }
 
   const loading = computed(() => Object.values(loadingByType.value).some(Boolean))
@@ -119,6 +124,28 @@ export const useReportStore = defineStore('reports', () => {
     }
   }
 
+  async function fetchApplicationProcessingReports(fromDate, toDate, actionType) {
+    loadingByType.value['applicationProcessing'] = true
+    try {
+      const { data } = await api.get('/hr/reports/application-processing', {
+        params: {
+          from_date: fromDate,
+          to_date: toDate,
+          action_type: actionType,
+        },
+      })
+      applicationProcessingReports.value = normalizeReportRowsPayload(data)
+      loadedReports.value['applicationProcessing'] = true
+      return applicationProcessingReports.value
+    } catch (error) {
+      console.error('Error fetching application processing reports:', error)
+      applicationProcessingReports.value = []
+      throw error
+    } finally {
+      loadingByType.value['applicationProcessing'] = false
+    }
+  }
+
   async function ensureReportLoaded(type) {
     return fetchReport(type)
   }
@@ -134,6 +161,7 @@ export const useReportStore = defineStore('reports', () => {
     ctoAvailmentReports.value = []
     cocBalanceReports.value = []
     leaveAvailmentReports.value = []
+    applicationProcessingReports.value = []
     loadedReports.value = buildLoadedState()
     loadingByType.value = buildLoadingState()
   }
@@ -146,6 +174,7 @@ export const useReportStore = defineStore('reports', () => {
     cocBalanceReports,
     leaveAvailmentReports,
     adjustmentRequestsReports,
+    applicationProcessingReports,
     loadedReports,
     loadingByType,
     loading,
@@ -157,6 +186,8 @@ export const useReportStore = defineStore('reports', () => {
     fetchCocBalanceReports: () => fetchReport('cocBalances', { force: true }),
     fetchLeaveAvailmentReports: () => fetchReport('leaveAvailmentPerOffice', { force: true }),
     fetchAdjustmentRequestsReports: () => fetchReport('adjustmentRequests', { force: true }),
+    fetchReport,
+    fetchApplicationProcessingReports,
     ensureReportLoaded,
     refreshReport,
     resetReports,

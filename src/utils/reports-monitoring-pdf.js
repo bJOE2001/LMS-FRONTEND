@@ -47,6 +47,7 @@ const REPORT_TITLE_MAP = {
   cocBalances: 'REPORT OF COMPENSATORY OVERTIME CREDIT (COC) BALANCES',
   leaveAvailmentPerOffice: 'REPORT OF AVAILMENT FOR LEAVE APPLICATION PER OFFICE',
   adjustmentRequests: 'SUMMARY OF REQUEST FOR ADJUSTMENT OF APPROVED LEAVE APPLICATION',
+  applicationProcessing: 'PROCESSED APPLICATIONS REPORT',
 }
 
 const PDF_CENTERED_VALUE_COLUMNS = {
@@ -80,6 +81,7 @@ const PDF_CENTERED_VALUE_COLUMNS = {
   cocBalances: ['totalBalanceHours'],
   leaveAvailmentPerOffice: ['vlFl', 'sl', 'mcCo', 'wlp', 'others', 'totalNoLeave'],
   adjustmentRequests: ['no', 'date_of_request', 'status', 'office', 'from', 'to'],
+  applicationProcessing: ['no', 'inclusive_dates', 'action', 'date_action_taken'],
 }
 
 function normalizeText(value) {
@@ -115,6 +117,12 @@ function resolveReportTitle(reportType, reportLabel) {
 }
 
 function resolveMonthContextLine(filters = {}, rows = [], monthNames = DEFAULT_MONTH_NAMES) {
+  if (filters.fromDate && filters.toDate) {
+    const from = new Date(filters.fromDate).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    const to = new Date(filters.toDate).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    return `FOR THE PERIOD OF ${from.toUpperCase()} TO ${to.toUpperCase()}`
+  }
+
   if (filters.month && filters.year) {
     const month = monthNames[filters.month - 1] || String(filters.month)
     return `FOR THE MONTH OF ${month.toUpperCase()} ${filters.year}`
@@ -231,6 +239,12 @@ function buildTableWidths(columns, reportType) {
     mcCo: 44,
     wlp: 40,
     others: 46,
+    employee_name: 110,
+    office_acronym: 80,
+    leave_type_name: 70,
+    inclusive_dates: 100,
+    action: 70,
+    date_action_taken: 80,
   }
 
   return columns.map((column) => {
@@ -241,7 +255,7 @@ function buildTableWidths(columns, reportType) {
 }
 
 function resolvePageOrientation(reportType) {
-  if (reportType === 'ctoAvailment' || reportType === 'leaveBalances') return 'landscape'
+  if (reportType === 'ctoAvailment' || reportType === 'leaveBalances' || reportType === 'applicationProcessing') return 'landscape'
   return 'portrait'
 }
 

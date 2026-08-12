@@ -143,7 +143,7 @@
           <span class="text-subtitle2 text-weight-medium">Loading leave credits ledger...</span>
         </div>
 
-        <div v-else class="ledger-preview-stage" ref="stageContainer">
+        <div v-else class="ledger-preview-stage" ref="stageContainer" @scroll="onStageScroll">
           <div
             class="ledger-preview-pages"
             :style="{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }"
@@ -402,7 +402,17 @@
           <q-btn
             unelevated
             no-caps
-            label="Restore Leave"
+            label="Late Deduction"
+            color="negative"
+            icon="timer_off"
+            :disable="loading"
+            class="text-weight-bold"
+            @click="showLateDeductionDialog = true"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            label="Restore/Cancel Leave"
             color="primary"
             icon="settings_backup_restore"
             :disable="loading"
@@ -429,6 +439,12 @@
       :employee="employee"
       @restored="handleRestored"
     />
+
+    <HrLateDeductionDialog
+      v-model="showLateDeductionDialog"
+      :employee="employee"
+      @deducted="handleRestored"
+    />
   </q-dialog>
 </template>
 
@@ -436,10 +452,12 @@
 import { ref, computed } from 'vue'
 import { useAuthStore } from 'src/stores/auth-store'
 import HrLeaveRestorationDialog from 'src/components/hr/HrLeaveRestorationDialog.vue'
+import HrLateDeductionDialog from 'src/components/hr/HrLateDeductionDialog.vue'
 
 const authStore = useAuthStore()
 const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
 const showRestoreDialog = ref(false)
+const showLateDeductionDialog = ref(false)
 const isMaximized = ref(false)
 const zoomLevel = ref(100)
 const activePageIndex = ref(0)
@@ -569,6 +587,34 @@ function scrollToPage(index) {
   const el = document.getElementById(`ledger-page-${index}`)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+function onStageScroll(e) {
+  const container = e.target
+  if (!container) return
+  
+  const pages = container.querySelectorAll('.ledger-sheet')
+  if (!pages || pages.length === 0) return
+
+  let closestIndex = 0
+  let minDistance = Infinity
+  
+  const containerRect = container.getBoundingClientRect()
+  const containerCenter = containerRect.top + containerRect.height / 2
+  
+  pages.forEach((page, index) => {
+    const rect = page.getBoundingClientRect()
+    const pageCenter = rect.top + rect.height / 2
+    const distance = Math.abs(containerCenter - pageCenter)
+    if (distance < minDistance) {
+      minDistance = distance
+      closestIndex = index
+    }
+  })
+  
+  if (activePageIndex.value !== closestIndex) {
+    activePageIndex.value = closestIndex
   }
 }
 
@@ -919,6 +965,8 @@ function resolveBadgeColorClass(code) {
   font-size: 0.58rem;
   line-height: 1;
   font-weight: 600;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .ledger-table__primary-head--particulars .ledger-table__stacked-head {
