@@ -2436,6 +2436,8 @@ function createLedgerForwardedBalanceState() {
 function updateLedgerForwardedBalanceState(state, rows) {
   if (!state || !Array.isArray(rows)) return state
 
+  const allowedOtherCodes = ['MCO6', 'WL', 'SPL', 'CL']
+
   rows.forEach((row) => {
     if (!row || row.isBlank || row.isBalanceForwarded) return
 
@@ -2451,16 +2453,15 @@ function updateLedgerForwardedBalanceState(state, rows) {
 
     const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
     if (otherBalance !== null) {
-      const balanceKey =
-        normalizeLedgerTextValue(row.balanceKey) ||
-        normalizeLedgerLeaveCode(row.leaveTypeCode || row.particulars)
-      if (isLedgerOtherLeaveCode(balanceKey)) {
-        state.otherByCode[balanceKey] = {
+      const codeCandidate =
+        normalizeLedgerLeaveCode(row.leaveTypeCode) ||
+        normalizeLedgerLeaveCode(row.balanceKey) ||
+        normalizeLedgerLeaveCode(row.particulars)
+      if (allowedOtherCodes.includes(codeCandidate)) {
+        state.otherByCode[codeCandidate] = {
           value: otherBalance,
-          code: normalizeLedgerLeaveCode(row.leaveTypeCode) || balanceKey.replace('other:', '')
+          code: codeCandidate,
         }
-      } else {
-        state.otherDefault = { value: otherBalance, code: '' }
       }
     }
   })
@@ -2511,6 +2512,7 @@ function buildLedgerBalanceForwardedRows(state, pageIndex) {
     })
   }
 
+  const allowedOtherCodes = ['MCO6', 'WL', 'SPL', 'CL']
   const otherBalances = Object.entries(state?.otherByCode || {})
     .filter(([, data]) => isLedgerFiniteNumberValue(data?.value !== undefined ? data.value : data))
     .map(([, data]) => {
@@ -2519,12 +2521,14 @@ function buildLedgerBalanceForwardedRows(state, pageIndex) {
       }
       return { code: '', value: data }
     })
+    .filter((item) => allowedOtherCodes.includes(normalizeLedgerLeaveCode(item.code)))
 
   if (state?.otherDefault) {
     const def = state.otherDefault
     const defVal = typeof def === 'object' && def !== null ? def.value : def
-    if (isLedgerFiniteNumberValue(defVal)) {
-      otherBalances.push({ code: typeof def === 'object' ? def.code : '', value: defVal })
+    const defCode = typeof def === 'object' ? def.code : ''
+    if (isLedgerFiniteNumberValue(defVal) && allowedOtherCodes.includes(normalizeLedgerLeaveCode(defCode))) {
+      otherBalances.push({ code: defCode, value: defVal })
     }
   }
 
@@ -3496,7 +3500,45 @@ function buildLedgerDatePartsRange(startParts, endParts) {
   return result
 }
 
+function isLateDeductionEntry(entry) {
+  if (!entry || typeof entry !== 'object') return false
+  const rowId = String(entry.row_id || entry.merge_key || entry.id || '').toLowerCase()
+  if (rowId.includes('late-deduction') || rowId.includes('latededuction')) return true
+  const category = String(entry.category || '').toLowerCase()
+  if (category === 'deduction_without_pay') return true
+  const particulars = String(entry.particulars || entry.action_taken || entry.description || '').toLowerCase()
+  if (particulars.includes('late deduction')) return true
+  return false
+}
+
 function buildLedgerInclusiveRangeText(entry) {
+  if (isLateDeductionEntry(entry)) {
+    const dateVal = pickFirstDefined(entry, [
+      'inclusive_start_date',
+      'inclusiveStartDate',
+      'start_date',
+      'startDate',
+      'inclusive_dates',
+      'inclusiveDates',
+      'selected_dates',
+      'selectedDates',
+    ])
+    let parts = null
+    if (Array.isArray(dateVal) && dateVal.length > 0) {
+      parts = parseLedgerDateParts(dateVal[0])
+    } else if (dateVal) {
+      parts = parseLedgerDateParts(dateVal)
+    }
+    if (!parts) {
+      const endVal = pickFirstDefined(entry, ['inclusive_end_date', 'inclusiveEndDate', 'end_date', 'endDate'])
+      parts = parseLedgerDateParts(endVal)
+    }
+    if (parts) {
+      const monthName = parts.date.toLocaleDateString('en-US', { month: 'long' })
+      return `${monthName} ${parts.year}`
+    }
+  }
+
   const explicitDatesValue = pickFirstDefined(entry, [
     'inclusive_dates',
     'inclusiveDates',
@@ -4091,6 +4133,12 @@ function normalizeLedgerRow(entry, index) {
   const isMonthlyAccrual = actionTakenStr === 'Monthly accrual'
   const isVlSl = leaveTypeCode === 'VL' || leaveTypeCode === 'SL' || (typeof particulars === 'string' && (particulars.includes('VL') || particulars.includes('SL')))
   const isEditableAccrual = accrualIds.length > 0 && isMonthlyAccrual && isVlSl
+  const isUsageOnly = Boolean(
+    entry?.is_usage_only ||
+    entry?.isUsageOnly ||
+    leaveTypeCode === 'PATE' ||
+    (entry?.leave_category === 'EVENT' && entry?.is_credit_based === false)
+  )
 
   return {
     id: pickFirstDefined(
@@ -4278,28 +4326,30 @@ function normalizeLedgerRow(entry, index) {
         'vawcAbsUndWp',
       ]),
     ),
-    otherBalance: normalizeLedgerQuantityValue(
-      pickFirstDefined(entry, [
-        'other_balance',
-        'otherBalance',
-        'other_leave_balance',
-        'otherLeaveBalance',
-        'other_type_balance',
-        'otherTypeBalance',
-        'others_balance',
-        'othersBalance',
-        'otl_balance',
-        'other.balance',
-        'other_leave.balance',
-        'other_type.balance',
-        'others.balance',
-        'special_privilege_balance',
-        'specialPrivilegeBalance',
-        'spl_balance',
-        'vawc_balance',
-        'vawcBalance',
-      ]),
-    ),
+    otherBalance: isUsageOnly
+      ? ''
+      : normalizeLedgerQuantityValue(
+          pickFirstDefined(entry, [
+            'other_balance',
+            'otherBalance',
+            'other_leave_balance',
+            'otherLeaveBalance',
+            'other_type_balance',
+            'otherTypeBalance',
+            'others_balance',
+            'othersBalance',
+            'otl_balance',
+            'other.balance',
+            'other_leave.balance',
+            'other_type.balance',
+            'others.balance',
+            'special_privilege_balance',
+            'specialPrivilegeBalance',
+            'spl_balance',
+            'vawc_balance',
+            'vawcBalance',
+          ]),
+        ),
     otherAbsUndWop: normalizeLedgerQuantityValue(
       pickFirstDefined(entry, [
         'other_abs_und_wop',

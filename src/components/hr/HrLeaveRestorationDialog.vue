@@ -4,7 +4,7 @@
       <q-card-section class="bg-primary text-white row items-center justify-between q-py-sm">
         <div class="row items-center text-subtitle1 text-weight-bold">
           <q-icon name="settings_backup_restore" class="q-mr-sm" size="sm" />
-          Restore Leave
+          Restore/Cancel/Recall Leave
         </div>
         <q-btn icon="close" flat round dense v-close-popup />
       </q-card-section>

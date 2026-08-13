@@ -412,7 +412,7 @@
           <q-btn
             unelevated
             no-caps
-            label="Restore/Cancel Leave"
+            label="Restore/Cancel/Recall Leave"
             color="primary"
             icon="settings_backup_restore"
             :disable="loading"

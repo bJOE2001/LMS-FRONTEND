@@ -48,33 +48,36 @@
             </template>
           </q-input>
 
-          <q-input
-            v-model="selectedDatesDisplay"
-            outlined
-            dense
-            readonly
-            label="Date of Late *"
-            placeholder="Click calendar icon to select dates"
-            :rules="[() => normalizedSelectedDates.length > 0 || 'Please select at least one date']"
-          >
-            <template #append>
-              <q-icon name="event" class="cursor-pointer text-primary">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date
-                    v-model="rawSelectedDates"
-                    multiple
-                    mask="YYYY-MM-DD"
-                    color="primary"
-                  >
-                    <div class="row items-center justify-between q-pa-xs">
-                      <q-btn flat label="Clear" color="negative" dense @click="rawSelectedDates = null" />
-                      <q-btn v-close-popup label="Done" color="primary" unelevated dense />
-                    </div>
-                  </q-date>
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-sm-6">
+              <q-select
+                v-model="form.selected_month"
+                :options="monthOptions"
+                option-value="value"
+                option-label="label"
+                emit-value
+                map-options
+                outlined
+                dense
+                label="Month *"
+                :rules="[(val) => !!val || 'Month is required']"
+              />
+            </div>
+            <div class="col-12 col-sm-6">
+              <q-select
+                v-model="form.selected_year"
+                :options="yearOptions"
+                option-value="value"
+                option-label="label"
+                emit-value
+                map-options
+                outlined
+                dense
+                label="Year *"
+                :rules="[(val) => !!val || 'Year is required']"
+              />
+            </div>
+          </div>
 
           <q-input
             v-model="form.particulars"
@@ -127,57 +130,58 @@ const dialogModel = computed({
 })
 
 const submitting = ref(false)
-const rawSelectedDates = ref(null)
 
 const controlNo = computed(() => {
   if (!props.employee) return ''
   return props.employee.control_no || props.employee.controlNo || ''
 })
 
+const monthOptions = [
+  { label: 'January', value: '01' },
+  { label: 'February', value: '02' },
+  { label: 'March', value: '03' },
+  { label: 'April', value: '04' },
+  { label: 'May', value: '05' },
+  { label: 'June', value: '06' },
+  { label: 'July', value: '07' },
+  { label: 'August', value: '08' },
+  { label: 'September', value: '09' },
+  { label: 'October', value: '10' },
+  { label: 'November', value: '11' },
+  { label: 'December', value: '12' },
+]
+
+const currentYearNum = new Date().getFullYear()
+const yearOptions = computed(() => {
+  const years = []
+  for (let y = currentYearNum - 5; y <= currentYearNum + 5; y++) {
+    years.push({ label: String(y), value: String(y) })
+  }
+  return years
+})
+
+const initialNow = new Date()
 const form = reactive({
   target_leave: 'VL',
   minutes_late: null,
+  selected_month: qdate.formatDate(initialNow, 'MM'),
+  selected_year: qdate.formatDate(initialNow, 'YYYY'),
   particulars: '',
 })
 
-function expandDateRange(fromStr, toStr) {
-  const dates = []
-  let curr = new Date(fromStr)
-  const end = new Date(toStr)
-  while (curr <= end) {
-    dates.push(qdate.formatDate(curr, 'YYYY-MM-DD'))
-    curr = qdate.addToDate(curr, { days: 1 })
-  }
-  return dates
-}
-
-const normalizedSelectedDates = computed(() => {
-  const val = rawSelectedDates.value
-  if (!val) return []
-  const dateSet = new Set()
-  const processItem = (item) => {
-    if (!item) return
-    if (typeof item === 'string') {
-      dateSet.add(item)
-    } else if (typeof item === 'object' && item.from && item.to) {
-      expandDateRange(item.from, item.to).forEach((d) => dateSet.add(d))
-    }
-  }
-  if (Array.isArray(val)) {
-    val.forEach(processItem)
-  } else {
-    processItem(val)
-  }
-  const result = Array.from(dateSet)
-  result.sort()
-  return result
+const monthNameDisplay = computed(() => {
+  const found = monthOptions.find((m) => m.value === form.selected_month)
+  return found ? found.label : ''
 })
 
-const selectedDatesDisplay = computed(() => {
-  const dates = normalizedSelectedDates.value
-  if (dates.length === 0) return ''
-  if (dates.length === 1) return dates[0]
-  return `${dates.length} dates selected`
+const monthYearDisplay = computed(() => {
+  if (!form.selected_month || !form.selected_year) return ''
+  return `${monthNameDisplay.value} ${form.selected_year}`
+})
+
+const normalizedSelectedDates = computed(() => {
+  if (!form.selected_month || !form.selected_year) return []
+  return [`${form.selected_year}-${form.selected_month}-01`]
 })
 
 const deductionAmount = computed(() => {
@@ -190,9 +194,11 @@ const deductionAmountDisplay = computed(() => {
 })
 
 function resetForm() {
+  const now = new Date()
   form.target_leave = 'VL'
   form.minutes_late = null
-  rawSelectedDates.value = null
+  form.selected_month = qdate.formatDate(now, 'MM')
+  form.selected_year = qdate.formatDate(now, 'YYYY')
   form.particulars = ''
 }
 
@@ -211,8 +217,8 @@ async function handleSubmit() {
     return
   }
 
-  if (normalizedSelectedDates.value.length === 0) {
-    $q.notify({ type: 'warning', message: 'Please select at least one date.', position: 'top' })
+  if (!form.selected_month || !form.selected_year) {
+    $q.notify({ type: 'warning', message: 'Please select both month and year.', position: 'top' })
     return
   }
 
@@ -224,7 +230,7 @@ async function handleSubmit() {
       <p style="margin-bottom: 8px; font-weight: 500;">Please review the deduction details before proceeding:</p>
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
         <div style="margin-bottom: 6px;"><strong>Minutes Late:</strong> ${form.minutes_late} min</div>
-        <div style="margin-bottom: 6px;"><strong>Date(s) of Late:</strong> ${selectedDatesDisplay.value}</div>
+        <div style="margin-bottom: 6px;"><strong>Month/Year of Late:</strong> ${monthYearDisplay.value}</div>
         <div><strong>Credits to Deduct (${form.target_leave}):</strong> <span style="color: #c62828; font-weight: 700;">-${deductionAmountDisplay.value}</span></div>
       </div>
     </div>`,
