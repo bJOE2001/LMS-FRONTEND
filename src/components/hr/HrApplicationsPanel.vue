@@ -156,9 +156,17 @@
       </template>
       <template #body-cell-days="props">
         <q-td>
-          <span class="text-weight-medium text-grey-9">
-            {{ getApplicationDurationDisplay(props.row) }}
-          </span>
+          <div class="application-duration-cell">
+            <span class="text-weight-medium text-grey-9 block">
+              {{ getApplicationDurationDisplay(props.row) }}
+            </span>
+            <span
+              v-if="getCtoHoursRowCaption(props.row)"
+              class="text-caption text-grey-7 block application-duration-subtext"
+            >
+              {{ getCtoHoursRowCaption(props.row) }}
+            </span>
+          </div>
         </q-td>
       </template>
       <template #body-cell-status="props">
@@ -330,10 +338,6 @@
     :is-mobile="$q.screen.lt.sm"
     :show-application-edit-action="showApplicationEditAction"
     :format-date="formatDate"
-    :is-cto-leave-application="isCtoLeaveApplication"
-    :get-current-cto-available-hours-display="getCurrentCtoAvailableHoursDisplay"
-    :get-application-cto-required-hours-display="getApplicationCtoRequiredHoursDisplay"
-    :get-cto-deducted-hours-display="getCtoDeductedHoursDisplay"
     :has-application-attachment="hasApplicationAttachment"
     :has-pending-leave-type-update="hasPendingLeaveTypeUpdate"
     :get-current-leave-type-label="getCurrentLeaveTypeLabel"
@@ -1125,33 +1129,35 @@ export default defineComponent({
   line-height: 1.3;
   height: auto;
 }
-.hr-applications-panel--coc-only .applications-table .q-table__middle {
-  overflow-x: hidden;
+.hr-applications-panel .applications-table .q-table__middle {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.hr-applications-panel .applications-table table {
+  min-width: 100%;
 }
 .hr-applications-panel--coc-only .applications-table table {
-  width: 100%;
-  table-layout: fixed;
+  min-width: 960px;
 }
 .hr-applications-panel--coc-only .applications-table tbody td {
   white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
 }
 .hr-applications-panel--coc-only .applications-table thead th,
 .hr-applications-panel--coc-only .applications-table tbody td {
-  padding-left: 12px;
-  padding-right: 12px;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 .hr-applications-panel--coc-only .application-employee-name {
-  display: block;
+  max-width: 240px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.hr-applications-panel--coc-only .status-cell-wrap {
+  min-width: 120px;
+}
 .hr-applications-panel--coc-only .status-cell-wrap .q-badge {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-cell-wrap {
@@ -1662,5 +1668,17 @@ export default defineComponent({
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
   }
+}
+
+.application-duration-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.application-duration-subtext {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 1px;
 }
 </style>

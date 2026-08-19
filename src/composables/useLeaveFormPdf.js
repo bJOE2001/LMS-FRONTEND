@@ -1273,6 +1273,65 @@ function openPdfDocument(pdfDocument, options = {}) {
   })
 }
 
+
+function isCtoLeaveCertificationColumn(column) {
+  const normalized = String(column?.label || column?.leave_type || column?.leaveType || '')
+    .trim()
+    .toLowerCase()
+  return (
+    normalized.includes('cto') ||
+    normalized.includes('compensatory time off') ||
+    normalized.includes('compensatory time-off') ||
+    normalized.includes('compensatory overtime credit') ||
+    normalized.includes('compensatory leave')
+  )
+}
+
+function formatCtoHoursAndMinutesFromCredit(value) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return ''
+  }
+
+  const rawStr = String(value).trim()
+  if (/[a-zA-Z]/.test(rawStr)) {
+    return rawStr
+  }
+
+  const num = Number(rawStr.replace(/,/g, ''))
+  if (!Number.isFinite(num) || num < 0) {
+    return rawStr
+  }
+
+  const totalHours = num * 8.0
+  const totalMinutes = Math.round(totalHours * 60)
+  const hrs = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+
+  if (hrs > 0 && mins > 0) {
+    return `${hrs} hrs ${mins} mins`
+  }
+  if (hrs > 0) {
+    return `${hrs} hrs`
+  }
+  if (mins > 0) {
+    return `${mins} mins`
+  }
+  return '0 hr'
+}
+
+function formatCertificationCellValue(column, key) {
+  const rawValue = column?.[key]
+  if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+    return ''
+  }
+
+  if (isCtoLeaveCertificationColumn(column)) {
+    return formatCtoHoursAndMinutesFromCredit(rawValue)
+  }
+
+  return String(rawValue)
+}
+
 function buildCertificationTable(columns) {
   const isDualColumns = columns.length > 1
   const widths = isDualColumns ? ['38%', '31%', '31%'] : ['52%', '48%']
@@ -1301,7 +1360,7 @@ function buildCertificationTable(columns) {
         ...rows.map(([label, key, bold, italics]) => [
           { text: label, fontSize: 7, bold, italics },
           ...columns.map((column) => ({
-            text: column[key] || '',
+            text: formatCertificationCellValue(column, key),
             fontSize: 7,
             alignment: 'center',
           })),

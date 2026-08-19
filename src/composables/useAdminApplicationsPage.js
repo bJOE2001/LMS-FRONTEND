@@ -1972,6 +1972,14 @@ export function useAdminApplicationsPage() {
     return null
   }
 
+  
+  function getCtoHoursRowCaption(app) {
+    if (!isCtoLeaveApplication(app)) return ''
+    const requiredHours = getApplicationCtoRequiredHoursValue(app)
+    if (requiredHours === null || requiredHours <= 0) return ''
+    return `${formatDayValue(requiredHours)} hour(s)`
+  }
+
   function getApplicationCtoRequiredHoursDisplay(app) {
     const requiredHours = getApplicationCtoRequiredHoursValue(app)
     return requiredHours !== null ? `${formatDayValue(requiredHours)} hour(s)` : 'N/A'
@@ -3203,8 +3211,12 @@ export function useAdminApplicationsPage() {
     if (!app || !isCocApplication(app)) return ''
 
     const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'PENDING_LATE_HR') return 'Pending Late Filing'
     if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
-    if (rawStatus === 'PENDING_HR') return 'CHRMO Certification'
+    if (rawStatus === 'PENDING_HR') {
+      if (isApplicationReceivedByHr(app)) return 'CHRMO Certification'
+      return 'Pending Receive'
+    }
     if (rawStatus !== 'APPROVED') return ''
 
     if (isApplicationReleased(app)) {
@@ -3212,7 +3224,7 @@ export function useAdminApplicationsPage() {
     }
     if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
     if (isApplicationReceivedByHr(app)) return 'CMO/CVMO Review'
-    return 'CHRMO Certification'
+    return 'Pending Receive'
   }
 
   function normalizeQueueStageKeyToken(value) {
@@ -3356,6 +3368,7 @@ export function useAdminApplicationsPage() {
     }
     if (cocReleaseStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
     if (cocReleaseStageStatus === 'CHRMO Certification') return 'blue-6'
+    if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
     if (
       cocReleaseStageStatus === 'Department Recommendation' ||
       cocReleaseStageStatus === 'Admin Recommendation'
@@ -6798,6 +6811,7 @@ export function useAdminApplicationsPage() {
     getCurrentLeaveBalanceDisplay,
     getCurrentCtoAvailableHoursDisplay,
     getApplicationCtoRequiredHoursDisplay,
+    getCtoHoursRowCaption,
     getCtoDeductedHoursDisplay,
     getApplicationDurationDisplay,
     getCocBaseCreditableDisplay,

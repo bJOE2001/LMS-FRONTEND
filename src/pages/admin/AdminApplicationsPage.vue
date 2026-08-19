@@ -109,9 +109,17 @@
         </template>
         <template #body-cell-days="tableProps">
           <q-td :props="tableProps">
-            <span class="text-weight-medium text-grey-9">
-              {{ getApplicationDurationDisplay(tableProps.row) }}
-            </span>
+            <div class="application-duration-cell">
+              <span class="text-weight-medium text-grey-9 block">
+                {{ getApplicationDurationDisplay(tableProps.row) }}
+              </span>
+              <span
+                v-if="getCtoHoursRowCaption(tableProps.row)"
+                class="text-caption text-grey-7 block application-duration-subtext"
+              >
+                {{ getCtoHoursRowCaption(tableProps.row) }}
+              </span>
+            </div>
           </q-td>
         </template>
         <template #body-cell-status="tableProps">
@@ -516,27 +524,6 @@
               />
             </div>
 
-            <div v-if="isCtoLeaveApplication(selectedApp)" class="admin-application-details-item">
-              <div class="admin-application-details-label">Available CTO Hours</div>
-              <div class="text-weight-medium">
-                {{ getCurrentCtoAvailableHoursDisplay(selectedApp) }}
-              </div>
-            </div>
-
-            <div v-if="isCtoLeaveApplication(selectedApp)" class="admin-application-details-item">
-              <div class="admin-application-details-label">Required CTO Hours</div>
-              <div class="text-weight-medium">
-                {{ getApplicationCtoRequiredHoursDisplay(selectedApp) }}
-              </div>
-            </div>
-
-            <div v-if="isCtoLeaveApplication(selectedApp)" class="admin-application-details-item">
-              <div class="admin-application-details-label">CTO Deducted Hours</div>
-              <div class="text-weight-medium">
-                {{ getCtoDeductedHoursDisplay(selectedApp) }}
-              </div>
-            </div>
-
             <div v-if="isCocApplication(selectedApp)" class="admin-application-details-item">
               <div class="admin-application-details-label">Issued Date</div>
               <div class="text-weight-medium">
@@ -931,9 +918,7 @@ const {
   handleApplicationRowClick,
   // getLeaveBalanceTextItems,
   // getCurrentLeaveBalanceDisplay,
-  getCurrentCtoAvailableHoursDisplay,
-  getApplicationCtoRequiredHoursDisplay,
-  getCtoDeductedHoursDisplay,
+  getCtoHoursRowCaption,
   getApplicationDurationDisplay,
   getApplicationInclusiveDateColumnLines,
   getApplicationInclusiveDateLines,
@@ -972,7 +957,6 @@ const {
   printApplication,
   printRecallRequestApplication,
   isCocApplication,
-  isCtoLeaveApplication,
   isApplicationReleased,
   resolveFinalApprovalDateValue,
   resolveReleasedDateValue,
@@ -1699,6 +1683,18 @@ onMounted(async () => {
   .application-status-search--left :deep(.q-field) {
     width: 100%;
   }
+}
+
+.application-duration-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.application-duration-subtext {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 1px;
 }
 </style>
 

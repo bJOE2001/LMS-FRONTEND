@@ -4088,6 +4088,80 @@ function openLeaveHistoryCalendarPreview(entry) {
   showCalendarPreviewDialog.value = true
 }
 
+
+function isCtoLedgerEntry(entry, particulars, leaveTypeCode) {
+  if (!entry && !particulars && !leaveTypeCode) return false
+
+  const code = String(leaveTypeCode || entry?.leaveTypeCode || entry?.leave_type_code || '').trim().toUpperCase()
+  if (code === 'CTO' || code === 'COC') return true
+
+  const part = String(particulars || entry?.particulars || entry?.description || entry?.leave_type_name || '').trim().toLowerCase()
+  if (
+    part.startsWith('cto') ||
+    part.startsWith('coc') ||
+    part.includes('cto') ||
+    part.includes('coc') ||
+    part.includes('compensatory')
+  ) {
+    if (!part.startsWith('cl ') && !part.startsWith('cl-') && part !== 'cl') {
+      return true
+    }
+  }
+
+  const key = String(entry?.balanceKey || entry?.other_balance_key || entry?.otherBalanceKey || '').trim().toLowerCase()
+  if (key.includes('cto') || key.includes('coc') || key.includes('compensatory')) return true
+
+  return false
+}
+
+function formatCtoLedgerQuantityValue(value, options = {}) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return ''
+  }
+
+  const rawStr = String(value).trim()
+  if (/[a-zA-Z]/.test(rawStr)) {
+    return rawStr
+  }
+
+  const isDeduction = options.isDeduction || rawStr.startsWith('-')
+  const isAccrual = options.isAccrual || rawStr.startsWith('+')
+  const num = Number(rawStr.replace(/[+,-]/g, ''))
+
+  if (!Number.isFinite(num)) {
+    return rawStr
+  }
+
+  if (Math.abs(num) < 1e-9) {
+    return '0 hr'
+  }
+
+  const totalHours = num * 8.0
+  const totalMinutes = Math.round(totalHours * 60)
+  const hrs = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+
+  let text = ''
+  if (hrs > 0 && mins > 0) {
+    text = `${hrs}h ${mins}m`
+  } else if (hrs > 0) {
+    text = `${hrs} hrs`
+  } else if (mins > 0) {
+    text = `${mins} mins`
+  } else {
+    text = '0 hr'
+  }
+
+  if (isDeduction) {
+    return `-${text}`
+  }
+  if (isAccrual && options.includePlusSign) {
+    return `+${text}`
+  }
+
+  return text
+}
+
 function normalizeLedgerRow(entry, index) {
   const inclusivePeriod = buildLedgerInclusiveRangeText(entry)
   const particulars = normalizeLedgerTextValue(
@@ -4139,6 +4213,119 @@ function normalizeLedgerRow(entry, index) {
     leaveTypeCode === 'PATE' ||
     (entry?.leave_category === 'EVENT' && entry?.is_credit_based === false)
   )
+
+  const isCto = isCtoLedgerEntry(entry, particulars, leaveTypeCode)
+
+  const rawOtherEarned = pickFirstDefined(entry, [
+    'other_earned',
+    'otherEarned',
+    'other_leave_earned',
+    'otherLeaveEarned',
+    'other_type_earned',
+    'otherTypeEarned',
+    'others_earned',
+    'othersEarned',
+    'otl_earned',
+    'other.earned',
+    'other_leave.earned',
+    'other_type.earned',
+    'others.earned',
+    'special_privilege_earned',
+    'specialPrivilegeEarned',
+    'spl_earned',
+    'vawc_earned',
+    'vawcEarned',
+  ])
+
+  const otherEarned = isCto
+    ? formatCtoLedgerQuantityValue(rawOtherEarned, { isAccrual: true, includePlusSign: true })
+    : normalizeLedgerAccrualQuantityValue(rawOtherEarned)
+
+  const rawOtherAbsUndWp = pickFirstDefined(entry, [
+    'other_abs_und',
+    'otherAbsUnd',
+    'other_abs_und_wp',
+    'otherAbsUndWp',
+    'other_leave_abs_und',
+    'otherLeaveAbsUnd',
+    'other_leave_abs_und_wp',
+    'otherLeaveAbsUndWp',
+    'other_type_abs_und',
+    'otherTypeAbsUnd',
+    'other_type_abs_und_wp',
+    'otherTypeAbsUndWp',
+    'others_abs_und',
+    'othersAbsUnd',
+    'others_abs_und_wp',
+    'othersAbsUndWp',
+    'other.with_pay',
+    'other_leave.with_pay',
+    'other_type.with_pay',
+    'others.with_pay',
+    'special_privilege_abs_und_wp',
+    'specialPrivilegeAbsUndWp',
+    'spl_abs_und_wp',
+    'vawc_abs_und_wp',
+    'vawcAbsUndWp',
+  ])
+
+  const otherAbsUndWp = isCto
+    ? formatCtoLedgerQuantityValue(rawOtherAbsUndWp, { isDeduction: true })
+    : normalizeLedgerWithPayDeductionValue(rawOtherAbsUndWp)
+
+  const rawOtherBalance = isUsageOnly
+    ? ''
+    : pickFirstDefined(entry, [
+        'other_balance',
+        'otherBalance',
+        'other_leave_balance',
+        'otherLeaveBalance',
+        'other_type_balance',
+        'otherTypeBalance',
+        'others_balance',
+        'othersBalance',
+        'otl_balance',
+        'other.balance',
+        'other_leave.balance',
+        'other_type.balance',
+        'others.balance',
+        'special_privilege_balance',
+        'specialPrivilegeBalance',
+        'spl_balance',
+        'vawc_balance',
+        'vawcBalance',
+      ])
+
+  const otherBalance = isUsageOnly
+    ? ''
+    : isCto
+      ? formatCtoLedgerQuantityValue(rawOtherBalance)
+      : normalizeLedgerQuantityValue(rawOtherBalance)
+
+  const rawOtherAbsUndWop = pickFirstDefined(entry, [
+    'other_abs_und_wop',
+    'otherAbsUndWop',
+    'other_leave_abs_und_wop',
+    'otherLeaveAbsUndWop',
+    'other_type_abs_und_wop',
+    'otherTypeAbsUndWop',
+    'others_abs_und_wop',
+    'othersAbsUndWop',
+    'otl_abs_und_wop',
+    'other.without_pay',
+    'other_leave.without_pay',
+    'other_type.without_pay',
+    'others.without_pay',
+    'special_privilege_abs_und_wop',
+    'specialPrivilegeAbsUndWop',
+    'spl_abs_und_wop',
+    'vawc_abs_und_wop',
+    'vawcAbsUndWop',
+  ])
+
+  const otherAbsUndWop = isCto
+    ? formatCtoLedgerQuantityValue(rawOtherAbsUndWop)
+    : normalizeLedgerQuantityValue(rawOtherAbsUndWop)
 
   return {
     id: pickFirstDefined(
@@ -4275,103 +4462,10 @@ function normalizeLedgerRow(entry, index) {
         'sick.used_without_pay',
       ]),
     ),
-    otherEarned: normalizeLedgerAccrualQuantityValue(
-      pickFirstDefined(entry, [
-        'other_earned',
-        'otherEarned',
-        'other_leave_earned',
-        'otherLeaveEarned',
-        'other_type_earned',
-        'otherTypeEarned',
-        'others_earned',
-        'othersEarned',
-        'otl_earned',
-        'other.earned',
-        'other_leave.earned',
-        'other_type.earned',
-        'others.earned',
-        'special_privilege_earned',
-        'specialPrivilegeEarned',
-        'spl_earned',
-        'vawc_earned',
-        'vawcEarned',
-      ]),
-    ),
-    otherAbsUndWp: normalizeLedgerWithPayDeductionValue(
-      pickFirstDefined(entry, [
-        'other_abs_und',
-        'otherAbsUnd',
-        'other_abs_und_wp',
-        'otherAbsUndWp',
-        'other_leave_abs_und',
-        'otherLeaveAbsUnd',
-        'other_leave_abs_und_wp',
-        'otherLeaveAbsUndWp',
-        'other_type_abs_und',
-        'otherTypeAbsUnd',
-        'other_type_abs_und_wp',
-        'otherTypeAbsUndWp',
-        'others_abs_und',
-        'othersAbsUnd',
-        'others_abs_und_wp',
-        'othersAbsUndWp',
-        'other.with_pay',
-        'other_leave.with_pay',
-        'other_type.with_pay',
-        'others.with_pay',
-        'special_privilege_abs_und_wp',
-        'specialPrivilegeAbsUndWp',
-        'spl_abs_und_wp',
-        'vawc_abs_und_wp',
-        'vawcAbsUndWp',
-      ]),
-    ),
-    otherBalance: isUsageOnly
-      ? ''
-      : normalizeLedgerQuantityValue(
-          pickFirstDefined(entry, [
-            'other_balance',
-            'otherBalance',
-            'other_leave_balance',
-            'otherLeaveBalance',
-            'other_type_balance',
-            'otherTypeBalance',
-            'others_balance',
-            'othersBalance',
-            'otl_balance',
-            'other.balance',
-            'other_leave.balance',
-            'other_type.balance',
-            'others.balance',
-            'special_privilege_balance',
-            'specialPrivilegeBalance',
-            'spl_balance',
-            'vawc_balance',
-            'vawcBalance',
-          ]),
-        ),
-    otherAbsUndWop: normalizeLedgerQuantityValue(
-      pickFirstDefined(entry, [
-        'other_abs_und_wop',
-        'otherAbsUndWop',
-        'other_leave_abs_und_wop',
-        'otherLeaveAbsUndWop',
-        'other_type_abs_und_wop',
-        'otherTypeAbsUndWop',
-        'others_abs_und_wop',
-        'othersAbsUndWop',
-        'otl_abs_und_wop',
-        'other.without_pay',
-        'other_leave.without_pay',
-        'other_type.without_pay',
-        'others.without_pay',
-        'special_privilege_abs_und_wop',
-        'specialPrivilegeAbsUndWop',
-        'spl_abs_und_wop',
-        'vawc_abs_und_wop',
-        'vawcAbsUndWop',
-      ]),
-    ),
+    otherEarned,
+    otherAbsUndWp,
+    otherBalance,
+    otherAbsUndWop,
     actionTaken: buildLedgerActionText(entry),
     accrualIds,
     isEditableAccrual,

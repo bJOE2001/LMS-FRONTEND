@@ -559,7 +559,10 @@ function getCocReleaseStageStatus(app) {
   const rawStatus = getApplicationRawStatusKey(app)
   if (rawStatus === 'PENDING_LATE_HR') return 'Pending Late Filing'
   if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
-  if (rawStatus === 'PENDING_HR') return 'CHRMO Certification'
+  if (rawStatus === 'PENDING_HR') {
+    if (isApplicationReceivedByHr(app)) return 'CHRMO Certification'
+    return 'Pending Receive'
+  }
   if (rawStatus !== 'APPROVED') return ''
 
   if (isApplicationReleased(app)) {
@@ -567,7 +570,7 @@ function getCocReleaseStageStatus(app) {
   }
   if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
   if (isApplicationReceivedByHr(app)) return 'CMO/CVMO Review'
-  return 'CHRMO Certification'
+  return 'Pending Receive'
 }
 
 function normalizeQueueStageKeyToken(value) {
@@ -2050,11 +2053,15 @@ function shouldShowCurrentLeaveBalance(app) {
 function isCtoLeaveApplication(app) {
   if (!app || isCocApplication(app)) return false
 
-  const normalizedLabel = normalizeLeaveBalanceLookupKey(
-    getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || '',
-  )
+  const label = getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || ''
+  const normalizedLabel = normalizeLeaveBalanceLookupKey(label)
 
-  return normalizedLabel === normalizeLeaveBalanceLookupKey('CTO Leave')
+  return (
+    normalizedLabel === normalizeLeaveBalanceLookupKey('CTO Leave') ||
+    normalizedLabel === normalizeLeaveBalanceLookupKey('Compensatory Time Off') ||
+    normalizedLabel === normalizeLeaveBalanceLookupKey('Compensatory Leave') ||
+    normalizedLabel === 'cto'
+  )
 }
 
 function roundCtoHours(value) {
@@ -2072,7 +2079,12 @@ function resolveCtoHoursFromDays(value) {
 function getApplicationCtoRequiredHoursValue(app) {
   if (!isCtoLeaveApplication(app)) return null
 
-  const directCandidates = [app?.cto_deducted_hours]
+  const directCandidates = [
+    app?.cto_deducted_hours,
+    app?.ctoDeductedHours,
+    app?.required_cto_balance_hours,
+    app?.requiredCtoBalanceHours,
+  ]
 
   for (const candidate of directCandidates) {
     const resolvedHours = roundCtoHours(candidate)
@@ -2099,6 +2111,13 @@ function getApplicationCtoRequiredHoursValue(app) {
 function getApplicationCtoRequiredHoursDisplay(app) {
   const requiredHours = getApplicationCtoRequiredHoursValue(app)
   return requiredHours !== null ? `${formatDayValue(requiredHours)} hour(s)` : 'N/A'
+}
+
+function getCtoHoursRowCaption(app) {
+  if (!isCtoLeaveApplication(app)) return ''
+  const requiredHours = getApplicationCtoRequiredHoursValue(app)
+  if (requiredHours === null || requiredHours <= 0) return ''
+  return `${formatDayValue(requiredHours)} hour(s)`
 }
 
 function getCurrentCtoAvailableHoursValue(app) {
@@ -2575,7 +2594,12 @@ const applicationsForTable = computed(() => {
     if (pendingReleaseFilter.value && !canReleaseApplication(app)) {
       return false
     }
-    if (!pendingReleaseFilter.value && !pendingReceiveFilter.value && canReleaseApplication(app)) {
+    if (
+      !isCocApplication(app) &&
+      !pendingReleaseFilter.value &&
+      !pendingReceiveFilter.value &&
+      canReleaseApplication(app)
+    ) {
       return false
     }
     const rawStatus = getApplicationRawStatusKey(app)
@@ -2651,48 +2675,48 @@ const statusColumn = { name: 'status', label: 'Status', align: 'left' }
 const actionsColumn = { name: 'actions', label: 'Actions', align: 'center' }
 const cocEmployeeColumn = {
   ...employeeColumn,
-  style: 'width: 27%',
-  headerStyle: 'width: 27%',
+  style: 'min-width: 200px; width: 22%;',
+  headerStyle: 'min-width: 200px; width: 22%;',
 }
 const cocOfficeColumn = {
   ...officeColumn,
-  style: 'width: 8%',
-  headerStyle: 'width: 8%',
+  style: 'min-width: 90px; width: 8%;',
+  headerStyle: 'min-width: 90px; width: 8%;',
 }
 const cocLeaveTypeColumn = {
   ...leaveTypeColumn,
-  style: 'width: 11%',
-  headerStyle: 'width: 11%',
+  style: 'min-width: 110px; width: 10%;',
+  headerStyle: 'min-width: 110px; width: 10%;',
 }
 const cocDateFiledColumn = {
   ...dateFiledColumn,
-  style: 'width: 10%',
-  headerStyle: 'width: 10%',
+  style: 'min-width: 105px; width: 9%;',
+  headerStyle: 'min-width: 105px; width: 9%;',
 }
 const cocLateDeadlineColumn = {
   ...lateDeadlineColumn,
-  style: 'width: 10%',
-  headerStyle: 'width: 10%',
+  style: 'min-width: 115px; width: 10%;',
+  headerStyle: 'min-width: 115px; width: 10%;',
 }
 const cocInclusiveDatesColumn = {
   ...inclusiveDatesColumn,
-  style: 'width: 11%',
-  headerStyle: 'width: 11%',
+  style: 'min-width: 120px; width: 11%;',
+  headerStyle: 'min-width: 120px; width: 11%;',
 }
 const cocDurationColumn = {
   ...durationColumn,
-  style: 'width: 8%',
-  headerStyle: 'width: 8%',
+  style: 'min-width: 90px; width: 8%;',
+  headerStyle: 'min-width: 90px; width: 8%;',
 }
 const cocStatusColumn = {
   ...statusColumn,
-  style: 'width: 11%',
-  headerStyle: 'width: 11%',
+  style: 'min-width: 140px; width: 12%;',
+  headerStyle: 'min-width: 140px; width: 12%;',
 }
 const cocActionsColumn = {
   ...actionsColumn,
-  style: 'width: 9%',
-  headerStyle: 'width: 9%',
+  style: 'min-width: 125px; width: 10%;',
+  headerStyle: 'min-width: 125px; width: 10%; text-align: center;',
 }
 
 const columns = [
@@ -2718,24 +2742,32 @@ const cocLateColumns = [
 ]
 const mobileApplicationColumnWidths = {
   employee: {
-    style: 'min-width: 230px',
-    headerStyle: 'min-width: 230px',
+    style: 'min-width: 170px',
+    headerStyle: 'min-width: 170px',
   },
   status: {
-    style: 'min-width: 120px',
-    headerStyle: 'min-width: 120px',
-  },
-  office: {
-    style: 'min-width: 120px',
-    headerStyle: 'min-width: 120px',
-  },
-  leaveType: {
-    style: 'min-width: 145px',
-    headerStyle: 'min-width: 145px',
-  },
-  dateFiled: {
     style: 'min-width: 130px',
     headerStyle: 'min-width: 130px',
+  },
+  days: {
+    style: 'min-width: 90px',
+    headerStyle: 'min-width: 90px',
+  },
+  office: {
+    style: 'min-width: 90px',
+    headerStyle: 'min-width: 90px',
+  },
+  leaveType: {
+    style: 'min-width: 120px',
+    headerStyle: 'min-width: 120px',
+  },
+  dateFiled: {
+    style: 'min-width: 100px',
+    headerStyle: 'min-width: 100px',
+  },
+  actions: {
+    style: 'min-width: 120px; text-align: center;',
+    headerStyle: 'min-width: 120px; text-align: center;',
   },
 }
 const applicationTableColumns = computed(() => {
@@ -2743,8 +2775,8 @@ const applicationTableColumns = computed(() => {
   if (!q.screen.lt.sm) return desktopColumns
 
   const mobileColumnNames = applicationTypeFilter.value === 'COC'
-    ? ['employee', 'status', 'office', 'dateFiled']
-    : ['employee', 'status', 'office', 'leaveType']
+    ? ['employee', 'status', 'days', 'actions']
+    : ['employee', 'status', 'office', 'leaveType', 'actions']
 
   return mobileColumnNames
     .map((name) => {
@@ -3196,6 +3228,7 @@ function getApplicationStatusColor(app) {
   }
   if (cocReleaseStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
   if (cocReleaseStageStatus === 'CHRMO Certification') return 'blue-6'
+  if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
   if (
     cocReleaseStageStatus === 'Department Recommendation' ||
     cocReleaseStageStatus === 'Admin Recommendation'
@@ -5876,6 +5909,9 @@ async function printCocCertificate(app = selectedApp.value) {
   const targetApp = resolveApplication(app) || app
   if (!canPrintCocCertificate(targetApp)) return
 
+  const pdfWindow =
+    typeof window !== 'undefined' && window.open ? window.open('about:blank', '_blank') : null
+
   let printableApp = targetApp
   const id = getApplicationId(targetApp)
 
@@ -5896,7 +5932,14 @@ async function printCocCertificate(app = selectedApp.value) {
     }
   }
 
-  await generateCocCertificatePdf(printableApp)
+  try {
+    await generateCocCertificatePdf(printableApp, { targetWindow: pdfWindow })
+  } catch (err) {
+    if (pdfWindow && !pdfWindow.closed) {
+      pdfWindow.close()
+    }
+    throw err
+  }
 }
 
 function promptCocCertificateAfterReceive(app) {
@@ -6894,6 +6937,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getApplicationType,
     getApplicationCtoRequiredHoursDisplay,
     getApplicationCtoRequiredHoursValue,
+    getCtoHoursRowCaption,
     getCtoDeductedHoursDisplay,
     getCurrentCtoAvailableHoursDisplay,
     getCurrentCtoAvailableHoursValue,

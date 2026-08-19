@@ -201,24 +201,6 @@
               {{ application.officeShort || application.office }}
             </div>
           </div>
-          <div v-if="isCtoLeaveApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Available CTO Hours</div>
-            <div class="text-weight-medium">
-              {{ getCurrentCtoAvailableHoursDisplay(application) }}
-            </div>
-          </div>
-          <div v-if="isCtoLeaveApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Required CTO Hours</div>
-            <div class="text-weight-medium">
-              {{ getApplicationCtoRequiredHoursDisplay(application) }}
-            </div>
-          </div>
-          <div v-if="isCtoLeaveApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">CTO Deducted Hours</div>
-            <div class="text-weight-medium">
-              {{ getCtoDeductedHoursDisplay(application) }}
-            </div>
-          </div>
           <div v-if="isCocApplication(application)" class="hr-application-details-item">
             <div class="text-caption text-grey-7">Issued Date</div>
             <div class="text-weight-medium">
@@ -545,22 +527,6 @@ const props = defineProps({
     default: false,
   },
   formatDate: {
-    type: Function,
-    default: () => '',
-  },
-  isCtoLeaveApplication: {
-    type: Function,
-    default: () => false,
-  },
-  getCurrentCtoAvailableHoursDisplay: {
-    type: Function,
-    default: () => '',
-  },
-  getApplicationCtoRequiredHoursDisplay: {
-    type: Function,
-    default: () => '',
-  },
-  getCtoDeductedHoursDisplay: {
     type: Function,
     default: () => '',
   },

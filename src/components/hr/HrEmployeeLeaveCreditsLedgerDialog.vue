@@ -76,14 +76,9 @@
       <!-- Clean Mint Balance Summary Badges Bar -->
       <div
         v-if="!loading && leaveBalanceBadges.length"
-        class="ledger-balance-sticky-bar row items-center justify-between q-px-md q-py-xs bg-green-1"
+        class="ledger-balance-sticky-bar row no-wrap items-center justify-between q-px-md q-py-xs bg-green-1"
       >
-        <div class="row items-center q-gutter-xs overflow-auto no-wrap fill-width">
-          <span
-            class="text-caption text-weight-bold text-black uppercase tracking-wider q-mr-xs flex-shrink-0"
-          >
-            Balances:
-          </span>
+        <div class="ledger-balance-chips-scroll col row items-center q-gutter-xs no-wrap">
           <span
             v-for="badge in leaveBalanceBadges"
             :key="`sticky-badge-${badge.code}`"
@@ -98,7 +93,7 @@
         <!-- Page Navigator Indicator -->
         <div
           v-if="renderedPages.length > 1"
-          class="row items-center q-gutter-x-xs text-caption flex-shrink-0 q-ml-sm"
+          class="ledger-page-nav-pill row items-center q-gutter-x-xs text-caption flex-shrink-0 q-ml-sm"
         >
           <q-btn
             flat
@@ -108,9 +103,10 @@
             size="xs"
             color="green-9"
             :disable="activePageIndex <= 0"
+            title="Previous page"
             @click="scrollToPage(activePageIndex - 1)"
           />
-          <span class="text-weight-bold text-green-10"
+          <span class="text-weight-bold text-green-10 no-wrap"
             >Page {{ activePageIndex + 1 }} of {{ renderedPages.length }}</span
           >
           <q-btn
@@ -121,6 +117,7 @@
             size="xs"
             color="green-9"
             :disable="activePageIndex >= renderedPages.length - 1"
+            title="Next page"
             @click="scrollToPage(activePageIndex + 1)"
           />
         </div>
@@ -633,6 +630,7 @@ function resolveBadgeColorClass(code) {
   if (c.includes('SL')) return 'badge-sl'
   if (c.includes('FL')) return 'badge-fl'
   if (c.includes('SPL')) return 'badge-spl'
+  if (c.includes('CTO')) return 'badge-cto'
   return 'badge-other'
 }
 </script>
@@ -670,8 +668,55 @@ function resolveBadgeColorClass(code) {
 
 .ledger-balance-sticky-bar {
   border-bottom: 1px solid #dcfce7;
-  min-height: 38px;
+  min-height: 40px;
   background: #f0fdf4;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ledger-balance-chips-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.ledger-balance-chips-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.ledger-balance-chips-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.ledger-page-nav-pill {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 2px 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .ledger-balance-sticky-bar {
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 6px;
+  }
+
+  .ledger-page-nav-pill {
+    padding: 1px 6px;
+    font-size: 0.72rem;
+  }
 }
 
 .ledger-summary-chip {
@@ -706,6 +751,13 @@ function resolveBadgeColorClass(code) {
 }
 
 .badge-spl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+
+.badge-cto {
   background: #ffffff;
   color: #000000;
   border: 1px solid #cbd5e1;
