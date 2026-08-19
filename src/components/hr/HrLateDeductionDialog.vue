@@ -1,6 +1,6 @@
 <template>
   <q-dialog v-model="dialogModel" persistent>
-    <q-card style="width: 500px; max-width: 95vw" class="rounded-borders">
+    <q-card style="width: 500px; max-width: 95vw;" class="rounded-borders">
       <q-card-section class="bg-negative text-white row items-center justify-between q-py-sm">
         <div class="row items-center text-subtitle1 text-weight-bold">
           <q-icon name="timer_off" class="q-mr-sm" size="sm" />
@@ -17,7 +17,7 @@
               v-model="form.target_leave"
               :options="[
                 { label: 'Vacation Leave (VL)', value: 'VL' },
-                { label: 'Sick Leave (SL)', value: 'SL' }
+                { label: 'Sick Leave (SL)', value: 'SL' },
               ]"
               color="primary"
               inline
@@ -84,7 +84,7 @@
             outlined
             dense
             label="Particulars"
-            placeholder="Leave blank for default: Late Deduction (XX minutes)"
+            :placeholder="defaultParticularsPlaceholder"
             hint="Custom text for the Ledger Particulars column"
           />
         </q-card-section>
@@ -191,6 +191,19 @@ const deductionAmount = computed(() => {
 
 const deductionAmountDisplay = computed(() => {
   return deductionAmount.value > 0 ? deductionAmount.value.toFixed(3) : '0.000'
+})
+
+const defaultParticularsPlaceholder = computed(() => {
+  const totalMinutes = parseInt(form.minutes_late, 10) || 0
+  if (totalMinutes <= 0) {
+    return 'Leave blank for default: LATE 0-0-0'
+  }
+  const minutesPerDay = 8 * 60
+  const dayCount = Math.floor(totalMinutes / minutesPerDay)
+  const remainingMinutes = totalMinutes % minutesPerDay
+  const hourCount = Math.floor(remainingMinutes / 60)
+  const minuteCount = remainingMinutes % 60
+  return `Leave blank for default: LATE ${dayCount}-${hourCount}-${minuteCount}`
 })
 
 function resetForm() {
