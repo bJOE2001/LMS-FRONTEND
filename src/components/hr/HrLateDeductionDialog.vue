@@ -3,8 +3,8 @@
     <q-card style="width: 500px; max-width: 95vw;" class="rounded-borders">
       <q-card-section class="bg-negative text-white row items-center justify-between q-py-sm">
         <div class="row items-center text-subtitle1 text-weight-bold">
-          <q-icon name="timer_off" class="q-mr-sm" size="sm" />
-          Late Deduction
+          <q-icon :name="isEditMode ? 'edit' : 'timer_off'" class="q-mr-sm" size="sm" />
+          {{ isEditMode ? 'Edit Late Deduction' : 'Late Deduction' }}
         </div>
         <q-btn icon="close" flat round dense v-close-popup />
       </q-card-section>
@@ -24,15 +24,56 @@
             />
           </div>
 
-          <q-input
-            v-model.number="form.minutes_late"
-            type="number"
-            outlined
-            dense
-            label="Minutes Late *"
-            placeholder="e.g. 60"
-            :rules="[(val) => (val && val > 0) || 'Must be a positive number of minutes']"
-          />
+          <div>
+            <div class="text-weight-bold text-grey-8 q-mb-xs">Duration *</div>
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-4">
+                <q-input
+                  v-model.number="form.days_late"
+                  type="number"
+                  outlined
+                  dense
+                  label="Days"
+                  placeholder="0"
+                  min="0"
+                  :rules="[
+                    (val) => val === null || val === undefined || val === '' || val >= 0 || 'Must be >= 0',
+                    validateDuration,
+                  ]"
+                />
+              </div>
+              <div class="col-12 col-sm-4">
+                <q-input
+                  v-model.number="form.hours_late"
+                  type="number"
+                  outlined
+                  dense
+                  label="Hours"
+                  placeholder="0"
+                  min="0"
+                  :rules="[
+                    (val) => val === null || val === undefined || val === '' || val >= 0 || 'Must be >= 0',
+                    validateDuration,
+                  ]"
+                />
+              </div>
+              <div class="col-12 col-sm-4">
+                <q-input
+                  v-model.number="form.minutes_late"
+                  type="number"
+                  outlined
+                  dense
+                  label="Minutes"
+                  placeholder="0"
+                  min="0"
+                  :rules="[
+                    (val) => val === null || val === undefined || val === '' || val >= 0 || 'Must be >= 0',
+                    validateDuration,
+                  ]"
+                />
+              </div>
+            </div>
+          </div>
 
           <q-input
             v-model="deductionAmountDisplay"
@@ -51,7 +92,9 @@
           <div class="row q-col-gutter-sm">
             <div class="col-12 col-sm-6">
               <q-select
-                v-model="form.selected_month"
+                v-model="form.selected_months"
+                multiple
+                use-chips
                 :options="monthOptions"
                 option-value="value"
                 option-label="label"
@@ -59,8 +102,8 @@
                 map-options
                 outlined
                 dense
-                label="Month *"
-                :rules="[(val) => !!val || 'Month is required']"
+                label="Month(s) *"
+                :rules="[(val) => (Array.isArray(val) && val.length > 0) || 'Required']"
               />
             </div>
             <div class="col-12 col-sm-6">
@@ -74,7 +117,7 @@
                 outlined
                 dense
                 label="Year *"
-                :rules="[(val) => !!val || 'Year is required']"
+                :rules="[(val) => !!val || 'Required']"
               />
             </div>
           </div>
@@ -94,8 +137,8 @@
           <q-btn
             type="submit"
             color="negative"
-            icon="remove_circle_outline"
-            label="Deduct"
+            :icon="isEditMode ? 'save' : 'remove_circle_outline'"
+            :label="isEditMode ? 'Save Changes' : 'Deduct'"
             :loading="submitting"
           />
         </q-card-actions>
@@ -120,9 +163,13 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  deduction: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['update:modelValue', 'deducted'])
+const emit = defineEmits(['update:modelValue', 'deducted', 'updated'])
 
 const dialogModel = computed({
   get: () => props.modelValue,
@@ -134,6 +181,17 @@ const submitting = ref(false)
 const controlNo = computed(() => {
   if (!props.employee) return ''
   return props.employee.control_no || props.employee.controlNo || ''
+})
+
+const deductionId = computed(() => {
+  if (!props.deduction) return null
+  return props.deduction.late_deduction_id || props.deduction.lateDeductionId || props.deduction.id || null
+})
+
+const isEditMode = computed(() => {
+  if (!deductionId.value) return false
+  const clean = String(deductionId.value).replace('late-deduction-', '').trim()
+  return clean !== '' && !isNaN(Number(clean))
 })
 
 const monthOptions = [
@@ -163,30 +221,62 @@ const yearOptions = computed(() => {
 const initialNow = new Date()
 const form = reactive({
   target_leave: 'VL',
+  days_late: null,
+  hours_late: null,
   minutes_late: null,
-  selected_month: qdate.formatDate(initialNow, 'MM'),
+  selected_months: [],
   selected_year: qdate.formatDate(initialNow, 'YYYY'),
   particulars: '',
 })
 
+const totalLateMinutes = computed(() => {
+  const days = parseInt(form.days_late, 10) || 0
+  const hours = parseInt(form.hours_late, 10) || 0
+  const minutes = parseInt(form.minutes_late, 10) || 0
+  return Math.max(0, days * 480 + hours * 60 + minutes)
+})
+
+function validateDuration() {
+  return totalLateMinutes.value > 0 || 'Required'
+}
+
+const durationSummaryDisplay = computed(() => {
+  const days = parseInt(form.days_late, 10) || 0
+  const hours = parseInt(form.hours_late, 10) || 0
+  const minutes = parseInt(form.minutes_late, 10) || 0
+  const parts = []
+  if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`)
+  if (hours > 0) parts.push(`${hours} hr${hours > 1 ? 's' : ''}`)
+  if (minutes > 0) parts.push(`${minutes} min${minutes > 1 ? 's' : ''}`)
+  return parts.length > 0 ? parts.join(', ') : '0 mins'
+})
+
 const monthNameDisplay = computed(() => {
-  const found = monthOptions.find((m) => m.value === form.selected_month)
-  return found ? found.label : ''
+  if (!Array.isArray(form.selected_months) || form.selected_months.length === 0) return ''
+  const sortedMonths = [...form.selected_months].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+  const names = sortedMonths
+    .map((mVal) => {
+      const found = monthOptions.find((m) => m.value === mVal)
+      return found ? found.label : ''
+    })
+    .filter(Boolean)
+  return names.join(', ')
 })
 
 const monthYearDisplay = computed(() => {
-  if (!form.selected_month || !form.selected_year) return ''
+  if (!monthNameDisplay.value || !form.selected_year) return ''
   return `${monthNameDisplay.value} ${form.selected_year}`
 })
 
 const normalizedSelectedDates = computed(() => {
-  if (!form.selected_month || !form.selected_year) return []
-  return [`${form.selected_year}-${form.selected_month}-01`]
+  if (!Array.isArray(form.selected_months) || form.selected_months.length === 0 || !form.selected_year) return []
+  const sortedMonths = [...form.selected_months].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+  return sortedMonths.map((mVal) => `${form.selected_year}-${mVal}-01`)
 })
 
 const deductionAmount = computed(() => {
-  if (!form.minutes_late || form.minutes_late <= 0) return 0
-  return form.minutes_late / 480
+  if (totalLateMinutes.value <= 0) return 0
+  return totalLateMinutes.value / 480
 })
 
 const deductionAmountDisplay = computed(() => {
@@ -194,13 +284,12 @@ const deductionAmountDisplay = computed(() => {
 })
 
 const defaultParticularsPlaceholder = computed(() => {
-  const totalMinutes = parseInt(form.minutes_late, 10) || 0
-  if (totalMinutes <= 0) {
+  const total = totalLateMinutes.value
+  if (total <= 0) {
     return 'Leave blank for default: LATE 0-0-0'
   }
-  const minutesPerDay = 8 * 60
-  const dayCount = Math.floor(totalMinutes / minutesPerDay)
-  const remainingMinutes = totalMinutes % minutesPerDay
+  const dayCount = Math.floor(total / 480)
+  const remainingMinutes = total % 480
   const hourCount = Math.floor(remainingMinutes / 60)
   const minuteCount = remainingMinutes % 60
   return `Leave blank for default: LATE ${dayCount}-${hourCount}-${minuteCount}`
@@ -209,17 +298,81 @@ const defaultParticularsPlaceholder = computed(() => {
 function resetForm() {
   const now = new Date()
   form.target_leave = 'VL'
+  form.days_late = null
+  form.hours_late = null
   form.minutes_late = null
-  form.selected_month = qdate.formatDate(now, 'MM')
+  form.selected_months = []
   form.selected_year = qdate.formatDate(now, 'YYYY')
   form.particulars = ''
+}
+
+function initForm() {
+  if (isEditMode.value && props.deduction) {
+    const d = props.deduction
+    form.target_leave = d.target_leave || (d.leave_type_code === 'SL' || d.balance_key === 'sick' ? 'SL' : 'VL')
+
+    let days = d.days_late !== undefined && d.days_late !== null ? d.days_late : (d.daysLate ?? null)
+    let hours = d.hours_late !== undefined && d.hours_late !== null ? d.hours_late : (d.hoursLate ?? null)
+    let minutes = d.minutes_late !== undefined && d.minutes_late !== null ? d.minutes_late : (d.minutesLate ?? null)
+
+    if (days === null && hours === null && minutes === null) {
+      const totalMins = parseInt(d.minutes_late || d.minutesLate, 10) || Math.round(parseFloat(d.deducted_days || d.amount || 0) * 480)
+      if (totalMins > 0) {
+        days = Math.floor(totalMins / 480)
+        const rem = totalMins % 480
+        hours = Math.floor(rem / 60)
+        minutes = rem % 60
+      }
+    }
+
+    form.days_late = days !== null ? parseInt(days, 10) : null
+    form.hours_late = hours !== null ? parseInt(hours, 10) : null
+    form.minutes_late = minutes !== null ? parseInt(minutes, 10) : null
+
+    const rawDates = d.selected_dates || d.selectedDates || d.inclusive_dates || d.inclusiveDates || []
+    let dateList = []
+    if (Array.isArray(rawDates)) dateList = rawDates
+    else if (typeof rawDates === 'string') {
+      try { dateList = JSON.parse(rawDates) } catch { dateList = [rawDates] }
+    }
+    if (dateList.length > 0) {
+      const months = []
+      let year = form.selected_year
+      dateList.forEach((dt) => {
+        const p = String(dt).split('-')
+        if (p.length >= 2) {
+          year = p[0]
+          months.push(p[1])
+        }
+      })
+      form.selected_year = year
+      form.selected_months = Array.from(new Set(months)).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+    } else if (d.start_date || d.inclusive_start_date) {
+      const p = String(d.start_date || d.inclusive_start_date).split('-')
+      if (p.length >= 2) {
+        form.selected_year = p[0]
+        form.selected_months = [p[1]]
+      }
+    } else {
+      form.selected_months = []
+    }
+
+    const existingParticulars = String(d.particulars || '').trim()
+    if (existingParticulars && !/^LATE \d+-\d+-\d+$/i.test(existingParticulars)) {
+      form.particulars = existingParticulars
+    } else {
+      form.particulars = ''
+    }
+  } else {
+    resetForm()
+  }
 }
 
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen) {
-      resetForm()
+      initForm()
     }
   },
 )
@@ -230,19 +383,27 @@ async function handleSubmit() {
     return
   }
 
-  if (!form.selected_month || !form.selected_year) {
-    $q.notify({ type: 'warning', message: 'Please select both month and year.', position: 'top' })
+  if (totalLateMinutes.value <= 0) {
+    $q.notify({ type: 'warning', message: 'Please specify at least one day, hour, or minute late.', position: 'top' })
+    return
+  }
+
+  if (!Array.isArray(form.selected_months) || form.selected_months.length === 0 || !form.selected_year) {
+    $q.notify({ type: 'warning', message: 'Please select at least one month and a year.', position: 'top' })
     return
   }
 
   const dates = normalizedSelectedDates.value
 
+  const confirmTitle = isEditMode.value ? 'Confirm Late Deduction Update' : 'Confirm Late Deduction'
+  const confirmOkLabel = isEditMode.value ? 'Save Changes' : 'Confirm Deduction'
+
   $q.dialog({
-    title: 'Confirm Late Deduction',
+    title: confirmTitle,
     message: `<div style="font-size: 0.95rem; line-height: 1.6;">
       <p style="margin-bottom: 8px; font-weight: 500;">Please review the deduction details before proceeding:</p>
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
-        <div style="margin-bottom: 6px;"><strong>Minutes Late:</strong> ${form.minutes_late} min</div>
+        <div style="margin-bottom: 6px;"><strong>Duration:</strong> ${durationSummaryDisplay.value}</div>
         <div style="margin-bottom: 6px;"><strong>Month/Year of Late:</strong> ${monthYearDisplay.value}</div>
         <div><strong>Credits to Deduct (${form.target_leave}):</strong> <span style="color: #c62828; font-weight: 700;">-${deductionAmountDisplay.value}</span></div>
       </div>
@@ -255,9 +416,9 @@ async function handleSubmit() {
     },
     ok: {
       unelevated: true,
-      label: 'Confirm Deduction',
+      label: confirmOkLabel,
       color: 'negative',
-      icon: 'remove_circle',
+      icon: isEditMode.value ? 'save' : 'remove_circle',
     },
     persistent: true,
   }).onOk(async () => {
@@ -265,23 +426,40 @@ async function handleSubmit() {
     try {
       const payload = {
         target_leave: form.target_leave,
-        minutes_late: form.minutes_late,
+        days_late: parseInt(form.days_late, 10) || 0,
+        hours_late: parseInt(form.hours_late, 10) || 0,
+        minutes_late: parseInt(form.minutes_late, 10) || 0,
         selected_dates: dates,
         particulars: form.particulars.trim(),
       }
 
-      const res = await api.post(`/hr/employees/${controlNo.value}/deduct-late-leave`, payload)
+      if (isEditMode.value) {
+        const cleanId = String(deductionId.value).replace('late-deduction-', '').trim()
+        const res = await api.post(`/hr/employees/${controlNo.value}/late-deductions/${cleanId}/update`, payload)
 
-      $q.notify({
-        type: 'positive',
-        message: res.data?.message || 'Late deduction applied successfully!',
-        position: 'top',
-      })
+        $q.notify({
+          type: 'positive',
+          message: res.data?.message || 'Late deduction updated successfully!',
+          position: 'top',
+        })
 
-      dialogModel.value = false
-      emit('deducted', res.data?.deduction)
+        dialogModel.value = false
+        emit('deducted', res.data?.deduction)
+        emit('updated', res.data?.deduction)
+      } else {
+        const res = await api.post(`/hr/employees/${controlNo.value}/deduct-late-leave`, payload)
+
+        $q.notify({
+          type: 'positive',
+          message: res.data?.message || 'Late deduction applied successfully!',
+          position: 'top',
+        })
+
+        dialogModel.value = false
+        emit('deducted', res.data?.deduction)
+      }
     } catch (err) {
-      const message = err.response?.data?.message || 'Failed to apply late deduction.'
+      const message = err.response?.data?.message || 'Failed to process late deduction.'
       $q.notify({ type: 'negative', message, position: 'top' })
     } finally {
       submitting.value = false

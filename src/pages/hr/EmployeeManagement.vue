@@ -208,6 +208,17 @@
               flat
               dense
               round
+              icon="schedule"
+              color="deep-orange-7"
+              size="sm"
+              @click.stop="openCocCtoLedgerDialog(props.row)"
+            >
+              <q-tooltip>COC / CTO Ledger</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
               icon="visibility"
               color="primary"
               size="sm"
@@ -396,6 +407,15 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <HrEmployeeCocCtoLedgerDialog
+      v-model="showCocCtoLedgerDialog"
+      :employee="cocCtoLedgerEmployee"
+      :current-balance="cocCtoLedgerCurrentBalance"
+      :ledger-rows="cocCtoLedgerRows"
+      :loading="cocCtoLedgerLoading"
+      :error="cocCtoLedgerError"
+    />
 
     <HrEmployeeLeaveCreditsLedgerDialog
       v-model="showLeaveCreditsLedgerDialog"
@@ -771,6 +791,7 @@ import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { api } from 'src/boot/axios'
 import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
 import HrEmployeeLeaveCreditsLedgerDialog from 'src/components/hr/HrEmployeeLeaveCreditsLedgerDialog.vue'
+import HrEmployeeCocCtoLedgerDialog from 'src/components/hr/HrEmployeeCocCtoLedgerDialog.vue'
 import HrEmployeeLeaveAccrualsEditDialog from 'src/components/hr/HrEmployeeLeaveAccrualsEditDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
@@ -812,6 +833,12 @@ const calendarPreviewView = ref({
   year: String(new Date().getFullYear()),
   month: String(new Date().getMonth() + 1).padStart(2, '0'),
 })
+const showCocCtoLedgerDialog = ref(false)
+const cocCtoLedgerEmployee = ref(null)
+const cocCtoLedgerRows = ref([])
+const cocCtoLedgerCurrentBalance = ref({ hours: 0, days: 0 })
+const cocCtoLedgerLoading = ref(false)
+const cocCtoLedgerError = ref('')
 const showLeaveCreditsLedgerDialog = ref(false)
 const leaveCreditsLedgerEmployee = ref(null)
 const leaveCreditsLedgerRows = ref([])
@@ -2269,6 +2296,17 @@ function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
       const parsedBalance = parseLedgerSignedQuantityValue(rawBalance)
       const roundedBalance = roundLedgerNumericValue(parsedBalance ?? 0)
       const normalizedCode = normalizeLedgerLeaveCode(leaveTypeName)
+      const lowerName = String(leaveTypeName || '').toLowerCase()
+
+      if (
+        normalizedCode === 'CTO' ||
+        normalizedCode === 'COC' ||
+        lowerName.includes('compensatory') ||
+        lowerName.includes('cto') ||
+        lowerName.includes('coc')
+      ) {
+        return
+      }
 
       if (
         normalizedCode === 'VL' ||
@@ -3513,29 +3551,76 @@ function isLateDeductionEntry(entry) {
 
 function buildLedgerInclusiveRangeText(entry) {
   if (isLateDeductionEntry(entry)) {
-    const dateVal = pickFirstDefined(entry, [
-      'inclusive_start_date',
-      'inclusiveStartDate',
-      'start_date',
-      'startDate',
-      'inclusive_dates',
-      'inclusiveDates',
+    const rawDates = pickFirstDefined(entry, [
       'selected_dates',
       'selectedDates',
+      'inclusive_dates',
+      'inclusiveDates',
     ])
-    let parts = null
-    if (Array.isArray(dateVal) && dateVal.length > 0) {
-      parts = parseLedgerDateParts(dateVal[0])
-    } else if (dateVal) {
-      parts = parseLedgerDateParts(dateVal)
+    let datesList = []
+    if (Array.isArray(rawDates)) {
+      datesList = rawDates
+    } else if (typeof rawDates === 'string' && rawDates.trim() !== '') {
+      try {
+        const parsed = JSON.parse(rawDates)
+        if (Array.isArray(parsed)) datesList = parsed
+        else datesList = [rawDates]
+      } catch {
+        datesList = [rawDates]
+      }
     }
-    if (!parts) {
-      const endVal = pickFirstDefined(entry, ['inclusive_end_date', 'inclusiveEndDate', 'end_date', 'endDate'])
-      parts = parseLedgerDateParts(endVal)
+
+    if (datesList.length > 0) {
+      const parsedList = datesList
+        .map((d) => parseLedgerDateParts(d))
+        .filter(Boolean)
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+      if (parsedList.length === 1) {
+        const monthName = parsedList[0].date.toLocaleDateString('en-US', { month: 'long' })
+        return `${monthName} ${parsedList[0].year}`
+      }
+
+      if (parsedList.length > 1) {
+        const allSameYear = parsedList.every((p) => p.year === parsedList[0].year)
+        if (allSameYear) {
+          const monthFormat = parsedList.length <= 2 ? 'long' : 'short'
+          const monthNames = parsedList.map((p) => p.date.toLocaleDateString('en-US', { month: monthFormat }))
+          return `${monthNames.join(', ')} ${parsedList[0].year}`
+        } else {
+          const labels = parsedList.map((p) => {
+            const m = p.date.toLocaleDateString('en-US', { month: 'short' })
+            return `${m} ${p.year}`
+          })
+          return labels.join(', ')
+        }
+      }
     }
-    if (parts) {
-      const monthName = parts.date.toLocaleDateString('en-US', { month: 'long' })
-      return `${monthName} ${parts.year}`
+
+    const startVal = pickFirstDefined(entry, ['inclusive_start_date', 'inclusiveStartDate', 'start_date', 'startDate'])
+    const endVal = pickFirstDefined(entry, ['inclusive_end_date', 'inclusiveEndDate', 'end_date', 'endDate'])
+    const startParts = parseLedgerDateParts(startVal)
+    const endParts = parseLedgerDateParts(endVal)
+
+    if (startParts && endParts) {
+      const startMonth = startParts.date.toLocaleDateString('en-US', { month: 'long' })
+      const endMonth = endParts.date.toLocaleDateString('en-US', { month: 'long' })
+      if (startParts.year === endParts.year) {
+        if (startParts.month === endParts.month) {
+          return `${startMonth} ${startParts.year}`
+        }
+        return `${startMonth} - ${endMonth} ${startParts.year}`
+      }
+      return `${startMonth} ${startParts.year} - ${endMonth} ${endParts.year}`
+    }
+
+    if (startParts) {
+      const monthName = startParts.date.toLocaleDateString('en-US', { month: 'long' })
+      return `${monthName} ${startParts.year}`
+    }
+    if (endParts) {
+      const monthName = endParts.date.toLocaleDateString('en-US', { month: 'long' })
+      return `${monthName} ${endParts.year}`
     }
   }
 
@@ -4469,6 +4554,18 @@ function normalizeLedgerRow(entry, index) {
     actionTaken: buildLedgerActionText(entry),
     accrualIds,
     isEditableAccrual,
+    late_deduction_id: entry?.late_deduction_id || entry?.lateDeductionId || null,
+    target_leave: entry?.target_leave || entry?.targetLeave || null,
+    target_leave_type_id: entry?.target_leave_type_id || entry?.targetLeaveTypeId || null,
+    days_late: entry?.days_late !== undefined ? entry.days_late : (entry?.daysLate ?? null),
+    hours_late: entry?.hours_late !== undefined ? entry.hours_late : (entry?.hoursLate ?? null),
+    minutes_late: entry?.minutes_late !== undefined ? entry.minutes_late : (entry?.minutesLate ?? null),
+    deducted_days: entry?.deducted_days !== undefined ? entry.deducted_days : (entry?.deductedDays ?? entry?.amount ?? null),
+    selected_dates: entry?.selected_dates || entry?.selectedDates || entry?.inclusive_dates || entry?.inclusiveDates || null,
+    inclusive_start_date: entry?.inclusive_start_date || entry?.inclusiveStartDate || entry?.start_date || entry?.startDate || null,
+    inclusive_end_date: entry?.inclusive_end_date || entry?.inclusiveEndDate || entry?.end_date || entry?.endDate || null,
+    isLateDeduction: isLateDeductionEntry(entry),
+    rawEntry: entry,
   }
 }
 
@@ -4691,6 +4788,37 @@ async function fetchEmployeeLeaveHistory(controlNo) {
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     leaveHistoryLoading.value = false
+  }
+}
+
+async function openCocCtoLedgerDialog(employee) {
+  const controlNo = String(employee?.control_no ?? '').trim()
+  if (!controlNo) return
+
+  cocCtoLedgerEmployee.value = { ...employee }
+  cocCtoLedgerRows.value = []
+  cocCtoLedgerCurrentBalance.value = { hours: 0, days: 0 }
+  cocCtoLedgerError.value = ''
+  showCocCtoLedgerDialog.value = true
+  cocCtoLedgerLoading.value = true
+
+  try {
+    const { data } = await api.get(`/hr/employees/${encodeURIComponent(controlNo)}/coc-cto-ledger`)
+    if (data.employee) {
+      cocCtoLedgerEmployee.value = {
+        ...cocCtoLedgerEmployee.value,
+        ...data.employee,
+      }
+    }
+    cocCtoLedgerCurrentBalance.value = data.current_balance || { hours: 0, days: 0 }
+    cocCtoLedgerRows.value = orderLedgerRowsOldestFirst(data.ledger || [])
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to load COC / CTO ledger right now.')
+    cocCtoLedgerError.value = message
+    cocCtoLedgerRows.value = []
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    cocCtoLedgerLoading.value = false
   }
 }
 

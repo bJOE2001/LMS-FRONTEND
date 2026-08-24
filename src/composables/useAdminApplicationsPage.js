@@ -6189,6 +6189,7 @@ export function useAdminApplicationsPage() {
     ).trim()
 
     await generateRecallFormPdf({
+      application,
       date: new Date().toISOString(),
       recipientName: getApplicationEmployeeDisplayName(application) || 'Employee',
       recipientPosition,

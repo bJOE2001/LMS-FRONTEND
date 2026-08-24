@@ -16,7 +16,7 @@
       >
         <div class="row items-center q-gutter-x-sm">
           <q-icon name="receipt_long" size="sm" class="text-green-2" />
-          <span class="text-h6 text-weight-bold tracking-wide">Leave Credits Ledger</span>
+          <span class="text-h6 text-weight-bold tracking-wide">COC / CTO Credits Ledger</span>
         </div>
 
         <div class="row items-center q-gutter-x-xs">
@@ -75,18 +75,13 @@
 
       <!-- Clean Mint Balance Summary Badges Bar -->
       <div
-        v-if="!loading && leaveBalanceBadges.length"
+        v-if="!loading"
         class="ledger-balance-sticky-bar row no-wrap items-center justify-between q-px-md q-py-xs bg-green-1"
       >
         <div class="ledger-balance-chips-scroll col row items-center q-gutter-xs no-wrap">
-          <span
-            v-for="badge in filteredLeaveBalanceBadges"
-            :key="`sticky-badge-${badge.code}`"
-            class="ledger-summary-chip text-weight-bold"
-            :class="resolveBadgeColorClass(badge.code)"
-          >
-            <span class="chip-code">{{ badge.label }}:</span>
-            <span class="chip-value q-ml-xs">{{ badge.value }}</span>
+          <span class="ledger-summary-chip text-weight-bold badge-cto">
+            <span class="chip-code">CTO Balance:</span>
+            <span class="chip-value q-ml-xs">{{ formattedBalanceHoursAndMinutes }}</span>
           </span>
         </div>
 
@@ -137,20 +132,19 @@
           class="leave-ledger-dialog__loading row items-center justify-center q-pa-xl text-grey-8"
         >
           <q-spinner color="primary" size="36px" class="q-mr-sm" />
-          <span class="text-subtitle2 text-weight-medium">Loading leave credits ledger...</span>
+          <span class="text-subtitle2 text-weight-medium">Loading COC / CTO ledger...</span>
         </div>
 
         <div v-else class="ledger-preview-stage" ref="stageContainer" @scroll="onStageScroll">
           <div
             class="ledger-preview-pages"
-            :style="{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }"
+            :style="{ transform: 'scale(' + (zoomLevel / 100) + ')', transformOrigin: 'top center' }"
           >
             <div
               v-for="(pageRows, pageIndex) in renderedPages"
-              :id="`ledger-page-${pageIndex}`"
-              :key="`ledger-page-${pageIndex}`"
-              class="ledger-sheet"
-              :class="paperSizeClass"
+              :id="'coc-ledger-page-' + pageIndex"
+              :key="'coc-ledger-page-' + pageIndex"
+              class="ledger-sheet ledger-sheet--a4"
               :style="sheetStyle"
             >
               <!-- Official Sheet Identity Header -->
@@ -189,15 +183,17 @@
                 </div>
               </div>
 
-              <!-- Main Official Ledger Table -->
+              <!-- Main Official COC / CTO Ledger Table -->
               <div class="ledger-table-wrap">
                 <table class="ledger-table">
                   <colgroup>
-                    <col
-                      v-for="(width, index) in columnWidths"
-                      :key="`ledger-col-${index}`"
-                      :style="{ width }"
-                    />
+                    <col style="width: 18%;" />
+                    <col style="width: 26%;" />
+                    <col style="width: 10%;" />
+                    <col style="width: 10%;" />
+                    <col style="width: 10%;" />
+                    <col style="width: 9%;" />
+                    <col style="width: 17%;" />
                   </colgroup>
                   <thead>
                     <tr>
@@ -215,21 +211,9 @@
                       </th>
                       <th
                         colspan="4"
-                        class="ledger-table__section-head ledger-table__section-head--vl"
+                        class="ledger-table__section-head ledger-table__section-head--cto"
                       >
-                        <span class="ledger-table__stacked-head">Vacation Leave</span>
-                      </th>
-                      <th
-                        colspan="4"
-                        class="ledger-table__section-head ledger-table__section-head--sl"
-                      >
-                        <span class="ledger-table__stacked-head">Sick Leave</span>
-                      </th>
-                      <th
-                        colspan="4"
-                        class="ledger-table__section-head ledger-table__section-head--other"
-                      >
-                        <span class="ledger-table__stacked-head">Other Type of Leave</span>
+                        <span class="ledger-table__stacked-head">COC / CTO</span>
                       </th>
                       <th
                         rowspan="2"
@@ -261,36 +245,6 @@
                           W/oP
                         </span>
                       </th>
-                      <th><span class="ledger-table__stacked-head">Earned</span></th>
-                      <th>
-                        <span class="ledger-table__stacked-head">
-                          Abs.<br />
-                          Und.
-                        </span>
-                      </th>
-                      <th><span class="ledger-table__stacked-head">Bal.</span></th>
-                      <th>
-                        <span class="ledger-table__stacked-head">
-                          Abs.<br />
-                          Und.<br />
-                          W/oP
-                        </span>
-                      </th>
-                      <th><span class="ledger-table__stacked-head">Earned</span></th>
-                      <th>
-                        <span class="ledger-table__stacked-head">
-                          Abs.<br />
-                          Und.
-                        </span>
-                      </th>
-                      <th><span class="ledger-table__stacked-head">Bal.</span></th>
-                      <th>
-                        <span class="ledger-table__stacked-head">
-                          Abs.<br />
-                          Und.<br />
-                          W/oP
-                        </span>
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -301,7 +255,6 @@
                       :class="{
                         'ledger-table__row--blank': entry.isBlank,
                         'ledger-table__row--balance-forwarded': entry.isBalanceForwarded,
-                        'ledger-table__row--restoration': isRestorationEntry(entry),
                       }"
                     >
                       <td class="ledger-table__cell--period">{{ entry.period }}</td>
@@ -309,91 +262,27 @@
                         {{ entry.particulars }}
                       </td>
                       <td>
-                        <span :class="valueClassResolver(entry.vacationEarned, entry, 'VL')">
-                          {{ entry.vacationEarned }}
+                        <span class="ledger-table__value">
+                          {{ entry.earnedTime }}
                         </span>
                       </td>
                       <td>
-                        <span :class="valueClassResolver(entry.vacationAbsUndWp, entry, 'VL')">
-                          {{ entry.vacationAbsUndWp }}
+                        <span class="ledger-table__value">
+                          {{ entry.usedTimeWp }}
                         </span>
                       </td>
                       <td>
-                        <span :class="valueClassResolver(entry.vacationBalance, entry, 'VL')">
-                          {{ entry.vacationBalance }}
+                        <span class="ledger-table__value ledger-table__value--emphasis">
+                          {{ entry.balanceTime }}
                         </span>
                       </td>
                       <td>
-                        <span :class="valueClassResolver(entry.vacationAbsUndWop, entry, 'VL')">
-                          {{ entry.vacationAbsUndWop }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.sickEarned, entry, 'SL')">
-                          {{ entry.sickEarned }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.sickAbsUnd, entry, 'SL')">
-                          {{ entry.sickAbsUnd }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.sickBalance, entry, 'SL')">
-                          {{ entry.sickBalance }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.sickAbsUndWop, entry, 'SL')">
-                          {{ entry.sickAbsUndWop }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.otherEarned, entry, 'OTHER')">
-                          {{ entry.otherEarned }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.otherAbsUndWp, entry, 'OTHER')">
-                          {{ entry.otherAbsUndWp }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.otherBalance, entry, 'OTHER')">
-                          {{ entry.otherBalance }}
-                        </span>
-                      </td>
-                      <td>
-                        <span :class="valueClassResolver(entry.otherAbsUndWop, entry, 'OTHER')">
-                          {{ entry.otherAbsUndWop }}
+                        <span class="ledger-table__value">
+                          {{ entry.usedTimeWop }}
                         </span>
                       </td>
                       <td class="ledger-table__cell--action">
-                        <div class="row items-center justify-center no-wrap">
-                          <span style="white-space: pre-line">{{ entry.actionTaken }}</span>
-                          <q-btn
-                            v-if="entry.isEditableAccrual && isHrAdmin"
-                            icon="edit"
-                            size="xs"
-                            color="primary"
-                            flat
-                            dense
-                            class="q-ml-xs"
-                            title="Edit this accrual"
-                            @click="emit('edit-accrual', entry)"
-                          />
-                          <q-btn
-                            v-if="isLateDeductionEntry(entry) && isHrAdmin"
-                            icon="edit"
-                            size="xs"
-                            color="negative"
-                            flat
-                            dense
-                            class="q-ml-xs"
-                            title="Edit this late deduction"
-                            @click="openEditLateDeduction(entry)"
-                          />
-                        </div>
+                        <span style="white-space: pre-line">{{ entry.actionTaken }}</span>
                       </td>
                     </tr>
                   </tbody>
@@ -410,69 +299,38 @@
           <q-btn
             unelevated
             no-caps
-            label="Late Deduction"
-            color="negative"
-            icon="timer_off"
-            :disable="loading"
-            class="text-weight-bold"
-            @click="openCreateLateDeduction"
-          />
-          <q-btn
-            unelevated
-            no-caps
-            label="Restore/Cancel/Recall Leave"
-            color="primary"
-            icon="settings_backup_restore"
-            :disable="loading"
-            class="text-weight-bold"
-            @click="showRestoreDialog = true"
-          />
-          <q-btn
-            unelevated
-            no-caps
             label="Print Ledger"
             color="secondary"
             icon="print"
             :loading="printing"
-            :disable="loading || !canPrint"
+            :disable="loading"
             class="text-weight-bold"
-            @click="emit('print')"
+            @click="printLedger"
+          />
+          <q-btn
+            flat
+            no-caps
+            label="Close"
+            color="grey-7"
+            v-close-popup
           />
         </div>
       </q-card-actions>
     </q-card>
-
-    <HrLeaveRestorationDialog
-      v-model="showRestoreDialog"
-      :employee="employee"
-      @restored="handleRestored"
-    />
-
-    <HrLateDeductionDialog
-      v-model="showLateDeductionDialog"
-      :employee="employee"
-      :deduction="editingLateDeduction"
-      @deducted="handleRestored"
-      @updated="handleRestored"
-    />
   </q-dialog>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useAuthStore } from 'src/stores/auth-store'
-import HrLeaveRestorationDialog from 'src/components/hr/HrLeaveRestorationDialog.vue'
-import HrLateDeductionDialog from 'src/components/hr/HrLateDeductionDialog.vue'
+import { useQuasar } from 'quasar'
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
-const authStore = useAuthStore()
-const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
-const showRestoreDialog = ref(false)
-const showLateDeductionDialog = ref(false)
-const editingLateDeduction = ref(null)
-const isMaximized = ref(false)
-const zoomLevel = ref(100)
-const activePageIndex = ref(0)
-const stageContainer = ref(null)
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+
+const $q = useQuasar()
 
 const props = defineProps({
   modelValue: {
@@ -483,118 +341,218 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-  error: {
-    type: String,
-    default: '',
+  currentBalance: {
+    type: Object,
+    default: () => ({ hours: 0, days: 0 }),
+  },
+  ledgerRows: {
+    type: Array,
+    default: () => [],
   },
   loading: {
     type: Boolean,
     default: false,
   },
-  printing: {
-    type: Boolean,
-    default: false,
-  },
-  canPrint: {
-    type: Boolean,
-    default: false,
-  },
-  leaveBalanceBadges: {
-    type: Array,
-    default: () => [],
-  },
-  paperSize: {
+  error: {
     type: String,
-    default: 'A4',
-  },
-  dialogStyle: {
-    type: Object,
-    default: () => ({}),
-  },
-  sheetStyle: {
-    type: Object,
-    default: () => ({}),
-  },
-  identityNameStyle: {
-    type: Object,
-    default: () => ({}),
-  },
-  identityStatusStyle: {
-    type: Object,
-    default: () => ({}),
-  },
-  identityOfficeStyle: {
-    type: Object,
-    default: () => ({}),
-  },
-  identityServiceValueStyle: {
-    type: Object,
-    default: () => ({}),
-  },
-  employeeHeadingName: {
-    type: String,
-    default: 'N/A',
-  },
-  employeeHeadingStatus: {
-    type: String,
-    default: 'N/A',
-  },
-  employeeHeadingOffice: {
-    type: String,
-    default: 'N/A',
-  },
-  employeeFirstDayOfService: {
-    type: String,
-    default: 'N/A',
-  },
-  columnWidths: {
-    type: Array,
-    default: () => [],
-  },
-  renderedPages: {
-    type: Array,
-    default: () => [[]],
-  },
-  valueClassResolver: {
-    type: Function,
-    default: () => ({}),
+    default: '',
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'print', 'edit-accrual', 'restored'])
-
-function handleRestored(data) {
-  emit('restored', data)
-}
+const emit = defineEmits(['update:modelValue'])
 
 const dialogModel = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 })
 
-const paperSizeClass = computed(
-  () => `ledger-sheet--${String(props.paperSize || 'A4').toLowerCase()}`,
-)
+const isMaximized = ref(false)
+const zoomLevel = ref(100)
+const activePageIndex = ref(0)
+const stageContainer = ref(null)
+const printing = ref(false)
 
-const filteredLeaveBalanceBadges = computed(() => {
-  const badges = Array.isArray(props.leaveBalanceBadges) ? props.leaveBalanceBadges : []
-  return badges.filter((b) => {
-    const code = String(b?.code || '').toUpperCase()
-    const label = String(b?.label || '').toUpperCase()
-    return !code.includes('CTO') && !code.includes('COC') && !label.includes('CTO') && !label.includes('COC') && !label.includes('COMPENSATORY')
+const dialogStyle = computed(() => {
+  if (isMaximized.value) return {}
+  return {
+    width: 'min(890px, 96vw)',
+    maxWidth: '96vw',
+    height: '96vh',
+    maxHeight: '96vh',
+  }
+})
+
+const sheetStyle = computed(() => ({
+  width: '794px',
+  minHeight: '1123px',
+  boxSizing: 'border-box',
+  padding: '8px 18px 8px 8px',
+}))
+
+const employeeDisplayName = computed(() => {
+  const emp = props.employee || {}
+  const first = String(emp.firstname || '').trim()
+  const middle = String(emp.middlename || '').trim()
+  const last = String(emp.surname || '').trim()
+  if (first || last) {
+    return [last + ',', first, middle].filter(Boolean).join(' ')
+  }
+  return emp.name || emp.employee_name || 'N/A'
+})
+
+const employeeHeadingName = computed(() => employeeDisplayName.value.toUpperCase())
+
+const employeeHeadingStatus = computed(() => {
+  const emp = props.employee || {}
+  return String(emp.status || emp.employment_status || 'REGULAR').toUpperCase()
+})
+
+const employeeHeadingOffice = computed(() => {
+  const emp = props.employee || {}
+  const acronym = resolveOfficeAcronymLabel(emp)
+  if (acronym && acronym !== '-') return acronym.toUpperCase()
+  return String(emp.office_acronym || emp.officeAcronym || emp.hrisOfficeAcronym || emp.office || emp.department_name || emp.division_office || 'N/A').toUpperCase()
+})
+
+const employeeFirstDayOfService = computed(() => {
+  const emp = props.employee || {}
+  const rawDate = emp.first_day_of_service || emp.firstDayOfService || emp.date_hired || emp.hire_date || emp.from_date
+  if (!rawDate) return 'N/A'
+  const d = new Date(rawDate)
+  if (Number.isNaN(d.getTime())) return String(rawDate)
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+})
+
+const identityNameStyle = computed(() => ({
+  fontSize: employeeHeadingName.value.length > 28 ? '0.72rem' : '0.82rem',
+}))
+const identityStatusStyle = computed(() => ({
+  fontSize: employeeHeadingStatus.value.length > 12 ? '0.70rem' : '0.80rem',
+}))
+const identityOfficeStyle = computed(() => ({
+  fontSize: employeeHeadingOffice.value.length > 20 ? '0.70rem' : '0.80rem',
+}))
+const identityServiceValueStyle = computed(() => ({
+  fontSize: employeeFirstDayOfService.value.length > 18 ? '0.70rem' : '0.80rem',
+}))
+
+function formatHoursAndMinutes(hoursVal, minsVal) {
+  let totalMinutes = 0
+  if (minsVal != null && Number.isFinite(Number(minsVal))) {
+    totalMinutes = Math.round(Number(minsVal))
+  } else if (hoursVal != null && Number.isFinite(Number(hoursVal))) {
+    totalMinutes = Math.round(Number(hoursVal) * 60)
+  } else {
+    return ''
+  }
+
+  if (totalMinutes === 0) return '0 hrs'
+
+  const absMinutes = Math.abs(totalMinutes)
+  const h = Math.floor(absMinutes / 60)
+  const m = absMinutes % 60
+
+  let formatted = ''
+  if (h > 0 && m > 0) {
+    formatted = h + ' hrs ' + m + ' mins'
+  } else if (h > 0) {
+    formatted = h + ' hrs'
+  } else {
+    formatted = m + ' mins'
+  }
+
+  return totalMinutes < 0 ? ('-' + formatted) : formatted
+}
+
+const formattedBalanceHoursAndMinutes = computed(() => {
+  const hours = Number(props.currentBalance?.hours ?? 0)
+  return formatHoursAndMinutes(hours)
+})
+
+// const formattedBalanceDays = computed(() => {
+//   const days = Number(props.currentBalance?.days ?? 0)
+//   return Number.isFinite(days) ? days.toFixed(3) : '0.000'
+// })
+
+const BLANK_ROW_TEMPLATE = Object.freeze({
+  period: '',
+  particulars: '',
+  earnedTime: '',
+  usedTimeWp: '',
+  balanceTime: '',
+  usedTimeWop: '',
+  actionTaken: '',
+  isBlank: true,
+  isBalanceForwarded: false,
+})
+
+const normalizedRows = computed(() => {
+  const sourceRows = Array.isArray(props.ledgerRows) ? props.ledgerRows : []
+  return sourceRows.map((entry, index) => {
+    const period = formatInclusiveDates(entry) || entry.period || entry.action_date || ''
+    const particulars = entry.particulars || ''
+
+    const earnedTime = entry.earned_hours != null && entry.earned_hours > 0
+      ? formatHoursAndMinutes(entry.earned_hours, entry.earned_minutes)
+      : ''
+    const usedTimeWp = entry.used_hours != null && entry.used_hours > 0
+      ? ('-' + formatHoursAndMinutes(entry.used_hours, entry.used_minutes))
+      : ''
+    const balanceTime = entry.balance_hours != null
+      ? formatHoursAndMinutes(entry.balance_hours, entry.balance_minutes)
+      : ''
+    const usedTimeWop = entry.used_hours_wop != null && entry.used_hours_wop > 0
+      ? formatHoursAndMinutes(entry.used_hours_wop, entry.used_minutes_wop)
+      : ''
+    const actionTaken = entry.action_taken || ''
+
+    return {
+      key: entry.id || ('coc-row-' + index),
+      period,
+      particulars,
+      earnedTime,
+      usedTimeWp,
+      balanceTime,
+      usedTimeWop,
+      actionTaken,
+      isBlank: false,
+      isBalanceForwarded: Boolean(entry.is_balance_forwarded),
+      raw: entry,
+    }
   })
 })
 
-function zoomIn() {
-  if (zoomLevel.value < 160) {
-    zoomLevel.value += 15
+const renderedPages = computed(() => {
+  const rowsPerPage = 46
+  const rows = normalizedRows.value
+  const pages = []
+
+  if (rows.length === 0) {
+    const blankRows = []
+    for (let i = 0; i < rowsPerPage; i++) {
+      blankRows.push({ ...BLANK_ROW_TEMPLATE, key: 'blank-0-' + i })
+    }
+    return [blankRows]
   }
+
+  for (let i = 0; i < rows.length; i += rowsPerPage) {
+    const slice = rows.slice(i, i + rowsPerPage)
+    const needed = rowsPerPage - slice.length
+    for (let j = 0; j < needed; j++) {
+      slice.push({ ...BLANK_ROW_TEMPLATE, key: 'blank-' + i + '-' + j })
+    }
+    pages.push(slice)
+  }
+
+  return pages
+})
+
+function zoomIn() {
+  if (zoomLevel.value < 160) zoomLevel.value += 15
 }
 
 function zoomOut() {
-  if (zoomLevel.value > 70) {
-    zoomLevel.value -= 15
-  }
+  if (zoomLevel.value > 70) zoomLevel.value -= 15
 }
 
 function resetZoom() {
@@ -602,9 +560,9 @@ function resetZoom() {
 }
 
 function scrollToPage(index) {
-  if (index < 0 || index >= props.renderedPages.length) return
+  if (index < 0 || index >= renderedPages.value.length) return
   activePageIndex.value = index
-  const el = document.getElementById(`ledger-page-${index}`)
+  const el = document.getElementById('coc-ledger-page-' + index)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -613,16 +571,15 @@ function scrollToPage(index) {
 function onStageScroll(e) {
   const container = e.target
   if (!container) return
-  
+
   const pages = container.querySelectorAll('.ledger-sheet')
   if (!pages || pages.length === 0) return
 
   let closestIndex = 0
   let minDistance = Infinity
-  
   const containerRect = container.getBoundingClientRect()
   const containerCenter = containerRect.top + containerRect.height / 2
-  
+
   pages.forEach((page, index) => {
     const rect = page.getBoundingClientRect()
     const pageCenter = rect.top + rect.height / 2
@@ -632,57 +589,244 @@ function onStageScroll(e) {
       closestIndex = index
     }
   })
-  
+
   if (activePageIndex.value !== closestIndex) {
     activePageIndex.value = closestIndex
   }
 }
 
-function openEditLateDeduction(entry) {
-  editingLateDeduction.value = entry
-  showLateDeductionDialog.value = true
+function formatInclusiveDates(row) {
+  if (!row) return ''
+  const rawDates = row.inclusive_dates || row.selected_dates || []
+  if (Array.isArray(rawDates) && rawDates.length > 0) {
+    const parsedList = rawDates
+      .map((d) => {
+        if (!d) return null
+        const dateObj = new Date(d)
+        if (Number.isNaN(dateObj.getTime())) return null
+        return {
+          date: dateObj,
+          year: dateObj.getFullYear(),
+          month: dateObj.getMonth() + 1,
+          day: dateObj.getDate(),
+          monthLabel: dateObj.toLocaleDateString('en-US', { month: 'long' }),
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    if (parsedList.length > 0) {
+      if (parsedList.length === 1) {
+        return parsedList[0].monthLabel + ' ' + parsedList[0].day + ', ' + parsedList[0].year
+      }
+      const allSameMonthYear = parsedList.every(
+        (p) => p.year === parsedList[0].year && p.month === parsedList[0].month
+      )
+      if (allSameMonthYear) {
+        const startDay = parsedList[0].day
+        const endDay = parsedList[parsedList.length - 1].day
+        if (startDay === endDay) {
+          return parsedList[0].monthLabel + ' ' + startDay + ', ' + parsedList[0].year
+        }
+        return parsedList[0].monthLabel + ' ' + startDay + '-' + endDay + ', ' + parsedList[0].year
+      }
+      const first = parsedList[0]
+      const last = parsedList[parsedList.length - 1]
+      return first.monthLabel + ' ' + first.day + ', ' + first.year + ' - ' + last.monthLabel + ' ' + last.day + ', ' + last.year
+    }
+  }
+
+  if (row.inclusive_start_date && row.inclusive_end_date) {
+    const s = new Date(row.inclusive_start_date)
+    const e = new Date(row.inclusive_end_date)
+    if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
+      const sMonth = s.toLocaleDateString('en-US', { month: 'long' })
+      const eMonth = e.toLocaleDateString('en-US', { month: 'long' })
+      if (s.getFullYear() === e.getFullYear()) {
+        if (s.getMonth() === e.getMonth()) {
+          if (s.getDate() === e.getDate()) {
+            return sMonth + ' ' + s.getDate() + ', ' + s.getFullYear()
+          }
+          return sMonth + ' ' + s.getDate() + '-' + e.getDate() + ', ' + s.getFullYear()
+        }
+        return sMonth + ' ' + s.getDate() + ' - ' + eMonth + ' ' + e.getDate() + ', ' + s.getFullYear()
+      }
+      return sMonth + ' ' + s.getDate() + ', ' + s.getFullYear() + ' - ' + eMonth + ' ' + e.getDate() + ', ' + s.getFullYear()
+    }
+  }
+
+  if (row.period) return row.period
+  if (row.action_date) {
+    const d = new Date(row.action_date)
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    }
+  }
+  return ''
 }
 
-function openCreateLateDeduction() {
-  editingLateDeduction.value = null
-  showLateDeductionDialog.value = true
+function printLedger() {
+  if (!props.employee) {
+    $q.notify({
+      type: 'warning',
+      message: 'Select an employee ledger to print first.',
+      position: 'top',
+    })
+    return
+  }
+
+  printing.value = true
+
+  try {
+    const docDefinition = buildCocCtoLedgerPdfDocDefinition()
+    pdfMake.createPdf(docDefinition).print()
+    $q.notify({
+      type: 'positive',
+      message: 'Preparing COC / CTO Ledger for print.',
+      position: 'top',
+    })
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to print COC / CTO ledger right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    printing.value = false
+  }
 }
 
-function isLateDeductionEntry(entry) {
-  if (!entry) return false
-  if (entry.isLateDeduction) return true
-  const rowId = String(entry.id || entry.row_id || entry.merge_key || '').toLowerCase()
-  if (rowId.includes('late-deduction') || rowId.includes('latededuction')) return true
-  if (entry.late_deduction_id || entry.lateDeductionId) return true
-  const actionTaken = String(entry.actionTaken || entry.action_taken || '').toLowerCase()
-  if (actionTaken.includes('late deduction')) return true
-  const particulars = String(entry.particulars || '').toLowerCase()
-  return particulars.startsWith('late ') || particulars.includes('late deduction')
+function buildCocCtoLedgerPdfDocDefinition() {
+  const pages = renderedPages.value
+  const tableWidths = ['18%', '26%', '10%', '10%', '10%', '9%', '17%']
+
+  const content = pages.map((pageRows, pageIndex) => {
+    const isLastPage = pageIndex === pages.length - 1
+    return {
+      stack: [
+        // Top Identity Header
+        {
+          table: {
+            widths: ['34%', '13%', '29%', '24%'],
+            body: [
+              [
+                { text: employeeHeadingName.value, fontSize: 8, bold: true, alignment: 'center' },
+                { text: employeeHeadingStatus.value, fontSize: 8, bold: true, alignment: 'center' },
+                { text: employeeHeadingOffice.value, fontSize: 8, bold: true, alignment: 'center' },
+                { text: employeeFirstDayOfService.value, fontSize: 8, bold: true, alignment: 'center' },
+              ],
+            ],
+          },
+          layout: {
+            hLineWidth: () => 0,
+            vLineWidth: () => 0,
+            paddingLeft: () => 0,
+            paddingRight: () => 0,
+            paddingTop: () => 0,
+            paddingBottom: () => 0,
+          },
+          margin: [0, 0, 0, 2],
+        },
+        {
+          table: {
+            widths: ['34%', '13%', '29%', '24%'],
+            body: [
+              [
+                { text: 'Name', fontSize: 7, bold: true, alignment: 'center' },
+                { text: 'Status', fontSize: 7, bold: true, alignment: 'center' },
+                { text: 'Division Office', fontSize: 7, bold: true, alignment: 'center' },
+                { text: '1st Day of Service', fontSize: 7, bold: true, alignment: 'center' },
+              ],
+            ],
+          },
+          layout: {
+            hLineWidth: () => 0.75,
+            vLineWidth: () => 0,
+            hLineColor: () => '#000000',
+            paddingLeft: () => 0,
+            paddingRight: () => 0,
+            paddingTop: () => 0,
+            paddingBottom: () => 0,
+          },
+          margin: [0, 0, 0, 0],
+        },
+        // Main Table
+        {
+          table: {
+            headerRows: 2,
+            widths: tableWidths,
+            body: buildPdfTableBody(pageRows),
+          },
+          layout: {
+            hLineWidth: (i) => (i === 0 ? 0 : 0.75),
+            vLineWidth: () => 0.75,
+            hLineColor: () => '#000000',
+            vLineColor: () => '#000000',
+            paddingLeft: () => 3,
+            paddingRight: () => 3,
+            paddingTop: () => 2,
+            paddingBottom: () => 2,
+          },
+        },
+      ],
+      pageBreak: isLastPage ? undefined : 'after',
+    }
+  })
+
+  return {
+    pageSize: 'A4',
+    pageMargins: [8, 18, 8, 8],
+    info: {
+      title: 'COC / CTO Ledger - ' + employeeDisplayName.value,
+      author: 'LMS Frontend',
+      subject: 'Compensatory Overtime Credits & CTO Ledger',
+    },
+    content,
+    defaultStyle: {
+      fontSize: 7.2,
+      color: '#000000',
+    },
+  }
 }
 
-function isRestorationEntry(entry) {
-  if (!entry) return false
-  const particulars = String(entry.particulars || '')
-  return (
-    particulars.toLowerCase().includes('restore leave') ||
-    particulars.toLowerCase().includes('restoration')
-  )
-}
+function buildPdfTableBody(pageRows) {
+  const body = [
+    [
+      { text: 'Inclusive\nDates', rowSpan: 2, fontSize: 6.8, bold: true, alignment: 'center' },
+      { text: 'Particulars', rowSpan: 2, fontSize: 6.8, bold: true, alignment: 'center' },
+      { text: 'COC / CTO', colSpan: 4, fontSize: 6.8, bold: true, alignment: 'center' },
+      {},
+      {},
+      {},
+      { text: 'Date & Action\nTaken on Application\nfor Leave', rowSpan: 2, fontSize: 6.0, bold: true, alignment: 'center' },
+    ],
+    [
+      {},
+      {},
+      { text: 'Earned', fontSize: 6.2, bold: true, alignment: 'center' },
+      { text: 'Abs.\nUnd.\nW/P', fontSize: 5.8, bold: true, alignment: 'center' },
+      { text: 'Bal.', fontSize: 6.2, bold: true, alignment: 'center' },
+      { text: 'Abs.\nUnd.\nW/oP', fontSize: 5.8, bold: true, alignment: 'center' },
+      {},
+    ],
+  ]
 
-function resolveBadgeColorClass(code) {
-  const c = String(code || '').toUpperCase()
-  if (c.includes('VL')) return 'badge-vl'
-  if (c.includes('SL')) return 'badge-sl'
-  if (c.includes('FL')) return 'badge-fl'
-  if (c.includes('SPL')) return 'badge-spl'
-  if (c.includes('CTO')) return 'badge-cto'
-  return 'badge-other'
+  pageRows.forEach((entry) => {
+    body.push([
+      { text: entry.period || '', fontSize: 6.8, alignment: 'center' },
+      { text: entry.particulars || '', fontSize: 6.8, alignment: 'center' },
+      { text: entry.earnedTime || '', fontSize: 6.8, alignment: 'center' },
+      { text: entry.usedTimeWp || '', fontSize: 6.8, alignment: 'center' },
+      { text: entry.balanceTime || '', fontSize: 6.8, bold: true, alignment: 'center' },
+      { text: entry.usedTimeWop || '', fontSize: 6.8, alignment: 'center' },
+      { text: entry.actionTaken || '', fontSize: 6.2, alignment: 'center' },
+    ])
+  })
+
+  return body
 }
 </script>
 
 <style scoped>
 .leave-ledger-dialog {
-  width: 96vw;
+  width: min(890px, 96vw);
   max-width: 96vw;
   max-height: 96vh;
   background: #f8fafc;
@@ -776,31 +920,6 @@ function resolveBadgeColorClass(code) {
     transform 0.15s ease,
     box-shadow 0.15s ease;
 }
-
-.badge-vl {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #cbd5e1;
-}
-
-.badge-sl {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #cbd5e1;
-}
-
-.badge-fl {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #cbd5e1;
-}
-
-.badge-spl {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #cbd5e1;
-}
-
 
 .badge-cto {
   background: #ffffff;
@@ -962,7 +1081,7 @@ function resolveBadgeColorClass(code) {
 .ledger-table td {
   border: 1px solid #000000;
   padding: 2px 3px;
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   line-height: 1.05;
   vertical-align: middle;
   color: #000000;
@@ -988,7 +1107,7 @@ function resolveBadgeColorClass(code) {
 }
 
 .ledger-table thead tr:nth-child(2) .ledger-table__stacked-head {
-  font-size: 0.58rem;
+  font-size: 0.60rem;
   line-height: 0.98;
   letter-spacing: 0.01em;
   padding: 1px 1px;
@@ -1016,11 +1135,6 @@ function resolveBadgeColorClass(code) {
   font-weight: 700;
 }
 
-.ledger-table__row--restoration td {
-  background: #f0fdf4;
-  font-weight: 600;
-}
-
 .ledger-table__stacked-head {
   display: flex;
   align-items: center;
@@ -1035,21 +1149,12 @@ function resolveBadgeColorClass(code) {
 .ledger-table__value {
   display: inline-block;
   min-width: 2.5ch;
+  color: #000000;
 }
 
 .ledger-table__value--emphasis {
   color: #000000;
   font-weight: 700;
-}
-
-.ledger-table__value--wl {
-  color: #1d4ed8;
-  font-weight: 600;
-}
-
-.ledger-table__value--mco6 {
-  color: #15803d;
-  font-weight: 600;
 }
 
 .ledger-table__cell--period,
@@ -1059,7 +1164,7 @@ function resolveBadgeColorClass(code) {
 }
 
 .ledger-table__cell--particulars {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   line-height: 1;
   font-weight: 600;
   word-wrap: break-word;
@@ -1067,12 +1172,12 @@ function resolveBadgeColorClass(code) {
 }
 
 .ledger-table__primary-head--particulars .ledger-table__stacked-head {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   letter-spacing: 0.01em;
 }
 
 .ledger-table__primary-head--action .ledger-table__stacked-head {
-  font-size: 0.54rem;
+  font-size: 0.56rem;
   line-height: 0.94;
   letter-spacing: 0.01em;
   padding: 1px 1px;
