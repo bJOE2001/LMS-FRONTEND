@@ -1226,15 +1226,27 @@ function resolveSlVlCrossDeductionContext(app) {
   const rawPrimaryBalance = getBalanceFromApp(app, leaveTypeLabel)
   if (!Number.isFinite(rawPrimaryBalance)) return null
 
-  const currentAppDeduction = Number(app?.deductible_days ?? app?.days ?? app?.duration_value ?? app?.total_days ?? 0)
+  const isApproved = String(app?.status || '').toUpperCase() === 'APPROVED'
+  const currentAppPrimaryDeduction = isApproved
+    ? Number(app?.deductible_days ?? app?.days ?? app?.duration_value ?? app?.total_days ?? 0)
+    : 0
   const primaryAvailableBalance = Math.max(
-    rawPrimaryBalance + (Number.isFinite(currentAppDeduction) && currentAppDeduction > 0 ? currentAppDeduction : 0),
+    rawPrimaryBalance +
+      (Number.isFinite(currentAppPrimaryDeduction) && currentAppPrimaryDeduction > 0 ? currentAppPrimaryDeduction : 0),
     0,
   )
 
   if (normKey === normalizeLeaveBalanceKey('Sick Leave')) {
-    const alternateAvailableBalance = getBalanceFromApp(app, 'Vacation Leave')
-    if (!Number.isFinite(alternateAvailableBalance)) return null
+    const rawAlternateBalance = getBalanceFromApp(app, 'Vacation Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+    const currentAlternateDeduction = isApproved
+      ? Number(app?.linked_vacation_leave_deducted_days ?? 0)
+      : 0
+    const alternateAvailableBalance = Math.max(
+      rawAlternateBalance +
+        (Number.isFinite(currentAlternateDeduction) && currentAlternateDeduction > 0 ? currentAlternateDeduction : 0),
+      0,
+    )
     return {
       primaryAvailableBalance,
       alternateAvailableBalance,
@@ -1243,8 +1255,16 @@ function resolveSlVlCrossDeductionContext(app) {
   }
 
   if (normKey === normalizeLeaveBalanceKey('Vacation Leave')) {
-    const alternateAvailableBalance = getBalanceFromApp(app, 'Sick Leave')
-    if (!Number.isFinite(alternateAvailableBalance)) return null
+    const rawAlternateBalance = getBalanceFromApp(app, 'Sick Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+    const currentAlternateDeduction = isApproved
+      ? Number(app?.linked_sick_leave_deducted_days ?? 0)
+      : 0
+    const alternateAvailableBalance = Math.max(
+      rawAlternateBalance +
+        (Number.isFinite(currentAlternateDeduction) && currentAlternateDeduction > 0 ? currentAlternateDeduction : 0),
+      0,
+    )
     return {
       primaryAvailableBalance,
       alternateAvailableBalance,
@@ -1263,7 +1283,10 @@ function checkLeaveBalanceSufficiency(app, payStatusRows) {
   ).trim()
 
   const rawPrimaryAvailableBalance = getBalanceFromApp(app, leaveTypeLabel)
-  const currentAppDeduction = Number(app?.deductible_days ?? app?.days ?? app?.duration_value ?? app?.total_days ?? 0)
+  const isApproved = String(app?.status || '').toUpperCase() === 'APPROVED'
+  const currentAppDeduction = isApproved
+    ? Number(app?.deductible_days ?? app?.days ?? app?.duration_value ?? app?.total_days ?? 0)
+    : 0
   const primaryAvailableBalance = Number.isFinite(rawPrimaryAvailableBalance)
     ? Math.max(
         rawPrimaryAvailableBalance +

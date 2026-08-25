@@ -169,6 +169,24 @@
                 <q-tooltip>Print PDF</q-tooltip>
               </q-btn>
               <q-btn
+                v-if="canPrintRequestChangesApplication(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="description"
+                color="teal-7"
+                @click.stop="printRequestChangesApplication(tableProps.row)"
+              >
+                <q-tooltip>
+                  {{
+                    isApplicationEditCancellationRequest(tableProps.row)
+                      ? 'Print Cancellation Form'
+                      : 'Print Request Changes Form'
+                  }}
+                </q-tooltip>
+              </q-btn>
+              <q-btn
                 v-if="canRequestRecallApplication(tableProps.row)"
                 flat
                 dense
@@ -935,6 +953,7 @@ const {
   getApplicationEditRequestSectionTitle,
   getApplicationEditRequestChangeSummaryLabel,
   shouldShowApplicationEditRequestDateComparison,
+  isApplicationEditCancellationRequest,
   getApplicationEditRequestRequestedAt,
   getApplicationEditRequestReason,
   getApplicationEditRequestFromDates,

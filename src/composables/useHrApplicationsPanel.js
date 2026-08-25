@@ -2279,6 +2279,24 @@ function getApplicationInclusiveDateLines(app) {
 
   const start = app.startDate ? formatDate(app.startDate) : 'N/A'
   const end = app.endDate ? formatDate(app.endDate) : 'N/A'
+  if (start === 'N/A' && end === 'N/A') {
+    if (isCocApplication(app)) {
+      const year = app.application_year || app.applicationYear
+      const month = app.application_month || app.applicationMonth
+      if (year && month) {
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December',
+        ]
+        const monthName = monthNames[Number(month) - 1]
+        if (monthName) return [`${monthName} ${year}`]
+      }
+      if (year) return [`${year}`]
+    }
+    return ['N/A']
+  }
+  if (start === 'N/A') return [end]
+  if (end === 'N/A' || start === end) return [start]
   return [`${start} - ${end}`]
 }
 
@@ -2893,7 +2911,7 @@ async function fetchApplications(options = {}) {
       const [cocApplicationsResponse, cocLateResponse] = await Promise.all([
         applicationSourceFilter === 'late_filing'
           ? Promise.resolve(null)
-          : api.get('/hr/coc-applications').catch(() => null),
+          : api.get('/hr/coc-applications', { params: { include_imported: 1 } }).catch(() => null),
         !applicationSourceFilter || applicationSourceFilter === 'late_filing'
           ? api.get('/hr/coc-applications/late-filings').catch(() => null)
           : Promise.resolve(null),
@@ -2945,7 +2963,7 @@ async function fetchApplications(options = {}) {
     const [leaveApplicationsResponse, cocApplicationsResponse] =
       await Promise.all([
         api.get('/hr/leave-applications').catch(() => null),
-        api.get('/hr/coc-applications').catch(() => null),
+        api.get('/hr/coc-applications', { params: { include_imported: 1 } }).catch(() => null),
       ])
 
     const mergedApplications = mergeApplications(
@@ -3617,9 +3635,51 @@ function resolveEditRequestReviewRole(decisionHistoryEntry) {
   return ''
 }
 
+function resolveEmployeeFullName(app) {
+  const directName = String(
+    app?.employee_name ||
+    app?.employeeName ||
+    app?.raw?.employee_name ||
+    app?.raw?.employeeName ||
+    ''
+  ).trim()
+  if (directName) return directName
+
+  const employee = app?.employee || app?.raw?.employee || null
+  if (employee && typeof employee === 'object') {
+    const parts = [
+      employee.firstname || employee.first_name || employee.firstName,
+      employee.middlename || employee.middle_name || employee.middleName,
+      employee.surname || employee.last_name || employee.lastName,
+    ]
+      .filter(Boolean)
+      .map((part) => String(part).trim())
+      .filter(Boolean)
+    if (parts.length) return parts.join(' ')
+  }
+
+  const directParts = [
+    app?.firstname || app?.first_name || app?.firstName,
+    app?.middlename || app?.middle_name || app?.middleName,
+    app?.surname || app?.last_name || app?.lastName,
+  ]
+    .filter(Boolean)
+    .map((part) => String(part).trim())
+    .filter(Boolean)
+  if (directParts.length) return directParts.join(' ')
+
+  const user = app?.user || app?.raw?.user || null
+  if (user && typeof user === 'object' && user.name) {
+    return String(user.name).trim()
+  }
+
+  return ''
+}
+
 function resolveEditRequestSubmittedMeta(app) {
   const submittedHistoryEntry = resolveEditRequestSubmittedHistoryEntry(app)
   const pendingPayload = getPendingUpdatePayload(app)
+  const isRecall = isRecallRequestAction(app)
 
   const submittedAt = pickFirstDefinedValue(
     app?.latest_update_requested_at,
@@ -3627,12 +3687,31 @@ function resolveEditRequestSubmittedMeta(app) {
   )
   const submittedHistoryActor = String(resolveStatusHistoryActor(submittedHistoryEntry) || '').trim()
   const departmentAdminActor = String(resolveDepartmentAdminActor(app) || '').trim()
-  const defaultSubmitter = String(resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
-  const submittedBy = isRecallRequestAction(app)
-    ? submittedHistoryActor || (departmentAdminActor && departmentAdminActor !== 'Unknown'
-      ? departmentAdminActor
-      : 'Unknown')
-    : submittedHistoryActor || defaultSubmitter
+  const employeeFullName = resolveEmployeeFullName(app)
+  const defaultSubmitter = employeeFullName || 'Employee'
+
+  let submittedBy
+  if (isRecall) {
+    submittedBy =
+      submittedHistoryActor && submittedHistoryActor !== 'Unknown'
+        ? submittedHistoryActor
+        : departmentAdminActor && departmentAdminActor !== 'Unknown'
+          ? departmentAdminActor
+          : 'Department Admin'
+  } else {
+    const isControlNoOrUsername =
+      /^\d+$/.test(submittedHistoryActor) ||
+      submittedHistoryActor === String(app?.employee_control_no || '').trim() ||
+      submittedHistoryActor.toLowerCase() === String(app?.user?.username || '').toLowerCase()
+
+    if (employeeFullName) {
+      submittedBy = employeeFullName
+    } else if (submittedHistoryActor && !isControlNoOrUsername && submittedHistoryActor !== 'Unknown') {
+      submittedBy = submittedHistoryActor
+    } else {
+      submittedBy = defaultSubmitter
+    }
+  }
 
   const submittedReason = String(
     pickFirstDefinedValue(
@@ -3651,6 +3730,61 @@ function resolveEditRequestSubmittedMeta(app) {
     submittedBy,
     submittedReason,
   }
+}
+
+function resolveEditRequestAdminApprovalMeta(app) {
+  if (isRecallRequestAction(app)) return null
+
+  const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+  if (!cycleStart) return null
+
+  const historyEntry = findLatestStatusHistoryEntry(app, (entry) => {
+    const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+    const stageToken = normalizeStatusHistoryToken(entry?.stage)
+    const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
+
+    const isDeptApprovalAction =
+      [
+        'ADMIN_APPROVED',
+        'DEPT_RECOMMENDED',
+        'RECOMMENDED',
+        'EDIT_REQUEST_ADMIN_APPROVED',
+        'CANCELLATION_REQUEST_ADMIN_APPROVED',
+        'CANCEL_REQUEST_ADMIN_APPROVED',
+        'UPDATE_REQUEST_ADMIN_APPROVED',
+      ].includes(actionToken) ||
+      stageToken.includes('department recommendation completed') ||
+      stageToken.includes('edit request approved by admin') ||
+      stageToken.includes('cancellation request approved by admin') ||
+      stageToken.includes('recommended') ||
+      stageToken.includes('forwarded to hr') ||
+      remarksToken.includes('edit request recommended') ||
+      remarksToken.includes('cancellation request recommended')
+
+    if (!isDeptApprovalAction) return false
+
+    const entryTime = resolveStatusHistoryTimestamp(entry)
+    return isTimestampOnOrAfter(entryTime, cycleStart)
+  })
+
+  if (historyEntry) {
+    return {
+      reviewedAt: resolveStatusHistoryTimestamp(historyEntry),
+      reviewedBy:
+        String(resolveStatusHistoryActor(historyEntry) || resolveDepartmentAdminActor(app) || '').trim() ||
+        'Department Admin',
+    }
+  }
+
+  const adminActionAt = app?.admin_action_at || null
+  if (adminActionAt && isTimestampOnOrAfter(adminActionAt, cycleStart)) {
+    return {
+      reviewedAt: adminActionAt,
+      reviewedBy: String(resolveDepartmentAdminActor(app) || '').trim() || 'Department Admin',
+    }
+  }
+
+  return null
 }
 
 function resolveEditRequestApprovalMeta(app) {
@@ -3802,20 +3936,14 @@ function getEditRequestTimelineEntries(app) {
   const latestUpdateStatus = getLatestUpdateRequestStatus(app)
   const approvalMeta = resolveEditRequestApprovalMeta(app)
   const rejectionMeta = resolveEditRequestRejectionMeta(app)
+  const adminApprovalMeta = resolveEditRequestAdminApprovalMeta(app)
   const resolvedStatus = approvalMeta
     ? 'APPROVED'
     : rejectionMeta
       ? 'REJECTED'
       : latestUpdateStatus || 'PENDING'
-  const rawStatus = getApplicationRawStatusKey(app)
-  const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
-  const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
-  const isRejectedByAdmin =
-    rejectionMeta &&
-    (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
-      resolvedStatus === 'REJECTED' ||
-      getLatestUpdateRequestStatus(app) === 'REJECTED')
 
+  // 1. Request Submitted Step
   entries.push({
     title: terminology.submittedTitle,
     subtitle: formatDateTime(submittedMeta.submittedAt) || 'Submitted',
@@ -3827,15 +3955,12 @@ function getEditRequestTimelineEntries(app) {
     actor: submittedMeta.submittedBy,
   })
 
-  if (isAdminReviewPending) {
-    entries.push({
-      title: terminology.pendingAdminTitle,
-      subtitle: 'On Process',
-      description: terminology.pendingAdminDescription,
-      icon: 'pending_actions',
-      color: 'warning',
-    })
-  } else if (rejectionMeta || resolvedStatus === 'REJECTED') {
+  // 2. Rejection Step (if rejected by Admin or HR)
+  if (rejectionMeta || resolvedStatus === 'REJECTED') {
+    const isRejectedByAdmin =
+      rejectionMeta &&
+      (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
+        !adminApprovalMeta)
     const actorName = rejectionMeta?.reviewedBy || resolveDepartmentAdminActor(app)
     const reviewRemarks = rejectionMeta?.reviewRemarks
     entries.push({
@@ -3847,17 +3972,32 @@ function getEditRequestTimelineEntries(app) {
       actor: actorName,
     })
     return entries
-  } else if (!isRecallRequest && (approvalMeta || isHrReviewPending || rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED')) {
-    entries.push({
-      title: terminology.adminApprovedTitle,
-      subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
-      description: terminology.adminApprovedDescription,
-      icon: 'check_circle',
-      color: 'positive',
-      actor: resolveDepartmentAdminActor(app),
-    })
   }
 
+  // 3. Admin Review Step (only for non-recall requests)
+  if (!isRecallRequest) {
+    if (adminApprovalMeta) {
+      entries.push({
+        title: terminology.adminApprovedTitle,
+        subtitle: formatDateTime(adminApprovalMeta.reviewedAt) || 'Completed',
+        description: terminology.adminApprovedDescription,
+        icon: 'check_circle',
+        color: 'positive',
+        actor: adminApprovalMeta.reviewedBy,
+      })
+    } else if (!approvalMeta) {
+      entries.push({
+        title: terminology.pendingAdminTitle,
+        subtitle: 'On Process',
+        description: terminology.pendingAdminDescription,
+        icon: 'pending_actions',
+        color: 'warning',
+      })
+      return entries
+    }
+  }
+
+  // 4. HR Review Step
   if (approvalMeta) {
     entries.push({
       title: terminology.approvedTitle,
@@ -3867,16 +4007,7 @@ function getEditRequestTimelineEntries(app) {
       color: 'positive',
       actor: approvalMeta.reviewedBy,
     })
-  } else if (rejectionMeta) {
-    entries.push({
-      title: terminology.rejectedTitle,
-      subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-      description: rejectionMeta.reviewRemarks || terminology.rejectedDescription,
-      icon: 'cancel',
-      color: 'negative',
-      actor: rejectionMeta.reviewedBy,
-    })
-  } else if (isHrReviewPending) {
+  } else {
     entries.push({
       title: terminology.pendingHrTitle,
       subtitle: 'On Process',
@@ -5389,12 +5520,21 @@ function resolvePayStatusOverrideSlVlCrossDeductionContext(app) {
   const leaveTypeKey = normalizeLeaveBalanceLookupKey(
     getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || '',
   )
-  const primaryAvailableBalance = getCurrentLeaveBalanceValue(app)
-  if (!Number.isFinite(primaryAvailableBalance)) return null
+  const rawPrimaryAvailableBalance = getCurrentLeaveBalanceValue(app)
+  if (!Number.isFinite(rawPrimaryAvailableBalance)) return null
+
+  const currentPrimaryDeduction = Number(app?.deductible_days || app?.deductibleDays || 0) || 0
+  const currentLinkedVacationDeduction =
+    Number(app?.linked_vacation_leave_deducted_days || app?.linkedVacationLeaveDeductedDays || 0) || 0
+  const currentLinkedSickDeduction =
+    Number(app?.linked_sick_leave_deducted_days || app?.linkedSickLeaveDeductedDays || 0) || 0
 
   if (leaveTypeKey === normalizeLeaveBalanceLookupKey('Sick Leave')) {
-    const alternateAvailableBalance = getLeaveBalanceValueByTypeLabel(app, 'Vacation Leave')
-    if (!Number.isFinite(alternateAvailableBalance)) return null
+    const rawAlternateBalance = getLeaveBalanceValueByTypeLabel(app, 'Vacation Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+
+    const primaryAvailableBalance = Math.max(rawPrimaryAvailableBalance + currentPrimaryDeduction, 0)
+    const alternateAvailableBalance = Math.max(rawAlternateBalance + currentLinkedVacationDeduction, 0)
 
     return {
       alternateAvailableBalance,
@@ -5404,8 +5544,11 @@ function resolvePayStatusOverrideSlVlCrossDeductionContext(app) {
   }
 
   if (leaveTypeKey === normalizeLeaveBalanceLookupKey('Vacation Leave')) {
-    const alternateAvailableBalance = getLeaveBalanceValueByTypeLabel(app, 'Sick Leave')
-    if (!Number.isFinite(alternateAvailableBalance)) return null
+    const rawAlternateBalance = getLeaveBalanceValueByTypeLabel(app, 'Sick Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+
+    const primaryAvailableBalance = Math.max(rawPrimaryAvailableBalance + currentPrimaryDeduction, 0)
+    const alternateAvailableBalance = Math.max(rawAlternateBalance + currentLinkedSickDeduction, 0)
 
     return {
       alternateAvailableBalance,

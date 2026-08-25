@@ -470,7 +470,36 @@ export function buildRecallFormDocDefinition(formData = {}, logoBase64 = null) {
   }
 }
 
-export async function generateRecallFormPdf(formData = {}) {
+function openPdfDocument(pdfDocument, options = {}) {
+  const targetWindow =
+    options?.targetWindow && !options.targetWindow.closed ? options.targetWindow : null
+  const fileName =
+    String(options?.fileName || 'recall-form.pdf').trim() ||
+    'recall-form.pdf'
+
+  return pdfDocument.getBlob().then((blob) => {
+    const objectUrl = URL.createObjectURL(blob)
+
+    if (targetWindow) {
+      targetWindow.location.replace(objectUrl)
+    } else {
+      const opened = window.open(objectUrl, '_blank')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = fileName
+        anchor.rel = 'noopener noreferrer'
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      }
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  })
+}
+
+export async function generateRecallFormPdf(formData = {}, options = {}) {
   let logoBase64 = null
   try {
     logoBase64 = await toBase64('/images/CityOfTagumLogo.png')
@@ -499,5 +528,7 @@ export async function generateRecallFormPdf(formData = {}) {
     }
   }
 
-  pdfMake.createPdf(buildRecallFormDocDefinition(enrichedFormData, logoBase64)).open()
+  const docDefinition = buildRecallFormDocDefinition(enrichedFormData, logoBase64)
+  const pdfDocument = pdfMake.createPdf(docDefinition)
+  return openPdfDocument(pdfDocument, options)
 }

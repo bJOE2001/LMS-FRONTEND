@@ -440,7 +440,7 @@ export function useAdminApplicationsPage() {
         await Promise.all([
           api.get('/admin/dashboard').catch(() => null),
           api.get('/admin/leave-applications').catch(() => null),
-          api.get('/admin/coc-applications').catch(() => null),
+          api.get('/admin/coc-applications', { params: { include_imported: 1 } }).catch(() => null),
         ])
 
       const mergedApplications = mergeApplications(
@@ -2883,6 +2883,24 @@ export function useAdminApplicationsPage() {
 
     const start = app.startDate ? formatDate(app.startDate) : 'N/A'
     const end = app.endDate ? formatDate(app.endDate) : 'N/A'
+    if (start === 'N/A' && end === 'N/A') {
+      if (isCocApplication(app)) {
+        const year = app.application_year || app.applicationYear
+        const month = app.application_month || app.applicationMonth
+        if (year && month) {
+          const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December',
+          ]
+          const monthName = monthNames[Number(month) - 1]
+          if (monthName) return [`${monthName} ${year}`]
+        }
+        if (year) return [`${year}`]
+      }
+      return ['N/A']
+    }
+    if (start === 'N/A') return [end]
+    if (end === 'N/A' || start === end) return [start]
     return [`${start} - ${end}`]
   }
 
@@ -3931,14 +3949,56 @@ export function useAdminApplicationsPage() {
     return hasPendingDateUpdate(app) && !hasApplicationEditRequest(app)
   }
 
+  function resolveEmployeeFullName(app) {
+    const directName = String(
+      app?.employee_name ||
+      app?.employeeName ||
+      app?.raw?.employee_name ||
+      app?.raw?.employeeName ||
+      ''
+    ).trim()
+    if (directName) return directName
+
+    const employee = app?.employee || app?.raw?.employee || null
+    if (employee && typeof employee === 'object') {
+      const parts = [
+        employee.firstname || employee.first_name || employee.firstName,
+        employee.middlename || employee.middle_name || employee.middleName,
+        employee.surname || employee.last_name || employee.lastName,
+      ]
+        .filter(Boolean)
+        .map((part) => String(part).trim())
+        .filter(Boolean)
+      if (parts.length) return parts.join(' ')
+    }
+
+    const directParts = [
+      app?.firstname || app?.first_name || app?.firstName,
+      app?.middlename || app?.middle_name || app?.middleName,
+      app?.surname || app?.last_name || app?.lastName,
+    ]
+      .filter(Boolean)
+      .map((part) => String(part).trim())
+      .filter(Boolean)
+    if (directParts.length) return directParts.join(' ')
+
+    const user = app?.user || app?.raw?.user || null
+    if (user && typeof user === 'object' && user.name) {
+      return String(user.name).trim()
+    }
+
+    return ''
+  }
+
   function resolveAdminEditRequestSubmittedMeta(app) {
     const pendingPayload = getPendingUpdatePayload(app)
+    const isRecall = isAdminRecallRequest(app)
     const submittedHistoryEntry = findStatusHistoryEntry(app, (entry) => {
       const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
       const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
       const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
 
-      if (isAdminRecallRequest(app)) {
+      if (isRecall) {
         return (
           actionToken.includes('REQUEST_RECALL') ||
           actionToken.includes('RECALL_REQUEST') ||
@@ -3968,17 +4028,41 @@ export function useAdminApplicationsPage() {
       )
     })
 
-    const submittedAt = app?.latest_update_requested_at || app?.updated_at || null
+    const submittedAt =
+      app?.latest_update_requested_at ||
+      app?.pending_update_requested_at ||
+      resolveStatusHistoryTimestamp(submittedHistoryEntry) ||
+      app?.updated_at ||
+      null
     const submittedHistoryActor =
       String(resolveStatusHistoryActor(submittedHistoryEntry) || '').trim()
     const departmentAdminActor = String(resolveDepartmentAdminActor(app) || '').trim()
-    const defaultSubmitter =
-      String(resolveFiledByActor(app) || app?.employee_name || 'Unknown').trim() || 'Unknown'
-    const submittedBy = isAdminRecallRequest(app)
-      ? submittedHistoryActor || (departmentAdminActor && departmentAdminActor !== 'Unknown'
-        ? departmentAdminActor
-        : 'Unknown')
-      : submittedHistoryActor || defaultSubmitter
+    const employeeFullName = resolveEmployeeFullName(app)
+    const defaultSubmitter = employeeFullName || 'Employee'
+
+    let submittedBy
+    if (isRecall) {
+      submittedBy =
+        submittedHistoryActor && submittedHistoryActor !== 'Unknown'
+          ? submittedHistoryActor
+          : departmentAdminActor && departmentAdminActor !== 'Unknown'
+            ? departmentAdminActor
+            : 'Department Admin'
+    } else {
+      const isControlNoOrUsername =
+        /^\d+$/.test(submittedHistoryActor) ||
+        submittedHistoryActor === String(app?.employee_control_no || '').trim() ||
+        submittedHistoryActor.toLowerCase() === String(app?.user?.username || '').toLowerCase()
+
+      if (employeeFullName) {
+        submittedBy = employeeFullName
+      } else if (submittedHistoryActor && !isControlNoOrUsername && submittedHistoryActor !== 'Unknown') {
+        submittedBy = submittedHistoryActor
+      } else {
+        submittedBy = defaultSubmitter
+      }
+    }
+
     const submittedReason = String(
       app?.latest_update_request_reason ??
         app?.pending_update_reason ??
@@ -3993,6 +4077,61 @@ export function useAdminApplicationsPage() {
       submittedBy,
       submittedReason,
     }
+  }
+
+  function resolveAdminEditRequestAdminApprovalMeta(app) {
+    if (isAdminRecallRequest(app)) return null
+
+    const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+    if (!cycleStart) return null
+
+    const historyEntry = findLatestStatusHistoryEntry(app, (entry) => {
+      const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      const remarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+
+      const isDeptApprovalAction =
+        [
+          'ADMIN_APPROVED',
+          'DEPT_RECOMMENDED',
+          'RECOMMENDED',
+          'EDIT_REQUEST_ADMIN_APPROVED',
+          'CANCELLATION_REQUEST_ADMIN_APPROVED',
+          'CANCEL_REQUEST_ADMIN_APPROVED',
+          'UPDATE_REQUEST_ADMIN_APPROVED',
+        ].includes(actionToken) ||
+        stageToken.includes('department recommendation completed') ||
+        stageToken.includes('edit request approved by admin') ||
+        stageToken.includes('cancellation request approved by admin') ||
+        stageToken.includes('recommended') ||
+        stageToken.includes('forwarded to hr') ||
+        remarksToken.includes('edit request recommended') ||
+        remarksToken.includes('cancellation request recommended')
+
+      if (!isDeptApprovalAction) return false
+
+      const entryTime = resolveStatusHistoryTimestamp(entry)
+      return isTimestampOnOrAfter(entryTime, cycleStart)
+    })
+
+    if (historyEntry) {
+      return {
+        reviewedAt: resolveStatusHistoryTimestamp(historyEntry),
+        reviewedBy:
+          String(resolveStatusHistoryActor(historyEntry) || resolveDepartmentAdminActor(app) || '').trim() ||
+          'Department Admin',
+      }
+    }
+
+    const adminActionAt = app?.admin_action_at || null
+    if (adminActionAt && isTimestampOnOrAfter(adminActionAt, cycleStart)) {
+      return {
+        reviewedAt: adminActionAt,
+        reviewedBy: String(resolveDepartmentAdminActor(app) || '').trim() || 'Department Admin',
+      }
+    }
+
+    return null
   }
 
   function resolveAdminEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
@@ -4194,20 +4333,14 @@ export function useAdminApplicationsPage() {
     const latestUpdateStatus = getAdminLatestUpdateRequestStatus(app)
     const approvalMeta = resolveAdminEditRequestApprovalMeta(app)
     const rejectionMeta = resolveAdminEditRequestRejectionMeta(app)
+    const adminApprovalMeta = resolveAdminEditRequestAdminApprovalMeta(app)
     const resolvedStatus = approvalMeta
       ? 'APPROVED'
       : rejectionMeta
         ? 'REJECTED'
         : latestUpdateStatus || 'PENDING'
-    const rawStatus = getApplicationRawStatus(app)
-    const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
-    const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
-    const isRejectedByAdmin =
-      rejectionMeta &&
-      (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
-        resolvedStatus === 'REJECTED' ||
-        getAdminLatestUpdateRequestStatus(app) === 'REJECTED')
 
+    // 1. Request Submitted Step
     entries.push({
       title: terminology.submittedTitle,
       subtitle: formatDateTime(submittedMeta.submittedAt) || 'Submitted',
@@ -4219,15 +4352,12 @@ export function useAdminApplicationsPage() {
       actor: submittedMeta.submittedBy,
     })
 
-    if (isAdminReviewPending) {
-      entries.push({
-        title: terminology.pendingAdminTitle,
-        subtitle: 'On Process',
-        description: terminology.pendingAdminDescription,
-        icon: 'pending_actions',
-        color: 'warning',
-      })
-    } else if (rejectionMeta || resolvedStatus === 'REJECTED') {
+    // 2. Rejection Step (if rejected by Admin or HR)
+    if (rejectionMeta || resolvedStatus === 'REJECTED') {
+      const isRejectedByAdmin =
+        rejectionMeta &&
+        (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
+          !adminApprovalMeta)
       const actorName = rejectionMeta?.reviewedBy || resolveDepartmentAdminActor(app)
       const reviewRemarks = rejectionMeta?.reviewRemarks
       entries.push({
@@ -4239,17 +4369,32 @@ export function useAdminApplicationsPage() {
         actor: actorName,
       })
       return entries
-    } else if (!isRecallRequest && (approvalMeta || isHrReviewPending || rawStatus === 'PENDING_HR' || rawStatus === 'APPROVED')) {
-      entries.push({
-        title: terminology.adminApprovedTitle,
-        subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
-        description: terminology.adminApprovedDescription,
-        icon: 'check_circle',
-        color: 'positive',
-        actor: resolveDepartmentAdminActor(app),
-      })
     }
 
+    // 3. Admin Review Step (only for non-recall requests)
+    if (!isRecallRequest) {
+      if (adminApprovalMeta) {
+        entries.push({
+          title: terminology.adminApprovedTitle,
+          subtitle: formatDateTime(adminApprovalMeta.reviewedAt) || 'Completed',
+          description: terminology.adminApprovedDescription,
+          icon: 'check_circle',
+          color: 'positive',
+          actor: adminApprovalMeta.reviewedBy,
+        })
+      } else if (!approvalMeta) {
+        entries.push({
+          title: terminology.pendingAdminTitle,
+          subtitle: 'On Process',
+          description: terminology.pendingAdminDescription,
+          icon: 'pending_actions',
+          color: 'warning',
+        })
+        return entries
+      }
+    }
+
+    // 4. HR Review Step
     if (approvalMeta) {
       entries.push({
         title: terminology.approvedTitle,
@@ -4259,16 +4404,7 @@ export function useAdminApplicationsPage() {
         color: 'positive',
         actor: approvalMeta.reviewedBy,
       })
-    } else if (rejectionMeta) {
-      entries.push({
-        title: terminology.rejectedTitle,
-        subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-        description: rejectionMeta.reviewRemarks || terminology.rejectedDescription,
-        icon: 'cancel',
-        color: 'negative',
-        actor: rejectionMeta.reviewedBy,
-      })
-    } else if (isHrReviewPending) {
+    } else {
       entries.push({
         title: terminology.pendingHrTitle,
         subtitle: 'On Process',
@@ -6125,7 +6261,7 @@ export function useAdminApplicationsPage() {
     return resolveRecallFormPrintData(app) !== null
   }
 
-  async function printRecallFormForRequest(application, recallSelectedDates = []) {
+  async function printRecallFormForRequest(application, recallSelectedDates = [], options = {}) {
     const requestingOffice = String(
       application?.office ??
         application?.office_name ??
@@ -6188,15 +6324,18 @@ export function useAdminApplicationsPage() {
         '',
     ).trim()
 
-    await generateRecallFormPdf({
-      application,
-      date: new Date().toISOString(),
-      recipientName: getApplicationEmployeeDisplayName(application) || 'Employee',
-      recipientPosition,
-      officeName: officeForParagraph || requestingOffice || 'REQUESTING OFFICE',
-      leaveType: leaveTypeLabel,
-      inclusiveDates: inclusiveDatesText,
-    })
+    await generateRecallFormPdf(
+      {
+        application,
+        date: new Date().toISOString(),
+        recipientName: getApplicationEmployeeDisplayName(application) || 'Employee',
+        recipientPosition,
+        officeName: officeForParagraph || requestingOffice || 'REQUESTING OFFICE',
+        leaveType: leaveTypeLabel,
+        inclusiveDates: inclusiveDatesText,
+      },
+      options,
+    )
   }
 
   async function printRecallRequestApplication(app) {
@@ -6210,9 +6349,23 @@ export function useAdminApplicationsPage() {
       return
     }
 
+    const pdfWindow = window.open('', '_blank')
+    if (pdfWindow) {
+      try {
+        pdfWindow.document.title = 'Preparing Recall Form PDF...'
+        pdfWindow.document.body.innerHTML =
+          '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+      } catch {
+        // Ignore interim window rendering issues.
+      }
+    }
+
     try {
-      await printRecallFormForRequest(printData.application, printData.recallSelectedDates)
+      await printRecallFormForRequest(printData.application, printData.recallSelectedDates, {
+        targetWindow: pdfWindow,
+      })
     } catch (printErr) {
+      if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
       const printMessage = resolveApiErrorMessage(
         printErr,
         'Unable to print the recall form right now.',
@@ -6314,9 +6467,22 @@ export function useAdminApplicationsPage() {
       const refreshedApplication = resolveApp(applicationId) || application
       const shouldPrintNow = await confirmRecallFormPrinting(refreshedApplication)
       if (shouldPrintNow) {
+        const pdfWindow = window.open('', '_blank')
+        if (pdfWindow) {
+          try {
+            pdfWindow.document.title = 'Preparing Recall Form PDF...'
+            pdfWindow.document.body.innerHTML =
+              '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+          } catch {
+            // Ignore interim window rendering issues.
+          }
+        }
         try {
-          await printRecallFormForRequest(refreshedApplication, recallSelectedDates)
+          await printRecallFormForRequest(refreshedApplication, recallSelectedDates, {
+            targetWindow: pdfWindow,
+          })
         } catch (printErr) {
+          if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
           const printMessage = resolveApiErrorMessage(
             printErr,
             'Recall request submitted, but printing the recall form failed.',
@@ -6621,7 +6787,8 @@ export function useAdminApplicationsPage() {
 
   function canPrintRequestChangesApplication(app) {
     const target = resolveApp(app) || app
-    return hasApplicationEditRequest(target)
+    if (!target) return false
+    return hasApplicationEditRequest(target) && !isApplicationEditRecallRequest(target)
   }
 
   async function printRequestChangesApplication(app, options = {}) {

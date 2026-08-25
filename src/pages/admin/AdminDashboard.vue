@@ -2463,6 +2463,24 @@ function getApplicationInclusiveDateLines(app) {
 
   const start = app.startDate ? formatDate(app.startDate) : 'N/A'
   const end = app.endDate ? formatDate(app.endDate) : 'N/A'
+  if (start === 'N/A' && end === 'N/A') {
+    if (isCocApplication(app)) {
+      const year = app.application_year || app.applicationYear
+      const month = app.application_month || app.applicationMonth
+      if (year && month) {
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December',
+        ]
+        const monthName = monthNames[Number(month) - 1]
+        if (monthName) return [`${monthName} ${year}`]
+      }
+      if (year) return [`${year}`]
+    }
+    return ['N/A']
+  }
+  if (start === 'N/A') return [end]
+  if (end === 'N/A' || start === end) return [start]
   return [`${start} - ${end}`]
 }
 
