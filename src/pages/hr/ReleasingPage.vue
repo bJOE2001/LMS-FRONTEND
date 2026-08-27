@@ -17,10 +17,28 @@
         >
           <q-tooltip v-if="$q.screen.lt.sm">Export</q-tooltip>
         </q-btn>
+
+        <q-btn
+          unelevated
+          no-caps
+          color="primary"
+          icon="qr_code_scanner"
+          :label="$q.screen.lt.sm ? '' : 'Scan Form'"
+          @click="showScanner = true"
+          :padding="$q.screen.lt.sm ? 'sm' : 'sm md'"
+        >
+          <q-tooltip v-if="$q.screen.lt.sm">Scan Form</q-tooltip>
+        </q-btn>
       </div>
     </div>
 
     <HrApplicationsPanel :key="panelKey" application-type="LEAVE" :pending-release="true" />
+
+    <LeaveFormScannerDialog
+      v-model="showScanner"
+      mode="release"
+      @confirmed="onScannerConfirmed"
+    />
 
     <q-dialog v-model="showExportDialog">
       <q-card style="width: 400px; max-width: 90vw;">
@@ -73,10 +91,16 @@ import { ref, computed } from 'vue'
 import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 import HrApplicationsPanel from 'components/hr/HrApplicationsPanel.vue'
+import LeaveFormScannerDialog from 'components/hr/LeaveFormScannerDialog.vue'
 import { exportReleasingExcel, exportReleasingPdf } from 'src/utils/releasing-export.js'
 
 const q = useQuasar()
+const showScanner = ref(false)
 const panelKey = ref(0)
+
+function onScannerConfirmed() {
+  panelKey.value++
+}
 
 const showExportDialog = ref(false)
 const exportFromDate = ref(new Date().toISOString().slice(0, 10))

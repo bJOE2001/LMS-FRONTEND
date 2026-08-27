@@ -13,7 +13,9 @@
     >
       <q-bar class="bg-primary text-white q-py-lg flex-shrink-0" style="height: 50px;">
         <q-icon name="qr_code_scanner" size="20px" />
-        <div class="text-subtitle1 text-weight-medium">Scan Leave Form</div>
+        <div class="text-subtitle1 text-weight-medium">
+          {{ isReleaseMode ? 'Scan Leave Form to Release' : 'Scan Leave Form' }}
+        </div>
         <q-space />
         <q-btn flat round dense icon="close" v-close-popup class="text-white">
           <q-tooltip>Close Scanner</q-tooltip>
@@ -91,7 +93,7 @@
                       color="primary"
                       icon="qr_code_scanner"
                       label="Start Camera Scan"
-                      :disable="checking || receiving"
+                      :disable="checking || submitting"
                       @click="startCamera"
                     />
                     <q-btn
@@ -254,11 +256,15 @@
                   </q-list>
 
                   <q-checkbox
-                    v-if="canCompareForReceipt"
+                    v-if="canCompareForAction"
                     v-model="comparisonConfirmed"
                     class="q-mt-md"
                     color="primary"
-                    label="I compared the printed employee, filing date, leave type, dates, and total days with this official record."
+                    :label="
+                      isReleaseMode
+                        ? 'I compared the printed employee, filing date, leave type, dates, and total days with this official record before releasing.'
+                        : 'I compared the printed employee, filing date, leave type, dates, and total days with this official record.'
+                    "
                   />
 
                   <div class="row q-col-gutter-sm q-mt-lg">
@@ -266,12 +272,12 @@
                       <q-btn
                         unelevated
                         no-caps
-                        color="positive"
-                        icon="check_circle"
-                        label="Confirm Received"
-                        :loading="receiving"
-                        :disable="!canConfirmReceipt"
-                        @click="confirmReceipt"
+                        :color="isReleaseMode ? 'secondary' : 'positive'"
+                        :icon="isReleaseMode ? 'outbox' : 'check_circle'"
+                        :label="isReleaseMode ? 'Confirm Released' : 'Confirm Received'"
+                        :loading="submitting"
+                        :disable="!canConfirmAction"
+                        @click="confirmAction"
                         class="full-width text-weight-bold"
                         style="height: 44px; border-radius: 8px;"
                       />
@@ -283,7 +289,7 @@
                         color="primary"
                         icon="qr_code_scanner"
                         label="Scan Another Form"
-                        :disable="receiving"
+                        :disable="submitting"
                         @click="resetScanner"
                         class="full-width"
                         style="height: 44px; border-radius: 8px;"
@@ -299,7 +305,11 @@
                 </div>
                 <div class="text-subtitle1 text-weight-medium q-mt-md text-grey-8">Awaiting Document Scan</div>
                 <div class="text-caption text-grey-6 max-width-xs q-mx-auto q-mt-xs">
-                  Scan a printed leave application form to verify its details and record its receipt.
+                  {{
+                    isReleaseMode
+                      ? 'Scan a printed leave application form to verify its details and record its release.'
+                      : 'Scan a printed leave application form to verify its details and record its receipt.'
+                  }}
                 </div>
               </q-card-section>
             </q-card>
@@ -327,6 +337,11 @@ const props = defineProps({
     type: [String, Number],
     default: '',
   },
+  mode: {
+    type: String,
+    default: 'receive',
+    validator: (val) => ['receive', 'release'].includes(val),
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'confirmed'])
@@ -342,7 +357,7 @@ const route = useRoute()
 const cameraActive = ref(false)
 const cameraError = ref('')
 const checking = ref(false)
-const receiving = ref(false)
+const submitting = ref(false)
 const imageScanning = ref(false)
 const scannedToken = ref('')
 const verificationResult = ref(null)
@@ -364,6 +379,7 @@ const cameraConstraints = ref({
   height: { ideal: 1080 },
 })
 
+const isReleaseMode = computed(() => props.mode === 'release')
 const expectedApplicationId = computed(() => {
   if (props.applicationId) return String(props.applicationId).trim()
   return String(route.query.application || '').trim()
@@ -373,7 +389,7 @@ const verificationStatus = computed(() =>
   String(verificationResult.value?.verification?.status || '').toLowerCase(),
 )
 const isPaused = computed(() => {
-  return checking.value || receiving.value || Boolean(verificationResult.value)
+  return checking.value || submitting.value || Boolean(verificationResult.value)
 })
 const currentReference = computed(
   () => verificationResult.value?.verification?.current_reference || '',
@@ -381,19 +397,31 @@ const currentReference = computed(
 const scannedReference = computed(
   () => verificationResult.value?.verification?.scanned_reference || '',
 )
-const canCompareForReceipt = computed(
-  () =>
-    verificationStatus.value === 'verified' &&
-    Boolean(verificationResult.value?.verification?.can_receive),
+
+const alreadyReceived = computed(() => Boolean(verificationResult.value?.verification?.already_received))
+const alreadyReleased = computed(() => Boolean(verificationResult.value?.verification?.already_released))
+const hasCmoCbmoReview = computed(() => Boolean(verificationResult.value?.verification?.has_cmo_cbmo_review))
+
+const canCompareForAction = computed(() => {
+  if (verificationStatus.value !== 'verified') return false
+  if (isReleaseMode.value) {
+    return Boolean(verificationResult.value?.verification?.can_release)
+  }
+  return Boolean(verificationResult.value?.verification?.can_receive)
+})
+
+const canConfirmAction = computed(
+  () => canCompareForAction.value && comparisonConfirmed.value && !submitting.value,
 )
-const canConfirmReceipt = computed(
-  () => canCompareForReceipt.value && comparisonConfirmed.value && !receiving.value,
-)
+
 const showConfirmButton = computed(() => {
   if (!verifiedApplication.value) return false
-  const alreadyReceived = Boolean(verificationResult.value?.verification?.already_received)
   const isCancelled = Boolean(verifiedApplication.value?.cancelled)
-  return !alreadyReceived && !isCancelled
+  if (isCancelled) return false
+  if (isReleaseMode.value) {
+    return !alreadyReleased.value
+  }
+  return !alreadyReceived.value
 })
 
 const inclusiveDates = computed(() => {
@@ -602,12 +630,24 @@ const verificationLabel = computed(() => {
   if (verifiedApplication.value?.cancelled) {
     return 'Cancelled application'
   }
-  if (verificationResult.value?.verification?.already_received) {
-    return 'Already received'
+  if (isReleaseMode.value) {
+    if (alreadyReleased.value) {
+      return 'Already released'
+    }
+    if (!alreadyReceived.value) {
+      return 'Form not yet received'
+    }
+    if (!hasCmoCbmoReview.value) {
+      return 'Pending CMO/CVMO review'
+    }
+  } else {
+    if (alreadyReceived.value) {
+      return 'Already received'
+    }
   }
 
   const labels = {
-    verified: 'Valid current form',
+    verified: isReleaseMode.value ? 'Ready for release' : 'Valid current form',
     outdated: 'Outdated form',
     invalid: 'Invalid or altered QR code',
     mismatch: 'Wrong application form',
@@ -618,24 +658,48 @@ const verificationLabel = computed(() => {
 })
 const verificationIcon = computed(() => {
   if (verifiedApplication.value?.cancelled) return 'cancel'
-  if (verificationResult.value?.verification?.already_received) return 'info'
+  if (isReleaseMode.value) {
+    if (alreadyReleased.value) return 'info'
+    if (!alreadyReceived.value || !hasCmoCbmoReview.value) return 'warning'
+  } else {
+    if (alreadyReceived.value) return 'info'
+  }
   if (verificationStatus.value === 'verified') return 'verified'
   if (verificationStatus.value === 'outdated') return 'history'
   return 'gpp_bad'
 })
 const verificationBannerClass = computed(() => {
   if (verifiedApplication.value?.cancelled) return 'bg-red-1 text-red-10'
-  if (verificationResult.value?.verification?.already_received) return 'bg-blue-1 text-blue-10'
+  if (isReleaseMode.value) {
+    if (alreadyReleased.value) return 'bg-blue-1 text-blue-10'
+    if (!alreadyReceived.value || !hasCmoCbmoReview.value) return 'bg-orange-1 text-orange-10'
+  } else {
+    if (alreadyReceived.value) return 'bg-blue-1 text-blue-10'
+  }
   if (verificationStatus.value === 'verified') return 'bg-green-1 text-green-10'
   if (verificationStatus.value === 'outdated') return 'bg-orange-1 text-orange-10'
   return 'bg-red-1 text-red-10'
 })
 const verificationMessage = computed(() => {
   if (verifiedApplication.value?.cancelled) {
-    return 'This application has been cancelled and cannot be received.'
+    return isReleaseMode.value
+      ? 'This application has been cancelled and cannot be released.'
+      : 'This application has been cancelled and cannot be received.'
   }
-  if (verificationResult.value?.verification?.already_received) {
-    return 'This application has already been recorded as received by HR.'
+  if (isReleaseMode.value) {
+    if (alreadyReleased.value) {
+      return 'This application has already been recorded as released by HR.'
+    }
+    if (!alreadyReceived.value) {
+      return 'Cannot release: The hard-copy form must be marked as received by HR before releasing.'
+    }
+    if (!hasCmoCbmoReview.value) {
+      return 'Cannot release: This application must complete CMO/CVMO review before releasing.'
+    }
+  } else {
+    if (alreadyReceived.value) {
+      return 'This application has already been recorded as received by HR.'
+    }
   }
   return verificationResult.value?.message || ''
 })
@@ -672,7 +736,7 @@ function onCameraError(error) {
 }
 
 function onDetect(detectedCodes) {
-  if (checking.value || receiving.value || verificationResult.value) return
+  if (checking.value || submitting.value || verificationResult.value) return
 
   const code = detectedCodes[0]
   if (code && code.rawValue) {
@@ -691,7 +755,7 @@ function paintBoundingBox(detectedCodes, ctx) {
 }
 
 function triggerImageCapture() {
-  if (checking.value || receiving.value || imageScanning.value) return
+  if (checking.value || submitting.value || imageScanning.value) return
   if (qrcodeCaptureRef.value && qrcodeCaptureRef.value.$el) {
     qrcodeCaptureRef.value.$el.click()
   }
@@ -755,6 +819,7 @@ async function verifyToken(rawValue) {
         ...result.verification,
         status: 'mismatch',
         can_receive: false,
+        can_release: false,
       }
       result.message = `This QR code belongs to application #${scannedApplicationId}, not application #${expectedApplicationId.value}.`
     }
@@ -763,7 +828,7 @@ async function verifyToken(rawValue) {
   } catch (error) {
     verificationResult.value = error?.response?.data || {
       message: resolveApiErrorMessage(error, 'Unable to verify this leave application form.'),
-      verification: { status: 'invalid', can_receive: false },
+      verification: { status: 'invalid', can_receive: false, can_release: false },
     }
   } finally {
     checking.value = false
@@ -777,28 +842,46 @@ async function verifyToken(rawValue) {
   }
 }
 
-async function confirmReceipt() {
+async function confirmAction() {
   const applicationId = verifiedApplication.value?.id
-  if (!applicationId || !canConfirmReceipt.value) return
+  if (!applicationId || !canConfirmAction.value) return
 
-  receiving.value = true
+  submitting.value = true
   try {
     const reference = currentReference.value || scannedReference.value
-    const response = await api.post(`/hr/leave-applications/${applicationId}/receive`, {
+    const endpoint = isReleaseMode.value
+      ? `/hr/leave-applications/${applicationId}/release`
+      : `/hr/leave-applications/${applicationId}/receive`
+
+    const defaultRemarks = isReleaseMode.value
+      ? (reference ? `Released after QR verification (${reference}).` : 'Released after QR verification.')
+      : (reference ? `Received after QR verification (${reference}).` : 'Received after QR verification.')
+
+    const defaultSuccessMessage = isReleaseMode.value
+      ? 'Hard-copy release confirmed.'
+      : 'Hard-copy receipt confirmed.'
+
+    const response = await api.post(endpoint, {
       verification_token: scannedToken.value,
-      remarks: reference
-        ? `Received after QR verification (${reference}).`
-        : 'Received after QR verification.',
+      remarks: defaultRemarks,
     })
+
+    const updatedVerification = isReleaseMode.value
+      ? {
+          ...verificationResult.value.verification,
+          already_released: true,
+          can_release: false,
+        }
+      : {
+          ...verificationResult.value.verification,
+          already_received: true,
+          can_receive: false,
+        }
 
     verificationResult.value = {
       ...verificationResult.value,
-      message: response?.data?.message || 'Hard-copy receipt confirmed.',
-      verification: {
-        ...verificationResult.value.verification,
-        already_received: true,
-        can_receive: false,
-      },
+      message: response?.data?.message || defaultSuccessMessage,
+      verification: updatedVerification,
       application: response?.data?.application || verifiedApplication.value,
     }
 
@@ -807,16 +890,19 @@ async function confirmReceipt() {
     $q.notify({
       type: 'positive',
       position: 'top',
-      message: 'Receipt recorded successfully.',
+      message: isReleaseMode.value ? 'Release recorded successfully.' : 'Receipt recorded successfully.',
     })
   } catch (error) {
     $q.notify({
       type: 'negative',
       position: 'top',
-      message: resolveApiErrorMessage(error, 'Failed to record receipt.'),
+      message: resolveApiErrorMessage(
+        error,
+        isReleaseMode.value ? 'Failed to record release.' : 'Failed to record receipt.',
+      ),
     })
   } finally {
-    receiving.value = false
+    submitting.value = false
   }
 }
 
