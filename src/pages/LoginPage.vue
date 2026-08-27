@@ -95,7 +95,7 @@
       </div>
     </q-card>
     <div class="login-footer text-center">
-      &copy; 2026 Tagum City Hall. All Rights Reserved. | v1.0.7 |
+      &copy; 2026 Tagum City Hall. All Rights Reserved. | v1.0.8 |
       <router-link to="/development-team" class="login-footer-link">Development Team</router-link>
     </div>
   </q-page>
