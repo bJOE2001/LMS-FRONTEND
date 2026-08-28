@@ -27,6 +27,17 @@
           </q-input>
         </div>
         <div class="col-auto row items-center q-gutter-sm applications-panel-toolbar__actions">
+          <q-btn
+            v-if="!isCocOnlyView && eligibleActionableRowsOnPage.length > 0 && selectedApplications.length === 0"
+            outline
+            dense
+            no-caps
+            size="sm"
+            color="primary"
+            icon="checklist"
+            :label="`Select All on Page (${eligibleActionableRowsOnPage.length})`"
+            @click="selectAllEligibleOnPage"
+          />
           <q-chip
             v-if="employmentTypeFilterLabel"
             dense
@@ -40,12 +51,81 @@
           </q-chip>
         </div>
       </div>
+
+      <!-- Bulk Selection Action Bar -->
+      <transition name="q-transition--slide-down">
+        <div
+          v-if="!isCocOnlyView && selectedApplications.length > 0"
+          class="bulk-action-bar row items-center justify-between q-pa-sm q-mt-xs bg-indigo-1 rounded-borders border-indigo-3"
+        >
+          <div class="row items-center q-gutter-x-sm">
+            <q-icon name="checklist" color="primary" size="sm" />
+            <span class="text-subtitle2 text-grey-9 text-weight-bold">
+              {{ selectedApplications.length }} application{{ selectedApplications.length === 1 ? '' : 's' }} selected
+            </span>
+          </div>
+
+          <div class="row items-center q-gutter-x-xs">
+            <q-btn
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="grey-8"
+              icon="clear_all"
+              label="Deselect All"
+              @click="selectedApplications = []"
+            />
+            <q-btn
+              v-if="eligibleActionableRowsOnPage.length > 0 && selectedApplications.length < eligibleActionableRowsOnPage.length"
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="primary"
+              icon="select_all"
+              label="Select All on Page"
+              @click="selectAllEligibleOnPage"
+            />
+            <!-- Bulk CMO/CVMO Review Action -->
+            <q-btn
+              v-if="selectedCmoCbmoApplications.length > 0"
+              unelevated
+              dense
+              no-caps
+              color="deep-purple-7"
+              text-color="white"
+              icon="check_circle"
+              class="q-px-sm"
+              :loading="bulkCmoCbmoReviewLoading"
+              :label="`Approve CMO/CVMO Review (${selectedCmoCbmoApplications.length})`"
+              @click="openBulkCmoCbmoConfirmDialog"
+            />
+            <!-- Bulk Release Action -->
+            <q-btn
+              v-if="selectedReleaseApplications.length > 0"
+              unelevated
+              dense
+              no-caps
+              color="secondary"
+              text-color="white"
+              icon="assignment_turned_in"
+              class="q-px-sm"
+              :loading="bulkReleaseLoading"
+              :label="`Release Applications (${selectedReleaseApplications.length})`"
+              @click="openBulkReleaseConfirmDialog"
+            />
+          </div>
+        </div>
+      </transition>
     </q-card-section>
     <q-table
       :rows="applicationsForTable"
       :columns="applicationTableColumns"
       row-key="application_uid"
       flat
+      :selection="isCocOnlyView ? 'none' : 'multiple'"
+      v-model:selected="selectedApplications"
       v-model:pagination="tablePagination"
       :rows-per-page-options="isServerPaginatedLeaveView ? [10, 25, 50] : [10]"
       :loading="loading"
@@ -56,6 +136,28 @@
       @request="handleTableRequest"
       @row-click="handleApplicationRowClick"
     >
+      <template #header-selection>
+        <q-checkbox
+          v-if="!isCocOnlyView && eligibleActionableRowsOnPage.length > 0"
+          :model-value="isAllEligibleOnPageSelected"
+          :indeterminate="isSomeEligibleOnPageSelected"
+          dense
+          size="sm"
+          color="primary"
+          @update:model-value="toggleAllEligibleOnPage"
+        >
+          <q-tooltip>Select / Deselect all eligible applications on this page</q-tooltip>
+        </q-checkbox>
+      </template>
+      <template #body-selection="props">
+        <q-checkbox
+          v-if="!isCocOnlyView && canShowSelectCheckbox(props.row)"
+          v-model="props.selected"
+          dense
+          size="sm"
+          :color="canShowCmoCbmoReviewAction(props.row) ? 'deep-purple-7' : 'secondary'"
+        />
+      </template>
       <template #no-data>
         <div class="full-width row flex-center q-pa-lg text-grey-7">
           <template v-if="loading">
@@ -171,11 +273,22 @@
       </template>
       <template #body-cell-status="props">
         <q-td>
-          <div class="status-cell-wrap">
+          <div class="status-cell-wrap row items-center no-wrap q-gutter-x-xs">
             <StatusBadge
               :status="getFinalStatusForStatusColumn(props.row)"
               :tooltip="getStatusTooltipForStatusColumn(props.row)"
             />
+            <q-badge
+              v-if="hasApprovedEditRequest(props.row)"
+              color="teal-8"
+              text-color="white"
+              rounded
+              class="text-weight-bold q-px-xs"
+              style="font-size: 10px; cursor: help; letter-spacing: 0.3px;"
+            >
+              Edited
+              <q-tooltip anchor="top middle" self="bottom middle">Edit Request Approved</q-tooltip>
+            </q-badge>
           </div>
         </q-td>
       </template>
@@ -458,10 +571,127 @@
     :get-application-id="getApplicationId"
     @recalled="handleDialogMutationSuccess"
   />
+
+  <!-- Bulk CMO/CVMO Review Confirmation Dialog -->
+  <q-dialog v-model="showBulkCmoCbmoConfirmDialog" persistent>
+    <q-card class="rounded-borders" style="width: min(560px, 94vw)">
+      <q-card-section class="row items-center q-pb-none">
+        <q-avatar icon="playlist_add_check" color="deep-purple-1" text-color="deep-purple-8" size="md" />
+        <div class="text-h6 text-weight-bold q-ml-sm">Approve CMO / CVMO Review</div>
+        <q-space />
+        <q-btn icon="close" flat round dense v-close-popup :disable="bulkCmoCbmoReviewLoading" />
+      </q-card-section>
+
+      <q-card-section class="q-pt-md">
+        <div class="text-body2 text-grey-9 q-mb-md">
+          You are about to batch-approve <strong>{{ selectedCmoCbmoApplications.length }}</strong> leave application(s) for CMO/CVMO Review. Once approved, they will advance to <strong>Pending Release</strong>.
+        </div>
+
+        <!-- Selected Applications List Summary -->
+        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Selected Applications:</div>
+        <q-scroll-area style="height: 180px;" class="bg-grey-1 rounded-borders q-pa-sm border-grey-3">
+          <q-list dense separator>
+            <q-item v-for="app in selectedCmoCbmoApplications" :key="`bulk-app-${app.id || app.application_uid}`">
+              <q-item-section>
+                <q-item-label class="text-weight-medium text-grey-9">{{ app.employeeName || 'Unknown Employee' }}</q-item-label>
+                <q-item-label caption class="text-grey-7">
+                  {{ app.leaveType || app.leave_type_name || 'Leave' }} ({{ getApplicationDurationDisplay(app) }})
+                  <span class="text-grey-6 q-ml-xs">• Filed {{ formatDate(app.dateFiled || app.filed_at || app.created_at) || 'N/A' }}</span>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-badge color="deep-purple-7" label="CMO/CVMO Review" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-scroll-area>
+      </q-card-section>
+
+      <q-card-actions align="right" class="q-px-md q-pb-md">
+        <q-btn
+          flat
+          no-caps
+          label="Cancel"
+          color="grey-7"
+          v-close-popup
+          :disable="bulkCmoCbmoReviewLoading"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          color="deep-purple-7"
+          text-color="white"
+          icon="check_circle"
+          :loading="bulkCmoCbmoReviewLoading"
+          :label="`Approve ${selectedCmoCbmoApplications.length} Application${selectedCmoCbmoApplications.length === 1 ? '' : 's'}`"
+          @click="handleConfirmBulkCmoCbmoReview"
+        />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
+  <!-- Bulk Release Confirmation Dialog -->
+  <q-dialog v-model="showBulkReleaseConfirmDialog" persistent>
+    <q-card class="rounded-borders" style="width: min(560px, 94vw)">
+      <q-card-section class="row items-center q-pb-none">
+        <q-avatar icon="assignment_turned_in" color="blue-1" text-color="secondary" size="md" />
+        <div class="text-h6 text-weight-bold q-ml-sm">Confirm Batch Release</div>
+        <q-space />
+        <q-btn icon="close" flat round dense v-close-popup :disable="bulkReleaseLoading" />
+      </q-card-section>
+
+      <q-card-section class="q-pt-md">
+        <div class="text-body2 text-grey-9 q-mb-md">
+          You are about to batch-release <strong>{{ selectedReleaseApplications.length }}</strong> application(s). Once released, their status will become <strong>Released / Approved (Completed)</strong>.
+        </div>
+
+        <!-- Selected Applications List Summary -->
+        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Selected Applications:</div>
+        <q-scroll-area style="height: 180px;" class="bg-grey-1 rounded-borders q-pa-sm border-grey-3">
+          <q-list dense separator>
+            <q-item v-for="app in selectedReleaseApplications" :key="`bulk-rel-app-${app.id || app.application_uid}`">
+              <q-item-section>
+                <q-item-label class="text-weight-medium text-grey-9">{{ app.employeeName || 'Unknown Employee' }}</q-item-label>
+                <q-item-label caption class="text-grey-7">
+                  {{ app.leaveType || app.leave_type_name || 'Leave' }} ({{ getApplicationDurationDisplay(app) }})
+                  <span class="text-grey-6 q-ml-xs">• Filed {{ formatDate(app.dateFiled || app.filed_at || app.created_at) || 'N/A' }}</span>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-badge color="secondary" label="Pending Release" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-scroll-area>
+      </q-card-section>
+
+      <q-card-actions align="right" class="q-px-md q-pb-md">
+        <q-btn
+          flat
+          no-caps
+          label="Cancel"
+          color="grey-7"
+          v-close-popup
+          :disable="bulkReleaseLoading"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          color="secondary"
+          text-color="white"
+          icon="assignment_turned_in"
+          :loading="bulkReleaseLoading"
+          :label="`Release ${selectedReleaseApplications.length} Application${selectedReleaseApplications.length === 1 ? '' : 's'}`"
+          @click="handleConfirmBulkRelease"
+        />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script>
 import { computed, defineComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import StatusBadge from 'components/StatusBadge.vue'
 import AdminApplicationCalendarDialog from 'components/admin/AdminApplicationCalendarDialog.vue'
 import HrApplicationTimelineDialog from 'components/hr/HrApplicationTimelineDialog.vue'
@@ -518,6 +748,13 @@ export default defineComponent({
       return normalizedStatus.replace(/rejected/gi, 'Disapproved')
     }
 
+    const panel = useHrApplicationsPanel({
+      applicationType: props.applicationType,
+      applicationSource: props.applicationSource,
+      pendingReceive: props.pendingReceive,
+      pendingRelease: props.pendingRelease,
+    })
+
     function getDisplayApplicationStatusLabel(app) {
       const statusLabel = String(
         panel.getApplicationStatusLabel(app) || app?.displayStatus || '',
@@ -525,12 +762,6 @@ export default defineComponent({
       return normalizeDisapprovedStatusLabel(statusLabel)
     }
 
-    const panel = useHrApplicationsPanel({
-      applicationType: props.applicationType,
-      applicationSource: props.applicationSource,
-      pendingReceive: props.pendingReceive,
-      pendingRelease: props.pendingRelease,
-    })
     const showCalendarPreviewDialog = ref(false)
     const calendarPreviewApp = ref(null)
     const calendarPreviewModel = ref([])
@@ -546,6 +777,134 @@ export default defineComponent({
     const isCocOnlyView = computed(
       () => String(props.applicationType || '').trim().toUpperCase() === 'COC',
     )
+    const $q = useQuasar()
+    const showBulkCmoCbmoConfirmDialog = ref(false)
+    const showBulkReleaseConfirmDialog = ref(false)
+
+    function canShowCmoCbmoReviewAction(app) {
+      return (
+        !panel.isCocApplication(app) &&
+        panel.getApplicationStatusLabel(app) === 'CMO/CVMO Review' &&
+        panel.canCmoCbmoReviewApplication(app)
+      )
+    }
+
+    function canShowPendingReleaseAction(app) {
+      if (panel.getLatestUpdateRequestStatus(app) === 'REJECTED') return false
+
+      const stageStatus = panel.getApplicationStatusLabel(app)
+      return (
+        (stageStatus === 'Pending Release' ||
+          stageStatus === 'Release' ||
+          stageStatus === 'Pending Update Release') &&
+        panel.canReleaseApplication(app)
+      )
+    }
+
+    function canShowSelectCheckbox(app) {
+      return canShowCmoCbmoReviewAction(app) || canShowPendingReleaseAction(app)
+    }
+
+    const selectedCmoCbmoApplications = computed(() =>
+      (panel.selectedApplications.value || []).filter((app) => canShowCmoCbmoReviewAction(app)),
+    )
+
+    const selectedReleaseApplications = computed(() =>
+      (panel.selectedApplications.value || []).filter((app) => canShowPendingReleaseAction(app)),
+    )
+
+    const eligibleActionableRowsOnPage = computed(() =>
+      (panel.applicationsForTable.value || []).filter((app) => canShowSelectCheckbox(app)),
+    )
+
+    const isAllEligibleOnPageSelected = computed(() => {
+      if (!eligibleActionableRowsOnPage.value.length) return false
+      const selectedKeys = new Set(
+        (panel.selectedApplications.value || []).map((app) => panel.getApplicationRowKey(app)),
+      )
+      return eligibleActionableRowsOnPage.value.every((app) =>
+        selectedKeys.has(panel.getApplicationRowKey(app)),
+      )
+    })
+
+    const isSomeEligibleOnPageSelected = computed(() => {
+      if (isAllEligibleOnPageSelected.value) return false
+      const selectedKeys = new Set(
+        (panel.selectedApplications.value || []).map((app) => panel.getApplicationRowKey(app)),
+      )
+      return eligibleActionableRowsOnPage.value.some((app) =>
+        selectedKeys.has(panel.getApplicationRowKey(app)),
+      )
+    })
+
+    function selectAllEligibleOnPage() {
+      const existingMap = new Map(
+        (panel.selectedApplications.value || []).map((app) => [
+          panel.getApplicationRowKey(app) || app.id || app.application_uid,
+          app,
+        ]),
+      )
+      for (const app of eligibleActionableRowsOnPage.value) {
+        const key = panel.getApplicationRowKey(app) || app.id || app.application_uid
+        existingMap.set(key, app)
+      }
+      panel.selectedApplications.value = Array.from(existingMap.values())
+    }
+
+    function toggleAllEligibleOnPage(selected) {
+      if (selected) {
+        selectAllEligibleOnPage()
+      } else {
+        const pageKeys = new Set(
+          eligibleActionableRowsOnPage.value.map((app) => panel.getApplicationRowKey(app)),
+        )
+        panel.selectedApplications.value = (panel.selectedApplications.value || []).filter(
+          (app) => !pageKeys.has(panel.getApplicationRowKey(app)),
+        )
+      }
+    }
+
+    function openBulkCmoCbmoConfirmDialog() {
+      if (!selectedCmoCbmoApplications.value.length) {
+        $q.notify({
+          type: 'warning',
+          message: 'Select at least one Leave application in CMO/CVMO Review stage.',
+          position: 'top',
+        })
+        return
+      }
+      showBulkCmoCbmoConfirmDialog.value = true
+    }
+
+    async function handleConfirmBulkCmoCbmoReview() {
+      const success = await panel.bulkApproveCmoCbmoReview(
+        selectedCmoCbmoApplications.value,
+      )
+      if (success) {
+        showBulkCmoCbmoConfirmDialog.value = false
+      }
+    }
+
+    function openBulkReleaseConfirmDialog() {
+      if (!selectedReleaseApplications.value.length) {
+        $q.notify({
+          type: 'warning',
+          message: 'Select at least one application in Pending Release stage.',
+          position: 'top',
+        })
+        return
+      }
+      showBulkReleaseConfirmDialog.value = true
+    }
+
+    async function handleConfirmBulkRelease() {
+      const success = await panel.bulkReleaseApplications(
+        selectedReleaseApplications.value,
+      )
+      if (success) {
+        showBulkReleaseConfirmDialog.value = false
+      }
+    }
 
     const calendarPreviewYearMonth = computed(
       () => `${calendarPreviewView.value.year}/${calendarPreviewView.value.month}`,
@@ -980,18 +1339,6 @@ export default defineComponent({
       return 'Certified by HR, then released.'
     }
 
-    function canShowPendingReleaseAction(app) {
-      if (panel.getLatestUpdateRequestStatus(app) === 'REJECTED') return false
-
-      const stageStatus = panel.getApplicationStatusLabel(app)
-      return (
-        (stageStatus === 'Pending Release' ||
-          stageStatus === 'Release' ||
-          stageStatus === 'Pending Update Release') &&
-        panel.canReleaseApplication(app)
-      )
-    }
-
     function canShowPendingReceiveAction(app) {
       const stageStatus = panel.getApplicationStatusLabel(app)
       return (
@@ -999,13 +1346,6 @@ export default defineComponent({
           stageStatus === 'CHRMO Certification' ||
           stageStatus === 'Pending Update Receive') &&
         panel.canReceiveApplication(app)
-      )
-    }
-
-    function canShowCmoCbmoReviewAction(app) {
-      return (
-        panel.getApplicationStatusLabel(app) === 'CMO/CVMO Review' &&
-        panel.canCmoCbmoReviewApplication(app)
       )
     }
 
@@ -1062,10 +1402,24 @@ export default defineComponent({
 
     return {
       ...panel,
+      showBulkCmoCbmoConfirmDialog,
+      showBulkReleaseConfirmDialog,
+      selectedCmoCbmoApplications,
+      selectedReleaseApplications,
+      eligibleActionableRowsOnPage,
+      isAllEligibleOnPageSelected,
+      isSomeEligibleOnPageSelected,
+      selectAllEligibleOnPage,
+      toggleAllEligibleOnPage,
+      openBulkCmoCbmoConfirmDialog,
+      handleConfirmBulkCmoCbmoReview,
+      openBulkReleaseConfirmDialog,
+      handleConfirmBulkRelease,
       canShowCocCertificatePrintAction,
       canOpenCalendarPreview,
       canShowCmoCbmoReviewAction,
       canShowPendingReleaseAction,
+      canShowSelectCheckbox,
       canShowPendingReceiveAction,
       canShowHrReviewDecisionActions,
       formatMonetizationLeaveTypeLabel,

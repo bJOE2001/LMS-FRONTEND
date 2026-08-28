@@ -1265,10 +1265,30 @@ function applyMonetizationCertificationLessThisApplicationOverride(columns, comp
 }
 
 
+function isCtoCertificationColumn(column) {
+  const label = String(column?.label || '').trim().toLowerCase()
+  return (
+    label === 'cto' ||
+    label === 'cto leave' ||
+    label === 'compensatory time off' ||
+    label.includes('cto') ||
+    label.includes('compensatory') ||
+    label.includes('coc')
+  )
+}
+
 function formatCertificationCellValue(column, key) {
   const rawValue = column?.[key]
   if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
     return ''
+  }
+
+  if (isCtoCertificationColumn(column)) {
+    const num = Number(String(rawValue).replace(/,/g, ''))
+    if (Number.isFinite(num)) {
+      const hours = num * 8
+      return hours.toFixed(2)
+    }
   }
 
   return String(rawValue)

@@ -81,7 +81,7 @@
         <div class="ledger-balance-chips-scroll col row items-center q-gutter-xs no-wrap">
           <span class="ledger-summary-chip text-weight-bold badge-cto">
             <span class="chip-code">CTO Balance:</span>
-            <span class="chip-value q-ml-xs">{{ formattedBalanceHoursAndMinutes }}</span>
+            <span class="chip-value q-ml-xs">{{ formattedBalanceDisplay }}</span>
           </span>
         </div>
 
@@ -436,6 +436,29 @@ const identityServiceValueStyle = computed(() => ({
   fontSize: employeeFirstDayOfService.value.length > 18 ? '0.70rem' : '0.80rem',
 }))
 
+function formatDecimalHours(hoursVal, minsVal, includeUnit = false) {
+  let decimalHours = null
+
+  if (hoursVal != null && Number.isFinite(Number(hoursVal))) {
+    decimalHours = Number(hoursVal)
+  } else if (minsVal != null && Number.isFinite(Number(minsVal))) {
+    decimalHours = Number(minsVal) / 60
+  } else {
+    return ''
+  }
+
+  if (Math.abs(decimalHours) < 1e-9) {
+    return includeUnit ? '0.00 hrs' : '0.00'
+  }
+
+  const isNegative = decimalHours < 0
+  const absHours = Math.abs(decimalHours)
+  const formatted = absHours.toFixed(2)
+  const result = (isNegative ? '-' : '') + formatted
+
+  return includeUnit ? `${result} hrs` : result
+}
+
 function formatHoursAndMinutes(hoursVal, minsVal) {
   let totalMinutes = 0
   if (minsVal != null && Number.isFinite(Number(minsVal))) {
@@ -464,15 +487,12 @@ function formatHoursAndMinutes(hoursVal, minsVal) {
   return totalMinutes < 0 ? ('-' + formatted) : formatted
 }
 
-const formattedBalanceHoursAndMinutes = computed(() => {
+const formattedBalanceDisplay = computed(() => {
   const hours = Number(props.currentBalance?.hours ?? 0)
-  return formatHoursAndMinutes(hours)
+  const decStr = formatDecimalHours(hours, null, true)
+  const hmStr = formatHoursAndMinutes(hours)
+  return `${decStr} (${hmStr})`
 })
-
-// const formattedBalanceDays = computed(() => {
-//   const days = Number(props.currentBalance?.days ?? 0)
-//   return Number.isFinite(days) ? days.toFixed(3) : '0.000'
-// })
 
 const BLANK_ROW_TEMPLATE = Object.freeze({
   period: '',
@@ -488,22 +508,27 @@ const BLANK_ROW_TEMPLATE = Object.freeze({
 
 const normalizedRows = computed(() => {
   const sourceRows = Array.isArray(props.ledgerRows) ? props.ledgerRows : []
+
   return sourceRows.map((entry, index) => {
     const period = formatInclusiveDates(entry) || entry.period || entry.action_date || ''
     const particulars = entry.particulars || ''
 
     const earnedTime = entry.earned_hours != null && entry.earned_hours > 0
-      ? formatHoursAndMinutes(entry.earned_hours, entry.earned_minutes)
+      ? formatDecimalHours(entry.earned_hours, entry.earned_minutes)
       : ''
+
     const usedTimeWp = entry.used_hours != null && entry.used_hours > 0
-      ? ('-' + formatHoursAndMinutes(entry.used_hours, entry.used_minutes))
+      ? ('-' + formatDecimalHours(entry.used_hours, entry.used_minutes))
       : ''
+
     const balanceTime = entry.balance_hours != null
-      ? formatHoursAndMinutes(entry.balance_hours, entry.balance_minutes)
+      ? formatDecimalHours(entry.balance_hours, entry.balance_minutes)
       : ''
+
     const usedTimeWop = entry.used_hours_wop != null && entry.used_hours_wop > 0
-      ? formatHoursAndMinutes(entry.used_hours_wop, entry.used_minutes_wop)
+      ? formatDecimalHours(entry.used_hours_wop, entry.used_minutes_wop)
       : ''
+
     const actionTaken = entry.action_taken || ''
 
     return {

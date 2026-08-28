@@ -21,6 +21,9 @@ const undoReceiveLoading = ref(false)
 const undoReleaseLoading = ref(false)
 const timelineLoading = ref(false)
 const payStatusOverrideLoading = ref(false)
+const bulkCmoCbmoReviewLoading = ref(false)
+const bulkReleaseLoading = ref(false)
+const selectedApplications = ref([])
 const applications = ref([])
 const isServerPaginatedLeaveView = normalizeApplicationType(options?.applicationType) === 'LEAVE'
 const tablePagination = ref({
@@ -600,12 +603,6 @@ function isPendingUpdateWorkflowCycle(app) {
   return getLatestUpdateRequestStatus(app) === 'PENDING'
 }
 
-function isApprovedUpdateWorkflowCycle(app) {
-  if (!app || isCocApplication(app)) return false
-  if (!isEditUpdateRequest(app)) return false
-  return getLatestUpdateRequestStatus(app) === 'APPROVED'
-}
-
 function getLeaveWorkflowStageStatus(app) {
   if (!app || isCocApplication(app)) return ''
 
@@ -626,7 +623,7 @@ function getLeaveWorkflowStageStatus(app) {
     return 'CMO/CVMO Review'
   }
   if (queueStageKey === 'PENDING_RELEASE') {
-    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+    return 'Pending Release'
   }
 
   const rawStatus = getApplicationRawStatusKey(app)
@@ -639,8 +636,8 @@ function getLeaveWorkflowStageStatus(app) {
   }
   if (rawStatus === 'APPROVED') {
     if (isApplicationReleased(app)) return 'Approved'
-    if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
-    return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CVMO Review'
+    if (!isApplicationCmoCbmoReviewed(app)) return 'CMO/CVMO Review'
+    return 'Pending Release'
   }
 
   return ''
@@ -921,10 +918,21 @@ function getEditRequestBadgeLabel(app) {
     if (isCancellationRequestAction(app) && stageStatus === 'Pending Update Release') {
       return labelPrefix + ' Pending Release'
     }
-    return labelPrefix + ' Approved'
+    return ''
   }
   if (status === 'REJECTED') return ''
   return ''
+}
+
+function hasApprovedEditRequest(app) {
+  if (!app || isCocApplication(app)) return false
+  if (isCancelledByUser(app)) return false
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'RECALLED' || rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') {
+    return false
+  }
+  if (isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
+  return getLatestUpdateRequestStatus(app) === 'APPROVED'
 }
 
 function getEditRequestBadgeColor(app) {
@@ -4209,6 +4217,7 @@ function isApplicationCmoCbmoReviewed(app) {
 
 function canCmoCbmoReviewApplication(app) {
   if (!app) return false
+  if (isCocApplication(app)) return false
   if (isApplicationCmoCbmoReviewed(app)) return false
   if (isApplicationReleased(app)) return false
   if (isCancelledByUser(app)) return false
@@ -6112,8 +6121,9 @@ function promptCocCertificateAfterReceive(app) {
   return true
 }
 
-function handleApplicationRowClick(_evt, row) {
+function handleApplicationRowClick(evt, row) {
   if (!row) return
+  if (evt?.target?.closest?.('.q-checkbox, .q-btn, button, a')) return
   openTimeline(row)
 }
 
@@ -6814,6 +6824,185 @@ async function markApplicationCmoCbmoReviewed(target = selectedApp.value) {
   }
 }
 
+async function bulkApproveCmoCbmoReview(applicationsToApprove = selectedApplications.value, remarks = '') {
+  const eligibleApps = (Array.isArray(applicationsToApprove) ? applicationsToApprove : [])
+    .filter((app) => !isCocApplication(app) && canCmoCbmoReviewApplication(app))
+
+  if (!eligibleApps.length) {
+    q.notify({
+      type: 'warning',
+      message: 'No eligible Leave applications selected for CMO/CVMO Review.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const ids = eligibleApps
+    .map((app) => getApplicationId(app))
+    .filter((id) => id != null && Number(id) > 0)
+    .map((id) => Number(id))
+
+  if (!ids.length) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to resolve application IDs.',
+      position: 'top',
+    })
+    return false
+  }
+
+  bulkCmoCbmoReviewLoading.value = true
+  try {
+    const payload = { ids }
+    if (remarks && String(remarks).trim()) {
+      payload.remarks = String(remarks).trim()
+    }
+    const response = await api.post('/hr/leave-applications/bulk-cmo-cbmo-review', payload)
+    const processedCount = Number(response?.data?.processed_count ?? ids.length)
+    const responseMessage = String(response?.data?.message || '').trim()
+
+    // Update local rows
+    const updatedApps = Array.isArray(response?.data?.applications) ? response.data.applications : []
+    if (updatedApps.length) {
+      for (const updatedApp of updatedApps) {
+        applyLeaveApplicationUpdate(updatedApp)
+      }
+    } else {
+      const reviewedAt = new Date().toISOString()
+      for (const app of eligibleApps) {
+        applyLeaveApplicationUpdate({
+          ...app,
+          has_cmo_cbmo_reviewed: true,
+          hasCmoCbmoReviewed: true,
+          cmo_cbmo_reviewed_at: reviewedAt,
+          cmoCbmoReviewedAt: reviewedAt,
+        })
+      }
+    }
+
+    await fetchApplications()
+
+    // Clear selection
+    selectedApplications.value = []
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || `Successfully approved ${processedCount} application(s) for CMO/CVMO review.`,
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to complete bulk CMO/CVMO review right now.',
+    )
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    bulkCmoCbmoReviewLoading.value = false
+  }
+}
+
+async function bulkReleaseApplications(applicationsToRelease = selectedApplications.value) {
+  const eligibleApps = (Array.isArray(applicationsToRelease) ? applicationsToRelease : [])
+    .filter((app) => canReleaseApplication(app))
+
+  if (!eligibleApps.length) {
+    q.notify({
+      type: 'warning',
+      message: 'No eligible applications selected for Release.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const leaveApps = eligibleApps.filter((app) => !isCocApplication(app))
+  const cocApps = eligibleApps.filter((app) => isCocApplication(app))
+
+  const leaveIds = leaveApps
+    .map((app) => getApplicationId(app))
+    .filter((id) => id != null && Number(id) > 0)
+    .map((id) => Number(id))
+
+  bulkReleaseLoading.value = true
+  let successCount = 0
+
+  try {
+    // Process Leave Applications via bulk endpoint
+    if (leaveIds.length) {
+      try {
+        const response = await api.post('/hr/leave-applications/bulk-release', { ids: leaveIds })
+        const processedCount = Number(response?.data?.processed_count ?? leaveIds.length)
+        successCount += processedCount
+
+        const updatedApps = Array.isArray(response?.data?.applications) ? response.data.applications : []
+        if (updatedApps.length) {
+          for (const updatedApp of updatedApps) {
+            applyLeaveApplicationUpdate(updatedApp)
+          }
+        }
+      } catch {
+        // Fallback to sequential release if bulk endpoint fails
+        for (const app of leaveApps) {
+          const id = getApplicationId(app)
+          if (!id) continue
+          try {
+            const useUpdateReleaseEndpoint = shouldUseUpdateReleaseEndpoint(app)
+            const releaseEndpoint = useUpdateReleaseEndpoint
+              ? '/hr/leave-applications/' + id + '/update-release'
+              : '/hr/leave-applications/' + id + '/release'
+            const res = await api.post(releaseEndpoint)
+            const updated = normalizeBackendApplicationShape(extractSingleApplicationFromPayload(res?.data))
+            if (updated) applyLeaveApplicationUpdate(updated)
+            successCount++
+          } catch {
+            // continue
+          }
+        }
+      }
+    }
+
+    // Process COC Applications sequentially
+    if (cocApps.length) {
+      for (const app of cocApps) {
+        const id = getApplicationId(app)
+        if (!id) continue
+        try {
+          const res = await api.post('/hr/coc-applications/' + id + '/release')
+          const updated = normalizeBackendApplicationShape(extractSingleApplicationFromPayload(res?.data))
+          if (updated) applyCocApplicationUpdate(updated)
+          successCount++
+        } catch {
+          // continue
+        }
+      }
+    }
+
+    await fetchApplications()
+
+    // Clear released items from selection
+    selectedApplications.value = (selectedApplications.value || []).filter(
+      (app) => !eligibleApps.some((el) => getApplicationRowKey(el) === getApplicationRowKey(app)),
+    )
+
+    q.notify({
+      type: 'positive',
+      message: `Successfully released ${successCount} application(s).`,
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to complete bulk release right now.',
+    )
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    bulkReleaseLoading.value = false
+  }
+}
+
 async function openActionConfirm(type, target) {
   const resolvedType = String(type || '').trim().toLowerCase()
   let application = resolveApplication(target) || target || null
@@ -7017,6 +7206,11 @@ async function handleDialogMutationSuccess(payload = {}) {
     canPrintCocCertificate,
     canRecallApplication,
     canCmoCbmoReviewApplication,
+    bulkApproveCmoCbmoReview,
+    bulkCmoCbmoReviewLoading,
+    bulkReleaseApplications,
+    bulkReleaseLoading,
+    selectedApplications,
     canReceiveApplication,
     canReleaseApplication,
     clearEmploymentTypeFilter,
@@ -7101,6 +7295,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     shouldShowDetailsRemarks,
     getEditRequestBadgeColor,
     getEditRequestBadgeLabel,
+    hasApprovedEditRequest,
     getEditRequestStatusFieldLabel,
     getEditRequestStatusLabel,
     getEditRequestTimelineEntries,

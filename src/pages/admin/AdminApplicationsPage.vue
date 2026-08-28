@@ -124,11 +124,22 @@
         </template>
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
-            <div class="status-cell-wrap">
+            <div class="status-cell-wrap row items-center no-wrap q-gutter-x-xs">
               <StatusBadge
                 :status="getFinalStatusForStatusColumn(tableProps.row)"
                 :tooltip="getStatusTooltipForStatusColumn(tableProps.row)"
               />
+              <q-badge
+                v-if="hasApprovedEditRequest(tableProps.row)"
+                color="teal-8"
+                text-color="white"
+                rounded
+                class="text-weight-bold q-px-xs"
+                style="font-size: 10px; cursor: help; letter-spacing: 0.3px;"
+              >
+                Edited
+                <q-tooltip anchor="top middle" self="bottom middle">Edit Request Approved</q-tooltip>
+              </q-badge>
             </div>
           </q-td>
         </template>
@@ -948,6 +959,7 @@ const {
   getApplicationStatusColor,
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
+  hasApprovedEditRequest,
   hasApplicationEditRequest,
   getApplicationEditRequestApprovedBadgeLabel,
   getApplicationEditRequestSectionTitle,

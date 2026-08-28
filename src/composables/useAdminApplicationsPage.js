@@ -3269,12 +3269,6 @@ export function useAdminApplicationsPage() {
     return getAdminLatestUpdateRequestStatus(app) === 'PENDING'
   }
 
-  function isApprovedUpdateWorkflowCycle(app) {
-    if (!app || isCocApplication(app)) return false
-    if (!hasAdminEditRequestSignal(app)) return false
-    return getAdminLatestUpdateRequestStatus(app) === 'APPROVED'
-  }
-
   function isPendingUpdateRequestReceivedByHr(app) {
     if (!isPendingUpdateWorkflowCycle(app)) return isApplicationReceivedByHr(app)
 
@@ -3323,7 +3317,7 @@ export function useAdminApplicationsPage() {
     }
     if (queueStageKey === 'PENDING_RELEASE') {
       if (isApplicationReleased(app)) return 'Released'
-      return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+      return 'Pending Release'
     }
 
     const rawStatus = getApplicationRawStatus(app)
@@ -3336,11 +3330,11 @@ export function useAdminApplicationsPage() {
     }
     if (rawStatus === 'APPROVED') {
       if (isApplicationReleased(app)) return 'Released'
-      if (isApprovedUpdateWorkflowCycle(app)) return 'Pending Update Release'
       if (isPendingUpdateWorkflowCycle(app)) {
         return isPendingUpdateRequestReceivedByHr(app) ? 'Pending Update HR Review' : 'Pending Update Receive'
       }
-      return isApplicationCmoCbmoReviewed(app) ? 'Pending Release' : 'CMO/CVMO Review'
+      if (!isApplicationCmoCbmoReviewed(app)) return 'CMO/CVMO Review'
+      return 'Pending Release'
     }
 
     return ''
@@ -3494,10 +3488,21 @@ export function useAdminApplicationsPage() {
       if (isCancelRequest && stageStatus === 'Pending Update Release') {
         return labelPrefix + ' Pending Release'
       }
-      return labelPrefix + ' Approved'
+      return ''
     }
     if (status === 'REJECTED') return ''
     return ''
+  }
+
+  function hasApprovedEditRequest(app) {
+    if (!app || isCocApplication(app)) return false
+    if (isCancelledByUser(app)) return false
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'RECALLED' || rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') {
+      return false
+    }
+    if (isAdminRecallRequest(app) || isAdminCancellationRequest(app)) return false
+    return getAdminLatestUpdateRequestStatus(app) === 'APPROVED'
   }
 
   function getEditRequestBadgeColor(app) {
@@ -6995,6 +7000,7 @@ export function useAdminApplicationsPage() {
     getApplicationStatusColor,
     getApplicationStatusLabel,
     getEditRequestBadgeLabel,
+    hasApprovedEditRequest,
     getEditRequestBadgeColor,
     hasApplicationEditRequest,
     getApplicationEditRequestStatusLabel,
