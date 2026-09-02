@@ -235,54 +235,96 @@ function resolveDepartmentHeadName(source) {
     .join(' ')
 }
 
-function formatRequestedDatesList(source) {
-  const dateSet = resolveDateSetFromSource(source)
-  if (!dateSet.length) return ''
+function formatGroupedInclusiveDateLines(dateValues, expandConsecutiveDays = false) {
+  if (!Array.isArray(dateValues) || dateValues.length === 0) return []
 
-  return formatDateSetSummary(dateSet)
-}
+  const groupedByMonthYear = new Map()
+  const sortedDates = [...new Set(dateValues.filter(Boolean))].sort(
+    (left, right) => Date.parse(left) - Date.parse(right),
+  )
 
-function formatDateSetSummary(dateSet = []) {
-  const normalizedDateSet = normalizeIsoDateList(dateSet)
-  if (!normalizedDateSet.length) return ''
+  for (const rawDate of sortedDates) {
+    const isoDate = toIsoDateString(rawDate)
+    const parsedDate = isoDate ? new Date(`${isoDate}T12:00:00`) : new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
 
-  const grouped = new Map()
-  const years = new Set()
+    const monthName = parsedDate.toLocaleDateString('en-US', { month: 'short' })
+    const year = parsedDate.getFullYear()
+    const day = parsedDate.getDate()
+    const groupKey = `${year}-${parsedDate.getMonth()}`
 
-  normalizedDateSet.forEach((dateValue) => {
-    const parsed = new Date(`${dateValue}T12:00:00`)
-    if (Number.isNaN(parsed.getTime())) return
-
-    const month = parsed.toLocaleDateString('en-US', { month: 'short' })
-    const day = parsed.getDate()
-    const year = parsed.getFullYear()
-    const key = `${year}-${String(parsed.getMonth() + 1).padStart(2, '0')}`
-
-    years.add(year)
-    if (!grouped.has(key)) {
-      grouped.set(key, { month, year, days: [] })
+    if (!groupedByMonthYear.has(groupKey)) {
+      groupedByMonthYear.set(groupKey, { monthName, year, days: [] })
     }
 
-    grouped.get(key).days.push(day)
-  })
-
-  const groups = Array.from(grouped.values())
-  if (!groups.length) return ''
-
-  const hasSingleYear = years.size === 1
-  if (hasSingleYear) {
-    const year = String(groups[0].year)
-    const monthChunks = groups.map((group) => `${group.month} ${group.days.join(', ')}`)
-    return `${monthChunks.join(', ')}, ${year}`
+    groupedByMonthYear.get(groupKey).days.push(day)
   }
 
-  return groups.map((group) => `${group.month} ${group.days.join(', ')}, ${group.year}`).join(', ')
+  return Array.from(groupedByMonthYear.values())
+    .map((group) => {
+      const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
+      if (!uniqueDays.length) return ''
+
+      if (expandConsecutiveDays) {
+        return `${group.monthName} ${uniqueDays.join(', ')}, ${group.year}`
+      }
+
+      const dayRanges = []
+      let rangeStart = uniqueDays[0]
+      let rangeEnd = uniqueDays[0]
+
+      for (let index = 1; index < uniqueDays.length; index += 1) {
+        const currentDay = uniqueDays[index]
+        if (currentDay === rangeEnd + 1) {
+          rangeEnd = currentDay
+          continue
+        }
+
+        dayRanges.push([rangeStart, rangeEnd])
+        rangeStart = currentDay
+        rangeEnd = currentDay
+      }
+
+      dayRanges.push([rangeStart, rangeEnd])
+
+      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+        let dayLabel = String(startDay)
+        if (endDay > startDay) {
+          dayLabel = endDay === startDay + 1 ? `${startDay}, ${endDay}` : `${startDay}-${endDay}`
+        }
+        return `${group.monthName} ${dayLabel}`
+      })
+
+      const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+      if (hasSingleDayOnly) {
+        return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
+      }
+
+      return `${rangeLabels.join(', ')} ${group.year}`
+    })
+    .filter(Boolean)
 }
 
-function formatInclusiveDateSummaryWithCoverage(source) {
+function formatCoverageAwareInclusiveDateSummary(source, expandConsecutiveDays = false) {
   if (!source || typeof source !== 'object') return ''
 
   const dateSet = resolveDateSetFromSource(source)
+  if (!dateSet.length) {
+    const startDate = source?.start_date || source?.startDate || null
+    const endDate = source?.end_date || source?.endDate || null
+    if (startDate && endDate) {
+      if (startDate === endDate) return formatDate(startDate)
+      const rangeDates = enumerateInclusiveDateRange(startDate, endDate)
+      if (rangeDates.length) {
+        const formatted = formatGroupedInclusiveDateLines(rangeDates, expandConsecutiveDays)
+        if (formatted.length) return formatted.join(', ')
+      }
+      return `${formatDate(startDate)} - ${formatDate(endDate)}`
+    }
+    if (startDate || endDate) return formatDate(startDate || endDate)
+    return ''
+  }
+
   const halfDayPortionMap =
     source?.selected_date_half_day_portion ||
     source?.selectedDateHalfDayPortion ||
@@ -296,45 +338,46 @@ function formatInclusiveDateSummaryWithCoverage(source) {
     source?.coverage ||
     {}
 
-  if (dateSet.length) {
-    const formattedDates = dateSet.map((dateValue) => {
-      const formatted = formatDate(dateValue)
-      const portionRaw = String(halfDayPortionMap[dateValue] || '').trim().toUpperCase()
-      const coverageRaw = String(coverageMap[dateValue] || '').trim().toUpperCase()
+  const lines = []
+  let wholeDayDateSet = []
 
-      let suffix = ''
-      if (portionRaw === 'AM' || portionRaw === 'PM') {
-        suffix = ` (${portionRaw})`
-      } else if (coverageRaw.includes('HALF')) {
-        suffix = ' (Half Day)'
-      }
+  const appendWholeDayLines = () => {
+    if (!wholeDayDateSet.length) return
+    const groupedLines = formatGroupedInclusiveDateLines(
+      wholeDayDateSet,
+      expandConsecutiveDays,
+    )
+    lines.push(
+      ...(groupedLines.length
+        ? groupedLines
+        : wholeDayDateSet.map((dateValue) => formatDate(dateValue))),
+    )
+    wholeDayDateSet = []
+  }
 
-      return `${formatted}${suffix}`
-    })
+  for (const dateValue of dateSet) {
+    const portionRaw = String(halfDayPortionMap[dateValue] || '').trim().toUpperCase()
+    const coverageRaw = String(coverageMap[dateValue] || '').trim().toUpperCase()
+    const isHalfDay = portionRaw === 'AM' || portionRaw === 'PM' || coverageRaw.includes('HALF')
 
-    if (formattedDates.length === 1) {
-      return formattedDates[0]
+    if (!isHalfDay) {
+      wholeDayDateSet.push(dateValue)
+      continue
     }
 
-    if (formattedDates.length === 2) {
-      return `${formattedDates[0]} - ${formattedDates[1]}`
-    }
+    appendWholeDayLines()
 
-    return formatDateSetSummary(dateSet)
+    const formatted = formatDate(dateValue)
+    const suffix =
+      portionRaw === 'AM' || portionRaw === 'PM'
+        ? ` (${portionRaw})`
+        : ' (Half Day)'
+    lines.push(`${formatted}${suffix}`)
   }
 
-  const startDate = source?.start_date || source?.startDate || null
-  const endDate = source?.end_date || source?.endDate || null
-  if (startDate && endDate) {
-    if (startDate === endDate) return formatDate(startDate)
-    return `${formatDate(startDate)} - ${formatDate(endDate)}`
-  }
+  appendWholeDayLines()
 
-  if (startDate || endDate) {
-    return formatDate(startDate || endDate)
-  }
-
-  return ''
+  return lines.join(', ')
 }
 
 function resolveFromDateValue(source) {
@@ -367,14 +410,60 @@ function resolveRequestFormData(app) {
     source?.filed_by ||
     'Employee'
 
-  const fromValue = formatInclusiveDateSummaryWithCoverage(source) || resolveFromDateValue(source)
-  let toValue = formatInclusiveDateSummaryWithCoverage(payload)
+  // Extract fromValue (previous dates or original application dates)
+  let fromValue = ''
+  if (payload && typeof payload === 'object') {
+    const previousDates = payload.previous_selected_dates || payload.previousSelectedDates
+    if (Array.isArray(previousDates) && previousDates.length > 0) {
+      const formatted = formatGroupedInclusiveDateLines(previousDates)
+      if (formatted.length > 0) fromValue = formatted.join(', ')
+    } else if (payload.previous_start_date || payload.previousStartDate) {
+      const startDate = payload.previous_start_date || payload.previousStartDate
+      const endDate = payload.previous_end_date || payload.previousEndDate || startDate
+      const dates = enumerateInclusiveDateRange(startDate, endDate)
+      if (dates.length > 0) {
+        const formatted = formatGroupedInclusiveDateLines(dates)
+        if (formatted.length > 0) fromValue = formatted.join(', ')
+      }
+    }
+  }
+
+  if (!fromValue) {
+    const updateRequests = Array.isArray(app?.update_requests)
+      ? app.update_requests
+      : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
+    for (const req of updateRequests) {
+      const reqPayload = req?.requested_payload || req?.payload
+      if (reqPayload && typeof reqPayload === 'object') {
+        const pDates = reqPayload.previous_selected_dates || reqPayload.previousSelectedDates
+        if (Array.isArray(pDates) && pDates.length > 0) {
+          const formatted = formatGroupedInclusiveDateLines(pDates)
+          if (formatted.length > 0) {
+            fromValue = formatted.join(', ')
+            break
+          }
+        }
+      }
+    }
+  }
+
+  if (!fromValue) {
+    fromValue =
+      formatCoverageAwareInclusiveDateSummary(source) ||
+      resolveFromDateValue(source)
+  }
+
+  // Extract toValue (requested update dates or cancel)
+  let toValue = ''
+  if (payload && typeof payload === 'object') {
+    toValue = formatCoverageAwareInclusiveDateSummary(payload)
+  }
 
   if (!toValue) {
     const requestedDateSet = resolveDateSetFromSource(payload)
     toValue = requestedDateSet.length
-      ? formatDateSetSummary(requestedDateSet)
-      : formatRequestedDatesList(payload)
+      ? formatGroupedInclusiveDateLines(requestedDateSet).join(', ')
+      : formatCoverageAwareInclusiveDateSummary(payload)
   }
 
   const reason = normalizeText(
@@ -440,17 +529,17 @@ function resolveRequestFormData(app) {
   }
 }
 
-function shortUnderline(value, options = {}) {
-  const lineWidth = Number(options.lineWidth) || 220
-  const fontSize = Number(options.fontSize) || 11
-
+function formUnderlineField(value, lineWidth = 270, fontSize = 10, alignment = 'left') {
+  const textValue = normalizeText(value)
   return {
     width: lineWidth,
     stack: [
       {
-        text: normalizeText(value) || ' ',
+        text: textValue || ' ',
         fontSize,
-        margin: [0, 0, 0, 2],
+        bold: Boolean(textValue),
+        alignment,
+        margin: [4, 0, 4, 2],
       },
       {
         canvas: [
@@ -469,10 +558,26 @@ function shortUnderline(value, options = {}) {
   }
 }
 
+function shortFieldRow(label, value, options = {}) {
+  const labelWidth = Number(options.labelWidth) || 155
+  const lineWidth = Number(options.lineWidth) || 270
+  const fontSize = Number(options.fontSize) || 10
+  const alignment = options.alignment || 'left'
+
+  return {
+    columns: [
+      { width: labelWidth, text: label, fontSize, bold: true, margin: [0, 3, 0, 0] },
+      { width: 15, text: ':', fontSize, bold: true, alignment: 'left', margin: [0, 3, 0, 0] },
+      formUnderlineField(value, lineWidth, fontSize, alignment),
+    ],
+    columnGap: 0,
+    margin: options.margin || [0, 4, 0, 0],
+  }
+}
+
 function buildHeader(logoBase64) {
   const headerBarHeight = 18
-  const smallRectHeight = headerBarHeight
-  const smallRectTopOffset = 35
+  const smallRectTopOffset = 34
   const headerTextSize = 10
   const leftInset = 6
   const officeBandPaddingTop = Math.max(0, Math.floor((headerBarHeight - headerTextSize) / 2))
@@ -482,7 +587,7 @@ function buildHeader(logoBase64) {
       {
         width: 28,
         margin: [0, smallRectTopOffset, 8, 0],
-        canvas: [{ type: 'rect', x: 0, y: 0, w: 22, h: smallRectHeight, color: HEADER_BAR_COLOR }],
+        canvas: [{ type: 'rect', x: 0, y: 0, w: 22, h: headerBarHeight, color: HEADER_BAR_COLOR }],
       },
       logoBase64
         ? { width: 78, image: logoBase64, fit: [72, 72], margin: [0, 0, 8, 0] }
@@ -490,9 +595,25 @@ function buildHeader(logoBase64) {
       {
         width: '*',
         stack: [
-          { text: 'REPUBLIC OF THE PHILIPPINES', fontSize: 7, margin: [leftInset, 0, 0, 0] },
-          { text: 'PROVINCE OF DAVAO DEL NORTE', fontSize: 7, margin: [leftInset, 0, 0, 0] },
-          { text: 'CITY OF TAGUM', fontSize: 14, bold: true, margin: [leftInset, 0, 0, 0] },
+          {
+            text: 'REPUBLIC OF THE PHILIPPINES',
+            fontSize: 7.5,
+            color: '#333333',
+            margin: [leftInset, 0, 0, 0],
+          },
+          {
+            text: 'PROVINCE OF DAVAO DEL NORTE',
+            fontSize: 7.5,
+            color: '#333333',
+            margin: [leftInset, 0, 0, 0],
+          },
+          {
+            text: 'CITY OF TAGUM',
+            fontSize: 14,
+            bold: true,
+            color: HEADER_BAR_COLOR,
+            margin: [leftInset, 0, 0, 0],
+          },
           {
             table: {
               widths: ['*'],
@@ -529,58 +650,306 @@ function buildHeader(logoBase64) {
   }
 }
 
-function shortFieldRow(label, value, options = {}) {
-  const labelWidth = Number(options.labelWidth) || 174
-  const lineWidth = Number(options.lineWidth) || 220
+function buildChangesSection(formData) {
+  const fromText = normalizeText(formData.fromValue) || ' '
+  const toText =
+    normalizeText(
+      formData.actionType === ACTION_TYPE_CANCEL ? 'Cancel Leave' : formData.toValue,
+    ) || ' '
 
-  return {
-    columns: [
-      { width: labelWidth, text: label, fontSize: 11, bold: true, margin: [0, 3, 0, 0] },
-      { width: 10, text: ':', fontSize: 11, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
-      shortUnderline(value, { lineWidth, fontSize: 11 }),
-    ],
-    columnGap: 0,
-    margin: options.margin || [0, 2, 0, 0],
-  }
-}
-
-function changesLabelRow() {
-  return {
-    columns: [
-      { width: 174, text: 'CHANGES', fontSize: 11, bold: true, margin: [0, 3, 0, 0] },
-      { width: 10, text: ':', fontSize: 11, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
-      { width: 220, text: '' },
-    ],
-    columnGap: 0,
-    margin: [0, 2, 0, 0],
-  }
-}
-
-function fromToRow(fromValue, toValue) {
-  return {
-    columns: [
-      { width: 184, text: '' },
-      { width: 38, text: 'FROM', fontSize: 11, bold: true, margin: [0, 3, 0, 0] },
-      { width: 8, text: ':', fontSize: 11, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
-      shortUnderline(fromValue, { lineWidth: 110, fontSize: 10 }),
-      { width: 12, text: '' },
-      { width: 20, text: 'TO', fontSize: 11, bold: true, margin: [0, 3, 0, 0] },
-      { width: 8, text: ':', fontSize: 11, bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
-      shortUnderline(toValue, { lineWidth: 110, fontSize: 10 }),
-    ],
-    columnGap: 0,
-    margin: [0, 0, 0, 0],
-  }
-}
-
-function signerBlock(label, name, title) {
   return {
     stack: [
-      { text: `${label} :`, fontSize: 11, bold: true },
-      { text: ' ', margin: [0, 6, 0, 0] },
-      { text: name, bold: true, fontSize: 10 },
-      { text: title, italics: true, fontSize: 9 },
+      {
+        columns: [
+          { width: 155, text: 'CHANGES', fontSize: 10, bold: true, margin: [0, 3, 0, 0] },
+          { width: 15, text: ':', fontSize: 10, bold: true, alignment: 'left', margin: [0, 3, 0, 0] },
+          { width: 145, text: 'FROM:', fontSize: 10, bold: true, margin: [0, 3, 0, 0] },
+          { width: 10, text: '' },
+          { width: 190, text: 'TO:', fontSize: 10, bold: true, margin: [0, 3, 0, 0] },
+        ],
+        columnGap: 0,
+        margin: [0, 4, 0, 0],
+      },
+      {
+        columns: [
+          { width: 170, text: '' },
+          {
+            width: 145,
+            table: {
+              widths: ['*'],
+              body: [
+                [
+                  {
+                    text: fromText,
+                    fontSize: 9.5,
+                    bold: Boolean(normalizeText(formData.fromValue)),
+                    margin: [4, 4, 4, 4],
+                  },
+                ],
+              ],
+            },
+            layout: {
+              hLineWidth: () => 0.8,
+              vLineWidth: () => 0.8,
+              hLineColor: () => '#111111',
+              vLineColor: () => '#111111',
+              paddingLeft: () => 4,
+              paddingRight: () => 4,
+              paddingTop: () => 4,
+              paddingBottom: () => 4,
+            },
+          },
+          { width: 10, text: '' },
+          {
+            width: 190,
+            table: {
+              widths: ['*'],
+              body: [
+                [
+                  {
+                    text: toText,
+                    fontSize: 9.5,
+                    bold: Boolean(normalizeText(toText)),
+                    margin: [4, 4, 4, 4],
+                  },
+                ],
+              ],
+            },
+            layout: {
+              hLineWidth: () => 0.8,
+              vLineWidth: () => 0.8,
+              hLineColor: () => '#111111',
+              vLineColor: () => '#111111',
+              paddingLeft: () => 4,
+              paddingRight: () => 4,
+              paddingTop: () => 4,
+              paddingBottom: () => 4,
+            },
+          },
+        ],
+        columnGap: 0,
+        margin: [0, 2, 0, 2],
+      },
     ],
+  }
+}
+
+function approvedByRow(approvedByName) {
+  const lineWidth = 270
+  const textValue = normalizeText(approvedByName)
+  return {
+    columns: [
+      { width: 155, text: 'APPROVED BY', fontSize: 10, bold: true, margin: [0, 3, 0, 0] },
+      { width: 15, text: ':', fontSize: 10, bold: true, alignment: 'left', margin: [0, 3, 0, 0] },
+      {
+        width: lineWidth,
+        stack: [
+          {
+            text: textValue || ' ',
+            fontSize: 10,
+            bold: true,
+            alignment: 'center',
+            margin: [0, 0, 0, 2],
+          },
+          {
+            canvas: [
+              {
+                type: 'line',
+                x1: 0,
+                y1: 0,
+                x2: lineWidth,
+                y2: 0,
+                lineWidth: 0.8,
+                lineColor: '#111111',
+              },
+            ],
+          },
+          {
+            text: 'Signature Over Printed Name',
+            alignment: 'center',
+            fontSize: 8,
+            italics: true,
+            margin: [0, 2, 0, 0],
+          },
+          {
+            text: 'Head of Office',
+            alignment: 'center',
+            fontSize: 8,
+            italics: true,
+            margin: [0, 1, 0, 0],
+          },
+        ],
+      },
+    ],
+    columnGap: 0,
+    margin: [0, 6, 0, 0],
+  }
+}
+
+function buildActionTakenSection() {
+  const leftIndent = 16
+  const fullLineWidth = 499
+  const reasonLineWidth = 237
+
+  return {
+    stack: [
+      { text: 'ACTION TAKEN', fontSize: 10.5, bold: true, margin: [0, 14, 0, 8] },
+      {
+        columns: [
+          { width: leftIndent, text: '' },
+          {
+            width: 16,
+            canvas: [
+              {
+                type: 'rect',
+                x: 0,
+                y: 1,
+                w: 12,
+                h: 12,
+                lineWidth: 1,
+                lineColor: '#111111',
+              },
+            ],
+          },
+          { width: 85, text: 'Considered', fontSize: 10, bold: true, margin: [0, 1, 0, 0] },
+          {
+            width: 16,
+            canvas: [
+              {
+                type: 'rect',
+                x: 0,
+                y: 1,
+                w: 12,
+                h: 12,
+                lineWidth: 1,
+                lineColor: '#111111',
+              },
+            ],
+          },
+          {
+            width: 145,
+            text: 'Not Considered, Reason:',
+            fontSize: 10,
+            bold: true,
+            margin: [0, 1, 0, 0],
+          },
+          {
+            width: '*',
+            canvas: [
+              {
+                type: 'line',
+                x1: 0,
+                y1: 11,
+                x2: reasonLineWidth,
+                y2: 11,
+                lineWidth: 0.8,
+                lineColor: '#111111',
+              },
+            ],
+          },
+        ],
+        columnGap: 0,
+      },
+      {
+        canvas: [
+          {
+            type: 'line',
+            x1: 0,
+            y1: 0,
+            x2: fullLineWidth,
+            y2: 0,
+            lineWidth: 0.8,
+            lineColor: '#111111',
+          },
+        ],
+        margin: [leftIndent, 14, 0, 0],
+      },
+      {
+        canvas: [
+          {
+            type: 'line',
+            x1: 0,
+            y1: 0,
+            x2: fullLineWidth,
+            y2: 0,
+            lineWidth: 0.8,
+            lineColor: '#111111',
+          },
+        ],
+        margin: [leftIndent, 14, 0, 0],
+      },
+    ],
+    margin: [0, 8, 0, 0],
+  }
+}
+
+function buildSignatoriesSection() {
+  const leftIndent = 16
+  return {
+    columns: [
+      { width: leftIndent, text: '' },
+      {
+        width: 245,
+        stack: [
+          { text: 'Validated by:', fontSize: 10 },
+          { text: ' ', margin: [0, 28, 0, 0] },
+          { text: VALIDATED_BY_NAME, bold: true, fontSize: 10 },
+          { text: VALIDATED_BY_TITLE, italics: true, fontSize: 9 },
+        ],
+      },
+      {
+        width: 254,
+        stack: [
+          { text: 'Noted by:', fontSize: 10 },
+          { text: ' ', margin: [0, 28, 0, 0] },
+          { text: NOTED_BY_NAME, bold: true, fontSize: 10 },
+          { text: NOTED_BY_TITLE, italics: true, fontSize: 9 },
+        ],
+      },
+    ],
+    columnGap: 0,
+    margin: [0, 24, 0, 0],
+  }
+}
+
+function buildFooterNote() {
+  return {
+    text: [
+      { text: '****', bold: true, italics: true, fontSize: 8.5 },
+      {
+        text: 'Note: Kindly attach the approved leave form and justification letter',
+        italics: true,
+        decoration: 'underline',
+        fontSize: 8.5,
+      },
+    ],
+    margin: [0, 20, 0, 0],
+  }
+}
+
+function buildOuterFrame(innerContent) {
+  return {
+    table: {
+      widths: ['*'],
+      body: [
+        [
+          {
+            stack: innerContent,
+            margin: [0, 0, 0, 0],
+          },
+        ],
+      ],
+    },
+    layout: {
+      hLineWidth: () => 1,
+      vLineWidth: () => 1,
+      hLineColor: () => '#000000',
+      vLineColor: () => '#000000',
+      paddingLeft: () => 16,
+      paddingRight: () => 16,
+      paddingTop: () => 14,
+      paddingBottom: () => 14,
+    },
   }
 }
 
@@ -588,8 +957,8 @@ function openPdfDocument(pdfDocument, options = {}) {
   const targetWindow =
     options?.targetWindow && !options.targetWindow.closed ? options.targetWindow : null
   const fileName =
-    String(options?.fileName || 'request-changes-approved-leave.pdf').trim() ||
-    'request-changes-approved-leave.pdf'
+    String(options?.fileName || 'request-amendment-approved-leave.pdf').trim() ||
+    'request-amendment-approved-leave.pdf'
 
   return pdfDocument.getBlob().then((blob) => {
     const objectUrl = URL.createObjectURL(blob)
@@ -613,7 +982,7 @@ function openPdfDocument(pdfDocument, options = {}) {
   })
 }
 
-export async function generateRequestChangesApprovedLeavePdf(app = {}, options = {}) {
+export async function generateRequestAmendmentApprovedLeavePdf(app = {}, options = {}) {
   let logoBase64 = null
   try {
     logoBase64 = await toBase64('/images/CityOfTagumLogo.png')
@@ -626,50 +995,27 @@ export async function generateRequestChangesApprovedLeavePdf(app = {}, options =
   const docDefinition = {
     pageSize: 'A4',
     pageOrientation: 'portrait',
-    pageMargins: [24, 20, 24, 24],
+    pageMargins: [20, 20, 20, 20],
     content: [
-      buildHeader(logoBase64),
-      {
-        text: 'REQUEST FOR CHANGES IN THE APPROVED LEAVE APPLICATION',
-        alignment: 'center',
-        bold: true,
-        fontSize: 14,
-        margin: [0, 6, 0, 14],
-      },
-      shortFieldRow('DATE OF REQUEST', formatDate(formData.requestDate)),
-      shortFieldRow('NAME OF EMPLOYEE', formData.employeeName),
-      ...(formData.actionType === ACTION_TYPE_CANCEL
-        ? [shortFieldRow('CHANGES', 'Cancel Leave')]
-        : [changesLabelRow(), fromToRow(formData.fromValue, formData.toValue)]),
-      shortFieldRow('REASON/S', formData.reason),
-      shortFieldRow('SIGNATURE OF EMPLOYEE', ''),
-      shortFieldRow('APPROVED BY', formData.approvedBy),
-      {
-        columns: [
-          { width: 184, text: '' },
-          {
-            width: 220,
-            text: 'Signature Over Printed Name\nHead of Office',
-            alignment: 'center',
-            fontSize: 8,
-            italics: true,
-          },
-        ],
-        margin: [0, 2, 0, 0],
-      },
-      {
-        columns: [
-          { width: 352, ...signerBlock('VALIDATED BY', VALIDATED_BY_NAME, VALIDATED_BY_TITLE) },
-          { width: '*', ...signerBlock('NOTED BY', NOTED_BY_NAME, NOTED_BY_TITLE) },
-        ],
-        margin: [0, 18, 0, 0],
-      },
-      {
-        text: '***Note: Kindly attach the approved leave form and justification letter',
-        italics: true,
-        fontSize: 9,
-        margin: [0, 14, 0, 0],
-      },
+      buildOuterFrame([
+        buildHeader(logoBase64),
+        {
+          text: 'REQUEST FOR AMENDMENT OF APPROVED LEAVE APPLICATION',
+          alignment: 'center',
+          bold: true,
+          fontSize: 12.5,
+          margin: [0, 10, 0, 14],
+        },
+        shortFieldRow('DATE OF REQUEST', formatDate(formData.requestDate)),
+        shortFieldRow('NAME OF EMPLOYEE', formData.employeeName),
+        buildChangesSection(formData),
+        shortFieldRow('REASON/S', formData.reason),
+        shortFieldRow('SIGNATURE OF EMPLOYEE', ''),
+        approvedByRow(formData.approvedBy),
+        buildActionTakenSection(),
+        buildSignatoriesSection(),
+        buildFooterNote(),
+      ]),
     ],
     defaultStyle: {
       font: 'Roboto',
@@ -679,3 +1025,5 @@ export async function generateRequestChangesApprovedLeavePdf(app = {}, options =
   const pdfDocument = pdfMake.createPdf(docDefinition)
   return openPdfDocument(pdfDocument, options)
 }
+
+export const generateRequestChangesApprovedLeavePdf = generateRequestAmendmentApprovedLeavePdf

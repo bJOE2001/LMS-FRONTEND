@@ -193,7 +193,7 @@
                   {{
                     isApplicationEditCancellationRequest(tableProps.row)
                       ? 'Print Cancellation Form'
-                      : 'Print Request Changes Form'
+                      : 'Print Request for Amendment Form'
                   }}
                 </q-tooltip>
               </q-btn>
