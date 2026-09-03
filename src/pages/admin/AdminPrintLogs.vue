@@ -63,22 +63,19 @@
           <template #body-cell-date_filed="props">
             <q-td :props="props">
               <div>{{ formatFiledDate(props.row) }}</div>
-              <div v-if="formatFiledTime(props.row)" class="text-caption text-grey">
-                {{ formatFiledTime(props.row) }}
-              </div>
             </q-td>
           </template>
 
           <template #body-cell-inclusive_dates="props">
             <q-td :props="props">
-              <div v-if="getInclusiveDateLines(props.row).length > 0">
-                <div
+              <div v-if="getInclusiveDateLines(props.row).length > 0" class="column q-gutter-y-xs">
+                <span
                   v-for="(line, idx) in getInclusiveDateLines(props.row)"
                   :key="idx"
                   class="text-weight-medium text-grey-9"
                 >
                   {{ line }}
-                </div>
+                </span>
               </div>
               <div v-else class="text-grey-6">-</div>
             </q-td>
@@ -133,7 +130,7 @@ const columns = [
   { name: 'applicant', label: 'Applicant', align: 'left', sortable: false },
   { name: 'leave_type', label: 'Type of Leave', align: 'left', sortable: false },
   { name: 'date_filed', label: 'Date Filed', align: 'left', sortable: false },
-  { name: 'inclusive_dates', label: 'Inclusive Date', align: 'left', sortable: false },
+  { name: 'inclusive_dates', label: 'Inclusive Dates', align: 'left', sortable: false },
   { name: 'printed_by', label: 'Printed By', align: 'left', sortable: true, field: 'printed_by_name' },
   { name: 'created_at', label: 'Date/Time Printed', align: 'left', field: 'created_at', sortable: true },
   { name: 'ip_address', label: 'IP Address', align: 'left', field: 'ip_address', sortable: false }
@@ -206,12 +203,6 @@ const formatFiledDate = (row) => {
   const val = getFiledRawDate(row)
   if (!val) return '-'
   return formatDate(val)
-}
-
-const formatFiledTime = (row) => {
-  const val = getFiledRawDate(row)
-  if (!val || typeof val !== 'string' || !val.includes('T')) return ''
-  return formatTime(val)
 }
 
 const formatGroupedInclusiveDateLines = (dateValues) => {
