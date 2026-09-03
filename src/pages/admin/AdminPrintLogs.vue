@@ -52,6 +52,38 @@
             </q-td>
           </template>
 
+          <template #body-cell-leave_type="props">
+            <q-td :props="props">
+              <div class="text-weight-medium">
+                {{ getLeaveType(props.row) }}
+              </div>
+            </q-td>
+          </template>
+
+          <template #body-cell-date_filed="props">
+            <q-td :props="props">
+              <div>{{ formatFiledDate(props.row) }}</div>
+              <div v-if="formatFiledTime(props.row)" class="text-caption text-grey">
+                {{ formatFiledTime(props.row) }}
+              </div>
+            </q-td>
+          </template>
+
+          <template #body-cell-inclusive_dates="props">
+            <q-td :props="props">
+              <div v-if="getInclusiveDateLines(props.row).length > 0">
+                <div
+                  v-for="(line, idx) in getInclusiveDateLines(props.row)"
+                  :key="idx"
+                  class="text-weight-medium text-grey-9"
+                >
+                  {{ line }}
+                </div>
+              </div>
+              <div v-else class="text-grey-6">-</div>
+            </q-td>
+          </template>
+
           <template #body-cell-printed_by="props">
             <q-td :props="props">
               <div>{{ props.row.printed_by_name || '-' }}</div>
@@ -81,6 +113,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from 'boot/axios'
 import { date } from 'quasar'
+import { getApplicationSelectedDates, normalizeIsoDate } from 'src/utils/leave-date-locking'
 
 const route = useRoute()
 const loading = ref(false)
@@ -98,9 +131,12 @@ const pagination = ref({
 const columns = [
   { name: 'tracking_no', label: 'ID', align: 'left', sortable: false },
   { name: 'applicant', label: 'Applicant', align: 'left', sortable: false },
+  { name: 'leave_type', label: 'Type of Leave', align: 'left', sortable: false },
+  { name: 'date_filed', label: 'Date Filed', align: 'left', sortable: false },
+  { name: 'inclusive_dates', label: 'Inclusive Date', align: 'left', sortable: false },
   { name: 'printed_by', label: 'Printed By', align: 'left', sortable: true, field: 'printed_by_name' },
-  { name: 'ip_address', label: 'IP Address', align: 'left', field: 'ip_address', sortable: false },
   { name: 'created_at', label: 'Date/Time Printed', align: 'left', field: 'created_at', sortable: true },
+  { name: 'ip_address', label: 'IP Address', align: 'left', field: 'ip_address', sortable: false },
   { name: 'remarks', label: 'Remarks', align: 'left', field: 'remarks', sortable: false }
 ]
 
@@ -148,6 +184,115 @@ const formatDate = (val) => {
 const formatTime = (val) => {
   if (!val) return '-'
   return date.formatDate(val, 'hh:mm A')
+}
+
+const getLeaveType = (row) => {
+  const app = row?.leave_application
+  if (!app) return '-'
+
+  if (app.is_monetization) {
+    const rawType = app.leave_type?.name || app.leave_type_name || app.leaveType?.name
+    return rawType ? `${rawType} (Monetization)` : 'Monetization'
+  }
+
+  return app.leave_type?.name || app.leave_type_name || app.leaveType?.name || '-'
+}
+
+const getFiledRawDate = (row) => {
+  const app = row?.leave_application
+  return app?.created_at || app?.date_filed || app?.dateFiled || app?.filed_at || null
+}
+
+const formatFiledDate = (row) => {
+  const val = getFiledRawDate(row)
+  if (!val) return '-'
+  return formatDate(val)
+}
+
+const formatFiledTime = (row) => {
+  const val = getFiledRawDate(row)
+  if (!val || typeof val !== 'string' || !val.includes('T')) return ''
+  return formatTime(val)
+}
+
+const formatGroupedInclusiveDateLines = (dateValues) => {
+  if (!Array.isArray(dateValues) || dateValues.length === 0) return []
+
+  const groupedByMonthYear = new Map()
+  const sortedDates = [...new Set(dateValues.filter(Boolean))].sort(
+    (left, right) => Date.parse(left) - Date.parse(right),
+  )
+
+  for (const rawDate of sortedDates) {
+    const isoDate = normalizeIsoDate(rawDate)
+    const parsedDate = isoDate ? new Date(`${isoDate}T12:00:00`) : new Date(rawDate)
+    if (Number.isNaN(parsedDate.getTime())) continue
+
+    const monthName = parsedDate.toLocaleDateString('en-US', { month: 'short' })
+    const year = parsedDate.getFullYear()
+    const day = parsedDate.getDate()
+    const groupKey = `${year}-${parsedDate.getMonth()}`
+
+    if (!groupedByMonthYear.has(groupKey)) {
+      groupedByMonthYear.set(groupKey, { monthName, year, days: [] })
+    }
+
+    groupedByMonthYear.get(groupKey).days.push(day)
+  }
+
+  return Array.from(groupedByMonthYear.values())
+    .map((group) => {
+      const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
+      if (!uniqueDays.length) return ''
+
+      const dayRanges = []
+      let rangeStart = uniqueDays[0]
+      let rangeEnd = uniqueDays[0]
+
+      for (let index = 1; index < uniqueDays.length; index += 1) {
+        const currentDay = uniqueDays[index]
+        if (currentDay === rangeEnd + 1) {
+          rangeEnd = currentDay
+          continue
+        }
+
+        dayRanges.push([rangeStart, rangeEnd])
+        rangeStart = currentDay
+        rangeEnd = currentDay
+      }
+
+      dayRanges.push([rangeStart, rangeEnd])
+
+      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+        let dayLabel = String(startDay)
+        if (endDay > startDay) {
+          dayLabel = endDay === startDay + 1 ? `${startDay}, ${endDay}` : `${startDay}-${endDay}`
+        }
+        return `${group.monthName} ${dayLabel}`
+      })
+
+      const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+      if (hasSingleDayOnly) {
+        return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
+      }
+
+      return `${rangeLabels.join(', ')} ${group.year}`
+    })
+    .filter(Boolean)
+}
+
+const getInclusiveDateLines = (row) => {
+  const app = row?.leave_application
+  if (!app) return []
+  if (app.is_monetization) return ['N/A']
+
+  const selectedDates = getApplicationSelectedDates(app)
+  if (!selectedDates || selectedDates.length === 0) {
+    return ['-']
+  }
+
+  const grouped = formatGroupedInclusiveDateLines(selectedDates)
+  return grouped.length > 0 ? grouped : ['-']
 }
 
 onMounted(() => {
