@@ -136,8 +136,7 @@ const columns = [
   { name: 'inclusive_dates', label: 'Inclusive Date', align: 'left', sortable: false },
   { name: 'printed_by', label: 'Printed By', align: 'left', sortable: true, field: 'printed_by_name' },
   { name: 'created_at', label: 'Date/Time Printed', align: 'left', field: 'created_at', sortable: true },
-  { name: 'ip_address', label: 'IP Address', align: 'left', field: 'ip_address', sortable: false },
-  { name: 'remarks', label: 'Remarks', align: 'left', field: 'remarks', sortable: false }
+  { name: 'ip_address', label: 'IP Address', align: 'left', field: 'ip_address', sortable: false }
 ]
 
 const onRequest = async (props) => {
