@@ -34,3 +34,5 @@ yarn-error.log*
 .env.*
 !.env.development.example
 !.env.production.example
+
+/.agents

@@ -393,6 +393,18 @@
                             title="Edit this late deduction"
                             @click="openEditLateDeduction(entry)"
                           />
+                          <q-btn
+                            v-if="isRestorationEntry(entry) && isHrAdmin"
+                            icon="delete"
+                            size="xs"
+                            color="negative"
+                            flat
+                            dense
+                            class="q-ml-xs"
+                            title="Delete this restoration"
+                            :loading="deletingRestoration"
+                            @click="confirmDeleteRestoration(entry)"
+                          />
                         </div>
                       </td>
                     </tr>
@@ -460,15 +472,19 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth-store'
 import HrLeaveRestorationDialog from 'src/components/hr/HrLeaveRestorationDialog.vue'
 import HrLateDeductionDialog from 'src/components/hr/HrLateDeductionDialog.vue'
 
+const $q = useQuasar()
 const authStore = useAuthStore()
 const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
 const showRestoreDialog = ref(false)
 const showLateDeductionDialog = ref(false)
 const editingLateDeduction = ref(null)
+const deletingRestoration = ref(false)
 const isMaximized = ref(false)
 const zoomLevel = ref(100)
 const activePageIndex = ref(0)
@@ -660,13 +676,122 @@ function isLateDeductionEntry(entry) {
   return particulars.startsWith('late ') || particulars.includes('late deduction')
 }
 
+const controlNo = computed(() => {
+  return String(props.employee?.control_no || props.employee?.controlNo || '').trim()
+})
+
+function getRestorationId(entry) {
+  if (!entry) return null
+  if (entry.restoration_id) return entry.restoration_id
+  if (entry.restorationId) return entry.restorationId
+  if (entry.rawEntry?.restoration_id) return entry.rawEntry.restoration_id
+  const rowId = String(entry.id || entry.row_id || entry.merge_key || '')
+  if (rowId.startsWith('restoration-')) {
+    const id = parseInt(rowId.replace('restoration-', ''), 10)
+    if (!Number.isNaN(id) && id > 0) return id
+  }
+  return null
+}
+
 function isRestorationEntry(entry) {
   if (!entry) return false
-  const particulars = String(entry.particulars || '')
+  if (entry.isRestoration) return true
+  if (entry.restoration_id || entry.restorationId) return true
+  const rowId = String(entry.id || entry.row_id || entry.merge_key || '').toLowerCase()
+  if (rowId.includes('restoration') || rowId.startsWith('restore-')) return true
+  const particulars = String(entry.particulars || '').toLowerCase()
   return (
-    particulars.toLowerCase().includes('restore leave') ||
-    particulars.toLowerCase().includes('restoration')
+    particulars === 'restore' ||
+    particulars.includes('restore') ||
+    particulars.includes('restoration')
   )
+}
+
+function confirmDeleteRestoration(entry) {
+  const restorationId = getRestorationId(entry)
+  if (!restorationId) {
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to identify restoration record ID to delete.',
+      position: 'top',
+    })
+    return
+  }
+
+  const employeeCtrlNo = controlNo.value
+  if (!employeeCtrlNo) {
+    $q.notify({
+      type: 'warning',
+      message: 'No employee control number found.',
+      position: 'top',
+    })
+    return
+  }
+
+  const restoredDaysDisplay =
+    entry.otherEarned ||
+    entry.vacationEarned ||
+    entry.sickEarned ||
+    entry.restored_days ||
+    entry.amount ||
+    'N/A'
+  const particularsDisplay = entry.particulars || 'N/A'
+  const periodDisplay = entry.period || entry.actionTaken || 'N/A'
+  const leaveTypeDisplay = entry.leave_type_code || entry.leaveTypeCode || 'Leave Credits'
+
+  $q.dialog({
+    title: 'Delete Restored Leave Entry',
+    message: `<div style="font-size: 0.95rem; line-height: 1.6;">
+      <p style="margin-bottom: 8px; font-weight: 500; color: #b91c1c;">
+        Are you sure you want to delete this restored leave entry?
+      </p>
+      <p style="margin-bottom: 12px; font-size: 0.85rem; color: #4b5563;">
+        Deleting this entry will remove it from the ledger and deduct the previously credited days back from the employee's balance.
+      </p>
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px;">
+        <div style="margin-bottom: 4px;"><strong>Target Leave Type:</strong> ${leaveTypeDisplay}</div>
+        <div style="margin-bottom: 4px;"><strong>Particulars:</strong> ${particularsDisplay}</div>
+        <div style="margin-bottom: 4px;"><strong>Date / Period:</strong> ${periodDisplay}</div>
+        <div><strong>Restored Days:</strong> <span style="color: #b91c1c; font-weight: 700;">${restoredDaysDisplay}</span></div>
+      </div>
+    </div>`,
+    html: true,
+    cancel: {
+      flat: true,
+      label: 'Cancel',
+      color: 'grey-8',
+    },
+    ok: {
+      unelevated: true,
+      label: 'Confirm Delete',
+      color: 'negative',
+      icon: 'delete',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    deletingRestoration.value = true
+    try {
+      const res = await api.post(
+        `/hr/employees/${employeeCtrlNo}/restore-leave-credits/${restorationId}/delete`,
+      )
+      $q.notify({
+        type: 'positive',
+        message: res.data?.message || 'Restoration entry deleted successfully.',
+        position: 'top',
+      })
+      emit('restored')
+    } catch (err) {
+      const message =
+        err.response?.data?.message || 'Failed to delete restoration entry.'
+      $q.notify({
+        type: 'negative',
+        message,
+        position: 'top',
+      })
+    } finally {
+      deletingRestoration.value = false
+    }
+  })
 }
 
 function resolveBadgeColorClass(code) {

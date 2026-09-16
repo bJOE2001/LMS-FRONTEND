@@ -4555,6 +4555,16 @@ function normalizeLedgerRow(entry, index) {
     accrualIds,
     isEditableAccrual,
     late_deduction_id: entry?.late_deduction_id || entry?.lateDeductionId || null,
+    restoration_id:
+      entry?.restoration_id ||
+      entry?.restorationId ||
+      (typeof entry?.id === 'string' && entry.id.startsWith('restoration-')
+        ? parseInt(entry.id.replace('restoration-', ''), 10)
+        : null),
+    isRestoration:
+      Boolean(entry?.restoration_id || entry?.restorationId) ||
+      (typeof entry?.id === 'string' && entry.id.startsWith('restoration-')),
+    restored_days: entry?.restored_days || entry?.amount || null,
     target_leave: entry?.target_leave || entry?.targetLeave || null,
     target_leave_type_id: entry?.target_leave_type_id || entry?.targetLeaveTypeId || null,
     days_late: entry?.days_late !== undefined ? entry.days_late : (entry?.daysLate ?? null),
