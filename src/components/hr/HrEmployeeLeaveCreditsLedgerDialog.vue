@@ -372,7 +372,7 @@
                         <div class="row items-center justify-center no-wrap">
                           <span style="white-space: pre-line">{{ entry.actionTaken }}</span>
                           <q-btn
-                            v-if="entry.isEditableAccrual && isHrAdmin"
+                            v-if="entry.isEditableAccrual && canEditAccrual"
                             icon="edit"
                             size="xs"
                             color="primary"
@@ -383,7 +383,7 @@
                             @click="emit('edit-accrual', entry)"
                           />
                           <q-btn
-                            v-if="isLateDeductionEntry(entry) && isHrAdmin"
+                            v-if="isLateDeductionEntry(entry) && canEditLateDeduction"
                             icon="edit"
                             size="xs"
                             color="negative"
@@ -394,7 +394,7 @@
                             @click="openEditLateDeduction(entry)"
                           />
                           <q-btn
-                            v-if="isRestorationEntry(entry) && isHrAdmin"
+                            v-if="isRestorationEntry(entry) && canDeleteRestoration"
                             icon="delete"
                             size="xs"
                             color="negative"
@@ -481,6 +481,21 @@ import HrLateDeductionDialog from 'src/components/hr/HrLateDeductionDialog.vue'
 const $q = useQuasar()
 const authStore = useAuthStore()
 const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
+const canDeleteRestoration = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_restore_delete')
+})
+const canEditAccrual = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_accrual_edit')
+})
+const canEditLateDeduction = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_late_deduction_edit')
+})
 const showRestoreDialog = ref(false)
 const showLateDeductionDialog = ref(false)
 const editingLateDeduction = ref(null)

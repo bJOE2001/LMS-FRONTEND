@@ -112,6 +112,15 @@
               </q-item-section>
               <q-item-section>
                 <q-item-label>{{ module.label }}</q-item-label>
+                <q-item-label v-if="module.key === 'ledger_restore_delete'" caption>
+                  Allows deleting restored leave credit rows in employee ledger (requires Employee Management)
+                </q-item-label>
+                <q-item-label v-if="module.key === 'ledger_late_deduction_edit'" caption>
+                  Allows editing late deduction rows in employee ledger (requires Employee Management)
+                </q-item-label>
+                <q-item-label v-if="module.key === 'ledger_accrual_edit'" caption>
+                  Allows editing monthly accrual rows in employee ledger (requires Employee Management)
+                </q-item-label>
               </q-item-section>
             </q-item>
           </q-list>
@@ -134,7 +143,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
@@ -196,14 +205,72 @@ function resolveModuleLabel(moduleKey) {
   return moduleLabelByKey.value[moduleKey] || moduleKey
 }
 
+let prevModuleKeys = []
+
+const LEDGER_SUB_PERMISSIONS = [
+  'ledger_restore_delete',
+  'ledger_late_deduction_edit',
+  'ledger_accrual_edit',
+]
+
+watch(
+  selectedModuleKeys,
+  (newKeys) => {
+    const current = new Set(newKeys || [])
+    const prev = new Set(prevModuleKeys || [])
+
+    const hadEmpMgmt = prev.has('employee_management')
+    const hasEmpMgmt = current.has('employee_management')
+
+    let next = [...(newKeys || [])]
+    let changed = false
+
+    // Check if user just added any ledger sub-permission
+    const newlyAddedLedgerSub = LEDGER_SUB_PERMISSIONS.some(
+      (perm) => !prev.has(perm) && current.has(perm),
+    )
+
+    // If any ledger sub-permission is newly checked and employee_management is not checked, auto-check employee_management
+    if (newlyAddedLedgerSub && !hasEmpMgmt) {
+      next.push('employee_management')
+      changed = true
+    }
+
+    // If employee_management was unchecked, automatically uncheck all ledger sub-permissions
+    if (hadEmpMgmt && !hasEmpMgmt) {
+      const hasAnySub = LEDGER_SUB_PERMISSIONS.some((perm) => current.has(perm))
+      if (hasAnySub) {
+        next = next.filter((k) => !LEDGER_SUB_PERMISSIONS.includes(k))
+        changed = true
+      }
+    }
+
+    // Fallback safety: no ledger sub-permission can exist without employee_management
+    const hasAnySubLeft = LEDGER_SUB_PERMISSIONS.some((perm) => next.includes(perm))
+    if (hasAnySubLeft && !next.includes('employee_management')) {
+      next.push('employee_management')
+      changed = true
+    }
+
+    prevModuleKeys = [...next]
+
+    if (changed) {
+      selectedModuleKeys.value = next
+    }
+  },
+  { deep: true },
+)
+
 function openEditDialog(account) {
   selectedAccount.value = account
   const allowedModuleKeys = new Set(moduleKeys.value)
-  selectedModuleKeys.value = Array.isArray(account?.module_keys)
+  const initialKeys = Array.isArray(account?.module_keys)
     ? account.module_keys
         .map((moduleKey) => String(moduleKey || '').trim())
         .filter((moduleKey) => moduleKey !== '' && allowedModuleKeys.has(moduleKey))
     : []
+  prevModuleKeys = [...initialKeys]
+  selectedModuleKeys.value = initialKeys
   showEditDialog.value = true
 }
 
