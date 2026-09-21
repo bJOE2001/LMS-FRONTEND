@@ -269,8 +269,8 @@ function resolveEntryActor(entry) {
 .application-timeline-meta {
   font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: #64748b;
 }
 

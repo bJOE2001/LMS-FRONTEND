@@ -194,6 +194,14 @@ const props = defineProps({
     type: Function,
     default: (application) => application?.id ?? '',
   },
+  getApproveActionLabel: {
+    type: Function,
+    default: () => 'Approve',
+  },
+  getRejectActionLabel: {
+    type: Function,
+    default: () => 'Disapprove',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'request-reject', 'approved'])
@@ -235,11 +243,28 @@ const isCocApproveFlow = computed(
     && !isCocLateFilingReviewFlow.value,
 )
 
+const approveActionLabel = computed(
+  () => String(props.getApproveActionLabel(props.application) || 'Approve').trim() || 'Approve',
+)
+
+const rejectActionLabel = computed(
+  () =>
+    String(props.getRejectActionLabel(props.application) || 'Disapprove').trim() || 'Disapprove',
+)
+
+const isCertifyAction = computed(
+  () => props.confirmActionType === 'approve' && approveActionLabel.value === 'Certify',
+)
+
+const isNotCertifyAction = computed(
+  () => props.confirmActionType === 'reject' && rejectActionLabel.value === 'Not Certify',
+)
+
 const actionTitle = computed(() => {
   if (isCocLateFilingReviewFlow.value) return 'Approve Late Filing'
-  if (props.confirmActionType === 'approve') return 'Approve'
+  if (props.confirmActionType === 'approve') return approveActionLabel.value
   if (props.confirmActionType === 'cancel') return 'Cancel'
-  return 'Disapprove'
+  return rejectActionLabel.value
 })
 
 const isCancellationRequest = computed(
@@ -258,7 +283,9 @@ const actionMessage = computed(() => {
         : 'This will approve the edit request and apply the requested changes.'
     }
 
-    return 'This will finalize the approval of this application.'
+    return isCertifyAction.value
+      ? 'This will finalize the certification of this application.'
+      : 'This will finalize the approval of this application.'
   }
 
   if (props.confirmActionType === 'cancel') {
@@ -266,12 +293,19 @@ const actionMessage = computed(() => {
   }
 
   if (props.isEditRequest) {
+    if (isNotCertifyAction.value) {
+      return isCancellationRequest.value
+        ? 'You will continue to the not certify form for this cancellation request.'
+        : 'You will continue to the not certify form for this edit request.'
+    }
     return isCancellationRequest.value
       ? 'You will continue to the disapproval form for this cancellation request.'
       : 'You will continue to the disapproval form for this edit request.'
   }
 
-  return 'You will continue to the disapproval form.'
+  return isNotCertifyAction.value
+    ? 'You will continue to the not certify form.'
+    : 'You will continue to the disapproval form.'
 })
 
 const actionIcon = computed(() => {

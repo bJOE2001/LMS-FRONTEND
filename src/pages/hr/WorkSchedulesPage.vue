@@ -522,7 +522,7 @@ async function saveDefaultSchedule() {
   savingDefault.value = true
   try {
     const payload = buildSchedulePayload(defaultScheduleForm.value)
-    const { data } = await api.put('/hr/work-schedules/default', payload)
+    const { data } = await api.post('/hr/work-schedules/default/update', payload)
     applyDefaultSchedule(data?.default_schedule || payload)
     $q.notify({ type: 'positive', message: data?.message || 'Default schedule updated successfully.', position: 'top' })
   } catch (err) {
@@ -579,7 +579,7 @@ async function saveOverride() {
 
     let data
     if (editingOverrideId.value) {
-      ;({ data } = await api.put(`/hr/work-schedules/overrides/${editingOverrideId.value}`, payload))
+      ;({ data } = await api.post(`/hr/work-schedules/overrides/${editingOverrideId.value}/update`, payload))
     } else {
       ;({ data } = await api.post('/hr/work-schedules/overrides', payload))
     }
@@ -612,7 +612,7 @@ function confirmDeleteOverride(row) {
     persistent: true,
   }).onOk(async () => {
     try {
-      const { data } = await api.delete(`/hr/work-schedules/overrides/${row.id}`)
+      const { data } = await api.post(`/hr/work-schedules/overrides/${row.id}/delete`)
       $q.notify({ type: 'positive', message: data?.message || 'Employee override removed successfully.', position: 'top' })
       await loadSchedules()
     } catch (err) {

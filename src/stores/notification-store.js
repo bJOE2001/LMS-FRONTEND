@@ -81,7 +81,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   /**
-   * BACKEND API: PUT /api/notifications/:id/read
+   * BACKEND API: POST /api/notifications/:id/read
    * Expected response: { message: string }
    */
   async function markAsRead(id) {
@@ -99,7 +99,7 @@ export const useNotificationStore = defineStore('notification', () => {
     }
 
     try {
-      await api.put(`/notifications/${id}/read`)
+      await api.post(`/notifications/${id}/read`)
     } catch {
       // silently fail
     }
@@ -110,7 +110,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   /**
-   * BACKEND API: PUT /api/notifications/read-all
+   * BACKEND API: POST /api/notifications/read-all
    * Expected response: { message: string }
    */
   async function markAllAsRead() {
@@ -127,7 +127,7 @@ export const useNotificationStore = defineStore('notification', () => {
     syncMergedNotifications()
 
     try {
-      await api.put('/notifications/read-all')
+      await api.post('/notifications/read-all')
     } catch {
       // silently fail
     }
@@ -135,7 +135,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
 
   /**
-   * BACKEND API: DELETE /api/notifications/:id
+   * BACKEND API: POST /api/notifications/:id/delete
    * Expected response: { message: string }
    */
   async function removeNotification(id) {
@@ -153,7 +153,7 @@ export const useNotificationStore = defineStore('notification', () => {
     }
     syncMergedNotifications()
     try {
-      await api.delete(`/notifications/${id}`)
+      await api.post(`/notifications/${id}/delete`)
     } catch {
       // silently fail
     }

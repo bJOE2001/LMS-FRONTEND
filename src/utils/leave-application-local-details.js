@@ -1,4 +1,33 @@
 const STORAGE_KEY = 'lms_leave_application_local_details_v1'
+const LEAVE_DETAIL_FIELDS = [
+  'vacation_detail',
+  'vacation_specify',
+  'sick_detail',
+  'sick_specify',
+  'women_specify',
+  'study_detail',
+  'other_purpose',
+  'leave_type_other',
+]
+
+function parseObjectCandidate(value) {
+  if (!value) return {}
+  if (typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string') return {}
+
+  try {
+    const parsedValue = JSON.parse(value)
+    return parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue)
+      ? parsedValue
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+function firstNonEmptyValue(...values) {
+  return values.find((value) => value != null && String(value).trim() !== '') ?? ''
+}
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -96,12 +125,33 @@ export function mergeLocalLeaveApplicationDetails(application) {
       ? storedOverride.details
       : {}
 
-  return {
-    ...application,
-    ...storedOverride,
-    details: {
-      ...currentDetails,
-      ...overrideDetails,
-    },
+  const serializedDetails = parseObjectCandidate(
+    application?.details_of_leave ?? application?.detailsOfLeave,
+  )
+  const resolvedDetails = {
+    ...overrideDetails,
+    ...currentDetails,
+    ...serializedDetails,
   }
+
+  const mergedApplication = {
+    ...storedOverride,
+    ...application,
+    details: resolvedDetails,
+  }
+
+  for (const fieldName of LEAVE_DETAIL_FIELDS) {
+    const resolvedValue = firstNonEmptyValue(
+      application?.[fieldName],
+      serializedDetails?.[fieldName],
+      currentDetails?.[fieldName],
+      storedOverride?.[fieldName],
+      overrideDetails?.[fieldName],
+    )
+
+    mergedApplication[fieldName] = resolvedValue
+    mergedApplication.details[fieldName] = resolvedValue
+  }
+
+  return mergedApplication
 }

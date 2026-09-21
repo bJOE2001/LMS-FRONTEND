@@ -12,13 +12,13 @@
           class="applications-page-cta"
           @click="openApplyLeaveDialog"
         />
-      <q-btn
-        v-if="canAdminApplySelfCoc"
-        unelevated
-        color="green-8"
-        icon="schedule_send"
-        label="Apply COC"
-        class="applications-page-cta"
+        <q-btn
+          v-if="canAdminApplySelfCoc"
+          unelevated
+          color="green-8"
+          icon="schedule_send"
+          label="Apply COC"
+          class="applications-page-cta"
           @click="showApplyCocDialog = true"
         />
       </div>
@@ -63,7 +63,7 @@
               icon="print"
               label="Print Applications"
               size="sm"
-              @click="printApplicationsPdf"
+              @click="showPrintDialog = true"
             />
           </div>
         </div>
@@ -77,29 +77,13 @@
         :rows-per-page-options="[5, 10, 15, 20]"
         :loading="loading"
         class="applications-table applications-table--interactive"
+        table-style="table-layout: fixed; width: 100%"
         @row-click="handleApplicationRowClick"
       >
         <template #body-cell-employee="tableProps">
           <q-td>
             <div class="text-weight-medium">{{ tableProps.row.employeeName }}</div>
             <div class="text-caption text-grey-7">{{ tableProps.row.employee_control_no }}</div>
-          </q-td>
-        </template>
-        <template #body-cell-leaveBalance="tableProps">
-          <q-td class="leave-balance-cell-column">
-            <div class="leave-balance-cell">
-              <q-badge
-                v-for="(item, index) in getLeaveBalanceTextItems(tableProps.row)"
-                :key="`${tableProps.row.id}-leave-balance-text-${index}`"
-                color="grey-2"
-                text-color="grey-7"
-                rounded
-                class="leave-balance-badge"
-                :label="item.label"
-              >
-                <q-tooltip>{{ item.tooltip }}</q-tooltip>
-              </q-badge>
-            </div>
           </q-td>
         </template>
         <template #body-cell-inclusiveDates="tableProps">
@@ -124,16 +108,38 @@
           </q-td>
         </template>
         <template #body-cell-days="tableProps">
-          <q-td>
-            <span class="text-weight-medium text-grey-9">
-              {{ getApplicationDurationDisplay(tableProps.row) }}
-            </span>
+          <q-td :props="tableProps">
+            <div class="application-duration-cell">
+              <span class="text-weight-medium text-grey-9 block">
+                {{ getApplicationDurationDisplay(tableProps.row) }}
+              </span>
+              <span
+                v-if="getCtoHoursRowCaption(tableProps.row)"
+                class="text-caption text-grey-7 block application-duration-subtext"
+              >
+                {{ getCtoHoursRowCaption(tableProps.row) }}
+              </span>
+            </div>
           </q-td>
         </template>
         <template #body-cell-status="tableProps">
           <q-td class="application-status-cell">
-            <div class="status-cell-wrap">
-              <StatusBadge :status="getFinalStatusForStatusColumn(tableProps.row)" />
+            <div class="status-cell-wrap row items-center no-wrap q-gutter-x-xs">
+              <StatusBadge
+                :status="getFinalStatusForStatusColumn(tableProps.row)"
+                :tooltip="getStatusTooltipForStatusColumn(tableProps.row)"
+              />
+              <q-badge
+                v-if="hasApprovedEditRequest(tableProps.row)"
+                color="teal-8"
+                text-color="white"
+                rounded
+                class="text-weight-bold q-px-xs"
+                style="font-size: 10px; cursor: help; letter-spacing: 0.3px;"
+              >
+                Edited
+                <q-tooltip anchor="top middle" self="bottom middle">Edit Request Approved</q-tooltip>
+              </q-badge>
             </div>
           </q-td>
         </template>
@@ -172,6 +178,48 @@
                 @click.stop="printApplication(tableProps.row)"
               >
                 <q-tooltip>Print PDF</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canPrintRequestChangesApplication(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="description"
+                color="teal-7"
+                @click.stop="printRequestChangesApplication(tableProps.row)"
+              >
+                <q-tooltip>
+                  {{
+                    isApplicationEditCancellationRequest(tableProps.row)
+                      ? 'Print Cancellation Form'
+                      : 'Print Request for Amendment Form'
+                  }}
+                </q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canRequestRecallApplication(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="undo"
+                color="warning"
+                @click.stop="openRecallRequest(tableProps.row)"
+              >
+                <q-tooltip>Request Recall</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canPrintRecallRequestApplication(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="print"
+                color="teal-7"
+                @click.stop="printRecallRequestApplication(tableProps.row)"
+              >
+                <q-tooltip>Print Recall Form</q-tooltip>
               </q-btn>
               <template v-if="tableProps.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
@@ -252,6 +300,11 @@
       :get-timeline-entry-icon="getTimelineEntryIcon"
     />
 
+    <AdminPrintApplicationsDialog
+      v-model="showPrintDialog"
+      @print="(dateRange) => printApplicationsPdf(dateRange, getFinalStatusForStatusColumn)"
+    />
+
     <q-dialog
       v-model="showDetailsDialog"
       persistent
@@ -280,8 +333,15 @@
                   v-if="
                     ![
                       'Pending HR',
+                      'Pending Receive',
                       'Pending HR Receive',
                       'Pending HR Review',
+                      'Admin Recommendation',
+                      'Department Recommendation',
+                      'CHRMO Certification',
+                      'CMO/CVMO Review',
+                      'Pending Release',
+                      'Release',
                       'Pending Update Receive',
                       'Pending Update HR Review',
                       'Pending Update Admin Review',
@@ -313,8 +373,15 @@
             </div>
           </div>
           <div class="admin-application-details-header-side">
-            <q-btn flat dense round icon="close" class="admin-application-details-close" v-close-popup />
-            <div
+            <q-btn
+              flat
+              dense
+              round
+              icon="close"
+              class="admin-application-details-close"
+              v-close-popup
+            />
+            <!-- <div
               v-if="shouldShowCurrentLeaveBalance(selectedApp)"
               class="admin-application-details-header-balance-text"
             >
@@ -322,7 +389,7 @@
               <div class="admin-application-details-header-balance-value">
                 {{ getCurrentLeaveBalanceDisplay(selectedApp) }}
               </div>
-            </div>
+            </div> -->
           </div>
         </q-card-section>
         <q-card-section class="q-gutter-y-sm admin-application-details-content">
@@ -354,11 +421,16 @@
           </div>
 
           <div
-            v-if="hasApplicationEditRequest(selectedApp) && !isApplicationEditRequestHrApproved(selectedApp)"
+            v-if="
+              hasApplicationEditRequest(selectedApp) &&
+              !isApplicationEditRequestHrApproved(selectedApp)
+            "
             class="admin-application-requested-changes-section"
           >
             <div class="row items-center justify-between q-gutter-sm">
-              <div class="admin-application-details-label">{{ getApplicationEditRequestSectionTitle(selectedApp) }}</div>
+              <div class="admin-application-details-label">
+                {{ getApplicationEditRequestSectionTitle(selectedApp) }}
+              </div>
             </div>
             <div
               v-if="shouldShowApplicationEditRequestDateComparison(selectedApp)"
@@ -367,32 +439,36 @@
               <div class="admin-application-requested-changes-item">
                 <div class="admin-application-requested-changes-title">Inclusive Dates</div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Current:</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Date:' : 'Current:' }}</span>
                   <span class="admin-application-requested-changes-value">{{
                     formatInclusiveDateSummary(getApplicationEditRequestFromDates(selectedApp))
                   }}</span>
                 </div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Requested:</span>
-                  <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">{{
-                    formatInclusiveDateSummary(getApplicationEditRequestToDates(selectedApp))
-                  }}</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Updated Date:' : 'Requested:' }}</span>
+                  <span
+                    class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
+                    >{{
+                      formatInclusiveDateSummary(getApplicationEditRequestToDates(selectedApp))
+                    }}</span
+                  >
                 </div>
               </div>
 
               <div class="admin-application-requested-changes-item">
                 <div class="admin-application-requested-changes-title">Duration</div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Current:</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Duration:' : 'Current:' }}</span>
                   <span class="admin-application-requested-changes-value">{{
                     getApplicationEditRequestCurrentDuration(selectedApp)
                   }}</span>
                 </div>
                 <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Requested:</span>
-                  <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">{{
-                    getApplicationEditRequestRequestedDuration(selectedApp)
-                  }}</span>
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Updated Duration:' : 'Requested:' }}</span>
+                  <span
+                    class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
+                    >{{ getApplicationEditRequestRequestedDuration(selectedApp) }}</span
+                  >
                 </div>
               </div>
             </div>
@@ -401,7 +477,10 @@
                 <div class="admin-application-requested-changes-title">Changes</div>
                 <div class="admin-application-requested-changes-line">
                   <span class="admin-application-requested-changes-key">Requested:</span>
-                  <span class="admin-application-requested-changes-value admin-application-requested-changes-value--requested">Cancel Leave</span>
+                  <span
+                    class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
+                    >{{ getApplicationEditRequestChangeSummaryLabel(selectedApp) }}</span
+                  >
                 </div>
               </div>
               <div class="admin-application-requested-changes-item">
@@ -426,8 +505,13 @@
               class="row items-center q-col-gutter-md q-mt-sm"
             >
               <div class="col-12 col-md-8 admin-application-requested-changes-meta">
-                <div><strong>Requested At:</strong> {{ getApplicationEditRequestRequestedAt(selectedApp) }}</div>
-                <div><strong>Remarks:</strong> {{ getApplicationEditRequestReason(selectedApp) }}</div>
+                <div v-if="getApplicationEditRequestRequestedAt(selectedApp) !== 'N/A'">
+                  <strong>Requested At:</strong>
+                  {{ getApplicationEditRequestRequestedAt(selectedApp) }}
+                </div>
+                <div>
+                  <strong>Remarks:</strong> {{ getApplicationEditRequestReason(selectedApp) }}
+                </div>
               </div>
             </div>
           </div>
@@ -463,47 +547,19 @@
 
             <div class="admin-application-details-item">
               <div class="admin-application-details-label">Application Status</div>
-              <StatusBadge :status="getFinalStatusForStatusColumn(selectedApp)" />
+              <StatusBadge
+                :status="getFinalStatusForStatusColumn(selectedApp)"
+                :tooltip="getStatusTooltipForStatusColumn(selectedApp)"
+              />
             </div>
 
-            <div
-              v-if="isCtoLeaveApplication(selectedApp)"
-              class="admin-application-details-item"
-            >
-              <div class="admin-application-details-label">Available CTO Hours</div>
-              <div class="text-weight-medium">
-                {{ getCurrentCtoAvailableHoursDisplay(selectedApp) }}
-              </div>
-            </div>
-
-            <div
-              v-if="isCtoLeaveApplication(selectedApp)"
-              class="admin-application-details-item"
-            >
-              <div class="admin-application-details-label">Required CTO Hours</div>
-              <div class="text-weight-medium">
-                {{ getApplicationCtoRequiredHoursDisplay(selectedApp) }}
-              </div>
-            </div>
-
-            <div
-              v-if="isCtoLeaveApplication(selectedApp)"
-              class="admin-application-details-item"
-            >
-              <div class="admin-application-details-label">CTO Deducted Hours</div>
-              <div class="text-weight-medium">
-                {{ getCtoDeductedHoursDisplay(selectedApp) }}
-              </div>
-            </div>
-
-            <div
-              v-if="isCocApplication(selectedApp)"
-              class="admin-application-details-item"
-            >
+            <div v-if="isCocApplication(selectedApp)" class="admin-application-details-item">
               <div class="admin-application-details-label">Issued Date</div>
               <div class="text-weight-medium">
                 {{
-                  formatDate(selectedApp.certificateIssuedAt || selectedApp.certificate_issued_at) || 'N/A'
+                  formatDate(
+                    selectedApp.certificateIssuedAt || selectedApp.certificate_issued_at,
+                  ) || 'N/A'
                 }}
               </div>
             </div>
@@ -512,6 +568,16 @@
               <div class="admin-application-details-label">Duration</div>
               <div class="text-weight-medium">
                 {{ getApplicationDurationDisplay(selectedApp) }}
+              </div>
+            </div>
+
+            <div
+              v-if="isTerminalLeaveApplication(selectedApp)"
+              class="admin-application-details-item"
+            >
+              <div class="admin-application-details-label">Estimated Amount</div>
+              <div class="text-weight-medium">
+                {{ getTerminalLeaveEstimatedAmountDisplay(selectedApp) }}
               </div>
             </div>
 
@@ -534,7 +600,10 @@
                 :class="[
                   'text-weight-medium',
                   'admin-application-duration-columns',
-                  { 'admin-application-details-scroll-area': shouldScrollInclusiveDates(selectedApp) },
+                  {
+                    'admin-application-details-scroll-area':
+                      shouldScrollInclusiveDates(selectedApp),
+                  },
                 ]"
               >
                 <div class="text-caption text-grey-7">Current</div>
@@ -596,7 +665,10 @@
                 :class="[
                   'text-weight-medium',
                   'admin-application-duration-columns',
-                  { 'admin-application-details-scroll-area': shouldScrollInclusiveDates(selectedApp) },
+                  {
+                    'admin-application-details-scroll-area':
+                      shouldScrollInclusiveDates(selectedApp),
+                  },
                 ]"
               >
                 <div
@@ -630,7 +702,10 @@
                 :class="[
                   'text-weight-medium',
                   'admin-application-details-lines',
-                  { 'admin-application-details-scroll-area': shouldScrollInclusiveDates(selectedApp) },
+                  {
+                    'admin-application-details-scroll-area':
+                      shouldScrollInclusiveDates(selectedApp),
+                  },
                 ]"
               >
                 <span
@@ -680,6 +755,22 @@
             color="teal-7"
             label="Print Form"
             @click="printRequestChangesApplication(selectedApp)"
+          />
+          <q-btn
+            v-if="canRequestRecallApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="warning"
+            label="Request Recall"
+            @click="openRecallRequest(selectedApp)"
+          />
+          <q-btn
+            v-if="canPrintRecallRequestApplication(selectedApp)"
+            unelevated
+            no-caps
+            color="teal-7"
+            label="Print Recall Form"
+            @click="printRecallRequestApplication(selectedApp)"
           />
           <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
             <q-btn
@@ -755,6 +846,14 @@
       :on-confirm="confirmDisapprove"
     />
 
+    <AdminApplicationRecallRequestDialog
+      v-model="showRecallRequestDialog"
+      :application="recallRequestDialogApplication"
+      :get-recall-date-options="getRecallDateOptions"
+      :format-recall-date-label="formatRecallDateLabel"
+      @request-recall="submitRecallRequest"
+    />
+
     <AdminApplicationActionResultDialog
       v-model="showActionResultDialog"
       :action-result-type="actionResultType"
@@ -778,6 +877,8 @@ import AdminApplicationConfirmActionDialog from 'src/components/admin/AdminAppli
 import AdminApplicationDisapproveDialog from 'src/components/admin/AdminApplicationDisapproveDialog.vue'
 import AdminApplicationActionResultDialog from 'src/components/admin/AdminApplicationActionResultDialog.vue'
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
+import AdminApplicationRecallRequestDialog from 'src/components/admin/AdminApplicationRecallRequestDialog.vue'
+import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
 import { api } from 'src/boot/axios'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
 import { computed, onMounted, ref } from 'vue'
@@ -785,10 +886,16 @@ import { useAuthStore } from 'stores/auth-store'
 
 const showApplyCocDialog = ref(false)
 const authStore = useAuthStore()
-const adminEmploymentStatus = ref(String(authStore.user?.status || '').trim().toUpperCase())
+const adminEmploymentStatus = ref(
+  String(authStore.user?.status || '')
+    .trim()
+    .toUpperCase(),
+)
 
 const canAdminApplySelfCoc = computed(() => {
-  const status = String(adminEmploymentStatus.value || authStore.user?.status || '').trim().toUpperCase()
+  const status = String(adminEmploymentStatus.value || authStore.user?.status || '')
+    .trim()
+    .toUpperCase()
   if (!status) return true
   return !status.includes('CONTRACTUAL') && !status.includes('HONORARIUM')
 })
@@ -810,8 +917,11 @@ const {
   showDisapproveDialog,
   showConfirmActionDialog,
   showActionResultDialog,
+  showRecallRequestDialog,
+  showPrintDialog,
   selectedApp,
   selectedAppTimeline,
+  recallRequestDialogApplication,
   calendarPreviewModel,
   calendarPreviewKey,
   calendarPreviewRef,
@@ -835,11 +945,9 @@ const {
   handleApplyLeaveSubmitted,
   printApplicationsPdf,
   handleApplicationRowClick,
-  getLeaveBalanceTextItems,
-  getCurrentLeaveBalanceDisplay,
-  getCurrentCtoAvailableHoursDisplay,
-  getApplicationCtoRequiredHoursDisplay,
-  getCtoDeductedHoursDisplay,
+  // getLeaveBalanceTextItems,
+  // getCurrentLeaveBalanceDisplay,
+  getCtoHoursRowCaption,
   getApplicationDurationDisplay,
   getApplicationInclusiveDateColumnLines,
   getApplicationInclusiveDateLines,
@@ -847,14 +955,17 @@ const {
   getPendingUpdateDateIndicatorRows,
   hasPendingDateUpdate,
   formatDate,
+  formatDateTime,
   getApplicationStatusColor,
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
+  hasApprovedEditRequest,
   hasApplicationEditRequest,
-  getApplicationEditRequestStatusLabel,
   getApplicationEditRequestApprovedBadgeLabel,
   getApplicationEditRequestSectionTitle,
+  getApplicationEditRequestChangeSummaryLabel,
   shouldShowApplicationEditRequestDateComparison,
+  isApplicationEditCancellationRequest,
   getApplicationEditRequestRequestedAt,
   getApplicationEditRequestReason,
   getApplicationEditRequestFromDates,
@@ -865,15 +976,21 @@ const {
   shouldShowPendingDateComparisonInDetails,
   openDetails,
   openCalendarPreview,
+  openRecallRequest,
   onCalendarPreviewNavigation,
   handleCalendarPreviewModelUpdate,
   handleCalendarPreviewSurfacePointerDown,
   handleCalendarPreviewSurfaceClick,
   syncCalendarPreviewDecorations,
   canPrintApplication,
+  canPrintRecallRequestApplication,
+  canRequestRecallApplication,
   printApplication,
+  printRecallRequestApplication,
   isCocApplication,
-  isCtoLeaveApplication,
+  isApplicationReleased,
+  resolveFinalApprovalDateValue,
+  resolveReleasedDateValue,
   hasApplicationAttachment,
   viewApplicationAttachment,
   openActionConfirm,
@@ -888,19 +1005,87 @@ const {
   printActionResult,
   canPrintRequestChangesApplication,
   printRequestChangesApplication,
+  getRecallDateOptions,
+  formatRecallDateLabel,
   formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
-  shouldShowCurrentLeaveBalance,
+  submitRecallRequest,
+  // shouldShowCurrentLeaveBalance,
 } = useAdminApplicationsPage()
 
 const DISAPPROVED_STATUS_COLOR = 'red'
+const TERMINAL_LEAVE_ESTIMATE_FACTOR = 0.0478087
+const terminalLeaveAmountFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 const inclusiveDatePatterns = [
   /\b[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\b/g,
   /\b[A-Z][a-z]{2}\s+\d{1,2}\s+\d{4}\b/g,
 ]
 
+function truncateCurrencyValue(value, fractionDigits = 2) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+
+  const factor = 10 ** fractionDigits
+  if (!Number.isFinite(factor) || factor <= 0) return null
+
+  return numericValue < 0
+    ? Math.ceil(numericValue * factor) / factor
+    : Math.floor(numericValue * factor) / factor
+}
+
+function isTerminalLeaveApplication(app) {
+  const leaveTypeLabel = String(
+    app?.leave_type_name ?? app?.leaveType ?? '',
+  )
+    .trim()
+    .toLowerCase()
+
+  return leaveTypeLabel === 'terminal leave'
+}
+
+function getTerminalLeaveEstimatedAmountValue(app) {
+  const explicitAmount = Number(app?.terminal_leave_estimated_amount)
+  if (Number.isFinite(explicitAmount) && explicitAmount >= 0) {
+    return explicitAmount
+  }
+
+  const totalCredits = Number(app?.total_days ?? app?.duration_value ?? app?.days)
+  const monthlyRate = Number(app?.rate_mon ?? app?.salary)
+  if (!Number.isFinite(totalCredits) || totalCredits <= 0) return null
+  if (!Number.isFinite(monthlyRate) || monthlyRate <= 0) return null
+
+  return totalCredits * monthlyRate * TERMINAL_LEAVE_ESTIMATE_FACTOR
+}
+
+function getTerminalLeaveEstimatedAmountDisplay(app) {
+  const estimatedAmount = getTerminalLeaveEstimatedAmountValue(app)
+  if (!Number.isFinite(estimatedAmount)) return 'N/A'
+
+  const truncatedEstimatedAmount = truncateCurrencyValue(estimatedAmount)
+  return truncatedEstimatedAmount === null
+    ? 'N/A'
+    : terminalLeaveAmountFormatter.format(truncatedEstimatedAmount)
+}
+
 function normalizeDisapprovedStatusLabel(statusValue) {
-  return String(statusValue || '').trim().replace(/rejected/gi, 'Disapproved')
+  const normalizedStatus = String(statusValue || '').trim()
+  if (!normalizedStatus) return ''
+
+  const upperStatus = normalizedStatus.toUpperCase()
+  if (upperStatus === 'DISAPPROVED' || upperStatus === 'REJECTED') {
+    return 'Not Certified'
+  }
+
+  return normalizedStatus
+    .replace(/^HR Certification(?: Completed)?$/i, (match) =>
+      match.replace(/^HR Certification/i, 'CHRMO Certification'),
+    )
+    .replace(/rejected/gi, 'Disapproved')
 }
 
 function formatInclusiveDateLabel(value) {
@@ -945,7 +1130,9 @@ function getDisplayApplicationStatusLabel(app) {
 }
 
 function getDisplayApplicationStatusColor(app) {
-  const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+  const rawStatus = String(app?.rawStatus || app?.raw_status || '')
+    .trim()
+    .toUpperCase()
   const statusLabel = getDisplayApplicationStatusLabel(app).toUpperCase()
   if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return DISAPPROVED_STATUS_COLOR
   if (statusLabel.includes('DISAPPROV') || statusLabel.includes('REJECT')) {
@@ -956,31 +1143,45 @@ function getDisplayApplicationStatusColor(app) {
 }
 
 function getFinalStatusForStatusColumn(app) {
-  const resolvedStatus = String(app?.displayStatus || getApplicationStatusLabel(app) || '').trim()
-  const normalizedResolvedStatus = resolvedStatus.toUpperCase()
-
-  if (
-    normalizedResolvedStatus.includes('RECALL') ||
-    normalizedResolvedStatus.includes('REJECT') ||
-    normalizedResolvedStatus.includes('DISAPPROV') ||
-    normalizedResolvedStatus.includes('CANCEL')
-  ) {
-    return resolvedStatus
-  }
-
   const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
   if (updateRequestBadgeLabel) {
     return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
   }
 
-  if (hasApplicationEditRequest(app)) {
-    const editRequestStatusLabel = getApplicationEditRequestStatusLabel(app)
-    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') {
-      return normalizeDisapprovedStatusLabel(editRequestStatusLabel)
-    }
+  const resolvedStatus = String(app?.displayStatus || getApplicationStatusLabel(app) || '').trim()
+  const normalizedResolvedStatus = resolvedStatus.toUpperCase()
+
+  if (
+    normalizedResolvedStatus.includes('RECALL') ||
+    normalizedResolvedStatus.includes('CANCEL')
+  ) {
+    return resolvedStatus
   }
 
+  if (
+    normalizedResolvedStatus.includes('REJECT') ||
+    normalizedResolvedStatus.includes('DISAPPROV')
+  ) {
+    return normalizeDisapprovedStatusLabel(resolvedStatus)
+  }
+
+  if (isApplicationReleased(app)) return 'Released'
+
   return getDisplayApplicationStatusLabel(app)
+}
+
+function getStatusTooltipForStatusColumn(app) {
+  if (!isApplicationReleased(app)) return ''
+
+  const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
+  const releasedAt = formatDateTime(resolveReleasedDateValue(app))
+
+  if (approvedAt && releasedAt) {
+    return `Approved by HR on ${approvedAt}; released on ${releasedAt}.`
+  }
+  if (releasedAt) return `Approved by HR, then released on ${releasedAt}.`
+  if (approvedAt) return `Approved by HR on ${approvedAt}; released.`
+  return 'Approved by HR, then released.'
 }
 
 function getApplicationDetailsLeaveTypeLabel(app) {
@@ -1003,7 +1204,9 @@ function getApplicationDetailsRemarks(app) {
 function shouldShowApplicationDetailsRemarks(app) {
   if (!app || typeof app !== 'object') return false
 
-  const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+  const rawStatus = String(app?.rawStatus || app?.raw_status || '')
+    .trim()
+    .toUpperCase()
   const statusLabel = String(app?.displayStatus || getApplicationStatusLabel(app) || '')
     .trim()
     .toUpperCase()
@@ -1051,7 +1254,9 @@ async function submitAdminSelfCocApplication(payload) {
 onMounted(async () => {
   try {
     const { data } = await api.get('/admin/leave-credits')
-    const resolvedStatus = String(data?.employment_status || '').trim().toUpperCase()
+    const resolvedStatus = String(data?.employment_status || '')
+      .trim()
+      .toUpperCase()
     if (resolvedStatus) {
       adminEmploymentStatus.value = resolvedStatus
       if (authStore.user) {
@@ -1111,29 +1316,8 @@ onMounted(async () => {
 .applications-table--interactive :deep(tbody tr) {
   cursor: pointer;
 }
-.leave-balance-cell-column {
-  padding-left: 4px !important;
-  padding-right: 6px !important;
-}
-.leave-balance-cell {
-  min-width: 116px;
-  margin-left: -4px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  line-height: 1.2;
-}
-.leave-balance-badge {
-  padding: 2px 6px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
-  border: 1px solid #d8dee6;
-}
 .application-details-cell {
-  min-width: 260px;
+  min-width: 0;
   white-space: normal;
   display: flex;
   flex-direction: column;
@@ -1530,6 +1714,18 @@ onMounted(async () => {
   .application-status-search--left :deep(.q-field) {
     width: 100%;
   }
+}
 
+.application-duration-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.application-duration-subtext {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 1px;
 }
 </style>
+

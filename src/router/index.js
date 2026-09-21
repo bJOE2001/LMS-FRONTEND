@@ -7,6 +7,7 @@ import {
 } from 'vue-router'
 import { LoadingBar } from 'quasar'
 import routes from './routes'
+import { hrUserHasModuleAccess, resolveFirstAccessibleHrRoute, resolveRequiredHrModuleForPath } from 'src/utils/hr-module-access'
 
 /*
  * If not building with SSR mode, you can
@@ -89,6 +90,14 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       for (const { prefix, roles } of ROLE_ROUTES) {
         if (path.startsWith(prefix) && !roles.includes(user.role)) {
           next(ROLE_DASHBOARDS[user.role] || '/login')
+          return
+        }
+      }
+
+      if (user.role === 'hr') {
+        const requiredModuleKey = resolveRequiredHrModuleForPath(path)
+        if (requiredModuleKey && !hrUserHasModuleAccess(user, requiredModuleKey)) {
+          next(resolveFirstAccessibleHrRoute(user))
           return
         }
       }

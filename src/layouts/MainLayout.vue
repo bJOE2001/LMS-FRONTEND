@@ -12,6 +12,7 @@
       v-model="leftDrawer"
       show-if-above
       :width="260"
+      :breakpoint="599"
       side="left"
       behavior="default"
       class="side-panel-fixed text-white bg-primary"
@@ -105,21 +106,33 @@
                 </q-item-section>
               </q-item>
               <q-separator />
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/leave-types">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('leave_types')" clickable to="/hr/leave-types">
                 <q-item-section avatar><q-icon name="playlist_add" /></q-item-section>
                 <q-item-section>Leave Types</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/departments-library">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('office_library')" clickable to="/hr/departments-library">
                 <q-item-section avatar><q-icon name="apartment" /></q-item-section>
                 <q-item-section>Office Library</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/work-schedules">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('illness_library')" clickable to="/hr/illness-library">
+                <q-item-section avatar><q-icon name="medical_services" /></q-item-section>
+                <q-item-section>Illness Library</q-item-section>
+              </q-item>
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('work_schedules')" clickable to="/hr/work-schedules">
                 <q-item-section avatar><q-icon name="schedule" /></q-item-section>
                 <q-item-section>Work Schedules</q-item-section>
               </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/signatories">
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('signatories')" clickable to="/hr/signatories">
                 <q-item-section avatar><q-icon name="draw" /></q-item-section>
                 <q-item-section>Signatories</q-item-section>
+              </q-item>
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('access_control')" clickable to="/hr/access-control">
+                <q-item-section avatar><q-icon name="admin_panel_settings" /></q-item-section>
+                <q-item-section>Access Control</q-item-section>
+              </q-item>
+              <q-item v-if="['admin', 'department_admin', 'guest_admin', 'hr'].includes(leaveStore.userRole)" clickable :to="leaveStore.userRole === 'hr' ? '/hr/print-logs' : '/admin/print-logs'">
+                <q-item-section avatar><q-icon name="print" /></q-item-section>
+                <q-item-section>Print Logs</q-item-section>
               </q-item>
               <q-item clickable to="/settings">
                 <q-item-section avatar><q-icon name="settings" /></q-item-section>
@@ -168,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLeaveStore } from 'stores/leave-store'
@@ -176,6 +189,7 @@ import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import { api } from 'boot/axios'
 import NotificationPanel from 'components/NotificationPanel.vue'
+import { hrUserHasModuleAccess } from 'src/utils/hr-module-access'
 
 const route = useRoute()
 const router = useRouter()
@@ -202,18 +216,16 @@ function closeNotifMenu() {
 const isDark = computed(() => $q.dark.isActive)
 const isNotificationsPage = computed(() => route.name === 'notifications')
 
-watch(
-  () => $q.screen.gt.sm,
-  (isDesktop, wasDesktop) => {
-    if (isDesktop === wasDesktop) return
-    leftDrawer.value = isDesktop
-  },
-)
-
 // When authenticated, refresh user from API so department_admin gets department_id/department
 // only when local auth payload is missing. Avoid refetching on every route mount.
 onMounted(async () => {
-  if (authStore.isAuthenticated && authStore.getToken() && !authStore.user) {
+  const shouldRefreshUser =
+    authStore.isAuthenticated &&
+    authStore.getToken() &&
+    (!authStore.user ||
+      (authStore.user?.role === 'hr' && !Array.isArray(authStore.user?.hr_module_access)))
+
+  if (shouldRefreshUser) {
     try {
       const { data } = await api.get('/me')
       if (data.user) {
@@ -253,16 +265,28 @@ const adminNav = [
   // { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
 ]
 const hrNav = [
-  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { path: '/hr/applications', label: 'Applications', icon: 'assignment' },
-  { path: '/hr/coc-applications', label: 'Late COC', icon: 'schedule_send' },
-  { path: '/hr/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts' },
-  { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart' },
+  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard', moduleKey: 'dashboard' },
+  { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: 'applications' },
+  { path: '/hr/receiving', label: 'Receiving Application', icon: 'move_to_inbox', moduleKey: 'receiving' },
+  { path: '/hr/releasing', label: 'Releasing Application', icon: 'outbox', moduleKey: 'releasing' },
+  { path: '/hr/application-edit-requests', label: 'Edit Requests', icon: 'edit_note', moduleKey: 'applications', ownerOnly: true },
+  { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: 'coc_applications' },
+  { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: 'employee_management' },
+  { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts', moduleKey: 'user_management' },
+  { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart', moduleKey: 'reports_monitoring' },
 ]
 
+function canAccessHrModule(moduleKey) {
+  return hrUserHasModuleAccess(authStore.user, moduleKey)
+}
+
 const navItems = computed(() => {
-  if (leaveStore.userRole === 'hr') return hrNav
+  if (leaveStore.userRole === 'hr') {
+    return hrNav.filter((item) => {
+      if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
+      return canAccessHrModule(item.moduleKey)
+    })
+  }
   // Admin and department_admin see the admin menu (not HR)
   if (leaveStore.userRole === 'admin' || leaveStore.userRole === 'department_admin') return adminNav
   return []
@@ -339,7 +363,7 @@ async function doLogout() {
   transition: none !important;
 }
 
-/* Desktop only: fixed sidebar + synced transitions */
+/* Standard sidebar: fixed drawer + synced content offset */
 @media (min-width: 600px) {
   .layout-no-scroll :deep(.q-drawer) {
     position: fixed !important;
@@ -355,9 +379,13 @@ async function doLogout() {
   .layout-ready .layout-main-content {
     transition: padding-left 0.2s ease !important;
   }
+
+  .layout-no-scroll :deep(.q-drawer__backdrop) {
+    display: none !important;
+  }
 }
 
-/* Mobile: let Quasar handle drawer as overlay natively */
+/* Phone: let Quasar handle the drawer as an overlay natively */
 @media (max-width: 599px) {
   .layout-no-scroll :deep(.q-drawer) {
     z-index: 3000;

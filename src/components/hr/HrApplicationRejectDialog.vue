@@ -6,13 +6,13 @@
       <q-card-section
         class="text-center hr-action-dialog-card__content hr-action-dialog-card__content--compact"
       >
-        <div class="hr-action-dialog-card__title">Disapprove Application</div>
+        <div class="hr-action-dialog-card__title">{{ rejectDialogTitle }}</div>
       </q-card-section>
       <q-card-section class="q-pt-none hr-action-dialog-card__content--compact">
         <q-input
           v-model="remarksModel"
           type="textarea"
-          label="Reason for disapproval"
+          :label="rejectReasonLabel"
           rows="4"
           outlined
         />
@@ -73,6 +73,10 @@ const props = defineProps({
     type: Function,
     default: (application) => application?.id ?? '',
   },
+  getRejectActionLabel: {
+    type: Function,
+    default: () => 'Disapprove',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'rejected'])
@@ -84,6 +88,21 @@ const dialogModel = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 })
+
+const rejectActionLabel = computed(
+  () =>
+    String(props.getRejectActionLabel(props.application) || 'Disapprove').trim() || 'Disapprove',
+)
+
+const isNotCertifyAction = computed(() => rejectActionLabel.value === 'Not Certify')
+
+const rejectDialogTitle = computed(() =>
+  isNotCertifyAction.value ? 'Not Certify Application' : 'Disapprove Application',
+)
+
+const rejectReasonLabel = computed(() =>
+  isNotCertifyAction.value ? 'Reason for not certifying' : 'Reason for disapproval',
+)
 
 const normalizeRawStatusKey = (application) =>
   String(application?.group_raw_status ?? application?.rawStatus ?? application?.raw_status ?? '')
@@ -110,7 +129,9 @@ async function handleSubmit() {
   if (!remarks) {
     $q.notify({
       type: 'warning',
-      message: 'Please provide a reason for disapproval',
+      message: isNotCertifyAction.value
+        ? 'Please provide a reason for not certifying'
+        : 'Please provide a reason for disapproval',
       position: 'top',
     })
     return
@@ -147,12 +168,16 @@ async function handleSubmit() {
       message: isCoc
         ? isCocLateFilingReview
           ? 'Late COC filing disapproved.'
-          : 'COC application disapproved with remarks'
+          : isNotCertifyAction.value
+            ? 'COC application marked as not certified with remarks.'
+            : 'COC application disapproved with remarks'
         : isEditRequest
           ? isCancellationRequest
             ? 'Cancellation request disapproved. The approved leave application remains active.'
             : 'Edit request disapproved. Original approved application remains unchanged.'
-          : 'Leave application disapproved with remarks',
+          : isNotCertifyAction.value
+            ? 'Leave application marked as not certified with remarks.'
+            : 'Leave application disapproved with remarks',
       position: 'top',
     })
 
@@ -163,7 +188,12 @@ async function handleSubmit() {
       application: response?.data?.application || application,
     })
   } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to disapprove this application right now.')
+    const msg = resolveApiErrorMessage(
+      err,
+      isNotCertifyAction.value
+        ? 'Unable to mark this application as not certified right now.'
+        : 'Unable to disapprove this application right now.',
+    )
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
     submitLoading.value = false

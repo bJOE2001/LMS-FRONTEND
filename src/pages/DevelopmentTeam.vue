@@ -159,7 +159,7 @@ const rawMembers = [
   {
     name: 'Sherly Ann Al-os',
     initials: 'SA',
-    role: 'AFK NPC',
+    role: 'UI/UX DESIGNER',
     program: 'BS Information Technology',
     photo: '/developers/alsos.jpg',
     links: [{ label: 'Email', icon: 'mail', href: 'shirleyannalos@gmail.com' }],
@@ -167,7 +167,7 @@ const rawMembers = [
   {
     name: 'Janlyn Baulite',
     initials: 'JB',
-    role: 'AKF NPC',
+    role: 'FRONTEND DEVELOPER',
     program: 'BS Information Technology',
     photo: '/developers/janlyn.jpg',
     links: [

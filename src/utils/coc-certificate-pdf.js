@@ -446,7 +446,35 @@ function buildCertificateSection(data, options = {}) {
   }
 }
 
-export async function generateCocCertificatePdf(app) {
+function openPdfDocument(pdfDocument, options = {}) {
+  const targetWindow =
+    options?.targetWindow && !options.targetWindow.closed ? options.targetWindow : null
+  const fileName =
+    String(options?.fileName || 'coc-certificate.pdf').trim() || 'coc-certificate.pdf'
+
+  return pdfDocument.getBlob().then((blob) => {
+    const objectUrl = URL.createObjectURL(blob)
+
+    if (targetWindow) {
+      targetWindow.location.replace(objectUrl)
+    } else {
+      const opened = window.open(objectUrl, '_blank')
+      if (!opened) {
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = fileName
+        anchor.rel = 'noopener noreferrer'
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      }
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000)
+  })
+}
+
+export async function generateCocCertificatePdf(app, options = {}) {
   if (!app) return
 // console.log('RAW employeeName:', app?.employeeName)
 // console.log('RAW employee_name:', app?.employee_name)
@@ -564,5 +592,10 @@ export async function generateCocCertificatePdf(app) {
     },
   }
 
-  pdfMake.createPdf(docDefinition).open()
+  const pdfDocument = pdfMake.createPdf(docDefinition)
+  const employeeNameSlug = employeeName.replace(/\s+/g, '_') || 'employee'
+  await openPdfDocument(pdfDocument, {
+    fileName: `coc-certificate-${employeeNameSlug}.pdf`,
+    ...options,
+  })
 }

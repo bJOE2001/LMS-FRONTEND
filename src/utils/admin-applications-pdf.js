@@ -120,8 +120,6 @@ export async function printAdminApplicationsPdf({
   getApplicationInclusiveDateLines,
   getApplicationDurationDisplay,
   getApplicationStatusLabel,
-  resolveProcessedBy,
-  formatReviewedDate,
 } = {}) {
   const rowsToPrint = Array.isArray(rows) ? rows : []
   if (!rowsToPrint.length) return false
@@ -144,18 +142,14 @@ export async function printAdminApplicationsPdf({
       { text: 'Inclusive Dates', style: 'tableHeader' },
       { text: 'Duration', style: 'tableHeader' },
       { text: 'Status', style: 'tableHeader' },
-      { text: 'Processed By', style: 'tableHeader' },
-      { text: 'Reviewed Date', style: 'tableHeader' },
     ],
     ...rowsToPrint.map((app) => [
-      `${app?.employeeName || ''}${app?.employee_control_no ? `\n${app.employee_control_no}` : ''}`,
+      `${app?.employeeName || ''}`,
       app?.is_monetization ? `${app?.leaveType || 'N/A'} (Monetization)` : app?.leaveType || 'N/A',
       resolveDate(app?.dateFiled) || 'N/A',
       resolveInclusiveDatesDisplay(app, getApplicationInclusiveDateLines),
       resolveTextValue(app, getApplicationDurationDisplay),
       resolveTextValue(app, getApplicationStatusLabel),
-      resolveTextValue(app, resolveProcessedBy),
-      resolveTextValue(app, formatReviewedDate),
     ]),
   ]
 
@@ -186,7 +180,7 @@ export async function printAdminApplicationsPdf({
       {
         table: {
           headerRows: 1,
-          widths: ['*', '*', 72, 125, 38, 68, 100, 82],
+          widths: ['*', '*', 82, 135, 48, 88],
           body: tableBody,
         },
         layout: {

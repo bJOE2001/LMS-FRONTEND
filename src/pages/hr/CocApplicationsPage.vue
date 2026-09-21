@@ -1,10 +1,10 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-mb-lg">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Late COC Application</h1>
+  <q-page class="coc-applications-page q-pa-sm q-pa-md-md">
+    <div class="row items-center justify-between q-mb-md q-mb-md-lg coc-applications-header">
+      <h1 class="text-h5 text-h4-md text-weight-bold q-mt-none q-mb-none">COC Applications</h1>
     </div>
 
-    <HrApplicationsPanel application-type="COC" application-source="late_filing" />
+    <HrApplicationsPanel application-type="COC" />
   </q-page>
 </template>
 

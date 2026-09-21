@@ -7,94 +7,31 @@ const routes = [
       { path: '', redirect: '/login' },
 
       // Admin
-      {
-        path: 'admin/dashboard',
-        name: 'admin-dashboard',
-        component: () => import('pages/admin/AdminDashboard.vue'),
-      },
-      {
-        path: 'admin/applications',
-        name: 'admin-applications',
-        component: () => import('pages/admin/AdminApplicationsPage.vue'),
-      },
-      {
-        path: 'admin/employees',
-        name: 'admin-employees',
-        component: () => import('pages/admin/AdminEmployees.vue'),
-      },
-      {
-        path: 'admin/review/:id',
-        name: 'admin-review',
-        component: () => import('pages/admin/ApplicationReview.vue'),
-      },
-      {
-        path: 'admin/reports',
-        name: 'admin-reports',
-        component: () => import('pages/admin/AdminReports.vue'),
-      },
-      {
-        path: 'admin/attendance',
-        name: 'admin-attendance',
-        component: () => import('pages/admin/AttendanceManagement.vue'),
-      },
-      {
-        path: 'admin/attendance/:employeeId',
-        name: 'admin-attendance-record',
-        component: () => import('pages/admin/AdminEmployeeAttendanceRecordPage.vue'),
-      },
+      { path: 'admin/dashboard', name: 'admin-dashboard', component: () => import('pages/admin/AdminDashboard.vue') },
+      { path: 'admin/applications', name: 'admin-applications', component: () => import('pages/admin/AdminApplicationsPage.vue') },
+      { path: 'admin/employees', name: 'admin-employees', component: () => import('pages/admin/AdminEmployees.vue') },
+      { path: 'admin/review/:id', name: 'admin-review', component: () => import('pages/admin/ApplicationReview.vue') },
+      { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
+      { path: 'admin/print-logs', name: 'admin-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },
 
       // HR
-      {
-        path: 'hr/dashboard',
-        name: 'hr-dashboard',
-        component: () => import('pages/hr/HRDashboard.vue'),
-      },
-      {
-        path: 'hr/employees',
-        name: 'hr-employees',
-        component: () => import('pages/hr/EmployeeManagement.vue'),
-      },
-      {
-        path: 'hr/coc-applications',
-        name: 'hr-coc-applications',
-        component: () => import('pages/hr/CocApplicationsPage.vue'),
-      },
-      {
-        path: 'hr/work-schedules',
-        name: 'hr-work-schedules',
-        component: () => import('pages/hr/WorkSchedulesPage.vue'),
-      },
-      {
-        path: 'hr/signatories',
-        name: 'hr-signatories',
-        component: () => import('pages/hr/SignatoriesPage.vue'),
-      },
-      {
-        path: 'hr/leave-types',
-        name: 'hr-leave-types',
-        component: () => import('pages/hr/LeaveTypesPage.vue'),
-      },
-      {
-        path: 'hr/departments-library',
-        name: 'hr-departments-library',
-        component: () => import('pages/hr/DepartmentsLibraryPage.vue'),
-      },
-      {
-        path: 'hr/applications',
-        name: 'hr-applications',
-        component: () => import('pages/hr/ApplicationsPage.vue'),
-      },
+      { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },
+      { path: 'hr/employees', name: 'hr-employees', component: () => import('pages/hr/EmployeeManagement.vue') },
+      { path: 'hr/coc-applications', name: 'hr-coc-applications', component: () => import('pages/hr/CocApplicationsPage.vue') },
+      { path: 'hr/work-schedules', name: 'hr-work-schedules', component: () => import('pages/hr/WorkSchedulesPage.vue') },
+      { path: 'hr/signatories', name: 'hr-signatories', component: () => import('pages/hr/SignatoriesPage.vue') },
+      { path: 'hr/leave-types', name: 'hr-leave-types', component: () => import('pages/hr/LeaveTypesPage.vue') },
+      { path: 'hr/departments-library', name: 'hr-departments-library', component: () => import('pages/hr/DepartmentsLibraryPage.vue') },
+      { path: 'hr/illness-library', name: 'hr-illness-library', component: () => import('pages/hr/IllnessLibraryPage.vue') },
+      { path: 'hr/access-control', name: 'hr-access-control', component: () => import('pages/hr/AccessControlPage.vue') },
+      { path: 'hr/applications', name: 'hr-applications', component: () => import('pages/hr/ApplicationsPage.vue') },
+      { path: 'hr/receiving', name: 'hr-receiving', component: () => import('pages/hr/ReceivingPage.vue') },
+      { path: 'hr/releasing', name: 'hr-releasing', component: () => import('pages/hr/ReleasingPage.vue') },
+      { path: 'hr/application-edit-requests', name: 'hr-application-edit-requests', component: () => import('pages/hr/ApplicationEditRequestsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
-      {
-        path: 'hr/reports',
-        name: 'hr-reports',
-        component: () => import('pages/hr/ReportsMonitoring.vue'),
-      },
-      {
-        path: 'hr/user-management',
-        name: 'hr-user-management',
-        component: () => import('pages/hr/UserManagement.vue'),
-      },
+      { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
+      { path: 'hr/print-logs', name: 'hr-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },
+      { path: 'hr/user-management', name: 'hr-user-management', component: () => import('pages/hr/UserManagement.vue') },
 
       // Common
       {

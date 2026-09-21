@@ -376,7 +376,6 @@ function resolveSickSpecifyValue(app, normalizedSickDetail, fallbackValue = '') 
 
 function normalizeOfficeDepartment(value) {
   return String(value || '')
-    .replace(/^office\s+of\s+the\s+/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -558,6 +557,15 @@ function resolveApprovedForSectionValues(app) {
   )
   let derivedFromPayStatus = false
 
+  const deductibleDays = pickFirstFiniteNumber(
+    app?.deductible_days,
+    app?.deductibleDays,
+    raw?.deductible_days,
+    raw?.deductibleDays,
+  )
+  const shouldDeriveFromPayStatus =
+    withPayDays === null && withoutPayDays === null && deductibleDays === null
+
   const payStatusMap = toStatusMap(
     app?.selected_date_pay_status ??
       app?.selectedDatePayStatus ??
@@ -572,7 +580,7 @@ function resolveApprovedForSectionValues(app) {
       raw?.selectedDateCoverage,
   )
 
-  if (payStatusMap) {
+  if (shouldDeriveFromPayStatus && payStatusMap) {
     let computedWithPayDays = 0
     let computedWithoutPayDays = 0
     let hasComputedPayStatus = false
@@ -598,15 +606,9 @@ function resolveApprovedForSectionValues(app) {
     }
   }
 
-  const deductibleDays = pickFirstFiniteNumber(
-    app?.deductible_days,
-    app?.deductibleDays,
-    raw?.deductible_days,
-    raw?.deductibleDays,
-  )
-  if (!derivedFromPayStatus && deductibleDays !== null) {
+  if (!derivedFromPayStatus && deductibleDays !== null && withPayDays === null) {
     withPayDays = deductibleDays
-    if (totalDays !== null) {
+    if (withoutPayDays === null && totalDays !== null) {
       withoutPayDays = Math.max(totalDays - deductibleDays, 0)
     }
   }
@@ -619,7 +621,7 @@ function resolveApprovedForSectionValues(app) {
 
   if (totalDays !== null && withPayDays !== null && withoutPayDays !== null) {
     const accountedDays = withPayDays + withoutPayDays
-    const missingDays = Math.round((totalDays - accountedDays) * 100) / 100
+    const missingDays = Math.round((totalDays - accountedDays) * 1000) / 1000
     if (missingDays > 0) {
       if (normalizedPayMode === 'WOP') {
         withoutPayDays += missingDays
@@ -646,8 +648,9 @@ function resolveApprovedForSectionValues(app) {
     withPayDays = totalDays - withoutPayDays
   }
 
-  if (withPayDays !== null) withPayDays = Math.max(0, Math.round(withPayDays * 100) / 100)
-  if (withoutPayDays !== null) withoutPayDays = Math.max(0, Math.round(withoutPayDays * 100) / 100)
+  if (withPayDays !== null) withPayDays = Math.max(0, Math.round(withPayDays * 1000) / 1000)
+  if (withoutPayDays !== null)
+    withoutPayDays = Math.max(0, Math.round(withoutPayDays * 1000) / 1000)
 
   const others =
     String(
@@ -761,6 +764,18 @@ function resolvePrintableLeaveType(app) {
 
 function getLeaveBalanceTypeKey(value) {
   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+function resolveCertificationSelectedTypeKey(typeKey) {
+  const normalizedTypeKey = String(typeKey || '').trim().toLowerCase()
+  if (!normalizedTypeKey) return ''
+
+  const forcedLeaveKey = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
+  if (normalizedTypeKey === forcedLeaveKey) {
+    return getLeaveBalanceTypeKey('Vacation Leave')
+  }
+
+  return normalizedTypeKey
 }
 
 function normalizeCertificationTypeKey(value) {
@@ -880,6 +895,8 @@ function isCertificationEntryLikeObject(value) {
     'daysUsed',
     'application_days',
     'applicationDays',
+    'balance_after_application',
+    'balanceAfterApplication',
     'balance',
     'leave_balance',
     'leaveBalance',
@@ -929,6 +946,8 @@ function createCertificationEntry(label, value) {
       value.application_days ??
       value.applicationDays
     const fallbackBalance =
+      value.balance_after_application ??
+      value.balanceAfterApplication ??
       value.balance ??
       value.leave_balance ??
       value.leaveBalance ??
@@ -1105,10 +1124,14 @@ function buildCertificationEntryMap(app) {
 function buildCertificationColumns(app) {
   const entryMap = buildCertificationEntryMap(app)
   const selectedLabel = prettifyLeaveBalanceLabel(app?.leaveType || 'Leave Credits')
-  const selectedKey = getLeaveBalanceTypeKey(selectedLabel)
+  const rawSelectedKey = getLeaveBalanceTypeKey(selectedLabel)
+  const selectedKey = resolveCertificationSelectedTypeKey(rawSelectedKey)
   const vacationKey = getLeaveBalanceTypeKey('Vacation Leave')
   const sickKey = getLeaveBalanceTypeKey('Sick Leave')
-  const showDualColumns = selectedKey === vacationKey || selectedKey === sickKey
+  const forcedLeaveKey = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
+  const isForcedLeaveSelection = rawSelectedKey === forcedLeaveKey
+  const showDualColumns =
+    !isForcedLeaveSelection && (selectedKey === vacationKey || selectedKey === sickKey)
 
   if (showDualColumns) {
     return [
@@ -1120,12 +1143,58 @@ function buildCertificationColumns(app) {
   const resolvedSelectedEntry =
     findCertificationEntryByTypeKey(entryMap, selectedKey) ||
     (entryMap.size === 1 ? entryMap.values().next().value : null)
-  const selectedFallbackEntry = buildSelectedCertificationFallbackEntry(app, selectedLabel)
+  const selectedFallbackLabel = selectedKey === vacationKey ? 'Vacation Leave' : selectedLabel
+  const selectedFallbackEntry = buildSelectedCertificationFallbackEntry(app, selectedFallbackLabel)
   const mergedSelectedEntry = mergeCertificationEntry(resolvedSelectedEntry, selectedFallbackEntry)
 
   return [
-    mergedSelectedEntry || createEmptyCertificationEntry(selectedLabel || 'Leave Credits'),
+    mergedSelectedEntry ||
+      createEmptyCertificationEntry(selectedFallbackLabel || selectedLabel || 'Leave Credits'),
   ]
+}
+
+function resolveExplicitCertificationLessThisApplicationValue(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null
+
+  const candidates = [
+    source.less_this_application,
+    source.lessThisApplication,
+    source.deducted_days,
+    source.deductedDays,
+  ]
+
+  for (const candidate of candidates) {
+    const parsedNumber = toCreditNumber(candidate)
+    if (parsedNumber !== null) return parsedNumber
+  }
+
+  return null
+}
+
+function hasExplicitCertificationLessThisApplication(source) {
+  if (!source) return false
+
+  if (typeof source === 'string') {
+    const parsedSource = parseCertificationSourceCandidate(source)
+    return parsedSource !== null
+      ? hasExplicitCertificationLessThisApplication(parsedSource)
+      : false
+  }
+
+  if (Array.isArray(source)) {
+    return source.some((item) => hasExplicitCertificationLessThisApplication(item))
+  }
+
+  if (typeof source !== 'object') return false
+
+  if (resolveExplicitCertificationLessThisApplicationValue(source) !== null) {
+    return true
+  }
+
+  return Object.entries(source).some(([key, value]) => {
+    if (key === 'as_of_date' || value == null) return false
+    return hasExplicitCertificationLessThisApplication(value)
+  })
 }
 
 function applyCertificationLessThisApplicationOverride(
@@ -1138,7 +1207,9 @@ function applyCertificationLessThisApplicationOverride(
   const normalizedLessThisApplicationDays = toFiniteNumber(lessThisApplicationDays)
   if (normalizedLessThisApplicationDays === null) return columns
 
-  const selectedLeaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveType)
+  const selectedLeaveTypeKey = resolveCertificationSelectedTypeKey(
+    getLeaveBalanceTypeKey(selectedLeaveType),
+  )
   if (!selectedLeaveTypeKey) return columns
 
   return columns.map((column) => {
@@ -1202,6 +1273,36 @@ function openPdfDocument(pdfDocument, options = {}) {
   })
 }
 
+
+function isCtoCertificationColumn(column) {
+  const label = String(column?.label || '').trim().toLowerCase()
+  return (
+    label === 'cto' ||
+    label === 'cto leave' ||
+    label === 'compensatory time off' ||
+    label.includes('cto') ||
+    label.includes('compensatory') ||
+    label.includes('coc')
+  )
+}
+
+function formatCertificationCellValue(column, key) {
+  const rawValue = column?.[key]
+  if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+    return ''
+  }
+
+  if (isCtoCertificationColumn(column)) {
+    const num = Number(String(rawValue).replace(/,/g, ''))
+    if (Number.isFinite(num)) {
+      const hours = num * 8
+      return hours.toFixed(2)
+    }
+  }
+
+  return String(rawValue)
+}
+
 function buildCertificationTable(columns) {
   const isDualColumns = columns.length > 1
   const widths = isDualColumns ? ['38%', '31%', '31%'] : ['52%', '48%']
@@ -1230,7 +1331,7 @@ function buildCertificationTable(columns) {
         ...rows.map(([label, key, bold, italics]) => [
           { text: label, fontSize: 7, bold, italics },
           ...columns.map((column) => ({
-            text: column[key] || '',
+            text: formatCertificationCellValue(column, key),
             fontSize: 7,
             alignment: 'center',
           })),
@@ -1294,14 +1395,22 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const status = printableApp.status || ''
   const recommendationSignatory = getRecommendationSignatory(printableApp)
   const approvedForSection = resolveApprovedForSectionValues(printableApp)
-  const cert =
+  const certificationSource =
     printableApp.certificationLeaveCredits || printableApp.certification_leave_credits || {}
+  const cert = certificationSource
   const asOfDate = cert.as_of_date || ''
-  const certificationColumns = applyCertificationLessThisApplicationOverride(
-    buildCertificationColumns(printableApp),
-    lt,
-    approvedForSection.withPayDays,
-  )
+  const hasExplicitCertificationLessThisApplicationValues =
+    hasExplicitCertificationLessThisApplication(certificationSource)
+  const baseCertificationColumns = buildCertificationColumns(printableApp)
+  let certificationColumns = baseCertificationColumns
+
+  if (!hasExplicitCertificationLessThisApplicationValues) {
+    certificationColumns = applyCertificationLessThisApplicationOverride(
+      baseCertificationColumns,
+      lt,
+      approvedForSection.withPayDays,
+    )
+  }
   const vacationDetail = resolveVacationDetailValue(
     printableApp,
     getApplicationDetailValue(printableApp, 'vacation_detail', 'vacationDetail', 'vacation_type'),
@@ -1365,6 +1474,9 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const otherPurpose = String(
     getApplicationDetailValue(printableApp, 'other_purpose', 'otherPurpose', 'purpose'),
   ).trim()
+  const splDetail = getApplicationDetailValue(printableApp, 'spl_detail', 'splDetail')
+  const splSpecify = getApplicationDetailValue(printableApp, 'spl_specify', 'splSpecify')
+  const resolvedSplText = [splDetail, splSpecify].filter(Boolean).join(' - ')
   const normalizedVacationDetail = normalizeVacationDetailValue(vacationDetail)
   const isVacation = lt === 'Vacation Leave'
   const isSpecialPrivilege = lt === 'Special Privilege Leave'
@@ -1374,7 +1486,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const resolvedSickSpecify =
     sickSpecify || (isSick ? String(printableApp.reason || '').trim() : '')
   const showWithinPhilippines =
-    (isVacation || isSpecialPrivilege) && normalizedVacationDetail === 'Within the Philippines'
+    (isVacation && normalizedVacationDetail === 'Within the Philippines') || isSpecialPrivilege
   const showAbroad = isVacation && normalizedVacationDetail === 'Abroad'
   const showInHospital = isSick && normalizedSickDetail === 'In Hospital'
   const showOutPatient =
@@ -1429,54 +1541,54 @@ export async function generateLeaveFormPdf(app, options = {}) {
   const leaveTypes = [
     {
       key: 'Vacation Leave',
-      label: 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'VACATION LEAVE (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
     {
       key: 'Mandatory/Forced Leave',
-      label: 'Mandatory/Forced Leave(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'MANDATORY/FORCED LEAVE(Sec. 25, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
     {
       key: 'Sick Leave',
-      label: 'Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'SICK LEAVE (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
-    { key: 'Wellness Leave', label: 'Wellness Leave Policy (CSC Resolution No. 2501292)' },
+    { key: 'Wellness Leave', label: 'WELLNESS LEAVE POLICY (CSC Resolution No. 2501292)' },
     {
       key: 'CTO Leave',
-      label: 'Compensatory Time Off (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
+      label: 'COMPENSATORY TIME OFF (CTO) (CSC-DBM Joint Circular No. 2, s. 2004)',
     },
     {
       key: 'Maternity Leave',
-      label: 'Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
+      label: 'MATERNITY LEAVE (R.A. No. 11210 / IRR issued by CSC, DOLE and SSS)',
     },
     {
       key: 'Paternity Leave',
-      label: 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
+      label: 'PATERNITY LEAVE (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
     },
     {
       key: 'Special Privilege Leave',
       label:
-        'Special Privilege Leave(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+        'SPECIAL PRIVILEGE LEAVE(MC06) (Sec. 21, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
-    { key: 'Solo Parent Leave', label: 'Solo Parent Leave (RA No. 8972 / CSC MC No. 8, s. 2004)' },
+    { key: 'Solo Parent Leave', label: 'SOLO PARENT LEAVE (RA No. 8972 / CSC MC No. 8, s. 2004)' },
     {
       key: 'Study Leave',
-      label: 'Study Leave (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+      label: 'STUDY LEAVE (Sec. 68, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
-    { key: '10-Day VAWC Leave', label: '10-Day VAWC Leave (RA No. 9262 / CSC MC No. 15, s. 2005)' },
+    { key: '10-Day VAWC Leave', label: '10-DAY VAWC LEAVE (RA No. 9262 / CSC MC No. 15, s. 2005)' },
     {
       key: 'Rehabilitation Privilege',
       label:
-        'Rehabilitation Privilege (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
+        'REHABILITATION PRIVILEGE (Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
     },
     {
       key: 'Special Leave Benefits for Women',
-      label: 'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)',
+      label: 'SPECIAL LEAVE BENEFITS FOR WOMEN (RA No. 9710 / CSC MC No. 25, s. 2010)',
     },
     {
       key: 'Special Emergency (Calamity) Leave',
-      label: 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)',
+      label: 'SPECIAL EMERGENCY (CALAMITY) LEAVE (CSC MC No. 2, s. 2012, as amended)',
     },
-    { key: 'Adoption Leave', label: 'Adoption Leave (R.A. No. 8552)' },
+    { key: 'Adoption Leave', label: 'ADOPTION LEAVE (R.A. No. 8552)' },
   ]
   const isKnownLeave = leaveTypes.some((t) => t.key === lt)
 
@@ -1516,7 +1628,7 @@ export async function generateLeaveFormPdf(app, options = {}) {
         showWithinPhilippines,
         buildSpecifiedDetailLabel(
           'Within the Philippines',
-          showWithinPhilippines ? vacationSpecify : '',
+          isSpecialPrivilege ? resolvedSplText : (showWithinPhilippines ? vacationSpecify : ''),
           {
             emptyLine: '___________________',
           },

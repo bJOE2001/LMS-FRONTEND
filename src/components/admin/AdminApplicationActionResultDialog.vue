@@ -12,7 +12,7 @@
             form now.
           </template>
           <template v-else-if="isCocApprovedActionResult">
-            The application has been approved.
+            The application has been recommended.
           </template>
           <template v-else-if="actionResultType === 'cancelled'">
             The application has been cancelled.

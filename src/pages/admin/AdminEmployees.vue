@@ -1,7 +1,9 @@
 <template>
   <q-page class="q-pa-md admin-employees-page">
     <div class="row items-center q-mb-lg admin-employees-header">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none admin-employees-title">Employee Management</h1>
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none admin-employees-title">
+        Employee Management
+      </h1>
       <q-space class="admin-employees-spacer" />
       <div class="row q-gutter-sm admin-employees-actions">
         <q-btn
@@ -23,7 +25,12 @@
         class="col-6 col-sm-6 col-md status-cards-row__item"
       >
         <q-card
-          :class="['stat-card', 'bg-white', 'rounded-borders', { 'stat-card--active': isStatusCardActive(card) }]"
+          :class="[
+            'stat-card',
+            'bg-white',
+            'rounded-borders',
+            { 'stat-card--active': isStatusCardActive(card) },
+          ]"
           :style="getStatusCardStyle(card)"
           flat
           bordered
@@ -37,10 +44,23 @@
                 size="44px"
                 class="q-mr-md stat-icon status-card__avatar"
               >
-                <q-icon :name="card.icon" size="22px" :color="card.color" class="status-card__avatar-icon" />
+                <q-icon
+                  :name="card.icon"
+                  size="22px"
+                  :color="card.color"
+                  class="status-card__avatar-icon"
+                />
               </q-avatar>
-              <div class="text-caption text-grey-7 text-weight-medium text-uppercase status-card__label" style="letter-spacing: 0.04em">{{ card.label }}</div>
-              <div class="text-h6 text-weight-bold status-card__value q-ml-auto" :style="{ color: card.hex }">
+              <div
+                class="text-caption text-grey-7 text-weight-medium text-uppercase status-card__label"
+                style="letter-spacing: 0.04em"
+              >
+                {{ card.label }}
+              </div>
+              <div
+                class="text-h6 text-weight-bold status-card__value q-ml-auto"
+                :style="{ color: card.hex }"
+              >
                 <q-spinner v-if="loading" size="28px" :color="card.color" />
                 <template v-else>{{ card.value }}</template>
               </div>
@@ -88,13 +108,18 @@
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap cursor-pointer" @click="viewEmployee(props.row)">
-              <q-avatar size="32px" color="primary" text-color="white" class="q-mr-sm">
+              <q-avatar
+                size="32px"
+                :color="statusBadgeColor(props.row.status)"
+                text-color="white"
+                class="q-mr-sm"
+              >
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
               <div class="column justify-center items-start">
                 <div class="row items-center no-wrap q-gutter-x-sm">
                   <div class="employee-name text-primary text-left">
-                  {{ props.row.surname }}, {{ props.row.firstname }}
+                    {{ formatEmployeeDisplayName(props.row) }}
                   </div>
                   <q-badge
                     v-if="isDepartmentHeadRecord(props.row)"
@@ -104,7 +129,9 @@
                     rounded
                   />
                 </div>
-                <div class="employee-designation text-grey-6 text-left">{{ props.row.designation || '-' }}</div>
+                <div class="employee-designation text-grey-6 text-left">
+                  {{ props.row.designation || '-' }}
+                </div>
               </div>
             </div>
           </q-td>
@@ -124,7 +151,15 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
             <div class="row inline no-wrap justify-center q-gutter-x-xs">
-              <q-btn flat dense round icon="visibility" color="primary" size="sm" @click="viewEmployee(props.row)">
+              <q-btn
+                flat
+                dense
+                round
+                icon="visibility"
+                color="primary"
+                size="sm"
+                @click="viewEmployee(props.row)"
+              >
                 <q-tooltip>View Details</q-tooltip>
               </q-btn>
               <q-btn
@@ -138,7 +173,9 @@
                 @click="confirmAssignDepartmentHead(props.row)"
               >
                 <q-tooltip>{{
-                  isDepartmentHeadRecord(props.row) ? 'Current Department Head' : 'Assign Dept. Head'
+                  isDepartmentHeadRecord(props.row)
+                    ? 'Current Department Head'
+                    : 'Assign Dept. Head'
                 }}</q-tooltip>
               </q-btn>
               <q-btn
@@ -156,7 +193,15 @@
                     : 'Remove from this department'
                 }}</q-tooltip>
               </q-btn>
-              <q-btn flat dense round icon="description" color="green-8" size="sm" @click="applyLeaveFor(props.row)">
+              <q-btn
+                flat
+                dense
+                round
+                icon="description"
+                color="green-8"
+                size="sm"
+                @click="applyLeaveFor(props.row)"
+              >
                 <q-tooltip>Apply Leave</q-tooltip>
               </q-btn>
               <q-btn
@@ -197,13 +242,19 @@
       transition-show="scale"
       transition-hide="scale"
     >
-      <q-card
-        class="apply-leave-dialog-card"
-      >
+      <q-card class="apply-leave-dialog-card">
         <q-bar class="apply-leave-dialog-header bg-primary text-white">
           <div class="text-h6 text-weight-bold">Leave Application</div>
           <q-space />
-          <q-btn flat round icon="close" color="white" size="md" class="apply-leave-dialog-close" @click="closeApplyLeaveDialog" />
+          <q-btn
+            flat
+            round
+            icon="close"
+            color="white"
+            size="md"
+            class="apply-leave-dialog-close"
+            @click="closeApplyLeaveDialog"
+          />
         </q-bar>
         <q-card-section class="q-pa-none apply-leave-dialog-body">
           <AdminApplyOnBehalf
@@ -242,6 +293,25 @@
                 <div class="text-caption text-grey-6 employee-details-header__designation">
                   {{ selectedEmployee.designation || '-' }}
                 </div>
+                <!-- <div
+                  v-if="employeeLeaveBalanceItems.length"
+                  class="employee-details-name__balances"
+                >
+                  <div class="text-caption text-grey-6">Leave Credits</div>
+                  <div class="employee-details-header__balance-list">
+                    <q-badge
+                      v-for="(item, index) in employeeLeaveBalanceItems"
+                      :key="`${selectedEmployee.control_no || selectedEmployee.id || 'employee'}-leave-credit-${index}`"
+                      color="grey-2"
+                      text-color="grey-7"
+                      rounded
+                      class="employee-details-header__balance-badge"
+                      :label="item.label"
+                    >
+                      <q-tooltip>{{ item.tooltip }}</q-tooltip>
+                    </q-badge>
+                  </div>
+                </div> -->
               </div>
             </div>
 
@@ -265,7 +335,7 @@
                 <div class="text-caption text-grey-6">Status</div>
                 <q-badge
                   :color="statusBadgeColor(selectedEmployee.status)"
-                  :label="selectedEmployee.status"
+                  :label="displayStatusLabel(selectedEmployee.status)"
                   rounded
                 />
               </div>
@@ -338,9 +408,13 @@
     </q-dialog>
 
     <q-dialog v-model="showDepartmentHeadDialog" persistent>
-        <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
+      <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">{{ departmentHeadDialogMode === 'edit' ? 'Edit Department Head' : 'Add Department Head' }}</div>
+          <div class="text-h6">
+            {{
+              departmentHeadDialogMode === 'edit' ? 'Edit Department Head' : 'Add Department Head'
+            }}
+          </div>
           <q-space />
           <q-btn icon="close" flat round dense :disable="savingDepartmentHead" v-close-popup />
         </q-card-section>
@@ -372,7 +446,13 @@
                 />
               </div>
               <div class="col-12 col-md-4">
-                <q-input :model-value="adminDepartmentName" outlined dense label="Office" readonly />
+                <q-input
+                  :model-value="adminDepartmentName"
+                  outlined
+                  dense
+                  label="Office"
+                  readonly
+                />
               </div>
 
               <div class="col-12 col-md-4">
@@ -431,7 +511,14 @@
           </q-card-section>
 
           <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="savingDepartmentHead" v-close-popup />
+            <q-btn
+              flat
+              no-caps
+              label="Cancel"
+              color="grey-7"
+              :disable="savingDepartmentHead"
+              v-close-popup
+            />
             <q-btn
               unelevated
               no-caps
@@ -503,27 +590,57 @@
               </div>
 
               <div class="col-12 col-md-4">
-                <q-input v-model="employeeForm.control_no" outlined dense label="Control No" readonly />
+                <q-input
+                  v-model="employeeForm.control_no"
+                  outlined
+                  dense
+                  label="Control No"
+                  readonly
+                />
               </div>
               <div class="col-12 col-md-4">
                 <q-input v-model="employeeForm.status" outlined dense label="Status" readonly />
               </div>
               <div class="col-12 col-md-4">
-                <q-input :model-value="adminDepartmentName" outlined dense label="Assinged To" readonly />
+                <q-input
+                  :model-value="adminDepartmentName"
+                  outlined
+                  dense
+                  label="Assinged To"
+                  readonly
+                />
               </div>
 
               <div class="col-12 col-md-4">
                 <q-input v-model="employeeForm.surname" outlined dense label="Surname" readonly />
               </div>
               <div class="col-12 col-md-4">
-                <q-input v-model="employeeForm.firstname" outlined dense label="Firstname" readonly />
+                <q-input
+                  v-model="employeeForm.firstname"
+                  outlined
+                  dense
+                  label="Firstname"
+                  readonly
+                />
               </div>
               <div class="col-12 col-md-4">
-                <q-input v-model="employeeForm.middlename" outlined dense label="Middlename" readonly />
+                <q-input
+                  v-model="employeeForm.middlename"
+                  outlined
+                  dense
+                  label="Middlename"
+                  readonly
+                />
               </div>
 
               <div class="col-12 col-md-6">
-                <q-input v-model="employeeForm.designation" outlined dense label="Designation" readonly />
+                <q-input
+                  v-model="employeeForm.designation"
+                  outlined
+                  dense
+                  label="Designation"
+                  readonly
+                />
               </div>
               <div class="col-12 col-md-6">
                 <q-input
@@ -536,13 +653,25 @@
               </div>
 
               <div class="col-12 col-md-6">
-                <q-input v-model="employeeForm.office" outlined dense label="Main Office" readonly />
+                <q-input
+                  v-model="employeeForm.office"
+                  outlined
+                  dense
+                  label="Main Office"
+                  readonly
+                />
               </div>
               <div
                 v-if="employeeForm.hris_office && employeeForm.hris_office !== employeeForm.office"
                 class="col-12 col-md-6"
               >
-                <q-input v-model="employeeForm.hris_office" outlined dense label="Main Office" readonly />
+                <q-input
+                  v-model="employeeForm.hris_office"
+                  outlined
+                  dense
+                  label="Main Office"
+                  readonly
+                />
               </div>
             </div>
           </q-card-section>
@@ -596,6 +725,7 @@ const EMPLOYEE_PICKER_MIN_CHARS = 2
 const selectedEmployee = ref(null)
 const leaveHistory = ref([])
 const leaveHistoryLoading = ref(false)
+const leaveBalanceRowsByControlNo = ref(new Map())
 const employees = ref([])
 const fullEmployeeRows = ref([])
 const fullEmployeeRowsCacheKey = ref('')
@@ -644,14 +774,35 @@ const createDefaultDepartmentHeadForm = () => ({
 const departmentHeadForm = ref(createDefaultDepartmentHeadForm())
 
 const statusOptions = [
-  { label: 'Regular', value: 'REGULAR' },
+  { label: 'Permanent', value: 'REGULAR' },
   { label: 'Co-terminous', value: 'CO-TERMINOUS' },
   { label: 'Elective', value: 'ELECTIVE' },
   { label: 'Casual', value: 'CASUAL' },
-  { label: 'Contractual', value: 'CONTRACTUAL' },
+  { label: 'COS(Job Order)', value: 'CONTRACTUAL' },
 ]
+// const REQUIRED_LEAVE_BALANCE_TYPES = [
+//   'Vacation Leave',
+//   'Sick Leave',
+//   'CTO Leave',
+//   'Mandatory / Forced Leave',
+//   'Special Privilege Leave',
+//   'Wellness Leave',
+// ]
+// const EVENT_BASED_LEAVE_BALANCE_TYPES = [
+//   'Maternity Leave',
+//   'Paternity Leave',
+//   'Solo Parent Leave',
+//   'Study Leave',
+//   '10-Day VAWC Leave',
+//   'Rehabilitation Privilege',
+//   'Special Leave Benefits for Women',
+//   'Special Emergency (Calamity) Leave',
+//   'Adoption Leave',
+// ]
 
-const adminDepartmentId = computed(() => authStore.user?.department_id ?? authStore.user?.department?.id)
+const adminDepartmentId = computed(
+  () => authStore.user?.department_id ?? authStore.user?.department?.id,
+)
 const adminDepartmentName = computed(() => authStore.user?.department?.name ?? '-')
 
 const noDataMessage = computed(() => {
@@ -676,7 +827,9 @@ const tableRows = computed(() => {
   if (!matchesStatusFilter(headRow.status)) return rows
   if (!matchesEmployeeSearch(headRow)) return rows
 
-  const existsInEmployees = rows.some((row) => normalizeControlNo(row?.control_no) === normalizeControlNo(headRow.control_no))
+  const existsInEmployees = rows.some(
+    (row) => normalizeControlNo(row?.control_no) === normalizeControlNo(headRow.control_no),
+  )
   if (existsInEmployees) return rows
 
   return [headRow, ...rows]
@@ -684,7 +837,13 @@ const tableRows = computed(() => {
 
 const columns = [
   { name: 'control_no', label: 'Control No', align: 'left', field: 'control_no', sortable: true },
-  { name: 'name', label: 'Employee', align: 'left', field: row => `${row.surname}, ${row.firstname}`, sortable: true },
+  {
+    name: 'name',
+    label: 'Employee',
+    align: 'left',
+    field: (row) => formatEmployeeDisplayName(row),
+    sortable: true,
+  },
   { name: 'status', label: 'Status', align: 'center', field: 'status', sortable: true },
   {
     name: 'actions',
@@ -720,7 +879,7 @@ const historyColumns = [
     name: 'inclusive_date',
     label: 'Inclusive Date',
     align: 'center',
-    field: row => buildLeaveHistoryInclusiveDateSortValue(row),
+    field: (row) => buildLeaveHistoryInclusiveDateSortValue(row),
     sortable: true,
     classes: 'leave-history-table__inclusive-date-cell',
     headerClasses: 'leave-history-table__inclusive-date-cell',
@@ -757,16 +916,112 @@ const visibleColumns = computed(() =>
 )
 
 const statusCards = computed(() => [
-  { key: 'TOTAL', label: 'Total Employees', value: totalEmployees.value, filterValue: '', icon: 'groups', hex: '#1565c0', color: 'primary', bg: '#e3f2fd' },
-  { key: 'ELECTIVE', label: 'Elective', value: statusCounts.value.ELECTIVE || 0, filterValue: 'ELECTIVE', icon: 'how_to_vote', hex: '#8e24aa', color: 'purple-8', bg: '#f3e5f5' },
-  { key: 'CO-TERMINOUS', label: 'Co-terminous', value: statusCounts.value['CO-TERMINOUS'] || 0, filterValue: 'CO-TERMINOUS', icon: 'event_repeat', hex: '#6d4c41', color: 'brown-7', bg: '#efebe9' },
-  { key: 'REGULAR', label: 'Regular', value: statusCounts.value.REGULAR || 0, filterValue: 'REGULAR', icon: 'verified_user', hex: '#2e7d32', color: 'green-8', bg: '#e8f5e9' },
-  { key: 'CASUAL', label: 'Casual', value: statusCounts.value.CASUAL || 0, filterValue: 'CASUAL', icon: 'person_outline', hex: '#e65100', color: 'orange-9', bg: '#fff3e0' },
-  { key: 'CONTRACTUAL', label: 'Contractual', value: statusCounts.value.CONTRACTUAL || 0, filterValue: 'CONTRACTUAL', icon: 'badge', hex: '#0d47a1', color: 'blue-9', bg: '#e3f2fd' },
+  {
+    key: 'TOTAL',
+    label: 'Total Employees',
+    value: totalEmployees.value,
+    filterValue: '',
+    icon: 'groups',
+    hex: '#1565c0',
+    color: 'primary',
+    bg: '#e3f2fd',
+  },
+  {
+    key: 'ELECTIVE',
+    label: 'Elective',
+    value: statusCounts.value.ELECTIVE || 0,
+    filterValue: 'ELECTIVE',
+    icon: 'how_to_vote',
+    hex: '#8e24aa',
+    color: 'purple-8',
+    bg: '#f3e5f5',
+  },
+  {
+    key: 'CO-TERMINOUS',
+    label: 'Co-terminous',
+    value: statusCounts.value['CO-TERMINOUS'] || 0,
+    filterValue: 'CO-TERMINOUS',
+    icon: 'event_repeat',
+    hex: '#6d4c41',
+    color: 'brown-7',
+    bg: '#efebe9',
+  },
+  {
+    key: 'REGULAR',
+    label: 'Permanent',
+    value: statusCounts.value.REGULAR || 0,
+    filterValue: 'REGULAR',
+    icon: 'verified_user',
+    hex: '#2e7d32',
+    color: 'green-8',
+    bg: '#e8f5e9',
+  },
+  {
+    key: 'CASUAL',
+    label: 'Casual',
+    value: statusCounts.value.CASUAL || 0,
+    filterValue: 'CASUAL',
+    icon: 'person_outline',
+    hex: '#e65100',
+    color: 'orange-9',
+    bg: '#fff3e0',
+  },
+  {
+    key: 'CONTRACTUAL',
+    label: 'COS(Job Order)',
+    value: statusCounts.value.CONTRACTUAL || 0,
+    filterValue: 'CONTRACTUAL',
+    icon: 'badge',
+    hex: '#0d47a1',
+    color: 'blue-9',
+    bg: '#e3f2fd',
+  },
 ])
+// const employeeLeaveBalanceItems = computed(() => getLeaveBalanceTextItems(selectedEmployee.value))
 
 function normalizeStatus(value) {
-  return String(value || '').trim().toUpperCase()
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+}
+
+function displayStatusLabel(status) {
+  const normalizedStatus = normalizeStatus(status)
+  if (!normalizedStatus) return '-'
+  if (normalizedStatus === 'REGULAR') return 'PERMANENT'
+  if (normalizedStatus === 'CONTRACTUAL') return 'COS(Job Order)'
+  if (normalizedStatus === 'HONORARIUM') return 'COS(Honorarium)'
+  return normalizedStatus
+}
+
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function formatEmployeeDisplayName(employee) {
+  if (!employee || typeof employee !== 'object') return ''
+
+  const surname = String(employee.surname || '').trim()
+  const firstname = String(employee.firstname || '').trim()
+  const middlename = String(employee.middlename || '').trim()
+
+  if (!surname || !firstname) return [surname, firstname].filter(Boolean).join(', ')
+
+  const baseName = `${surname}, ${firstname}`
+  const middleInitial = getMiddleInitial(middlename)
+  return middleInitial ? `${baseName} ${middleInitial}` : baseName
 }
 
 function countStatusRows(sourceRows = []) {
@@ -784,7 +1039,9 @@ function matchesStatusFilter(status) {
 }
 
 function matchesEmployeeSearch(employee) {
-  const query = String(search.value || '').trim().toLowerCase()
+  const query = String(search.value || '')
+    .trim()
+    .toLowerCase()
   if (!query) return true
 
   const haystack = [
@@ -796,7 +1053,11 @@ function matchesEmployeeSearch(employee) {
     employee?.office,
     employee?.status,
   ]
-    .map((value) => String(value || '').trim().toLowerCase())
+    .map((value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase(),
+    )
     .filter(Boolean)
     .join(' ')
 
@@ -853,7 +1114,9 @@ function invalidateEmployeeCollectionCache() {
 function buildEmployeeCollectionCacheKey() {
   return JSON.stringify({
     departmentId: adminDepartmentId.value ?? null,
-    search: String(search.value || '').trim().toLowerCase(),
+    search: String(search.value || '')
+      .trim()
+      .toLowerCase(),
   })
 }
 
@@ -863,7 +1126,9 @@ function prependSyntheticDepartmentHeadRow(sourceRows = []) {
 
   if (!headRow) return rows
 
-  const exists = rows.some((row) => normalizeControlNo(row?.control_no) === normalizeControlNo(headRow.control_no))
+  const exists = rows.some(
+    (row) => normalizeControlNo(row?.control_no) === normalizeControlNo(headRow.control_no),
+  )
   if (exists) return rows
 
   return [headRow, ...rows]
@@ -910,10 +1175,14 @@ function compareEmployeeRows(leftRow, rightRow, sortBy) {
 
   if (primaryComparison !== 0) return primaryComparison
 
-  return normalizeControlNo(leftRow?.control_no).localeCompare(normalizeControlNo(rightRow?.control_no), undefined, {
-    numeric: true,
-    sensitivity: 'base',
-  })
+  return normalizeControlNo(leftRow?.control_no).localeCompare(
+    normalizeControlNo(rightRow?.control_no),
+    undefined,
+    {
+      numeric: true,
+      sensitivity: 'base',
+    },
+  )
 }
 
 function sortEmployeeRows(sourceRows = []) {
@@ -922,7 +1191,9 @@ function sortEmployeeRows(sourceRows = []) {
 
   if (!sortBy) return rows
 
-  const sortedRows = rows.sort((leftRow, rightRow) => compareEmployeeRows(leftRow, rightRow, sortBy))
+  const sortedRows = rows.sort((leftRow, rightRow) =>
+    compareEmployeeRows(leftRow, rightRow, sortBy),
+  )
   return pagination.value.descending ? sortedRows.reverse() : sortedRows
 }
 
@@ -952,7 +1223,9 @@ function buildSyntheticDepartmentHeadRow() {
     surname: String(departmentHeadForm.value.surname || '').trim(),
     firstname: String(departmentHeadForm.value.firstname || '').trim(),
     middlename: String(departmentHeadForm.value.middlename || '').trim() || null,
-    status: String(departmentHeadForm.value.status || 'REGULAR').trim().toUpperCase(),
+    status: String(departmentHeadForm.value.status || 'REGULAR')
+      .trim()
+      .toUpperCase(),
     designation: String(departmentHeadForm.value.designation || '').trim() || null,
     office: adminDepartmentName.value,
     rate_mon: departmentHeadForm.value.rate_mon ?? null,
@@ -987,6 +1260,168 @@ function leaveStatusColor(status) {
   }
   return map[String(status || '').trim()] ?? 'grey-7'
 }
+//uncomments this if you want to show the eave balance in the employee details dialog, but make sure to uncomment the related code in the template as well
+// function formatDayValue(value) {
+//   const numericValue = Number(value)
+//   if (!Number.isFinite(numericValue)) return ''
+//   return numericValue.toFixed(3)
+// }
+
+// function formatLeaveBalanceValue(value) {
+//   const numericValue = Number(value)
+//   if (!Number.isFinite(numericValue)) return ''
+//   return numericValue.toFixed(3)
+// }
+
+// function prettifyLeaveBalanceLabel(value) {
+//   const label = String(value || '').trim()
+//   if (!label) return ''
+
+//   const normalized = label
+//     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+//     .replace(/[_-]+/g, ' ')
+//     .replace(/\s+/g, ' ')
+//     .trim()
+
+//   const lower = normalized.toLowerCase()
+//   if (lower === 'mandatory' || lower === 'forced' || lower === 'mandatory forced leave') {
+//     return 'Mandatory / Forced Leave'
+//   }
+//   if (lower === 'mandatory / forced leave') return 'Mandatory / Forced Leave'
+//   if (lower === 'mco6' || lower === 'mco6 leave' || lower === 'mc06' || lower === 'mo6 leave')
+//     return 'Special Privilege Leave'
+//   if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
+//   if (lower === 'vacation') return 'Vacation Leave'
+//   if (lower === 'sick') return 'Sick Leave'
+//   if (lower === 'vacation leave') return 'Vacation Leave'
+//   if (lower === 'sick leave') return 'Sick Leave'
+//   if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+//   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+// }
+
+// function toLeaveBalanceAcronym(value) {
+//   const label = prettifyLeaveBalanceLabel(value)
+//   if (!label) return ''
+
+//   const lower = label.toLowerCase()
+//   if (lower === 'cto leave') return 'CTO'
+//   if (lower === 'mandatory / forced leave') return 'FL'
+//   if (lower === 'special privilege leave') return 'MC06'
+//   if (lower === 'sick leave') return 'SL'
+//   if (lower === 'vacation leave') return 'VL'
+//   if (lower === 'wellness leave') return 'WL'
+
+//   const normalized = label
+//     .replace(/[^A-Za-z0-9\s]/g, ' ')
+//     .split(/\s+/)
+//     .map((part) => part.trim().toUpperCase())
+//     .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
+
+//   if (!normalized.length) return ''
+//   return normalized.map((part) => part[0]).join('')
+// }
+
+// function addLeaveBalanceEntry(entries, seen, label, value) {
+//   const formattedValue = formatLeaveBalanceValue(value)
+//   const formattedLabel = prettifyLeaveBalanceLabel(label)
+//   if (!formattedLabel || formattedValue === '') return
+
+//   const key = formattedLabel.toLowerCase()
+//   if (seen.has(key)) return
+
+//   seen.add(key)
+//   entries.push({ label: formattedLabel, value: formattedValue })
+// }
+
+// function getLeaveBalanceTypeKey(value) {
+//   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+// }
+
+// function isEventBasedLeaveBalanceType(value) {
+//   const typeKey = getLeaveBalanceTypeKey(value)
+//   return EVENT_BASED_LEAVE_BALANCE_TYPES.some((label) => getLeaveBalanceTypeKey(label) === typeKey)
+// }
+
+// function getLeaveBalanceEntriesFromSnapshot(employee) {
+//   const entries = []
+//   const seen = new Set()
+//   const source = Array.isArray(employee?.leave_balances) ? employee.leave_balances : []
+
+//   for (const item of source) {
+//     if (item == null || typeof item !== 'object') continue
+//     addLeaveBalanceEntry(entries, seen, item.leave_type_name, item.balance)
+//   }
+
+//   return entries
+// }
+
+// function getLeaveBalanceEntries(employee) {
+//   const snapshotEntries = getLeaveBalanceEntriesFromSnapshot(employee)
+//   if (!snapshotEntries.length) return []
+
+//   const resolvedEntries = snapshotEntries.filter(
+//     (entry) => !isEventBasedLeaveBalanceType(entry.label),
+//   )
+//   const requiredTypeKeys = new Set(
+//     REQUIRED_LEAVE_BALANCE_TYPES.map((label) => getLeaveBalanceTypeKey(label)),
+//   )
+//   const entriesByType = new Map(
+//     resolvedEntries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]),
+//   )
+
+//   const orderedEntries = REQUIRED_LEAVE_BALANCE_TYPES.map((label) => {
+//     const existingEntry = entriesByType.get(getLeaveBalanceTypeKey(label))
+//     return existingEntry || { label, value: '0' }
+//   })
+
+//   for (const entry of resolvedEntries) {
+//     const leaveTypeKey = getLeaveBalanceTypeKey(entry.label)
+//     if (requiredTypeKeys.has(leaveTypeKey)) continue
+//     orderedEntries.push(entry)
+//   }
+
+//   return orderedEntries
+// }
+
+// function roundCtoHours(value) {
+//   const numericValue = Number(value)
+//   if (!Number.isFinite(numericValue) || numericValue < 0) return null
+//   return Math.round(numericValue * 100) / 100
+// }
+
+// function resolveCtoHoursFromDays(value) {
+//   const numericValue = Number(value)
+//   if (!Number.isFinite(numericValue) || numericValue < 0) return null
+//   return roundCtoHours(numericValue * 8)
+// }
+
+// function getLeaveBalanceTooltipText(entry) {
+//   const label = String(entry?.label || '').trim()
+//   if (!label) return ''
+
+//   if (getLeaveBalanceTypeKey(label) === getLeaveBalanceTypeKey('CTO Leave')) {
+//     const resolvedHours =
+//       roundCtoHours(entry?.balance_hours ?? entry?.balanceHours) ??
+//       resolveCtoHoursFromDays(entry?.value)
+
+//     if (resolvedHours !== null) {
+//       return `${label} • ${formatDayValue(resolvedHours)} hour(s)`
+//     }
+//   }
+
+//   return label
+// }
+
+// function getLeaveBalanceTextItems(employee) {
+//   return getLeaveBalanceEntries(employee).map((entry) => {
+//     const acronym = toLeaveBalanceAcronym(entry.label)
+//     return {
+//       label: `${acronym || entry.label}: ${entry.value}`,
+//       tooltip: getLeaveBalanceTooltipText(entry),
+//     }
+//   })
+// }
 
 function resolveOfficeAcronymValue(...candidates) {
   for (const candidate of candidates) {
@@ -999,7 +1434,11 @@ function resolveOfficeAcronymValue(...candidates) {
 
 function resolveStrictOfficeAcronymValue(candidates = [], excludedLabels = []) {
   const excluded = excludedLabels
-    .map((label) => String(label || '').trim().toUpperCase())
+    .map((label) =>
+      String(label || '')
+        .trim()
+        .toUpperCase(),
+    )
     .filter(Boolean)
 
   for (const candidate of candidates) {
@@ -1025,11 +1464,7 @@ function resolveAssignedOfficeLabel(employee) {
       employee.officeAcronym,
       employee.office_acronym,
     ],
-    [
-      employee.assigned_department_name,
-      employee.office,
-      employee.hris_office,
-    ],
+    [employee.assigned_department_name, employee.office, employee.hris_office],
   )
 }
 
@@ -1047,10 +1482,18 @@ function resolveMainOfficeLabel(employee) {
 function shouldShowAssignedOffice(employee) {
   if (!employee || typeof employee !== 'object') return false
 
-  const assignedOfficeLabel = String(resolveAssignedOfficeLabel(employee) || '').trim().toUpperCase()
-  const mainOfficeLabel = String(resolveMainOfficeLabel(employee) || '').trim().toUpperCase()
-  const assignedOfficeName = String(employee.assigned_department_name || '').trim().toUpperCase()
-  const mainOfficeName = String(employee.hris_office || employee.office || '').trim().toUpperCase()
+  const assignedOfficeLabel = String(resolveAssignedOfficeLabel(employee) || '')
+    .trim()
+    .toUpperCase()
+  const mainOfficeLabel = String(resolveMainOfficeLabel(employee) || '')
+    .trim()
+    .toUpperCase()
+  const assignedOfficeName = String(employee.assigned_department_name || '')
+    .trim()
+    .toUpperCase()
+  const mainOfficeName = String(employee.hris_office || employee.office || '')
+    .trim()
+    .toUpperCase()
 
   if (!assignedOfficeLabel) return false
   if (assignedOfficeLabel && mainOfficeLabel && assignedOfficeLabel !== mainOfficeLabel) return true
@@ -1060,9 +1503,9 @@ function shouldShowAssignedOffice(employee) {
 }
 
 function formatResponsiveStatusLabel(status) {
-  const normalizedStatus = normalizeStatus(status)
-  if (!normalizedStatus) return '-'
-  return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
+  const displayStatus = displayStatusLabel(status)
+  if (displayStatus === '-') return '-'
+  return $q.screen.lt.sm ? displayStatus.charAt(0) : displayStatus
 }
 
 function formatDate(value) {
@@ -1122,14 +1565,14 @@ function applyDepartmentHeadState(head) {
   departmentHeadId.value = normalizedHead?.id || null
   departmentHeadForm.value = normalizedHead
     ? {
-      control_no: normalizedHead.control_no || '',
-      surname: normalizedHead.surname || legacyName,
-      firstname: normalizedHead.firstname || '',
-      middlename: normalizedHead.middlename || '',
-      status: normalizedHead.status || 'REGULAR',
-      designation: normalizedHead.designation || normalizedHead.position || '',
-      rate_mon: normalizedHead.rate_mon ?? null,
-    }
+        control_no: normalizedHead.control_no || '',
+        surname: normalizedHead.surname || legacyName,
+        firstname: normalizedHead.firstname || '',
+        middlename: normalizedHead.middlename || '',
+        status: normalizedHead.status || 'REGULAR',
+        designation: normalizedHead.designation || normalizedHead.position || '',
+        rate_mon: normalizedHead.rate_mon ?? null,
+      }
     : createDefaultDepartmentHeadForm()
 }
 
@@ -1139,7 +1582,9 @@ function buildDepartmentHeadPayloadFromEmployee(employee) {
     surname: String(employee?.surname || '').trim(),
     firstname: String(employee?.firstname || '').trim(),
     middlename: toNullableString(employee?.middlename),
-    status: String(employee?.status || 'REGULAR').trim().toUpperCase(),
+    status: String(employee?.status || 'REGULAR')
+      .trim()
+      .toUpperCase(),
     designation: toNullableString(employee?.designation),
     rate_mon: toNullableNumber(employee?.rate_mon),
   }
@@ -1165,10 +1610,15 @@ function confirmAssignDepartmentHead(employee) {
   const nextPayload = buildDepartmentHeadPayloadFromEmployee(employee)
   const currentHeadControlNo = normalizeControlNo(departmentHeadForm.value.control_no)
   const nextControlNo = normalizeControlNo(nextPayload.control_no)
-  const isReassigning = !!departmentHeadId.value && currentHeadControlNo !== '' && currentHeadControlNo !== nextControlNo
-  const employeeName = `${nextPayload.firstname} ${nextPayload.surname}`.trim() || nextPayload.control_no
-  const currentHeadName = `${departmentHeadForm.value.firstname || ''} ${departmentHeadForm.value.surname || ''}`.trim()
-    || currentHeadControlNo
+  const isReassigning =
+    !!departmentHeadId.value &&
+    currentHeadControlNo !== '' &&
+    currentHeadControlNo !== nextControlNo
+  const employeeName =
+    `${nextPayload.firstname} ${nextPayload.surname}`.trim() || nextPayload.control_no
+  const currentHeadName =
+    `${departmentHeadForm.value.firstname || ''} ${departmentHeadForm.value.surname || ''}`.trim() ||
+    currentHeadControlNo
 
   $q.dialog({
     title: isReassigning ? 'Reassign Department Head' : 'Assign Department Head',
@@ -1192,7 +1642,7 @@ function confirmAssignDepartmentHead(employee) {
     savingDepartmentHead.value = true
     try {
       if (departmentHeadId.value) {
-        await api.put('/admin/department-head', nextPayload)
+        await api.post('/admin/department-head/update', nextPayload)
       } else {
         await api.post('/admin/department-head', nextPayload)
       }
@@ -1379,7 +1829,9 @@ function buildDepartmentHeadPayload() {
     surname: String(departmentHeadForm.value.surname || '').trim(),
     firstname: String(departmentHeadForm.value.firstname || '').trim(),
     middlename: toNullableString(departmentHeadForm.value.middlename),
-    status: String(departmentHeadForm.value.status || '').trim().toUpperCase(),
+    status: String(departmentHeadForm.value.status || '')
+      .trim()
+      .toUpperCase(),
     designation: toNullableString(departmentHeadForm.value.designation),
     rate_mon: toNullableNumber(departmentHeadForm.value.rate_mon),
   }
@@ -1399,7 +1851,7 @@ async function saveDepartmentHead() {
   savingDepartmentHead.value = true
   try {
     if (departmentHeadDialogMode.value === 'edit') {
-      await api.put('/admin/department-head', payload)
+      await api.post('/admin/department-head/update', payload)
       $q.notify({ type: 'positive', message: 'Department head updated successfully.' })
     } else {
       await api.post('/admin/department-head', payload)
@@ -1455,7 +1907,8 @@ function confirmDelete(employee) {
   if (!employee) return
 
   if (isDepartmentHeadRecord(employee)) {
-    const headName = `${employee.firstname || ''} ${employee.surname || ''}`.trim() || employee.control_no
+    const headName =
+      `${employee.firstname || ''} ${employee.surname || ''}`.trim() || employee.control_no
     $q.dialog({
       title: 'Remove Department Head',
       message: `Remove ${headName} as department head?`,
@@ -1474,7 +1927,7 @@ function confirmDelete(employee) {
       },
     }).onOk(async () => {
       try {
-        await api.delete('/admin/department-head')
+        await api.post('/admin/department-head/delete')
         $q.notify({ type: 'positive', message: 'Department head removed successfully.' })
         invalidateEmployeeCollectionCache()
         await fetchEmployees(1)
@@ -1505,12 +1958,19 @@ function confirmDelete(employee) {
     },
   }).onOk(async () => {
     try {
-      await api.delete(`/admin/employees/${encodeURIComponent(employee.control_no)}`)
-      $q.notify({ type: 'positive', message: 'Employee removed from this department successfully.', position: 'top' })
+      await api.post(`/admin/employees/${encodeURIComponent(employee.control_no)}/delete`)
+      $q.notify({
+        type: 'positive',
+        message: 'Employee removed from this department successfully.',
+        position: 'top',
+      })
       invalidateEmployeeCollectionCache()
       await fetchEmployees(1)
     } catch (err) {
-      const msg = resolveApiErrorMessage(err, 'Unable to remove employee from this department right now.')
+      const msg = resolveApiErrorMessage(
+        err,
+        'Unable to remove employee from this department right now.',
+      )
       $q.notify({ type: 'negative', message: msg, position: 'top' })
     }
   })
@@ -1536,7 +1996,8 @@ async function fetchEmployeeCollection(baseParams = {}) {
 
     const currentPage = Number(pageData?.current_page ?? page)
     const resolvedLastPage = Number(pageData?.last_page ?? currentPage)
-    lastPage = Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
+    lastPage =
+      Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
     page = currentPage + 1
   } while (page <= lastPage)
 
@@ -1562,24 +2023,30 @@ async function fetchEmployees(page = 1) {
       department_id: adminDepartmentId.value,
       search: search.value || undefined,
     }
+    const summaryParams = {
+      department_id: adminDepartmentId.value,
+      per_page: 1,
+      page: 1,
+    }
 
     if (useClientSideRows.value) {
       const collectionCacheKey = buildEmployeeCollectionCacheKey()
       const needsCollectionRefresh = fullEmployeeRowsCacheKey.value !== collectionCacheKey
 
-      const summaryRequest = api.get('/employees', {
-        params: {
-          ...baseParams,
-          per_page: 1,
-          page: 1,
-        },
-      }).catch(() => null)
+      const summaryRequest = api
+        .get('/employees', {
+          params: summaryParams,
+        })
+        .catch(() => null)
 
       const collectionRequest = needsCollectionRefresh
         ? fetchEmployeeCollection(baseParams)
         : Promise.resolve(fullEmployeeRows.value)
 
-      const [summaryResponse, collectionRows] = await Promise.all([summaryRequest, collectionRequest])
+      const [summaryResponse, collectionRows] = await Promise.all([
+        summaryRequest,
+        collectionRequest,
+      ])
 
       if (needsCollectionRefresh) {
         fullEmployeeRows.value = Array.isArray(collectionRows) ? collectionRows : []
@@ -1589,14 +2056,17 @@ async function fetchEmployees(page = 1) {
       const filteredRows = buildClientPreparedRows(fullEmployeeRows.value)
       const summaryData = summaryResponse?.data ?? {}
       const perPage = Number(pagination.value.rowsPerPage)
-      const maxPage = Number.isFinite(perPage) && perPage > 0
-        ? Math.max(1, Math.ceil(filteredRows.length / perPage))
-        : 1
+      const maxPage =
+        Number.isFinite(perPage) && perPage > 0
+          ? Math.max(1, Math.ceil(filteredRows.length / perPage))
+          : 1
 
       employees.value = []
       pagination.value.page = Math.min(pageNum, maxPage)
       pagination.value.rowsNumber = filteredRows.length
-      totalEmployees.value = summaryData.total_employees ?? prependSyntheticDepartmentHeadRow(fullEmployeeRows.value).length
+      totalEmployees.value =
+        summaryData.total_employees ??
+        prependSyntheticDepartmentHeadRow(fullEmployeeRows.value).length
       statusCounts.value = summaryData.status_counts ?? countStatusRows(fullEmployeeRows.value)
       applyDepartmentHeadState(summaryData.department_head ?? null)
       return
@@ -1610,24 +2080,20 @@ async function fetchEmployees(page = 1) {
         page: pageNum,
       },
     })
-    const summaryRequest = activeStatusFilter.value
-      ? api.get('/employees', {
-        params: {
-          ...baseParams,
-          per_page: 1,
-          page: 1,
-        },
-      }).catch(() => null)
-      : Promise.resolve(null)
+    const summaryRequest = api
+      .get('/employees', {
+        params: summaryParams,
+      })
+      .catch(() => null)
 
     const [tableResponse, summaryResponse] = await Promise.all([tableRequest, summaryRequest])
     const data = tableResponse?.data ?? {}
-    const summaryData = summaryResponse?.data ?? data
+    const summaryData = summaryResponse?.data ?? {}
 
     invalidateEmployeeCollectionCache()
     employees.value = data.employees?.data ?? []
-    totalEmployees.value = summaryData.total_employees ?? 0
-    statusCounts.value = summaryData.status_counts ?? {}
+    totalEmployees.value = summaryData.total_employees ?? data.total_employees ?? 0
+    statusCounts.value = summaryData.status_counts ?? data.status_counts ?? {}
     pagination.value.page = data.employees?.current_page ?? 1
     pagination.value.rowsNumber = data.employees?.total ?? 0
     applyDepartmentHeadState(data.department_head ?? summaryData.department_head ?? null)
@@ -1661,9 +2127,7 @@ function onRequest(props) {
   pagination.value.sortBy = nextSortBy
   pagination.value.descending = nextDescending
 
-  const page = sortChanged
-    ? 1
-    : Math.max(1, parseInt(props.pagination.page, 10) || 1)
+  const page = sortChanged ? 1 : Math.max(1, parseInt(props.pagination.page, 10) || 1)
   fetchEmployees(page)
 }
 
@@ -1676,7 +2140,9 @@ async function fetchEmployeeLeaveHistory(controlNo) {
 
   leaveHistoryLoading.value = true
   try {
-    const { data } = await api.get(`/admin/employees/${encodeURIComponent(normalizedControlNo)}/leave-history`)
+    const { data } = await api.get(
+      `/admin/employees/${encodeURIComponent(normalizedControlNo)}/leave-history`,
+    )
     leaveHistory.value = Array.isArray(data?.applications) ? data.applications : []
     if (data?.employee) {
       selectedEmployee.value = {
@@ -1695,10 +2161,51 @@ async function fetchEmployeeLeaveHistory(controlNo) {
   }
 }
 
+async function fetchDepartmentLeaveBalanceRows() {
+  if (leaveBalanceRowsByControlNo.value.size > 0) {
+    return leaveBalanceRowsByControlNo.value
+  }
+
+  const { data } = await api.get('/admin/employees-for-leave')
+  const rows = Array.isArray(data?.employees) ? data.employees : []
+  const nextLookup = new Map()
+
+  for (const row of rows) {
+    const rowControlNo = normalizeControlNo(row?.control_no)
+    if (!rowControlNo) continue
+    nextLookup.set(rowControlNo, row)
+  }
+
+  leaveBalanceRowsByControlNo.value = nextLookup
+  return leaveBalanceRowsByControlNo.value
+}
+
+async function hydrateSelectedEmployeeLeaveBalances(controlNo) {
+  const normalizedControlNo = normalizeControlNo(controlNo)
+  if (!normalizedControlNo) return
+
+  try {
+    const rowsByControlNo = await fetchDepartmentLeaveBalanceRows()
+    const matchedRow = rowsByControlNo.get(normalizedControlNo)
+    if (!matchedRow) return
+
+    if (normalizeControlNo(selectedEmployee.value?.control_no) !== normalizedControlNo) return
+
+    selectedEmployee.value = {
+      ...selectedEmployee.value,
+      leave_balances: Array.isArray(matchedRow.leave_balances) ? matchedRow.leave_balances : [],
+    }
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to load employee leave credits right now.')
+    $q.notify({ type: 'negative', message: msg, position: 'top' })
+  }
+}
+
 function viewEmployee(employee) {
   selectedEmployee.value = employee
   showViewDialog.value = true
   void fetchEmployeeLeaveHistory(employee?.control_no)
+  void hydrateSelectedEmployeeLeaveBalances(employee?.control_no)
 }
 
 function applyLeaveFor(employee) {
@@ -1715,7 +2222,9 @@ function applyCocFor(employee) {
 }
 
 function isCocRestrictedStatus(status) {
-  const normalizedStatus = String(status || '').trim().toUpperCase()
+  const normalizedStatus = String(status || '')
+    .trim()
+    .toUpperCase()
   return normalizedStatus.includes('CONTRACTUAL') || normalizedStatus.includes('HONORARIUM')
 }
 
@@ -1725,7 +2234,9 @@ function handleApplyCocSubmitted() {
 }
 
 async function submitAdminEmployeeCocApplication(payload) {
-  const targetControlNo = String(applyCocEmployee.value?.control_no || payload?.employee_control_no || '').trim()
+  const targetControlNo = String(
+    applyCocEmployee.value?.control_no || payload?.employee_control_no || '',
+  ).trim()
   if (!targetControlNo) {
     throw new Error('Employee control number is required.')
   }
@@ -1753,19 +2264,23 @@ watch(showViewDialog, (isOpen) => {
   leaveHistoryLoading.value = false
 })
 
-watch(adminDepartmentId, (id) => {
-  if (id) {
-    invalidateEmployeeCollectionCache()
-    fetchEmployees(1)
-  } else {
-    employees.value = []
-    invalidateEmployeeCollectionCache()
-    totalEmployees.value = 0
-    statusCounts.value = {}
-    pagination.value.rowsNumber = 0
-    resetDepartmentHeadForm()
-  }
-}, { immediate: true })
+watch(
+  adminDepartmentId,
+  (id) => {
+    if (id) {
+      invalidateEmployeeCollectionCache()
+      fetchEmployees(1)
+    } else {
+      employees.value = []
+      invalidateEmployeeCollectionCache()
+      totalEmployees.value = 0
+      statusCounts.value = {}
+      pagination.value.rowsNumber = 0
+      resetDepartmentHeadForm()
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
@@ -1777,20 +2292,28 @@ watch(adminDepartmentId, (id) => {
 .stat-card {
   cursor: pointer;
   border-color: #d9dee7;
-  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
 }
 
 .stat-card:hover {
   background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
   border-color: var(--stat-card-accent, #d6dde6) !important;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08), inset 0 0 0 1px var(--stat-card-accent, #d6dde6);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px var(--stat-card-accent, #d6dde6);
   transform: translateY(-2px);
 }
 
 .stat-card--active {
   background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
   border-color: var(--stat-card-accent, #2563eb) !important;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1), inset 0 0 0 2px var(--stat-card-accent, #2563eb);
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.1),
+    inset 0 0 0 2px var(--stat-card-accent, #2563eb);
   transform: translateY(-1px);
 }
 
@@ -1866,6 +2389,7 @@ watch(adminDepartmentId, (id) => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .employee-details-header__profile {
@@ -1903,6 +2427,22 @@ watch(adminDepartmentId, (id) => {
 
 .employee-details-header__meta-value {
   line-height: 1.25;
+}
+
+.employee-details-name__balances {
+  margin-top: 10px;
+}
+
+.employee-details-header__balance-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.employee-details-header__balance-badge {
+  font-weight: 600;
 }
 
 .leave-history-table :deep(.q-table__middle) {

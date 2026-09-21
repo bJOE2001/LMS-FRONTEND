@@ -32,7 +32,7 @@
                   Total Employees
                 </div>
                 <div class="text-h4 text-primary summary-strip__value">
-                  <q-spinner v-if="loading" size="32px" color="primary" />
+                  <q-spinner v-if="loadingTotalEmployees" size="32px" color="primary" />
                   <template v-else>{{ totalEmployees }}</template>
                 </div>
               </div>
@@ -128,12 +128,17 @@
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap">
-              <q-avatar size="32px" color="primary" text-color="white" class="q-mr-sm">
+              <q-avatar
+                size="32px"
+                :color="statusBadgeColor(props.row.status)"
+                text-color="white"
+                class="q-mr-sm"
+              >
                 {{ (props.row.firstname || '').charAt(0) }}{{ (props.row.surname || '').charAt(0) }}
               </q-avatar>
               <div>
                 <div class="text-weight-medium">
-                  {{ props.row.surname }}, {{ props.row.firstname }}
+                  {{ getEmployeeColumnDisplayName(props.row) }}
                 </div>
                 <div v-if="props.row.designation" class="text-caption text-grey-6">
                   {{ props.row.designation }}
@@ -203,6 +208,17 @@
               flat
               dense
               round
+              icon="schedule"
+              color="deep-orange-7"
+              size="sm"
+              @click.stop="openCocCtoLedgerDialog(props.row)"
+            >
+              <q-tooltip>COC / CTO Ledger</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
               icon="visibility"
               color="primary"
               size="sm"
@@ -241,7 +257,7 @@
             <div class="employee-details-header__profile">
               <div class="employee-details-header__identity">
                 <div class="text-h6 employee-details-header__name">
-                  {{ selectedEmployee.firstname }} {{ selectedEmployee.surname }}
+                  {{ getEmployeeColumnDisplayName(selectedEmployee) }}
                 </div>
                 <div class="text-caption text-grey-6 employee-details-header__designation">
                   {{ selectedEmployee.designation || '-' }}
@@ -251,19 +267,56 @@
 
             <div class="employee-details-header__meta">
               <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Monthly Rate</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ employeeMonthlyRateLabel }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
+                <div class="text-caption text-grey-6">Estimated Terminal Leave</div>
+                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
+                  {{ employeeTerminalLeaveEstimatedAmountLabel }}
+                </div>
+              </div>
+              <div class="employee-details-header__meta-item">
                 <div class="text-caption text-grey-6">Office</div>
                 <div class="text-body2 text-weight-medium employee-details-header__meta-value">
-                  {{ resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-' }}
+                  {{
+                    resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-'
+                  }}
                 </div>
               </div>
               <div class="employee-details-header__meta-item">
                 <div class="text-caption text-grey-6">Status</div>
                 <q-badge
+                  class="employee-details-header__status-badge"
                   :color="statusBadgeColor(selectedEmployee.status)"
-                  :label="selectedEmployee.status"
+                  :label="displayStatusLabel(selectedEmployee.status)"
                   rounded
                 />
               </div>
+            </div>
+          </div>
+
+          <div class="employee-details-leave-credits" aria-label="Employee leave credits">
+            <div class="employee-details-leave-credits__badges">
+              <template v-if="employeeDetailsLeaveBadgesLoading">
+                <q-spinner color="secondary" size="16px" />
+                <span class="employee-details-leave-credits__loading-text">
+                  Loading leave credits...
+                </span>
+              </template>
+              <template v-else>
+                <span
+                  v-for="badge in employeeDetailsLeaveBadges"
+                  :key="`employee-details-leave-badge-${badge.code}`"
+                  class="employee-details-leave-badge"
+                  :style="badge.style || {}"
+                >
+                  <span class="employee-details-leave-badge__code">{{ badge.label }}</span>
+                  <span class="employee-details-leave-badge__value">{{ badge.value }}</span>
+                </span>
+              </template>
             </div>
           </div>
         </q-card-section>
@@ -355,25 +408,47 @@
       </q-card>
     </q-dialog>
 
+    <HrEmployeeCocCtoLedgerDialog
+      v-model="showCocCtoLedgerDialog"
+      :employee="cocCtoLedgerEmployee"
+      :current-balance="cocCtoLedgerCurrentBalance"
+      :ledger-rows="cocCtoLedgerRows"
+      :loading="cocCtoLedgerLoading"
+      :error="cocCtoLedgerError"
+    />
+
     <HrEmployeeLeaveCreditsLedgerDialog
       v-model="showLeaveCreditsLedgerDialog"
       :error="leaveCreditsLedgerError"
       :loading="leaveCreditsLedgerLoading"
       :printing="printingLeaveCreditsLedger"
       :can-print="Boolean(leaveCreditsLedgerEmployee)"
+      :employee="leaveCreditsLedgerEmployee"
+      :leave-balance-badges="ledgerBalanceBadges"
       :paper-size="ledgerPaperSize"
       :dialog-style="ledgerDialogStyle"
       :sheet-style="ledgerSheetStyle"
       :identity-name-style="ledgerIdentityNameStyle"
+      :identity-status-style="ledgerIdentityStatusStyle"
       :identity-office-style="ledgerIdentityOfficeStyle"
       :identity-service-value-style="ledgerIdentityServiceValueStyle"
       :employee-heading-name="ledgerEmployeeHeadingName"
+      :employee-heading-status="ledgerEmployeeHeadingStatus"
       :employee-heading-office="ledgerEmployeeHeadingOffice"
       :employee-first-day-of-service="ledgerEmployeeFirstDayOfService"
       :column-widths="ledgerColumnWidths"
       :rendered-pages="ledgerRenderedPages"
       :value-class-resolver="ledgerValueClass"
       @print="printLeaveCreditsLedger"
+      @edit-accrual="openAccrualEditDialog"
+      @restored="onLeaveCreditsRestored"
+    />
+
+    <!-- Edit Accruals Dialog -->
+    <HrEmployeeLeaveAccrualsEditDialog
+      v-model="showAccrualsEditDialog"
+      :accrual-ids="selectedAccrualIds"
+      @saved="onAccrualsSaved"
     />
 
     <!-- Manual Leave Credits Dialog -->
@@ -395,7 +470,7 @@
           </q-banner>
 
           <div class="row q-col-gutter-md">
-            <div class="col-12">
+            <div class="col-12 col-sm-7">
               <q-select
                 ref="creditEmployeeSelect"
                 v-model="leaveCreditForm.employee_control_no"
@@ -413,7 +488,6 @@
                 input-debounce="300"
                 clearable
                 label="Employee Name *"
-                hint="Type at least 2 characters, e.g. CICTMO Juan"
                 :loading="loadingCreditEmployees"
                 :disable="isLeaveCreditsEditMode"
                 @filter="filterCreditEmployeeOptions"
@@ -438,9 +512,45 @@
                 </template>
               </q-select>
             </div>
+            <div class="col-12 col-sm-5">
+              <q-input
+                v-model="leaveCreditForm.as_of_date"
+                outlined
+                dense
+                label="As of Date *"
+                :rules="[(val) => !!val || 'As of date is required']"
+              >
+                <template #append>
+                  <q-icon name="event" class="cursor-pointer">
+                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                      <q-date v-model="leaveCreditForm.as_of_date" mask="YYYY-MM-DD">
+                        <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                          <q-btn v-close-popup label="Close" color="primary" flat no-caps />
+                        </div>
+                      </q-date>
+                    </q-popup-proxy>
+                  </q-icon>
+                </template>
+              </q-input>
+            </div>
             <div class="col-12">
-              <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
-              <div class="text-caption text-grey-6">Fill all allowed leave type balances.</div>
+              <div class="row items-start justify-between q-col-gutter-sm">
+                <div class="col">
+                  <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
+                  <div class="text-caption text-grey-6">Fill all allowed leave type balances.</div>
+                </div>
+                <div class="col-auto">
+                  <q-btn
+                    flat
+                    no-caps
+                    label="COC Credits"
+                    color="primary"
+                    icon="event_available"
+                    :disable="!canOpenCocImportDialog || savingLeaveCredits"
+                    @click="openCocImportDialog"
+                  />
+                </div>
+              </div>
             </div>
             <template v-if="loadingCreditLeaveTypes">
               <div class="col-12">
@@ -501,6 +611,158 @@
       </q-card>
     </q-dialog>
 
+    <!-- COC Balance Import Dialog -->
+    <q-dialog v-model="showCocImportDialog" persistent>
+      <q-card class="rounded-borders coc-import-dialog">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="event_available" size="sm" color="primary" class="q-mr-sm" />
+          <div class="text-h6">Manage COC Entries</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup :disable="savingCocImport" />
+        </q-card-section>
+
+        <q-card-section class="q-pt-sm">
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12">
+              <q-input
+                :model-value="selectedCreditEmployeeLabel"
+                outlined
+                dense
+                readonly
+                label="Employee"
+              />
+            </div>
+          </div>
+
+          <div class="row q-col-gutter-md">
+            <div class="col-12">
+              <div class="row items-center justify-between">
+                <div class="text-subtitle2 text-weight-medium">COC Entries</div>
+                <div class="row items-center q-gutter-xs">
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    icon="add"
+                    color="primary"
+                    label="Add Row"
+                    :disable="
+                      savingCocImport ||
+                      loadingCocImportEntries ||
+                      cocImportForm.entries.length >= 200
+                    "
+                    @click="addCocImportEntry"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div v-if="loadingCocImportEntries" class="col-12">
+              <div class="row items-center q-gutter-sm text-grey-7">
+                <q-spinner color="primary" size="18px" />
+                <span>Loading existing COC entries...</span>
+              </div>
+            </div>
+
+            <template v-for="(entry, index) in cocImportForm.entries" :key="`coc-entry-${index}`">
+              <div class="col-12">
+                <div class="coc-import-entry">
+                  <div class="row items-center justify-between q-mb-sm">
+                    <div class="row items-center q-gutter-sm">
+                      <div class="text-subtitle2 text-weight-medium">Entry #{{ index + 1 }}</div>
+                      <q-badge
+                        v-if="isExistingCocImportEntry(entry)"
+                        color="blue-8"
+                        text-color="white"
+                        label="Saved"
+                      />
+                    </div>
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="delete"
+                      color="negative"
+                      :disable="
+                        savingCocImport ||
+                        loadingCocImportEntries ||
+                        cocImportForm.entries.length <= 1 ||
+                        isExistingCocImportEntry(entry)
+                      "
+                      @click="removeCocImportEntry(index)"
+                    >
+                      <q-tooltip>
+                        {{
+                          isExistingCocImportEntry(entry)
+                            ? 'Saved entries cannot be removed here.'
+                            : 'Remove row'
+                        }}
+                      </q-tooltip>
+                    </q-btn>
+                  </div>
+
+                  <div class="row q-col-gutter-sm">
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model="entry.hours"
+                        outlined
+                        dense
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        label="COC Hours *"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model="entry.credited_at"
+                        outlined
+                        dense
+                        type="date"
+                        label="Earned Date *"
+                        @update:model-value="handleCocImportEntryEarnedDateChange(index)"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model="entry.expires_on"
+                        outlined
+                        dense
+                        type="date"
+                        label="Expiration Date *"
+                        readonly
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn
+            flat
+            no-caps
+            label="Cancel"
+            color="grey-7"
+            v-close-popup
+            :disable="savingCocImport"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            label="Save"
+            color="primary"
+            icon="save"
+            :loading="savingCocImport"
+            :disable="loadingCocImportEntries"
+            @click="saveCocImports"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <AdminApplicationCalendarDialog
       v-model="showCalendarPreviewDialog"
       v-model:calendar-preview-model="calendarPreviewModel"
@@ -529,6 +791,8 @@ import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { api } from 'src/boot/axios'
 import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
 import HrEmployeeLeaveCreditsLedgerDialog from 'src/components/hr/HrEmployeeLeaveCreditsLedgerDialog.vue'
+import HrEmployeeCocCtoLedgerDialog from 'src/components/hr/HrEmployeeCocCtoLedgerDialog.vue'
+import HrEmployeeLeaveAccrualsEditDialog from 'src/components/hr/HrEmployeeLeaveAccrualsEditDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
@@ -539,6 +803,7 @@ const $q = useQuasar()
 const search = ref('')
 const activityFilter = ref('ACTIVE')
 const loading = ref(false)
+const loadingTotalEmployees = ref(false)
 const loadingDepartments = ref(false)
 
 const employees = ref([])
@@ -552,6 +817,8 @@ const activityOptions = [
 
 const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
+const employeeDetailsLeaveBadges = ref([])
+const employeeDetailsLeaveBadgesLoading = ref(false)
 const leaveHistory = ref([])
 const leaveHistoryLoading = ref(false)
 const showCalendarPreviewDialog = ref(false)
@@ -566,9 +833,18 @@ const calendarPreviewView = ref({
   year: String(new Date().getFullYear()),
   month: String(new Date().getMonth() + 1).padStart(2, '0'),
 })
+const showCocCtoLedgerDialog = ref(false)
+const cocCtoLedgerEmployee = ref(null)
+const cocCtoLedgerRows = ref([])
+const cocCtoLedgerCurrentBalance = ref({ hours: 0, days: 0 })
+const cocCtoLedgerLoading = ref(false)
+const cocCtoLedgerError = ref('')
 const showLeaveCreditsLedgerDialog = ref(false)
 const leaveCreditsLedgerEmployee = ref(null)
 const leaveCreditsLedgerRows = ref([])
+const leaveCreditsLedgerBalanceBadges = ref([])
+const showAccrualsEditDialog = ref(false)
+const selectedAccrualIds = ref([])
 const leaveCreditsLedgerLoading = ref(false)
 const leaveCreditsLedgerError = ref('')
 const printingLeaveCreditsLedger = ref(false)
@@ -586,6 +862,10 @@ const creditLeaveTypes = ref([])
 const allCreditEmployeeOptions = ref([])
 const filteredCreditEmployeeOptions = ref([])
 const leaveCreditForm = ref(defaultLeaveCreditForm())
+const showCocImportDialog = ref(false)
+const savingCocImport = ref(false)
+const loadingCocImportEntries = ref(false)
+const cocImportForm = ref(defaultCocImportForm())
 const creditEmployeeSelect = ref(null)
 const creditEmployeeFilter = ref('')
 const CREDIT_EMPLOYEE_LOOKUP_LIMIT = 20
@@ -594,6 +874,7 @@ const creditEmployeeLookupCache = new Map()
 let creditEmployeeLookupSequence = 0
 let creditEmployeeAbortController = null
 let creditLeaveTypesLookupSequence = 0
+let employeeDetailsLeaveBadgesLookupSequence = 0
 
 const isLeaveCreditsEditMode = computed(
   () => leaveCreditDialogMode.value === LEAVE_CREDIT_DIALOG_MODE_EDIT,
@@ -612,6 +893,14 @@ const leaveCreditDialogDescription = computed(() =>
 const leaveCreditDialogSaveLabel = computed(() =>
   isLeaveCreditsEditMode.value ? 'Update Leave Credits' : 'Save Leave Credits',
 )
+const selectedCreditEmployeeLabel = computed(() => {
+  const selectedOption = getSelectedCreditEmployeeOption()
+  return selectedOption?.label || 'No employee selected'
+})
+const canOpenCocImportDialog = computed(() => {
+  const controlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  return /^\d+$/.test(controlNo)
+})
 
 // Server-side pagination state
 const employeePagination = ref({
@@ -632,11 +921,20 @@ const employeeColumns = [
     field: (row) => resolveOfficeAcronymLabel(row),
     sortable: true,
   },
+  {
+    name: 'assigned_office',
+    label: 'Assigned Office',
+    align: 'left',
+    field: (row) => resolveAssignedOfficeAcronymLabel(row),
+    sortable: true,
+  },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
 ]
 const visibleEmployeeColumns = computed(() =>
   $q.screen.lt.sm
-    ? employeeColumns.filter((column) => !['control_no', 'status'].includes(column.name))
+    ? employeeColumns.filter(
+        (column) => !['control_no', 'status', 'assigned_office'].includes(column.name),
+      )
     : employeeColumns,
 )
 const creditEmployeeNoOptionMessage = computed(() => {
@@ -644,7 +942,10 @@ const creditEmployeeNoOptionMessage = computed(() => {
     return 'Searching employees...'
   }
 
-  if (normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length < CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH) {
+  if (
+    normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length <
+    CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH
+  ) {
     return 'Type at least 2 characters to search employees.'
   }
 
@@ -726,8 +1027,8 @@ const LEDGER_PAPER_PRESETS = {
     label: 'A4',
     previewWidth: 794,
     previewHeight: 1123,
-    minimumRows: 50,
-    pdfMinimumRows: 50,
+    minimumRows: 46,
+    pdfMinimumRows: 46,
     pageSize: 'A4',
     pageMargins: [8, 18, 8, 8],
     pdfHorizontalInset: 0,
@@ -786,6 +1087,42 @@ const LEDGER_LEAVE_TYPE_COLORS = Object.freeze({
   WL: '#1e5fbf',
   MCO6: '#1b8f3a',
 })
+const LEDGER_BALANCE_BADGE_ORDER = Object.freeze(['VL', 'SL', 'WL', 'MCO6'])
+const LEDGER_BALANCE_BADGE_UNIFORM_PALETTE = Object.freeze({
+  accent: '#475569',
+  background: '#f1f5f9',
+})
+const LEDGER_BALANCE_BADGE_META = Object.freeze({
+  VL: {
+    label: 'VL',
+  },
+  SL: {
+    label: 'SL',
+  },
+  WL: {
+    label: 'WL',
+  },
+  MCO6: {
+    label: 'MCO6',
+  },
+  DEFAULT: {
+    accent: LEDGER_BALANCE_BADGE_UNIFORM_PALETTE.accent,
+    background: LEDGER_BALANCE_BADGE_UNIFORM_PALETTE.background,
+  },
+})
+const TERMINAL_LEAVE_CONSTANT_FACTOR = 0.0478087
+const terminalLeaveEstimateFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+const currencyFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 const ledgerColumnWidths = LEDGER_COLUMN_WIDTH_UNITS.map(
   (width) => `${(width / LEDGER_COLUMN_WIDTH_TOTAL) * 100}%`,
@@ -795,8 +1132,8 @@ const ledgerPaperPreset = computed(
 )
 const ledgerSheetStyle = computed(() => ({
   width: `${ledgerPaperPreset.value.previewWidth}px`,
-  height: `${ledgerPaperPreset.value.previewHeight}px`,
   minHeight: `${ledgerPaperPreset.value.previewHeight}px`,
+  height: 'auto',
 }))
 const ledgerDialogStyle = computed(() => ({
   width: `min(${ledgerPaperPreset.value.previewWidth + 96}px, 96vw)`,
@@ -805,12 +1142,16 @@ const ledgerDialogStyle = computed(() => ({
 const ledgerRenderedPages = computed(() =>
   buildLedgerPagesForPaper(leaveCreditsLedgerRows.value, ledgerPaperPreset.value),
 )
+const ledgerBalanceBadges = computed(() => leaveCreditsLedgerBalanceBadges.value)
 
 const ledgerEmployeeDisplayName = computed(() =>
-  getEmployeeFullName(leaveCreditsLedgerEmployee.value),
+  getEmployeeColumnDisplayName(leaveCreditsLedgerEmployee.value),
 )
 const ledgerEmployeeHeadingName = computed(() =>
   formatLedgerHeadingName(ledgerEmployeeDisplayName.value),
+)
+const ledgerEmployeeHeadingStatus = computed(() =>
+  formatLedgerHeadingStatus(leaveCreditsLedgerEmployee.value),
 )
 const ledgerEmployeeHeadingOffice = computed(() =>
   formatLedgerHeadingOffice(leaveCreditsLedgerEmployee.value),
@@ -818,10 +1159,15 @@ const ledgerEmployeeHeadingOffice = computed(() =>
 const ledgerIdentityNameStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingName.value),
 )
+const ledgerIdentityStatusStyle = computed(() =>
+  buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingStatus.value),
+)
 const ledgerIdentityOfficeStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeHeadingOffice.value),
 )
-const ledgerEmployeeFirstDayOfService = computed(() => 'N/A')
+const ledgerEmployeeFirstDayOfService = computed(() =>
+  formatLedgerFirstDayOfService(leaveCreditsLedgerEmployee.value),
+)
 const ledgerIdentityServiceValueStyle = computed(() =>
   buildLedgerIdentityPreviewStyle(ledgerEmployeeFirstDayOfService.value),
 )
@@ -839,8 +1185,14 @@ const calendarPreviewEmployeeName = computed(() => {
     'name',
   ])
 
-  return String(fallbackName || 'Employee').trim().toUpperCase()
+  return String(fallbackName || 'Employee')
+    .trim()
+    .toUpperCase()
 })
+const employeeTerminalLeaveEstimatedAmountLabel = computed(() =>
+  formatEmployeeTerminalLeaveAmount(selectedEmployee.value),
+)
+const employeeMonthlyRateLabel = computed(() => formatEmployeeMonthlyRate(selectedEmployee.value))
 const calendarPreviewDateStates = computed(() => {
   const dateStates = new Map()
 
@@ -888,9 +1240,7 @@ const calendarPreviewWarningState = computed(
 )
 
 function statusBadgeColor(status) {
-  const normalizedStatus = String(status || '')
-    .trim()
-    .toUpperCase()
+  const normalizedStatus = normalizeStatus(status)
   if (!normalizedStatus) return 'grey'
   const c = {
     REGULAR: 'green',
@@ -902,12 +1252,25 @@ function statusBadgeColor(status) {
   return c[normalizedStatus] ?? 'blue-9'
 }
 
-function formatResponsiveStatusLabel(status) {
-  const normalizedStatus = String(status || '')
+function normalizeStatus(status) {
+  return String(status || '')
     .trim()
     .toUpperCase()
+}
+
+function displayStatusLabel(status) {
+  const normalizedStatus = normalizeStatus(status)
   if (!normalizedStatus) return '-'
-  return $q.screen.lt.sm ? normalizedStatus.charAt(0) : normalizedStatus
+  if (normalizedStatus === 'REGULAR') return 'PERMANENT'
+  if (normalizedStatus === 'CONTRACTUAL') return 'COS(Job Order)'
+  if (normalizedStatus === 'HONORARIUM') return 'COS(Honorarium)'
+  return normalizedStatus
+}
+
+function formatResponsiveStatusLabel(status) {
+  const displayStatus = displayStatusLabel(status)
+  if (displayStatus === '-') return '-'
+  return $q.screen.lt.sm ? displayStatus.charAt(0) : displayStatus
 }
 
 function hasMeaningfulValue(value) {
@@ -1082,6 +1445,41 @@ function getEmployeeFullName(employee) {
   return `${surname}, ${[firstname, middlename].filter(Boolean).join(' ')}`
 }
 
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function getEmployeeColumnDisplayName(employee) {
+  if (!employee) return 'N/A'
+
+  const surname = String(employee.surname ?? employee.last_name ?? employee.lastName ?? '').trim()
+  const firstname = String(
+    employee.firstname ?? employee.first_name ?? employee.firstName ?? '',
+  ).trim()
+  const middlename = String(
+    employee.middlename ?? employee.middle_name ?? employee.middleName ?? '',
+  ).trim()
+  const middleInitial = getMiddleInitial(middlename)
+
+  if (surname && firstname) {
+    return [`${surname}, ${firstname}`, middleInitial].filter(Boolean).join(' ')
+  }
+
+  return getEmployeeFullName(employee)
+}
+
 function getLedgerEmployeeOffice(employee) {
   const office = pickFirstDefined(employee, [
     'office',
@@ -1101,10 +1499,45 @@ function formatLedgerHeadingName(value) {
     .toUpperCase()
 }
 
+function formatLedgerHeadingStatus(employee) {
+  const status = pickFirstDefined(employee, [
+    'status',
+    'employment_status',
+    'employmentStatus',
+    'employee_status',
+    'employeeStatus',
+  ])
+  const label = displayStatusLabel(status)
+  return label && label !== '-' ? label.toUpperCase() : 'N/A'
+}
+
 function formatLedgerHeadingOffice(employee) {
   const office = getLedgerEmployeeOffice(employee)
   const officeCode = resolveOfficeAcronymLabel(employee)
   return (officeCode && officeCode !== '-' ? officeCode : office) || 'N/A'
+}
+
+function resolveAssignedOfficeAcronymLabel(row) {
+  if (!row || !row.assigned_department_id) return '-'
+  const candidates = [
+    row.assignedDepartmentAcronym,
+    row.assigned_department_acronym,
+    row.officeAcronym,
+    row.office_acronym,
+    row.assigned_department_name,
+    row.office,
+    row.employee?.assignedDepartmentAcronym,
+    row.employee?.assigned_department_acronym,
+    row.employee?.officeAcronym,
+    row.employee?.office_acronym,
+    row.employee?.assigned_department_name,
+    row.employee?.office,
+  ]
+  for (const c of candidates) {
+    const text = String(c || '').trim()
+    if (text) return text
+  }
+  return '-'
 }
 
 function resolveLedgerPreviewIdentityFontSize(value) {
@@ -1152,6 +1585,24 @@ async function fetchDepartments() {
   }
 }
 
+async function fetchTotalEmployeesSummary() {
+  loadingTotalEmployees.value = true
+  try {
+    const { data } = await api.get('/employees', {
+      params: {
+        activity: activityFilter.value || 'ALL',
+        per_page: 1,
+        page: 1,
+      },
+    })
+    totalEmployees.value = Number(data?.total_employees ?? 0)
+  } catch (err) {
+    console.error('Failed to load employee summary:', err)
+  } finally {
+    loadingTotalEmployees.value = false
+  }
+}
+
 async function fetchData(page = 1) {
   loading.value = true
   try {
@@ -1166,8 +1617,6 @@ async function fetchData(page = 1) {
         page,
       },
     })
-
-    totalEmployees.value = data.total_employees ?? 0
 
     if (data.employees) {
       employees.value = data.employees.data ?? []
@@ -1220,6 +1669,9 @@ async function fetchCreditLeaveTypes(employeeControlNo = '', options = {}) {
         .filter((type) => isManualAddLeaveCreditType(type)),
     )
     if (prefillFromCurrentBalances) {
+      if (data?.as_of_date) {
+        leaveCreditForm.value.as_of_date = String(data.as_of_date)
+      }
       const balances = {}
 
       for (const leaveType of creditLeaveTypes.value) {
@@ -1418,7 +1870,9 @@ function buildCreditEmployeeLookupCacheKey(departmentId, searchText) {
 }
 
 function isCreditEmployeeLookupAbortError(error) {
-  const errorCode = String(error?.code ?? '').trim().toUpperCase()
+  const errorCode = String(error?.code ?? '')
+    .trim()
+    .toUpperCase()
   const errorName = String(error?.name ?? '').trim()
   return errorCode === 'ERR_CANCELED' || errorName === 'AbortError' || errorName === 'CanceledError'
 }
@@ -1439,7 +1893,8 @@ function buildCreditEmployeeLookupParams(rawSearchValue) {
   return {
     departmentId,
     searchText: resolvedSearchText,
-    shouldLookup: departmentId !== null || normalizedRawSearchValue.length >= CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH,
+    shouldLookup:
+      departmentId !== null || normalizedRawSearchValue.length >= CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH,
   }
 }
 
@@ -1561,11 +2016,15 @@ watch(search, () => {
 })
 
 watch(activityFilter, () => {
+  void fetchTotalEmployeesSummary()
   fetchData(1)
 })
 
 watch(showViewDialog, (isOpen) => {
   if (isOpen) return
+  employeeDetailsLeaveBadgesLookupSequence += 1
+  employeeDetailsLeaveBadgesLoading.value = false
+  employeeDetailsLeaveBadges.value = []
   showCalendarPreviewDialog.value = false
   calendarPreviewAnchorEntry.value = null
   clearCalendarPreviewWarning()
@@ -1586,8 +2045,9 @@ watch(calendarPreviewDateStates, () => {
 })
 
 onMounted(() => {
-  fetchDepartments()
-  fetchData()
+  void fetchDepartments()
+  void fetchTotalEmployeesSummary()
+  void fetchData()
 })
 
 watch(
@@ -1596,20 +2056,41 @@ watch(
     if (!showLeaveCreditsDialog.value) return
     if (selectedControlNo === previousControlNo) return
 
+    if (showCocImportDialog.value) {
+      cocImportForm.value.employee_control_no = selectedControlNo
+      if (/^\d+$/.test(selectedControlNo)) {
+        void loadCocImportEntries(selectedControlNo)
+      } else {
+        cocImportForm.value = defaultCocImportForm()
+      }
+    }
+
     void fetchCreditLeaveTypes(selectedControlNo, {
       prefillFromCurrentBalances: isLeaveCreditsEditMode.value,
     })
   },
 )
 
+watch(showLeaveCreditsDialog, (isOpen) => {
+  if (isOpen) return
+  showCocImportDialog.value = false
+  cocImportForm.value = defaultCocImportForm()
+  savingCocImport.value = false
+  loadingCocImportEntries.value = false
+})
+
 onBeforeUnmount(() => {
   clearCalendarPreviewWarning()
 })
 
 function viewEmployee(emp) {
+  const controlNo = String(emp?.control_no ?? '').trim()
   selectedEmployee.value = emp
+  employeeDetailsLeaveBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
+  employeeDetailsLeaveBadgesLoading.value = controlNo !== ''
   showViewDialog.value = true
-  fetchEmployeeLeaveHistory(emp?.control_no)
+  fetchEmployeeLeaveHistory(controlNo)
+  void fetchEmployeeDetailsLeaveBadges(controlNo)
 }
 
 function onEmployeeRowClick(_evt, row) {
@@ -1633,6 +2114,70 @@ function formatDate(value) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function roundCurrencyValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+  return Math.round((numericValue + Number.EPSILON) * 100) / 100
+}
+
+function truncateCurrencyValue(value, fractionDigits = 2) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+
+  const factor = 10 ** fractionDigits
+  if (!Number.isFinite(factor) || factor <= 0) return null
+
+  return numericValue < 0
+    ? Math.ceil(numericValue * factor) / factor
+    : Math.floor(numericValue * factor) / factor
+}
+
+function resolveEmployeeTerminalLeaveAmount(employee) {
+  const apiEstimatedAmount = parseLedgerSignedQuantityValue(
+    employee?.terminal_leave_estimated_amount,
+  )
+  if (apiEstimatedAmount !== null) {
+    return apiEstimatedAmount
+  }
+
+  const vacationLeaveBalance = parseLedgerSignedQuantityValue(employee?.vl_balance)
+  const sickLeaveBalance = parseLedgerSignedQuantityValue(employee?.sl_balance)
+  const monthlyRate = parseLedgerSignedQuantityValue(employee?.rate_mon)
+  if (vacationLeaveBalance === null || sickLeaveBalance === null || monthlyRate === null) {
+    return null
+  }
+
+  return (sickLeaveBalance + vacationLeaveBalance) * monthlyRate * TERMINAL_LEAVE_CONSTANT_FACTOR
+}
+
+function formatEmployeeTerminalLeaveAmount(employee) {
+  const terminalLeaveAmount = resolveEmployeeTerminalLeaveAmount(employee)
+  if (terminalLeaveAmount === null) {
+    return '-'
+  }
+
+  const truncatedTerminalLeaveAmount = truncateCurrencyValue(terminalLeaveAmount)
+
+  return truncatedTerminalLeaveAmount === null
+    ? '-'
+    : terminalLeaveEstimateFormatter.format(truncatedTerminalLeaveAmount)
+}
+
+function resolveEmployeeMonthlyRate(employee) {
+  const monthlyRate = parseLedgerSignedQuantityValue(employee?.rate_mon)
+
+  return monthlyRate === null ? null : roundCurrencyValue(monthlyRate)
+}
+
+function formatEmployeeMonthlyRate(employee) {
+  const monthlyRate = resolveEmployeeMonthlyRate(employee)
+  if (monthlyRate === null) {
+    return '-'
+  }
+
+  return currencyFormatter.format(monthlyRate)
+}
+
 function formatLedgerActionDate(value) {
   if (!value) return ''
 
@@ -1640,8 +2185,30 @@ function formatLedgerActionDate(value) {
   if (Number.isNaN(parsed.getTime())) return ''
 
   return parsed.toLocaleDateString('en-US', {
-    year: '2-digit',
-    month: 'numeric',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function formatLedgerFirstDayOfService(employee) {
+  const serviceDate = pickFirstDefined(employee, [
+    'first_day_of_service',
+    'firstDayOfService',
+    'date_hired',
+    'dateHired',
+    'hire_date',
+    'hireDate',
+    'from_date',
+    'fromDate',
+  ])
+
+  const dateParts = parseLedgerDateParts(serviceDate)
+  if (!dateParts) return 'N/A'
+
+  return dateParts.date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
     day: 'numeric',
   })
 }
@@ -1685,6 +2252,132 @@ function normalizeLedgerQuantityValue(value) {
   }
 
   return String(value).trim()
+}
+
+function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
+  const coreBalancesByCode = {
+    VL: 0,
+    SL: 0,
+    WL: 0,
+    MCO6: 0,
+  }
+  const customBadges = []
+  const customBadgeCodes = new Set()
+
+  if (Array.isArray(leaveTypes)) {
+    leaveTypes.forEach((leaveType, index) => {
+      if (!leaveType || leaveType.is_credit_based === false) return
+
+      const leaveTypeName = normalizeLedgerTextValue(
+        pickFirstDefined(leaveType, [
+          'name',
+          'display_name',
+          'displayName',
+          'leave_type_name',
+          'leaveTypeName',
+          'label',
+        ]),
+      )
+      if (!leaveTypeName) return
+
+      const rawBalance = pickFirstDefined(leaveType, [
+        'balance',
+        'current_balance',
+        'currentBalance',
+        'leave_balance',
+        'leaveBalance',
+        'remaining_balance',
+        'remainingBalance',
+        'editable_balance',
+        'editableBalance',
+        'total',
+        'amount',
+      ])
+      const parsedBalance = parseLedgerSignedQuantityValue(rawBalance)
+      const roundedBalance = roundLedgerNumericValue(parsedBalance ?? 0)
+      const normalizedCode = normalizeLedgerLeaveCode(leaveTypeName)
+      const lowerName = String(leaveTypeName || '').toLowerCase()
+
+      if (
+        normalizedCode === 'CTO' ||
+        normalizedCode === 'COC' ||
+        lowerName.includes('compensatory') ||
+        lowerName.includes('cto') ||
+        lowerName.includes('coc')
+      ) {
+        return
+      }
+
+      if (
+        normalizedCode === 'VL' ||
+        normalizedCode === 'SL' ||
+        normalizedCode === 'WL' ||
+        normalizedCode === 'MCO6'
+      ) {
+        coreBalancesByCode[normalizedCode] = roundedBalance
+        return
+      }
+
+      const leaveTypeId = Number(leaveType?.id ?? leaveType?.leave_type_id)
+      const customCode =
+        Number.isInteger(leaveTypeId) && leaveTypeId > 0
+          ? `LT-${leaveTypeId}`
+          : `LT-NAME-${normalizeLeaveTypeName(leaveTypeName) || index}`
+      const customLabel = resolveLedgerCustomLeaveBadgeLabel(leaveTypeName)
+      if (customBadgeCodes.has(customCode)) return
+
+      customBadgeCodes.add(customCode)
+      customBadges.push(
+        buildLedgerBalanceBadgeItem(
+          customCode,
+          customLabel,
+          roundedBalance,
+          LEDGER_BALANCE_BADGE_UNIFORM_PALETTE,
+        ),
+      )
+    })
+  }
+
+  const coreBadges = LEDGER_BALANCE_BADGE_ORDER.map((code) => {
+    const meta = LEDGER_BALANCE_BADGE_META[code]
+    return buildLedgerBalanceBadgeItem(
+      code,
+      meta.label,
+      coreBalancesByCode[code],
+      LEDGER_BALANCE_BADGE_UNIFORM_PALETTE,
+    )
+  })
+
+  return [...coreBadges, ...customBadges]
+}
+
+function resolveLedgerCustomLeaveBadgeLabel(leaveTypeName) {
+  const normalizedLabel = normalizeLeaveTypeName(leaveTypeName)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+  if (normalizedLabel === 'mandatory forced leave') return 'FL'
+  if (normalizedLabel === 'solo parent leave') return 'SPL'
+  if (normalizedLabel === 'special emergency calamity leave') return 'CL'
+
+  return leaveTypeName
+}
+
+function buildLedgerBalanceBadgeItem(code, label, balanceValue, palette = {}) {
+  const numericBalance = Number(balanceValue)
+  const safeBalance = Number.isFinite(numericBalance) ? numericBalance : 0
+  const accent = String(palette?.accent || LEDGER_BALANCE_BADGE_META.DEFAULT.accent)
+  const background = String(palette?.background || LEDGER_BALANCE_BADGE_META.DEFAULT.background)
+
+  return {
+    code,
+    label,
+    value: formatLedgerNumber(safeBalance),
+    style: {
+      '--badge-accent': accent,
+      '--badge-bg': background,
+    },
+  }
 }
 
 function normalizeLedgerAccrualQuantityValue(value) {
@@ -1743,44 +2436,6 @@ function roundLedgerNumericValue(value) {
   return Math.round((numericValue + Number.EPSILON) * 1000) / 1000
 }
 
-function normalizeOtherLedgerBalances(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return Array.isArray(rows) ? rows : []
-
-  const trackedOtherCodes = ['WL', 'MCO6']
-  const runningBalancesByCode = {
-    WL: 0,
-    MCO6: 0,
-  }
-
-  return rows.map((row) => {
-    const leaveCode = normalizeLedgerLeaveCode(row?.leaveTypeCode || row?.particulars)
-    if (!trackedOtherCodes.includes(leaveCode)) return row
-
-    const earnedAmount = parseLedgerSignedQuantityValue(row?.otherEarned) ?? 0
-    const withPayAmount = parseLedgerSignedQuantityValue(row?.otherAbsUndWp) ?? 0
-    const delta = roundLedgerNumericValue(earnedAmount + withPayAmount)
-    const nextFromDelta = roundLedgerNumericValue((runningBalancesByCode[leaveCode] ?? 0) + delta)
-
-    const existingCombinedBalance = parseLedgerSignedQuantityValue(row?.otherBalance)
-    let nextBalance = nextFromDelta
-
-    if (existingCombinedBalance !== null) {
-      const otherTypeBalanceTotal = trackedOtherCodes.reduce(
-        (total, code) => (code === leaveCode ? total : total + (runningBalancesByCode[code] ?? 0)),
-        0,
-      )
-      nextBalance = roundLedgerNumericValue(existingCombinedBalance - otherTypeBalanceTotal)
-    }
-
-    runningBalancesByCode[leaveCode] = nextBalance
-
-    return {
-      ...row,
-      otherBalance: normalizeLedgerQuantityValue(nextBalance),
-    }
-  })
-}
-
 function buildLedgerRowsForPaper(rows, preset, options = {}) {
   const normalizedRows = Array.isArray(rows)
     ? rows.map((entry, index) => ({
@@ -1807,6 +2462,146 @@ function buildLedgerRowsForPaper(rows, preset, options = {}) {
   return normalizedRows
 }
 
+function createLedgerForwardedBalanceState() {
+  return {
+    vacation: null,
+    sick: null,
+    otherDefault: null,
+    otherByCode: {},
+  }
+}
+
+function updateLedgerForwardedBalanceState(state, rows) {
+  if (!state || !Array.isArray(rows)) return state
+
+  const allowedOtherCodes = ['MCO6', 'WL', 'SPL', 'CL']
+
+  rows.forEach((row) => {
+    if (!row || row.isBlank || row.isBalanceForwarded) return
+
+    const vacationBalance = parseLedgerSignedQuantityValue(row.vacationBalance)
+    if (vacationBalance !== null) {
+      state.vacation = vacationBalance
+    }
+
+    const sickBalance = parseLedgerSignedQuantityValue(row.sickBalance)
+    if (sickBalance !== null) {
+      state.sick = sickBalance
+    }
+
+    const otherBalance = parseLedgerSignedQuantityValue(row.otherBalance)
+    if (otherBalance !== null) {
+      const codeCandidate =
+        normalizeLedgerLeaveCode(row.leaveTypeCode) ||
+        normalizeLedgerLeaveCode(row.balanceKey) ||
+        normalizeLedgerLeaveCode(row.particulars)
+      if (allowedOtherCodes.includes(codeCandidate)) {
+        state.otherByCode[codeCandidate] = {
+          value: otherBalance,
+          code: codeCandidate,
+        }
+      }
+    }
+  })
+
+  return state
+}
+
+function isLedgerFiniteNumberValue(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+}
+
+function buildLedgerBalanceForwardedRows(state, pageIndex) {
+  const rows = []
+  let rowIndex = 0
+  
+  const today = new Date()
+  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthNamesLong = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  
+  const period = `${monthNamesShort[today.getMonth()]} ${today.getFullYear()}`
+  const actionTaken = `${monthNamesLong[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`
+
+  if (isLedgerFiniteNumberValue(state?.vacation)) {
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-${rowIndex++}`,
+      id: `ledger-balance-forwarded-${pageIndex}-${rowIndex}`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: 'Balance Forwarded: VL',
+      actionTaken,
+      vacationBalance: normalizeLedgerQuantityValue(state.vacation),
+    })
+  }
+
+  if (isLedgerFiniteNumberValue(state?.sick)) {
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-${rowIndex++}`,
+      id: `ledger-balance-forwarded-${pageIndex}-${rowIndex}`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: 'Balance Forwarded: SL',
+      actionTaken,
+      sickBalance: normalizeLedgerQuantityValue(state.sick),
+    })
+  }
+
+  const allowedOtherCodes = ['MCO6', 'WL', 'SPL', 'CL']
+  const otherBalances = Object.entries(state?.otherByCode || {})
+    .filter(([, data]) => isLedgerFiniteNumberValue(data?.value !== undefined ? data.value : data))
+    .map(([, data]) => {
+      if (typeof data === 'object' && data !== null) {
+        return { code: data.code, value: data.value }
+      }
+      return { code: '', value: data }
+    })
+    .filter((item) => allowedOtherCodes.includes(normalizeLedgerLeaveCode(item.code)))
+
+  if (state?.otherDefault) {
+    const def = state.otherDefault
+    const defVal = typeof def === 'object' && def !== null ? def.value : def
+    const defCode = typeof def === 'object' ? def.code : ''
+    if (isLedgerFiniteNumberValue(defVal) && allowedOtherCodes.includes(normalizeLedgerLeaveCode(defCode))) {
+      otherBalances.push({ code: defCode, value: defVal })
+    }
+  }
+
+  otherBalances.forEach((other) => {
+    let codeLabel = other.code ? `: ${other.code}` : ''
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-${rowIndex++}`,
+      id: `ledger-balance-forwarded-${pageIndex}-${rowIndex}`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: `Balance Forwarded${codeLabel}`,
+      actionTaken,
+      otherBalance: normalizeLedgerQuantityValue(other.value),
+      leaveTypeCode: other.code,
+    })
+  })
+
+  if (rows.length === 0) {
+    rows.push({
+      ...LEDGER_BLANK_ROW_TEMPLATE,
+      key: `ledger-balance-forwarded-${pageIndex}-0`,
+      id: `ledger-balance-forwarded-${pageIndex}-0`,
+      isBlank: false,
+      isBalanceForwarded: true,
+      period,
+      particulars: 'Balance Forwarded',
+      actionTaken,
+    })
+  }
+
+  return rows
+}
+
 function buildLedgerPagesForPaper(rows, preset, options = {}) {
   const rowsPerPageSource =
     options.minimumRowsOverride ?? options.minimumRows ?? preset?.minimumRows ?? 0
@@ -1818,14 +2613,27 @@ function buildLedgerPagesForPaper(rows, preset, options = {}) {
   }
 
   const pages = []
+  const forwardedBalanceState = createLedgerForwardedBalanceState()
+  let sourceIndex = 0
+  let pageIndex = 0
 
-  for (let index = 0; index < sourceRows.length; index += rowsPerPage) {
+  while (sourceIndex < sourceRows.length) {
+    const shouldAddForwardedRow = pageIndex > 0 && rowsPerPage > 1
+    const forwardedRows = shouldAddForwardedRow ? buildLedgerBalanceForwardedRows(forwardedBalanceState, pageIndex) : []
+    const sourceRowsPerPage = Math.max(1, rowsPerPage - forwardedRows.length)
+    const pageSourceRows = sourceRows.slice(sourceIndex, sourceIndex + sourceRowsPerPage)
+    const pageRows = [...forwardedRows, ...pageSourceRows]
+
     pages.push(
-      buildLedgerRowsForPaper(sourceRows.slice(index, index + rowsPerPage), preset, {
+      buildLedgerRowsForPaper(pageRows, preset, {
         ...options,
         minimumRowsOverride: rowsPerPage,
       }),
     )
+
+    updateLedgerForwardedBalanceState(forwardedBalanceState, pageSourceRows)
+    sourceIndex += sourceRowsPerPage
+    pageIndex += 1
   }
 
   return pages
@@ -1869,6 +2677,7 @@ function buildLedgerPdfTableWidths(preset) {
 function normalizeLedgerLeaveCode(value) {
   const raw = String(value ?? '').trim()
   if (!raw) return ''
+  if (raw.toLowerCase().includes('balance forwarded')) return ''
 
   const compact = raw.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -1899,11 +2708,14 @@ function normalizeLedgerLeaveCode(value) {
     return 'WL'
   }
 
+  if (compact === 'spl' || compact === 'soloparentleave' || compact === 'soloparent') {
+    return 'SPL'
+  }
+
   if (
     compact === 'mco6' ||
     compact === 'mc06' ||
     compact === 'mo6' ||
-    compact === 'spl' ||
     compact === 'specialprivilege' ||
     compact === 'specialprivilegeleave' ||
     compact.startsWith('mco6') ||
@@ -1912,11 +2724,28 @@ function normalizeLedgerLeaveCode(value) {
     return 'MCO6'
   }
 
+  const codeToken = String(raw).split(/\s+/)[0] ?? ''
+  const sanitizedCodeToken = codeToken.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (
+    sanitizedCodeToken &&
+    sanitizedCodeToken !== 'BALANCE' &&
+    sanitizedCodeToken !== 'FORWARDED' &&
+    sanitizedCodeToken.length <= 10
+  ) {
+    return sanitizedCodeToken
+  }
+
   return ''
 }
 
+function isLedgerOtherLeaveCode(leaveCode) {
+  return leaveCode !== '' && leaveCode !== 'VL' && leaveCode !== 'SL'
+}
+
 function resolveLedgerCellLeaveCode(entry, section) {
-  const normalizedSection = String(section ?? '').trim().toUpperCase()
+  const normalizedSection = String(section ?? '')
+    .trim()
+    .toUpperCase()
 
   if (normalizedSection === 'VL') return 'VL'
   if (normalizedSection === 'SL') return 'SL'
@@ -1940,7 +2769,7 @@ function resolveLedgerCellLeaveCode(entry, section) {
   )
 
   if (normalizedSection === 'OTHER') {
-    return rowLeaveCode === 'WL' || rowLeaveCode === 'MCO6' ? rowLeaveCode : ''
+    return isLedgerOtherLeaveCode(rowLeaveCode) ? rowLeaveCode : ''
   }
 
   return rowLeaveCode
@@ -2016,8 +2845,24 @@ function buildLedgerPdfTopLabelCell(text) {
   }
 }
 
+function buildLedgerPdfBodyCellMargin(text, options = {}) {
+  if (Array.isArray(options.margin)) return options.margin
+
+  const fontSize = Number(options.fontSize ?? 6.85)
+  const lineHeight = Number(options.lineHeight ?? 0.95)
+  const rowHeight = Number(options.rowHeight ?? 14.05)
+  const lineCount = Math.max(1, String(text || ' ').split('\n').length)
+  // pdfMake uses the font's internal ascender/descender which adds about ~1.2x height
+  const estimatedTextHeight = fontSize * lineHeight * 1.2 * lineCount
+  const verticalMargin = Math.max(0, (rowHeight - estimatedTextHeight) / 2)
+
+  return [0.2, verticalMargin, 0.2, verticalMargin]
+}
+
 function buildLedgerPdfBodyCell(value, options = {}) {
   const text = String(value ?? '').trim()
+  const fontSize = options.fontSize ?? 6.85
+  const lineHeight = options.lineHeight ?? 0.95
 
   return {
     text: text || ' ',
@@ -2025,9 +2870,14 @@ function buildLedgerPdfBodyCell(value, options = {}) {
     bold: options.bold ?? false,
     color: options.color || '#000000',
     fillColor: options.fillColor,
-    fontSize: options.fontSize ?? 7.68,
-    lineHeight: options.lineHeight ?? 1,
-    margin: options.margin || [0.3, 0.9, 0.3, 0.3],
+    fontSize,
+    lineHeight,
+    margin: buildLedgerPdfBodyCellMargin(text, {
+      ...options,
+      fontSize,
+      lineHeight,
+    }),
+    noWrap: options.noWrap ?? false,
   }
 }
 
@@ -2040,15 +2890,17 @@ function buildLedgerPdfValueCell(value, fillColor, options = {}, entry = null, s
     color,
     bold: hasValue,
     fillColor,
+    noWrap: hasValue,
     ...options,
   })
 }
 
-function buildLedgerPdfTableBody(rows) {
+function buildLedgerPdfTableBody(rows, preset = {}) {
+  const bodyRowHeight = Number(preset?.pdfBodyRowHeight ?? 14.05)
   const tableBody = [
     [
       {
-        text: 'PERIOD',
+        text: 'INCLUSIVE\nDATES',
         rowSpan: 2,
         style: 'ledgerPdfRowSpanHead',
       },
@@ -2110,19 +2962,24 @@ function buildLedgerPdfTableBody(rows) {
     tableBody.push([
       buildLedgerPdfBodyCell(entry.period, {
         bold: Boolean(String(entry.period || '').trim()),
-        fontSize: 7.68,
+        fontSize: 5.8,
+        lineHeight: 0.92,
+        noWrap: true,
+        rowHeight: bodyRowHeight,
       }),
       buildLedgerPdfBodyCell(entry.particulars, {
         bold: Boolean(String(entry.particulars || '').trim()),
-        fontSize: 6.6,
+        fontSize: 5.6,
         lineHeight: 1,
-        margin: [0.4, 0.95, 0.4, 0.2],
+        noWrap: true,
+        rowHeight: bodyRowHeight,
       }),
       buildLedgerPdfValueCell(
         entry.vacationEarned,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2131,7 +2988,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.vacationAbsUndWp,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2140,7 +2998,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.vacationBalance,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2149,7 +3008,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.vacationAbsUndWop,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'VL',
@@ -2158,7 +3018,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickEarned,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2167,7 +3028,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickAbsUnd,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2176,7 +3038,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickBalance,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2185,7 +3048,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.sickAbsUndWop,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'SL',
@@ -2194,7 +3058,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherEarned,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
@@ -2203,7 +3068,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherAbsUndWp,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
@@ -2212,7 +3078,8 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherBalance,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
@@ -2221,16 +3088,18 @@ function buildLedgerPdfTableBody(rows) {
         entry.otherAbsUndWop,
         undefined,
         {
-          fontSize: 7.68,
+          fontSize: 6.85,
+          rowHeight: bodyRowHeight,
         },
         entry,
         'OTHER',
       ),
       buildLedgerPdfBodyCell(entry.actionTaken, {
         bold: Boolean(String(entry.actionTaken || '').trim()),
-        fontSize: 7.68,
-        lineHeight: 1,
-        margin: [0.35, 0.85, 0.35, 0.2],
+        fontSize: 6.25,
+        lineHeight: 0.92,
+        noWrap: true,
+        rowHeight: bodyRowHeight,
       }),
     ])
   })
@@ -2240,9 +3109,11 @@ function buildLedgerPdfTableBody(rows) {
 
 function buildLedgerPdfPageHeader(
   headingName,
+  headingStatus,
   headingOffice,
   firstDayOfService,
   identityNameFontSize,
+  identityStatusFontSize,
   identityOfficeFontSize,
   identityServiceFontSize,
   horizontalInset,
@@ -2252,11 +3123,15 @@ function buildLedgerPdfPageHeader(
   return [
     {
       table: {
-        widths: ['34%', '42%', '24%'],
+        widths: ['34%', '13%', '29%', '24%'],
         body: [
           [
             buildLedgerPdfIdentityCell(headingName, {
               fontSize: identityNameFontSize,
+              alignment: 'center',
+            }),
+            buildLedgerPdfIdentityCell(headingStatus, {
+              fontSize: identityStatusFontSize,
               alignment: 'center',
             }),
             buildLedgerPdfIdentityCell(headingOffice, {
@@ -2280,14 +3155,15 @@ function buildLedgerPdfPageHeader(
         paddingTop: () => 0,
         paddingBottom: () => 0,
       },
-      margin: [horizontalInset, 0, horizontalInset, 2],
+      margin: [horizontalInset, 0, horizontalInset + headerUnderlineRightTrim, 2],
     },
     {
       table: {
-        widths: ['34%', '42%', '24%'],
+        widths: ['34%', '13%', '29%', '24%'],
         body: [
           [
             buildLedgerPdfTopLabelCell('Name'),
+            buildLedgerPdfTopLabelCell('Status'),
             buildLedgerPdfTopLabelCell('Division Office'),
             buildLedgerPdfTopLabelCell('1st Day of Service'),
           ],
@@ -2310,11 +3186,13 @@ function buildLedgerPdfPageHeader(
 
 function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') {
   const preset = LEDGER_PAPER_PRESETS[paperSize] || LEDGER_PAPER_PRESETS.A4
-  const displayName = getEmployeeFullName(employee)
+  const displayName = getEmployeeColumnDisplayName(employee)
   const headingName = formatLedgerHeadingName(displayName)
+  const headingStatus = formatLedgerHeadingStatus(employee)
   const headingOffice = formatLedgerHeadingOffice(employee)
-  const firstDayOfService = 'N/A'
+  const firstDayOfService = formatLedgerFirstDayOfService(employee)
   const identityNameFontSize = resolveLedgerPdfIdentityFontSize(headingName)
+  const identityStatusFontSize = resolveLedgerPdfIdentityFontSize(headingStatus)
   const identityOfficeFontSize = resolveLedgerPdfIdentityFontSize(headingOffice)
   const identityServiceFontSize = resolveLedgerPdfIdentityFontSize(firstDayOfService)
   const horizontalInset = Number(preset?.pdfHorizontalInset ?? 0)
@@ -2325,49 +3203,53 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
     minimumRowsOverride: preset.pdfMinimumRows ?? preset.minimumRows,
   })
   const tableWidths = buildLedgerPdfTableWidths(preset)
-  const pageHeader = buildLedgerPdfPageHeader(
-    headingName,
-    headingOffice,
-    firstDayOfService,
-    identityNameFontSize,
-    identityOfficeFontSize,
-    identityServiceFontSize,
-    horizontalInset,
-    gridLineWidth,
-    headerUnderlineRightTrim,
-  )
-  const content = renderedPages.map((pageRows, pageIndex) => ({
-    stack: [
-      ...pageHeader,
-      {
-        table: {
-          headerRows: 2,
-          widths: tableWidths,
-          heights: (rowIndex) => {
-            if (rowIndex === 0) return preset.pdfHeaderRowHeight
-            if (rowIndex === 1) return preset.pdfSubHeaderRowHeight
-            return preset.pdfBodyRowHeight
+  const content = renderedPages.map((pageRows, pageIndex) => {
+    const pageHeader = buildLedgerPdfPageHeader(
+      headingName,
+      headingStatus,
+      headingOffice,
+      firstDayOfService,
+      identityNameFontSize,
+      identityStatusFontSize,
+      identityOfficeFontSize,
+      identityServiceFontSize,
+      horizontalInset,
+      gridLineWidth,
+      headerUnderlineRightTrim,
+    )
+
+    return {
+      stack: [
+        ...pageHeader,
+        {
+          table: {
+            headerRows: 2,
+            widths: tableWidths,
+            heights: (rowIndex) => {
+              if (rowIndex === 0) return preset.pdfHeaderRowHeight
+              if (rowIndex === 1) return preset.pdfSubHeaderRowHeight
+              return preset.pdfBodyRowHeight
+            },
+            body: buildLedgerPdfTableBody(pageRows, preset),
           },
-          body: buildLedgerPdfTableBody(pageRows),
+          dontBreakRows: true,
+          keepWithHeaderRows: 2,
+          layout: {
+            hLineWidth: (lineIndex) => (lineIndex === 0 ? 0 : gridLineWidth),
+            vLineWidth: () => gridLineWidth,
+            hLineColor: () => '#000000',
+            vLineColor: () => '#000000',
+            paddingLeft: () => 0.2,
+            paddingRight: () => 0.2,
+            paddingTop: () => 0,
+            paddingBottom: () => 0,
+          },
+          margin: [horizontalInset, 0, horizontalInset, 0],
         },
-        dontBreakRows: true,
-        keepWithHeaderRows: 2,
-        layout: {
-          hLineWidth: (lineIndex) => (lineIndex === 0 ? 0 : gridLineWidth),
-          vLineWidth: () => gridLineWidth,
-          hLineColor: () => '#000000',
-          vLineColor: () => '#000000',
-          paddingLeft: () => 0.2,
-          paddingRight: () => 0.2,
-          paddingTop: () => 0,
-          paddingBottom: () => 0,
-        },
-        margin: [horizontalInset, 0, horizontalInset, 0],
-      },
-    ],
-    unbreakable: true,
-    pageBreak: pageIndex > 0 ? 'before' : undefined,
-  }))
+      ],
+      pageBreak: pageIndex > 0 ? 'before' : undefined,
+    }
+  })
 
   return {
     pageSize: preset.pageSize,
@@ -2417,6 +3299,30 @@ function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') 
       fontSize: 7.2,
       color: '#000000',
     },
+  }
+}
+
+function openAccrualEditDialog(entry) {
+  if (entry && entry.accrualIds && entry.accrualIds.length > 0) {
+    selectedAccrualIds.value = entry.accrualIds
+    showAccrualsEditDialog.value = true
+  }
+}
+
+async function onAccrualsSaved() {
+  if (leaveCreditsLedgerEmployee.value) {
+    // Delay refresh to allow the edit dialog's close transition to finish.
+    // This prevents a Quasar focus trap warning caused by the edit button
+    // being destroyed before focus can be returned to it.
+    setTimeout(async () => {
+      await openLeaveCreditsLedgerDialog(leaveCreditsLedgerEmployee.value)
+    }, 350)
+  }
+}
+
+async function onLeaveCreditsRestored() {
+  if (leaveCreditsLedgerEmployee.value) {
+    await openLeaveCreditsLedgerDialog(leaveCreditsLedgerEmployee.value)
   }
 }
 
@@ -2525,7 +3431,7 @@ function parseLedgerDateParts(value) {
 function buildLedgerInclusiveDateLabel(parts) {
   if (!parts) return ''
   const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-  return `${monthLabel} ${parts.day} ${parts.year}`
+  return `${monthLabel} ${parts.day}, ${parts.year}`
 }
 
 function sortAndNormalizeLedgerDatePartsList(partsList) {
@@ -2549,30 +3455,61 @@ function buildLedgerInclusiveDatesListLabel(partsList) {
   const normalizedList = sortAndNormalizeLedgerDatePartsList(partsList)
   if (normalizedList.length === 0) return ''
 
-  const sameYear = normalizedList.every((parts) => parts.year === normalizedList[0].year)
-  const sameMonth =
-    sameYear && normalizedList.every((parts) => parts.month === normalizedList[0].month)
+  const groups = new Map()
+  for (const parts of normalizedList) {
+    const groupKey = `${parts.year}-${String(parts.month).padStart(2, '0')}`
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        monthLabel: parts.date.toLocaleDateString('en-US', { month: 'short' }),
+        year: parts.year,
+        days: [],
+      })
+    }
 
-  if (sameMonth) {
-    const monthLabel = normalizedList[0].date.toLocaleDateString('en-US', { month: 'short' })
-    const days = normalizedList.map((parts) => parts.day).join(',')
-    return `${monthLabel} ${days} ${normalizedList[0].year}`
+    groups.get(groupKey).days.push(parts.day)
   }
 
-  if (sameYear) {
-    const values = normalizedList.map((parts) => {
-      const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-      return `${monthLabel} ${parts.day}`
-    })
-    return `${values.join(', ')} ${normalizedList[0].year}`
-  }
+  return [...groups.values()]
+    .map((group) => {
+      const uniqueDays = [...new Set(group.days)].sort((left, right) => left - right)
+      if (uniqueDays.length === 0) return ''
 
-  return normalizedList
-    .map((parts) => {
-      const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-      return `${monthLabel} ${parts.day} ${parts.year}`
+      const dayRanges = []
+      let rangeStart = uniqueDays[0]
+      let rangeEnd = uniqueDays[0]
+
+      for (let index = 1; index < uniqueDays.length; index += 1) {
+        const currentDay = uniqueDays[index]
+        if (currentDay === rangeEnd + 1) {
+          rangeEnd = currentDay
+          continue
+        }
+
+        dayRanges.push([rangeStart, rangeEnd])
+        rangeStart = currentDay
+        rangeEnd = currentDay
+      }
+
+      dayRanges.push([rangeStart, rangeEnd])
+
+      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+        let dayLabel = String(startDay)
+        if (endDay > startDay) {
+          dayLabel = endDay === startDay + 1 ? `${startDay}, ${endDay}` : `${startDay}-${endDay}`
+        }
+
+        return `${group.monthLabel} ${dayLabel}`
+      })
+
+      const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+      if (hasSingleDayOnly) {
+        return `${group.monthLabel} ${dayRanges[0][0]}, ${group.year}`
+      }
+
+      return `${rangeLabels.join(', ')} ${group.year}`
     })
-    .join(', ')
+    .filter(Boolean)
+    .join('\n')
 }
 
 function buildLedgerDatePartsRange(startParts, endParts) {
@@ -2601,7 +3538,92 @@ function buildLedgerDatePartsRange(startParts, endParts) {
   return result
 }
 
+function isLateDeductionEntry(entry) {
+  if (!entry || typeof entry !== 'object') return false
+  const rowId = String(entry.row_id || entry.merge_key || entry.id || '').toLowerCase()
+  if (rowId.includes('late-deduction') || rowId.includes('latededuction')) return true
+  const category = String(entry.category || '').toLowerCase()
+  if (category === 'deduction_without_pay') return true
+  const particulars = String(entry.particulars || entry.action_taken || entry.description || '').toLowerCase()
+  if (particulars.includes('late deduction')) return true
+  return false
+}
+
 function buildLedgerInclusiveRangeText(entry) {
+  if (isLateDeductionEntry(entry)) {
+    const rawDates = pickFirstDefined(entry, [
+      'selected_dates',
+      'selectedDates',
+      'inclusive_dates',
+      'inclusiveDates',
+    ])
+    let datesList = []
+    if (Array.isArray(rawDates)) {
+      datesList = rawDates
+    } else if (typeof rawDates === 'string' && rawDates.trim() !== '') {
+      try {
+        const parsed = JSON.parse(rawDates)
+        if (Array.isArray(parsed)) datesList = parsed
+        else datesList = [rawDates]
+      } catch {
+        datesList = [rawDates]
+      }
+    }
+
+    if (datesList.length > 0) {
+      const parsedList = datesList
+        .map((d) => parseLedgerDateParts(d))
+        .filter(Boolean)
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+      if (parsedList.length === 1) {
+        const monthName = parsedList[0].date.toLocaleDateString('en-US', { month: 'long' })
+        return `${monthName} ${parsedList[0].year}`
+      }
+
+      if (parsedList.length > 1) {
+        const allSameYear = parsedList.every((p) => p.year === parsedList[0].year)
+        if (allSameYear) {
+          const monthFormat = parsedList.length <= 2 ? 'long' : 'short'
+          const monthNames = parsedList.map((p) => p.date.toLocaleDateString('en-US', { month: monthFormat }))
+          return `${monthNames.join(', ')} ${parsedList[0].year}`
+        } else {
+          const labels = parsedList.map((p) => {
+            const m = p.date.toLocaleDateString('en-US', { month: 'short' })
+            return `${m} ${p.year}`
+          })
+          return labels.join(', ')
+        }
+      }
+    }
+
+    const startVal = pickFirstDefined(entry, ['inclusive_start_date', 'inclusiveStartDate', 'start_date', 'startDate'])
+    const endVal = pickFirstDefined(entry, ['inclusive_end_date', 'inclusiveEndDate', 'end_date', 'endDate'])
+    const startParts = parseLedgerDateParts(startVal)
+    const endParts = parseLedgerDateParts(endVal)
+
+    if (startParts && endParts) {
+      const startMonth = startParts.date.toLocaleDateString('en-US', { month: 'long' })
+      const endMonth = endParts.date.toLocaleDateString('en-US', { month: 'long' })
+      if (startParts.year === endParts.year) {
+        if (startParts.month === endParts.month) {
+          return `${startMonth} ${startParts.year}`
+        }
+        return `${startMonth} - ${endMonth} ${startParts.year}`
+      }
+      return `${startMonth} ${startParts.year} - ${endMonth} ${endParts.year}`
+    }
+
+    if (startParts) {
+      const monthName = startParts.date.toLocaleDateString('en-US', { month: 'long' })
+      return `${monthName} ${startParts.year}`
+    }
+    if (endParts) {
+      const monthName = endParts.date.toLocaleDateString('en-US', { month: 'long' })
+      return `${monthName} ${endParts.year}`
+    }
+  }
+
   const explicitDatesValue = pickFirstDefined(entry, [
     'inclusive_dates',
     'inclusiveDates',
@@ -2647,12 +3669,14 @@ function buildLedgerInclusiveRangeText(entry) {
 }
 
 function resolveLeaveHistoryInclusiveDateParts(entry) {
-  const explicitDatesValue = parseInclusiveDatesValue(pickFirstDefined(entry, [
-    'inclusive_dates',
-    'inclusiveDates',
-    'selected_dates',
-    'selectedDates',
-  ]))
+  const explicitDatesValue = parseInclusiveDatesValue(
+    pickFirstDefined(entry, [
+      'inclusive_dates',
+      'inclusiveDates',
+      'selected_dates',
+      'selectedDates',
+    ]),
+  )
   if (explicitDatesValue.length > 0) {
     const explicitParts = sortAndNormalizeLedgerDatePartsList(
       explicitDatesValue.map((value) => parseLedgerDateParts(value)).filter(Boolean),
@@ -2771,10 +3795,7 @@ function getLeaveHistoryCalendarState(entry) {
 }
 
 function getLeaveHistoryPendingUpdatePayload(entry) {
-  const candidates = [
-    entry?.pending_update,
-    entry?.latest_update_request_payload,
-  ]
+  const candidates = [entry?.pending_update, entry?.latest_update_request_payload]
 
   for (const candidate of candidates) {
     if (!candidate) continue
@@ -3101,16 +4122,13 @@ function syncCalendarPreviewDecorations() {
             160,
             Math.min(CALENDAR_PREVIEW_WARNING_WIDTH, Math.max(calendarWidth - 16, 160)),
           )
-          const cellCenter = (cellRect.left - calendarRect.left) + (cellRect.width / 2)
+          const cellCenter = cellRect.left - calendarRect.left + cellRect.width / 2
           const popupLeft = Math.max(
             8,
-            Math.min(cellCenter - (popupWidth * 0.58), calendarWidth - popupWidth - 8),
+            Math.min(cellCenter - popupWidth * 0.58, calendarWidth - popupWidth - 8),
           )
-          const popupTop = Math.max(6, (cellRect.top - calendarRect.top) - 56)
-          const arrowLeft = Math.max(
-            16,
-            Math.min(cellCenter - popupLeft - 6, popupWidth - 18),
-          )
+          const popupTop = Math.max(6, cellRect.top - calendarRect.top - 56)
+          const arrowLeft = Math.max(16, Math.min(cellCenter - popupLeft - 6, popupWidth - 18))
 
           nextWarningStyle = {
             width: `${popupWidth}px`,
@@ -3155,6 +4173,80 @@ function openLeaveHistoryCalendarPreview(entry) {
   showCalendarPreviewDialog.value = true
 }
 
+
+function isCtoLedgerEntry(entry, particulars, leaveTypeCode) {
+  if (!entry && !particulars && !leaveTypeCode) return false
+
+  const code = String(leaveTypeCode || entry?.leaveTypeCode || entry?.leave_type_code || '').trim().toUpperCase()
+  if (code === 'CTO' || code === 'COC') return true
+
+  const part = String(particulars || entry?.particulars || entry?.description || entry?.leave_type_name || '').trim().toLowerCase()
+  if (
+    part.startsWith('cto') ||
+    part.startsWith('coc') ||
+    part.includes('cto') ||
+    part.includes('coc') ||
+    part.includes('compensatory')
+  ) {
+    if (!part.startsWith('cl ') && !part.startsWith('cl-') && part !== 'cl') {
+      return true
+    }
+  }
+
+  const key = String(entry?.balanceKey || entry?.other_balance_key || entry?.otherBalanceKey || '').trim().toLowerCase()
+  if (key.includes('cto') || key.includes('coc') || key.includes('compensatory')) return true
+
+  return false
+}
+
+function formatCtoLedgerQuantityValue(value, options = {}) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return ''
+  }
+
+  const rawStr = String(value).trim()
+  if (/[a-zA-Z]/.test(rawStr)) {
+    return rawStr
+  }
+
+  const isDeduction = options.isDeduction || rawStr.startsWith('-')
+  const isAccrual = options.isAccrual || rawStr.startsWith('+')
+  const num = Number(rawStr.replace(/[+,-]/g, ''))
+
+  if (!Number.isFinite(num)) {
+    return rawStr
+  }
+
+  if (Math.abs(num) < 1e-9) {
+    return '0 hr'
+  }
+
+  const totalHours = num * 8.0
+  const totalMinutes = Math.round(totalHours * 60)
+  const hrs = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+
+  let text = ''
+  if (hrs > 0 && mins > 0) {
+    text = `${hrs}h ${mins}m`
+  } else if (hrs > 0) {
+    text = `${hrs} hrs`
+  } else if (mins > 0) {
+    text = `${mins} mins`
+  } else {
+    text = '0 hr'
+  }
+
+  if (isDeduction) {
+    return `-${text}`
+  }
+  if (isAccrual && options.includePlusSign) {
+    return `+${text}`
+  }
+
+  return text
+}
+
 function normalizeLedgerRow(entry, index) {
   const inclusivePeriod = buildLedgerInclusiveRangeText(entry)
   const particulars = normalizeLedgerTextValue(
@@ -3195,11 +4287,144 @@ function normalizeLedgerRow(entry, index) {
     ]) || particulars,
   )
 
+  const accrualIds = Array.isArray(entry?.accrual_ids) ? entry.accrual_ids : []
+  const actionTakenStr = String(entry?.action_taken || entry?.actionTaken || '').trim()
+  const isMonthlyAccrual = actionTakenStr === 'Monthly accrual'
+  const isVlSl = leaveTypeCode === 'VL' || leaveTypeCode === 'SL' || (typeof particulars === 'string' && (particulars.includes('VL') || particulars.includes('SL')))
+  const isEditableAccrual = accrualIds.length > 0 && isMonthlyAccrual && isVlSl
+  const isUsageOnly = Boolean(
+    entry?.is_usage_only ||
+    entry?.isUsageOnly ||
+    leaveTypeCode === 'PATE' ||
+    (entry?.leave_category === 'EVENT' && entry?.is_credit_based === false)
+  )
+
+  const isCto = isCtoLedgerEntry(entry, particulars, leaveTypeCode)
+
+  const rawOtherEarned = pickFirstDefined(entry, [
+    'other_earned',
+    'otherEarned',
+    'other_leave_earned',
+    'otherLeaveEarned',
+    'other_type_earned',
+    'otherTypeEarned',
+    'others_earned',
+    'othersEarned',
+    'otl_earned',
+    'other.earned',
+    'other_leave.earned',
+    'other_type.earned',
+    'others.earned',
+    'special_privilege_earned',
+    'specialPrivilegeEarned',
+    'spl_earned',
+    'vawc_earned',
+    'vawcEarned',
+  ])
+
+  const otherEarned = isCto
+    ? formatCtoLedgerQuantityValue(rawOtherEarned, { isAccrual: true, includePlusSign: true })
+    : normalizeLedgerAccrualQuantityValue(rawOtherEarned)
+
+  const rawOtherAbsUndWp = pickFirstDefined(entry, [
+    'other_abs_und',
+    'otherAbsUnd',
+    'other_abs_und_wp',
+    'otherAbsUndWp',
+    'other_leave_abs_und',
+    'otherLeaveAbsUnd',
+    'other_leave_abs_und_wp',
+    'otherLeaveAbsUndWp',
+    'other_type_abs_und',
+    'otherTypeAbsUnd',
+    'other_type_abs_und_wp',
+    'otherTypeAbsUndWp',
+    'others_abs_und',
+    'othersAbsUnd',
+    'others_abs_und_wp',
+    'othersAbsUndWp',
+    'other.with_pay',
+    'other_leave.with_pay',
+    'other_type.with_pay',
+    'others.with_pay',
+    'special_privilege_abs_und_wp',
+    'specialPrivilegeAbsUndWp',
+    'spl_abs_und_wp',
+    'vawc_abs_und_wp',
+    'vawcAbsUndWp',
+  ])
+
+  const otherAbsUndWp = isCto
+    ? formatCtoLedgerQuantityValue(rawOtherAbsUndWp, { isDeduction: true })
+    : normalizeLedgerWithPayDeductionValue(rawOtherAbsUndWp)
+
+  const rawOtherBalance = isUsageOnly
+    ? ''
+    : pickFirstDefined(entry, [
+        'other_balance',
+        'otherBalance',
+        'other_leave_balance',
+        'otherLeaveBalance',
+        'other_type_balance',
+        'otherTypeBalance',
+        'others_balance',
+        'othersBalance',
+        'otl_balance',
+        'other.balance',
+        'other_leave.balance',
+        'other_type.balance',
+        'others.balance',
+        'special_privilege_balance',
+        'specialPrivilegeBalance',
+        'spl_balance',
+        'vawc_balance',
+        'vawcBalance',
+      ])
+
+  const otherBalance = isUsageOnly
+    ? ''
+    : isCto
+      ? formatCtoLedgerQuantityValue(rawOtherBalance)
+      : normalizeLedgerQuantityValue(rawOtherBalance)
+
+  const rawOtherAbsUndWop = pickFirstDefined(entry, [
+    'other_abs_und_wop',
+    'otherAbsUndWop',
+    'other_leave_abs_und_wop',
+    'otherLeaveAbsUndWop',
+    'other_type_abs_und_wop',
+    'otherTypeAbsUndWop',
+    'others_abs_und_wop',
+    'othersAbsUndWop',
+    'otl_abs_und_wop',
+    'other.without_pay',
+    'other_leave.without_pay',
+    'other_type.without_pay',
+    'others.without_pay',
+    'special_privilege_abs_und_wop',
+    'specialPrivilegeAbsUndWop',
+    'spl_abs_und_wop',
+    'vawc_abs_und_wop',
+    'vawcAbsUndWop',
+  ])
+
+  const otherAbsUndWop = isCto
+    ? formatCtoLedgerQuantityValue(rawOtherAbsUndWop)
+    : normalizeLedgerQuantityValue(rawOtherAbsUndWop)
+
   return {
     id: pickFirstDefined(
       entry,
       ['id', 'ledger_id', 'ledgerId', 'entry_id', 'entryId'],
       `ledger-${index}`,
+    ),
+    balanceKey: normalizeLedgerTextValue(
+      pickFirstDefined(entry, [
+        'balance_key',
+        'balanceKey',
+        'other_balance_key',
+        'otherBalanceKey',
+      ]),
     ),
     period:
       inclusivePeriod ||
@@ -3322,102 +4547,35 @@ function normalizeLedgerRow(entry, index) {
         'sick.used_without_pay',
       ]),
     ),
-    otherEarned: normalizeLedgerAccrualQuantityValue(
-      pickFirstDefined(entry, [
-        'other_earned',
-        'otherEarned',
-        'other_leave_earned',
-        'otherLeaveEarned',
-        'other_type_earned',
-        'otherTypeEarned',
-        'others_earned',
-        'othersEarned',
-        'otl_earned',
-        'other.earned',
-        'other_leave.earned',
-        'other_type.earned',
-        'others.earned',
-        'special_privilege_earned',
-        'specialPrivilegeEarned',
-        'spl_earned',
-        'vawc_earned',
-        'vawcEarned',
-      ]),
-    ),
-    otherAbsUndWp: normalizeLedgerWithPayDeductionValue(
-      pickFirstDefined(entry, [
-        'other_abs_und',
-        'otherAbsUnd',
-        'other_abs_und_wp',
-        'otherAbsUndWp',
-        'other_leave_abs_und',
-        'otherLeaveAbsUnd',
-        'other_leave_abs_und_wp',
-        'otherLeaveAbsUndWp',
-        'other_type_abs_und',
-        'otherTypeAbsUnd',
-        'other_type_abs_und_wp',
-        'otherTypeAbsUndWp',
-        'others_abs_und',
-        'othersAbsUnd',
-        'others_abs_und_wp',
-        'othersAbsUndWp',
-        'other.with_pay',
-        'other_leave.with_pay',
-        'other_type.with_pay',
-        'others.with_pay',
-        'special_privilege_abs_und_wp',
-        'specialPrivilegeAbsUndWp',
-        'spl_abs_und_wp',
-        'vawc_abs_und_wp',
-        'vawcAbsUndWp',
-      ]),
-    ),
-    otherBalance: normalizeLedgerQuantityValue(
-      pickFirstDefined(entry, [
-        'other_balance',
-        'otherBalance',
-        'other_leave_balance',
-        'otherLeaveBalance',
-        'other_type_balance',
-        'otherTypeBalance',
-        'others_balance',
-        'othersBalance',
-        'otl_balance',
-        'other.balance',
-        'other_leave.balance',
-        'other_type.balance',
-        'others.balance',
-        'special_privilege_balance',
-        'specialPrivilegeBalance',
-        'spl_balance',
-        'vawc_balance',
-        'vawcBalance',
-      ]),
-    ),
-    otherAbsUndWop: normalizeLedgerQuantityValue(
-      pickFirstDefined(entry, [
-        'other_abs_und_wop',
-        'otherAbsUndWop',
-        'other_leave_abs_und_wop',
-        'otherLeaveAbsUndWop',
-        'other_type_abs_und_wop',
-        'otherTypeAbsUndWop',
-        'others_abs_und_wop',
-        'othersAbsUndWop',
-        'otl_abs_und_wop',
-        'other.without_pay',
-        'other_leave.without_pay',
-        'other_type.without_pay',
-        'others.without_pay',
-        'special_privilege_abs_und_wop',
-        'specialPrivilegeAbsUndWop',
-        'spl_abs_und_wop',
-        'vawc_abs_und_wop',
-        'vawcAbsUndWop',
-      ]),
-    ),
+    otherEarned,
+    otherAbsUndWp,
+    otherBalance,
+    otherAbsUndWop,
     actionTaken: buildLedgerActionText(entry),
+    accrualIds,
+    isEditableAccrual,
+    late_deduction_id: entry?.late_deduction_id || entry?.lateDeductionId || null,
+    restoration_id:
+      entry?.restoration_id ||
+      entry?.restorationId ||
+      (typeof entry?.id === 'string' && entry.id.startsWith('restoration-')
+        ? parseInt(entry.id.replace('restoration-', ''), 10)
+        : null),
+    isRestoration:
+      Boolean(entry?.restoration_id || entry?.restorationId) ||
+      (typeof entry?.id === 'string' && entry.id.startsWith('restoration-')),
+    restored_days: entry?.restored_days || entry?.amount || null,
+    target_leave: entry?.target_leave || entry?.targetLeave || null,
+    target_leave_type_id: entry?.target_leave_type_id || entry?.targetLeaveTypeId || null,
+    days_late: entry?.days_late !== undefined ? entry.days_late : (entry?.daysLate ?? null),
+    hours_late: entry?.hours_late !== undefined ? entry.hours_late : (entry?.hoursLate ?? null),
+    minutes_late: entry?.minutes_late !== undefined ? entry.minutes_late : (entry?.minutesLate ?? null),
+    deducted_days: entry?.deducted_days !== undefined ? entry.deducted_days : (entry?.deductedDays ?? entry?.amount ?? null),
+    selected_dates: entry?.selected_dates || entry?.selectedDates || entry?.inclusive_dates || entry?.inclusiveDates || null,
+    inclusive_start_date: entry?.inclusive_start_date || entry?.inclusiveStartDate || entry?.start_date || entry?.startDate || null,
+    inclusive_end_date: entry?.inclusive_end_date || entry?.inclusiveEndDate || entry?.end_date || entry?.endDate || null,
+    isLateDeduction: isLateDeductionEntry(entry),
+    rawEntry: entry,
   }
 }
 
@@ -3605,6 +4763,19 @@ async function fetchLeaveCreditsLedgerPayload(controlNo) {
   return probeLedgerEndpoints(endpointEntries)
 }
 
+async function fetchLedgerLeaveBalanceTypes(controlNo) {
+  const normalizedControlNo = String(controlNo ?? '').trim()
+  if (!normalizedControlNo) return []
+
+  const { data } = await api.get('/hr/leave-balances/available-types', {
+    params: {
+      employee_control_no: normalizedControlNo,
+    },
+  })
+
+  return Array.isArray(data?.leave_types) ? data.leave_types : []
+}
+
 async function fetchEmployeeLeaveHistory(controlNo) {
   if (!controlNo) {
     leaveHistory.value = []
@@ -3630,6 +4801,37 @@ async function fetchEmployeeLeaveHistory(controlNo) {
   }
 }
 
+async function openCocCtoLedgerDialog(employee) {
+  const controlNo = String(employee?.control_no ?? '').trim()
+  if (!controlNo) return
+
+  cocCtoLedgerEmployee.value = { ...employee }
+  cocCtoLedgerRows.value = []
+  cocCtoLedgerCurrentBalance.value = { hours: 0, days: 0 }
+  cocCtoLedgerError.value = ''
+  showCocCtoLedgerDialog.value = true
+  cocCtoLedgerLoading.value = true
+
+  try {
+    const { data } = await api.get(`/hr/employees/${encodeURIComponent(controlNo)}/coc-cto-ledger`)
+    if (data.employee) {
+      cocCtoLedgerEmployee.value = {
+        ...cocCtoLedgerEmployee.value,
+        ...data.employee,
+      }
+    }
+    cocCtoLedgerCurrentBalance.value = data.current_balance || { hours: 0, days: 0 }
+    cocCtoLedgerRows.value = orderLedgerRowsOldestFirst(data.ledger || [])
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to load COC / CTO ledger right now.')
+    cocCtoLedgerError.value = message
+    cocCtoLedgerRows.value = []
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    cocCtoLedgerLoading.value = false
+  }
+}
+
 async function openLeaveCreditsLedgerDialog(employee) {
   const controlNo = String(employee?.control_no ?? '').trim()
   if (!controlNo) return
@@ -3637,12 +4839,21 @@ async function openLeaveCreditsLedgerDialog(employee) {
   ledgerPaperSize.value = 'A4'
   leaveCreditsLedgerEmployee.value = { ...employee }
   leaveCreditsLedgerRows.value = []
+  leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
   leaveCreditsLedgerError.value = ''
   showLeaveCreditsLedgerDialog.value = true
   leaveCreditsLedgerLoading.value = true
 
   try {
-    const payload = await fetchLeaveCreditsLedgerPayload(controlNo)
+    const [ledgerResult, leaveBalanceTypesResult] = await Promise.allSettled([
+      fetchLeaveCreditsLedgerPayload(controlNo),
+      fetchLedgerLeaveBalanceTypes(controlNo),
+    ])
+    if (ledgerResult.status !== 'fulfilled') {
+      throw ledgerResult.reason
+    }
+
+    const payload = ledgerResult.value
     const payloadEmployee = extractLedgerEmployee(payload)
 
     if (payloadEmployee) {
@@ -3656,7 +4867,16 @@ async function openLeaveCreditsLedgerDialog(employee) {
       normalizeLedgerRow(entry, index),
     )
     const orderedRows = orderLedgerRowsOldestFirst(normalizedRows)
-    leaveCreditsLedgerRows.value = normalizeOtherLedgerBalances(orderedRows)
+    const ledgerRows = orderedRows
+    leaveCreditsLedgerRows.value = ledgerRows
+
+    if (leaveBalanceTypesResult.status === 'fulfilled') {
+      leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes(
+        leaveBalanceTypesResult.value,
+      )
+    } else {
+      leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
+    }
   } catch (err) {
     const message = err?.isMissingLedgerEndpoint
       ? 'Leave credits ledger is not available right now.'
@@ -3664,16 +4884,68 @@ async function openLeaveCreditsLedgerDialog(employee) {
 
     leaveCreditsLedgerError.value = message
     leaveCreditsLedgerRows.value = []
+    leaveCreditsLedgerBalanceBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
     $q.notify({ type: 'negative', message, position: 'top' })
   } finally {
     leaveCreditsLedgerLoading.value = false
   }
 }
 
+async function fetchEmployeeDetailsLeaveBadges(controlNo) {
+  const lookupSequence = ++employeeDetailsLeaveBadgesLookupSequence
+  const normalizedControlNo = String(controlNo ?? '').trim()
+
+  if (!normalizedControlNo) {
+    employeeDetailsLeaveBadges.value = []
+    employeeDetailsLeaveBadgesLoading.value = false
+    return
+  }
+
+  employeeDetailsLeaveBadgesLoading.value = true
+  try {
+    const leaveTypes = await fetchLedgerLeaveBalanceTypes(normalizedControlNo)
+    if (lookupSequence !== employeeDetailsLeaveBadgesLookupSequence) return
+
+    employeeDetailsLeaveBadges.value = buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes)
+  } catch {
+    if (lookupSequence !== employeeDetailsLeaveBadgesLookupSequence) return
+    employeeDetailsLeaveBadges.value = buildLedgerBalanceBadgesFromLeaveTypes([])
+  } finally {
+    if (lookupSequence === employeeDetailsLeaveBadgesLookupSequence) {
+      employeeDetailsLeaveBadgesLoading.value = false
+    }
+  }
+}
+
+function getTodayIsoDate() {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function defaultLeaveCreditForm() {
   return {
+    as_of_date: getTodayIsoDate(),
     employee_control_no: '',
     balances: buildLeaveCreditBalanceState(),
+  }
+}
+
+function buildDefaultCocImportEntry() {
+  return {
+    id: null,
+    hours: '',
+    credited_at: '',
+    expires_on: '',
+  }
+}
+
+function defaultCocImportForm(employeeControlNo = '') {
+  return {
+    employee_control_no: String(employeeControlNo ?? '').trim(),
+    entries: [buildDefaultCocImportEntry()],
   }
 }
 
@@ -3688,6 +4960,10 @@ function resetLeaveCreditForm() {
   }
   loadingCreditEmployees.value = false
   leaveCreditForm.value = defaultLeaveCreditForm()
+  cocImportForm.value = defaultCocImportForm()
+  showCocImportDialog.value = false
+  savingCocImport.value = false
+  loadingCocImportEntries.value = false
   leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_ADD
   creditEmployeeFilter.value = ''
   setCreditEmployeeOptions([])
@@ -3714,6 +4990,248 @@ function openLeaveCreditsEditDialog(employee = null) {
   upsertCreditEmployeeOption(employee)
   showLeaveCreditsDialog.value = true
   void fetchCreditLeaveTypes(controlNo, { prefillFromCurrentBalances: true })
+}
+
+function addCocImportEntry() {
+  if (cocImportForm.value.entries.length >= 200) return
+  cocImportForm.value.entries.push(buildDefaultCocImportEntry())
+}
+
+function resolveCocImportExpiryDate(creditedAtRaw) {
+  const creditedAt = String(creditedAtRaw ?? '').trim()
+  if (!creditedAt) return ''
+
+  const match = creditedAt.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return ''
+
+  const parsedDate = new Date(`${creditedAt}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  const expiryYear = parsedDate.getFullYear() + 1
+  return `${expiryYear}-12-31`
+}
+
+function handleCocImportEntryEarnedDateChange(index) {
+  const entries = Array.isArray(cocImportForm.value.entries) ? cocImportForm.value.entries : []
+  const entry = entries[index]
+  if (!entry) return
+
+  const resolvedExpiry = resolveCocImportExpiryDate(entry.credited_at)
+  entry.expires_on = resolvedExpiry || ''
+}
+
+function removeCocImportEntry(index) {
+  if (cocImportForm.value.entries.length <= 1) return
+  cocImportForm.value.entries.splice(index, 1)
+}
+
+function isExistingCocImportEntry(entry) {
+  const entryId = Number(entry?.id)
+  return Number.isInteger(entryId) && entryId > 0
+}
+
+function isEditableImportedCocApplication(application) {
+  const rawStatus = String(
+    application?.rawStatus ?? application?.raw_status ?? application?.status ?? '',
+  )
+    .trim()
+    .toUpperCase()
+  if (rawStatus !== 'APPROVED') return false
+
+  const remarks = String(application?.remarks ?? '')
+    .trim()
+    .toLowerCase()
+  if (!remarks.startsWith('coc balance import (hr)')) return false
+
+  const creditedHours = Number(application?.credited_hours)
+  if (!Number.isFinite(creditedHours) || creditedHours <= 0) return false
+
+  const expiresOn = String(application?.cto_expires_on ?? '').trim()
+  if (!expiresOn) return false
+
+  return true
+}
+
+function buildCocImportEntryFromApplication(application) {
+  const creditedAtRaw = String(application?.cto_credited_at ?? '').trim()
+  let creditedAtDate = ''
+  if (creditedAtRaw) {
+    const dateMatch = creditedAtRaw.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (dateMatch?.[1]) {
+      creditedAtDate = dateMatch[1]
+    } else {
+      const parsedDate = new Date(creditedAtRaw)
+      if (!Number.isNaN(parsedDate.getTime())) {
+        const year = parsedDate.getFullYear()
+        const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+        const day = String(parsedDate.getDate()).padStart(2, '0')
+        creditedAtDate = `${year}-${month}-${day}`
+      }
+    }
+  }
+
+  const expiresOnFromApi = String(application?.cto_expires_on ?? '').trim()
+  const resolvedExpiry = expiresOnFromApi || resolveCocImportExpiryDate(creditedAtDate)
+  const hours = Number(application?.credited_hours)
+  return {
+    id: Number(application?.id) > 0 ? Number(application.id) : null,
+    hours: Number.isFinite(hours) && hours > 0 ? String(hours) : '',
+    credited_at: creditedAtDate,
+    expires_on: resolvedExpiry,
+  }
+}
+
+async function loadCocImportEntries(employeeControlNo) {
+  const normalizedControlNo = String(employeeControlNo ?? '').trim()
+  if (!/^\d+$/.test(normalizedControlNo)) {
+    cocImportForm.value = defaultCocImportForm()
+    return
+  }
+
+  loadingCocImportEntries.value = true
+  try {
+    const { data } = await api.get('/hr/coc-applications', {
+      params: {
+        employee_control_no: normalizedControlNo,
+        status: 'APPROVED',
+        include_imported: 1,
+      },
+    })
+    const applications = Array.isArray(data?.applications) ? data.applications : []
+    const editableEntries = applications
+      .filter((application) => isEditableImportedCocApplication(application))
+      .map((application) => buildCocImportEntryFromApplication(application))
+      .filter((entry) => entry.expires_on && entry.hours !== '')
+
+    cocImportForm.value = {
+      employee_control_no: normalizedControlNo,
+      entries: editableEntries.length ? editableEntries : [buildDefaultCocImportEntry()],
+    }
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to load existing COC entries right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+    cocImportForm.value = defaultCocImportForm(normalizedControlNo)
+  } finally {
+    loadingCocImportEntries.value = false
+  }
+}
+
+function openCocImportDialog() {
+  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
+  if (!/^\d+$/.test(selectedControlNo)) {
+    $q.notify({
+      type: 'warning',
+      message: 'Select a valid employee first before importing COC balances.',
+      position: 'top',
+    })
+    return
+  }
+
+  cocImportForm.value = defaultCocImportForm(selectedControlNo)
+  showCocImportDialog.value = true
+  void loadCocImportEntries(selectedControlNo)
+}
+
+function cocImportValidationError() {
+  const employeeControlNo = String(cocImportForm.value.employee_control_no ?? '').trim()
+  if (!employeeControlNo) return 'Employee is required.'
+  if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
+
+  const entries = Array.isArray(cocImportForm.value.entries) ? cocImportForm.value.entries : []
+  if (!entries.length) return 'Add at least one COC entry.'
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const rowNo = index + 1
+    const entry = entries[index] ?? {}
+    const hoursRaw = normalizeBalanceInputValue(entry.hours)
+    if (hoursRaw === '') return `Entry #${rowNo}: hours are required.`
+
+    const hours = Number(hoursRaw)
+    if (!Number.isFinite(hours)) return `Entry #${rowNo}: hours must be a number.`
+    if (hours <= 0) return `Entry #${rowNo}: hours must be greater than zero.`
+
+    const creditedAtRaw = String(entry.credited_at ?? '').trim()
+    const expiresOnRaw = String(entry.expires_on ?? '').trim()
+    if (!creditedAtRaw) return `Entry #${rowNo}: earned date is required.`
+    if (!expiresOnRaw) return `Entry #${rowNo}: expiration date is required.`
+
+    const creditedAt = new Date(`${creditedAtRaw}T00:00:00`)
+    const expiresOn = new Date(`${expiresOnRaw}T00:00:00`)
+    if (Number.isNaN(creditedAt.getTime())) return `Entry #${rowNo}: credited date is invalid.`
+    if (Number.isNaN(expiresOn.getTime())) return `Entry #${rowNo}: expiration date is invalid.`
+    if (expiresOn < creditedAt) {
+      return `Entry #${rowNo}: expiration date cannot be earlier than credited date.`
+    }
+  }
+
+  return ''
+}
+
+function buildCocImportEntriesPayload() {
+  return cocImportForm.value.entries.map((entry) => ({
+    id: isExistingCocImportEntry(entry) ? Number(entry.id) : undefined,
+    hours: Number(normalizeBalanceInputValue(entry.hours)),
+    credited_at: String(entry.credited_at ?? '').trim(),
+    expires_on: String(entry.expires_on ?? '').trim(),
+  }))
+}
+
+async function saveCocImports() {
+  if (loadingCocImportEntries.value) {
+    return
+  }
+
+  const validationError = cocImportValidationError()
+  if (validationError) {
+    $q.notify({ type: 'warning', message: validationError, position: 'top' })
+    return
+  }
+
+  savingCocImport.value = true
+  try {
+    const employeeControlNo = String(cocImportForm.value.employee_control_no ?? '').trim()
+    const payload = {
+      employee_control_no: employeeControlNo,
+      entries: buildCocImportEntriesPayload(),
+    }
+
+    const { data } = await api.post('/hr/coc-balances/import', payload)
+    const createdCount = Number(data?.created_count ?? data?.imported_count ?? 0)
+    const updatedCount = Number(data?.updated_count ?? 0)
+    const savedCount = Number(data?.saved_count ?? payload.entries.length)
+    const normalizedCreatedCount =
+      Number.isFinite(createdCount) && createdCount > 0 ? createdCount : 0
+    const normalizedUpdatedCount =
+      Number.isFinite(updatedCount) && updatedCount > 0 ? updatedCount : 0
+    const normalizedSavedCount =
+      Number.isFinite(savedCount) && savedCount > 0 ? savedCount : payload.entries.length
+    const updatedBalance = Number(data?.updated_balance)
+    const balanceLabel = Number.isFinite(updatedBalance)
+      ? ` Updated CTO balance: ${updatedBalance}.`
+      : ''
+    const detailParts = []
+    if (normalizedCreatedCount > 0) {
+      detailParts.push(`${normalizedCreatedCount} added`)
+    }
+    if (normalizedUpdatedCount > 0) {
+      detailParts.push(`${normalizedUpdatedCount} updated`)
+    }
+    const detailLabel = detailParts.length ? ` (${detailParts.join(', ')})` : ''
+
+    $q.notify({
+      type: 'positive',
+      message: `${normalizedSavedCount} COC entr${normalizedSavedCount === 1 ? 'y' : 'ies'} saved successfully${detailLabel}.${balanceLabel}`,
+      position: 'top',
+    })
+
+    showCocImportDialog.value = false
+    cocImportForm.value = defaultCocImportForm(employeeControlNo)
+  } catch (err) {
+    const message = resolveApiErrorMessage(err, 'Unable to save COC entries right now.')
+    $q.notify({ type: 'negative', message, position: 'top' })
+  } finally {
+    savingCocImport.value = false
+  }
 }
 
 function buildLeaveCreditBalanceState(existingBalances = {}) {
@@ -3801,6 +5319,9 @@ function leaveCreditValidationError() {
   if (!employeeControlNo) return 'Employee is required.'
   if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
 
+  const asOfDate = String(leaveCreditForm.value.as_of_date ?? '').trim()
+  if (!asOfDate) return 'As of date is required.'
+
   if (loadingCreditLeaveTypes.value) return 'Leave types are still loading.'
   if (!creditLeaveTypes.value.length) return 'No credit-based leave types are available.'
 
@@ -3869,10 +5390,12 @@ async function saveLeaveCredits() {
   savingLeaveCredits.value = true
   try {
     const employeeControlNo = String(leaveCreditForm.value.employee_control_no).trim()
+    const asOfDate = String(leaveCreditForm.value.as_of_date ?? '').trim()
     const entries = getEnteredLeaveCreditEntries()
     const isEditMode = isLeaveCreditsEditMode.value
     const payload = {
       employee_control_no: employeeControlNo,
+      as_of_date: asOfDate || getTodayIsoDate(),
       balances: entries.map((entry) => ({
         leave_type_id: Number(entry.leaveType.id),
         balance: Number(entry.balance),
@@ -3880,7 +5403,7 @@ async function saveLeaveCredits() {
     }
 
     const { data } = isEditMode
-      ? await api.put('/hr/leave-balances', payload)
+      ? await api.post('/hr/leave-balances/update', payload)
       : await api.post('/hr/leave-balances', payload)
     const touchedCount = Number(data?.updated_count ?? data?.saved_count)
     const normalizedTouchedCount =
@@ -3950,6 +5473,18 @@ async function saveLeaveCredits() {
   max-width: 96vw;
 }
 
+.coc-import-dialog {
+  width: min(820px, 96vw);
+  max-width: 96vw;
+}
+
+.coc-import-entry {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
+}
+
 .employee-details-dialog {
   width: min(860px, 90vw);
   max-width: 90vw;
@@ -3994,7 +5529,7 @@ async function saveLeaveCredits() {
 
 .employee-details-header__meta {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 20px;
   flex-wrap: wrap;
@@ -4002,10 +5537,68 @@ async function saveLeaveCredits() {
 
 .employee-details-header__meta-item {
   min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .employee-details-header__meta-value {
   line-height: 1.25;
+}
+
+.employee-details-header__status-badge {
+  align-self: flex-start;
+}
+
+.employee-details-leave-credits {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.employee-details-leave-credits__label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.employee-details-leave-credits__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 20px;
+}
+
+.employee-details-leave-credits__loading-text {
+  font-size: 0.76rem;
+  color: #6b7280;
+}
+
+.employee-details-leave-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--badge-accent, #475569);
+  background: var(--badge-bg, #f1f5f9);
+  color: var(--badge-accent, #475569);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.employee-details-leave-badge__code {
+  opacity: 0.88;
+}
+
+.employee-details-leave-badge__value {
+  color: #111827;
+  font-weight: 800;
 }
 
 .leave-history-table :deep(.q-table__middle) {
@@ -4089,6 +5682,10 @@ async function saveLeaveCredits() {
     justify-content: flex-start;
     gap: 16px;
     width: 100%;
+  }
+
+  .employee-details-leave-credits {
+    align-items: flex-start;
   }
 }
 

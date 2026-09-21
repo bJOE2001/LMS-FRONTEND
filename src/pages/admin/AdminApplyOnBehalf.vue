@@ -147,29 +147,6 @@
                     <span class="dialog-summary-meta-label">Date of Filing:</span>
                     <span class="dialog-summary-meta-value">{{ todayFormatted }}</span>
                   </div>
-                  <div class="dialog-summary-meta-item dialog-summary-meta-item--leave-balance">
-                    <div :class="['dialog-summary-badges', { 'dialog-summary-badges--loading': dialogSummaryLoading }]">
-                      <template v-if="dialogSummaryLoading">
-                        <q-skeleton
-                          v-for="index in 5"
-                          :key="`dialog-balance-${index}`"
-                          type="rect"
-                          animation="fade"
-                          class="dialog-summary-badge-skeleton"
-                        />
-                      </template>
-                      <template v-else>
-                        <span
-                          v-for="item in dialogLeaveBalanceItems"
-                          :key="item.key"
-                          class="dialog-summary-badge"
-                        >
-                          {{ item.label }}
-                          <q-tooltip>{{ item.tooltip }}</q-tooltip>
-                        </span>
-                      </template>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -215,30 +192,69 @@
               />
             </div>
 
+            <div v-if="isTerminalLeave" class="section-block q-mb-lg dialog-section dialog-section--full">
+              <div class="text-subtitle1 text-weight-bold q-mb-xs">Terminal Leave</div>
+
+              <div class="row q-col-gutter-md q-mt-sm">
+                <div class="col-12 col-md-4">
+                  <label class="input-label">Vacation Leave Credits</label>
+                  <q-input :model-value="terminalLeaveVacationBalanceLabel" outlined dense readonly class="form-input readonly-field">
+                    <template #prepend><q-icon name="beach_access" size="sm" color="grey-6" /></template>
+                  </q-input>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="input-label">Sick Leave Credits</label>
+                  <q-input :model-value="terminalLeaveSickBalanceLabel" outlined dense readonly class="form-input readonly-field">
+                    <template #prepend><q-icon name="healing" size="sm" color="grey-6" /></template>
+                  </q-input>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="input-label">Estimated Terminal Leave Amount</label>
+                  <q-input :model-value="terminalLeaveEstimatedAmountLabel" outlined dense readonly class="form-input readonly-field">
+                    <template #prepend><span class="text-grey-6 text-body2">&#8369;</span></template>
+                  </q-input>
+                </div>
+              </div>
+
+              <div class="text-caption text-grey-5 q-mt-xs">
+                Formula: (SL + VL) x Monthly Salary x 0.0478087
+              </div>
+            </div>
+
             <!-- ==================== MONETIZATION SECTION ==================== -->
             <div v-if="isMonetization" class="section-block q-mb-lg dialog-section dialog-section--full">
               <div class="text-subtitle1 text-weight-bold q-mb-xs">Monetization Leave</div>
-              <p class="text-grey-6 text-caption q-mb-md">City Hall of Tagum Policy: Minimum of 10 accumulated leave credits required.</p>
 
               <div class="q-mb-md">
                 <label class="input-label">Select Leave Type to Monetize</label>
-                <q-select v-model="monetization.leaveTypeId" :options="monetizationLeaveTypeOptions" :placeholder="monetization.leaveTypeId ? '' : 'Select Leave Type'" outlined dense emit-value map-options :rules="[val => !!val || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
+                <q-select v-model="monetization.leaveTypeIds" :options="monetizationLeaveTypeOptions" :placeholder="selectedMonetizationTypeIds.length ? '' : 'Select Leave Type'" outlined dense emit-value map-options multiple use-chips :rules="[val => (Array.isArray(val) && val.length > 0) || 'Required']" class="form-input" @update:model-value="onMonetizationTypeChange">
                   <template #prepend><q-icon name="account_balance_wallet" size="sm" color="grey-6" /></template>
                 </q-select>
               </div>
 
+              <div v-if="selectedMonetizationOptions.length" class="q-gutter-md q-mb-md">
+                <div v-for="option in selectedMonetizationOptions" :key="option.value" class="row q-col-gutter-md items-start">
+                  <div class="col-12 col-md-6">
+                    <label class="input-label">{{ option.label }} Credits</label>
+                    <q-input :model-value="getMonetizationAvailableBalance(option.value)" outlined dense readonly class="form-input readonly-field" :loading="isMonetizationBalanceLoading(option.value)">
+                      <template #prepend><q-icon name="savings" size="sm" color="grey-6" /></template>
+                    </q-input>
+                    <div v-if="getMonetizationAvailableBalance(option.value) !== null && getMonetizationAvailableBalance(option.value) < 15" class="text-caption text-negative q-mt-xs">Insufficient credits. Minimum of 15 required.</div>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="input-label">Days from {{ option.label }}</label>
+                    <q-input :model-value="getMonetizationDays(option.value)" type="number" min="0" :max="getMonetizationAvailableBalance(option.value) || 999" outlined dense placeholder="Enter number of days" :rules="[val => (val === null || val === '' || Number(val) >= 0) || 'Enter 0 or more', val => !getMonetizationAvailableBalance(option.value) || Number(val || 0) <= getMonetizationAvailableBalance(option.value) || 'Cannot exceed balance']" class="form-input" @update:model-value="value => setMonetizationDays(option.value, value)">
+                      <template #prepend><q-icon name="today" size="sm" color="grey-6" /></template>
+                    </q-input>
+                  </div>
+                </div>
+              </div>
+
               <div class="row q-col-gutter-md q-mb-md">
                 <div class="col-12 col-md-4">
-                  <label class="input-label">Available Leave Credits</label>
-                  <q-input :model-value="monetization.availableBalance" outlined dense readonly class="form-input readonly-field" :loading="monetization.loadingBalance">
-                    <template #prepend><q-icon name="savings" size="sm" color="grey-6" /></template>
-                  </q-input>
-                  <div v-if="monetization.availableBalance !== null && monetization.availableBalance < 10" class="text-caption text-negative q-mt-xs">Insufficient credits. Minimum of 10 required.</div>
-                </div>
-                <div class="col-12 col-md-4">
-                  <label class="input-label">Days to Monetize</label>
-                  <q-input v-model.number="monetization.daysToMonetize" type="number" min="1" :max="monetization.availableBalance || 999" outlined dense placeholder="Enter number of days" :rules="[val => (val !== null && val !== '' && val >= 1) || 'At least 1 day', val => !monetization.availableBalance || val <= monetization.availableBalance || 'Cannot exceed balance']" class="form-input">
-                    <template #prepend><q-icon name="today" size="sm" color="grey-6" /></template>
+                  <label class="input-label">Total Days to Monetize</label>
+                  <q-input :model-value="monetizationTotalDays" outlined dense readonly class="form-input readonly-field">
+                    <template #prepend><q-icon name="event_available" size="sm" color="grey-6" /></template>
                   </q-input>
                 </div>
                 <div class="col-12 col-md-4">
@@ -249,18 +265,76 @@
                   <div class="text-caption text-grey-5 q-mt-xs">Daily rate = monthly salary / 22</div>
                 </div>
               </div>
+
+              <div v-if="monetizationRequiresAttachment" class="q-mb-md">
+                <label class="input-label">Supporting Attachment</label>
+                <q-file
+                  v-model="form.attachmentFile"
+                  outlined
+                  dense
+                  clearable
+                  use-chips
+                  counter
+                  :max-files="1"
+                  accept="image/*,.pdf,.doc,.docx"
+                  :max-file-size="attachmentMaxSizeBytes"
+                  label="Attach supporting document for monetization"
+                  hint="Allowed: image, PDF, DOC, DOCX (max 10 MB)"
+                  persistent-hint
+                  bottom-slots
+                  class="form-input q-mt-sm"
+                  @rejected="onAttachmentRejected"
+                >
+                  <template #prepend>
+                    <q-icon name="attach_file" />
+                  </template>
+                </q-file>
+                <div class="text-caption text-negative q-mt-xs">Required because Vacation Leave or Sick Leave monetization exceeds 10 days.</div>
+              </div>
             </div>
 
-            <div :class="{ 'dialog-section-stack dialog-section-stack--left': inDialog }">
+            <div
+              :class="{
+                'dialog-section-stack dialog-section-stack--left': inDialog,
+                'dialog-section-stack--terminal': inDialog && isTerminalLeave && showDetailsOfLeave && !isMonetization,
+                'leave-support-sections--terminal': !inDialog && isTerminalLeave && showDetailsOfLeave && !isMonetization,
+              }"
+            >
               <!-- Details of Leave -->
               <div v-if="showDetailsOfLeave && !isMonetization" class="section-block q-mb-lg dialog-section dialog-section--details">
                 <div class="text-subtitle1 text-weight-bold q-mb-md">Details of Leave</div>
 
-                <div v-if="isVacationType" class="dialog-detail-options">
-                <div class="text-body2 text-weight-medium q-mb-sm">In case of Vacation Leave:</div>
+                <div v-if="isVacationType || isWellnessType" class="dialog-detail-options">
+                <div class="text-body2 text-weight-medium q-mb-sm">In case of {{ isVacationType ? 'Vacation Leave' : 'Wellness Leave' }}:</div>
                 <q-option-group v-model="form.vacationDetail" :options="[{ label: 'Within the Philippines', value: 'Within the Philippines' }, { label: 'Abroad (Specify)', value: 'Abroad' }]" type="radio" color="green-8" />
                 <q-input v-if="form.vacationDetail === 'Abroad'" v-model="form.vacationSpecify" outlined dense label="Specify destination" placeholder="Enter Destination" class="form-input q-mt-sm" />
                 <q-input v-if="form.vacationDetail === 'Within the Philippines'" v-model="form.vacationSpecify" outlined dense label="Specify location" placeholder="Enter Location" class="form-input q-mt-sm" />
+                </div>
+
+                <div v-if="isSpecialPrivilegeType" class="dialog-detail-options">
+                <div class="text-body2 text-weight-medium q-mb-sm">In case of Special Privilege Leave (MC06):</div>
+                <q-select
+                  v-model="form.splDetail"
+                  :options="specialPrivilegeReasons"
+                  outlined
+                  dense
+                  emit-value
+                  map-options
+                  clearable
+                  label="Select Special Privilege Reason *"
+                  placeholder="Select reason"
+                  class="form-input q-mt-sm"
+                />
+                <q-input
+                  v-if="form.splDetail"
+                  v-model="form.splSpecify"
+                  outlined
+                  dense
+                  label="Specify details *"
+                  placeholder="Enter details"
+                  class="form-input q-mt-sm"
+                  :rules="[val => !!val || 'Field is required']"
+                />
                 </div>
 
                 <div v-if="isSickType" class="dialog-detail-options">
@@ -350,7 +424,7 @@
 
             <!-- 6.C Number of Working Days Applied For (hidden for monetization) -->
             <div
-              v-if="!isMonetization"
+              v-if="!isMonetization && !isTerminalLeave"
               :class="[
                 'section-block q-mb-lg dialog-section dialog-section--dates',
                 { 'dialog-section--dates-raised': moveDialogActionsUp },
@@ -362,11 +436,9 @@
                 <div :class="inDialog ? 'col-12 col-sm-6' : 'col-12 col-md-6'">
                   <label class="input-label">
                     <template v-if="isMco6Leave">Select Leave Dates (max 3)</template>
-                    <template v-else-if="isMaternityLeave || isPaternityLeave">Select Start Date</template>
                     <template v-else>Select Leave Dates</template>
                   </label>
 
-                  <!-- Maternity/Paternity Leave: Single Date Picker -->
                   <div
                     ref="leaveDateCalendarRef"
                     class="leave-date-calendar q-mt-sm"
@@ -374,18 +446,6 @@
                     @click.capture="handleCalendarSurfaceClick"
                   >
                     <q-date
-                      v-if="isMaternityLeave || isPaternityLeave"
-                      v-model="maternityStartDate"
-                      mask="YYYY-MM-DD"
-                      color="green-8"
-                      :options="leaveDateOptions"
-                      style="width: 100%"
-                      @navigation="onCalendarNavigation"
-                    />
-
-                    <!-- Standard Leave: Multi-select -->
-                    <q-date
-                      v-else
                       v-model="selectedDates"
                       multiple
                       mask="YYYY-MM-DD"
@@ -438,7 +498,6 @@
                       <div class="selected-date-duration-label">
                         <span>{{ formatDialogDateChip(d) }}</span>
                         <q-btn
-                          v-if="!(isMaternityLeave || isPaternityLeave)"
                           flat
                           round
                           dense
@@ -551,7 +610,7 @@
                           >
                             {{ selectedDatePayStatusLabel(d) }}
                           </button>
-                          <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" :disable="isMaternityLeave || isPaternityLeave" />
+                          <q-btn flat round dense icon="close" size="sm" color="negative" @click="removeSelectedDate(idx)" />
                         </div>
                       </q-item-section>
                     </q-item>
@@ -644,9 +703,10 @@ import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import { useSickIllnessOptions } from 'src/composables/useSickIllnessOptions'
+import { useSpecialPrivilegeReasons } from 'src/composables/useSpecialPrivilegeReasons'
 import { saveLocalLeaveApplicationDetails } from 'src/utils/leave-application-local-details'
 import {
-  enumerateInclusiveDates,
   getApplicationBlockingDates,
   getApplicationInformationalDates,
   getBlockingLeaveApplicationState,
@@ -655,7 +715,6 @@ import {
   getInformationalLeaveApplicationState,
   isBlockingLeaveApplication,
   normalizeIsoDate,
-  offsetIsoDate,
 } from 'src/utils/leave-date-locking'
 
 const props = defineProps({
@@ -683,6 +742,9 @@ const showSuccess = ref(false)
 const dialogSummaryLoading = ref(Boolean(props.inDialog))
 const selectedDateDurations = ref({})
 const selectedDatePayStatuses = ref({})
+const allowSlVlCrossDeduction = ref(false)
+
+const forcedSickLateWopDateKeys = new Set()
 const selectedDateHalfDayPortions = ref({})
 const calendarDateWarning = ref('')
 const calendarDateWarningDate = ref('')
@@ -706,6 +768,8 @@ const form = ref({
   leaveTypeOther: '',
   vacationDetail: '',
   vacationSpecify: '',
+  splDetail: '',
+  splSpecify: '',
   sickDetail: '',
   sickSpecify: '',
   sickSpecifyOther: '',
@@ -727,23 +791,39 @@ function parseSalary(value) {
 
 const attachmentMaxSizeBytes = 10 * 1024 * 1024
 const allowedAttachmentExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.pdf', '.doc', '.docx']
-const sickIllnessOptions = [
-  { label: 'Flu', value: 'Flu' },
-  { label: 'Fever', value: 'Fever' },
-  { label: 'Cough and Cold', value: 'Cough and Cold' },
-  { label: 'Hypertension', value: 'Hypertension' },
-  { label: 'Migraine', value: 'Migraine' },
-  { label: 'Asthma', value: 'Asthma' },
-  { label: 'Dengue', value: 'Dengue' },
-  { label: 'Diarrhea', value: 'Diarrhea' },
-  { label: 'Urinary Tract Infection (UTI)', value: 'Urinary Tract Infection (UTI)' },
-  { label: 'Other', value: 'Other' },
-]
+const TERMINAL_LEAVE_ESTIMATE_FACTOR = 0.0478087
+const terminalLeaveCurrencyFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+const {
+  sickIllnessOptions,
+  fetchSickIllnessOptions,
+} = useSickIllnessOptions()
+
+const {
+  specialPrivilegeReasons,
+  fetchSpecialPrivilegeReasons,
+} = useSpecialPrivilegeReasons()
 
 function resolveSingleFile(value) {
   if (!value) return null
   if (Array.isArray(value)) return value[0] || null
   return value
+}
+
+function truncateCurrencyValue(value, fractionDigits = 2) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return null
+
+  const factor = 10 ** fractionDigits
+  if (!Number.isFinite(factor) || factor <= 0) return null
+
+  return numericValue < 0
+    ? Math.ceil(numericValue * factor) / factor
+    : Math.floor(numericValue * factor) / factor
 }
 
 function isAllowedAttachmentImage(file) {
@@ -837,19 +917,16 @@ const dialogOfficeDisplay = computed(() => {
   return office.replace(/^office of the\s+/i, '') || office
 })
 
-const REQUIRED_LEAVE_BALANCE_TYPES = [
-  'Vacation Leave',
-  'Sick Leave',
-  'CTO Leave',
-  'Mandatory / Forced Leave',
-  'Special Privilege Leave',
-  'Wellness Leave',
-]
-
 function formatLeaveBalanceValue(value) {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return ''
   return numericValue.toFixed(3)
+}
+
+function roundToThreeDecimals(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 0
+  return Number(numericValue.toFixed(3))
 }
 
 function prettifyLeaveBalanceLabel(value) {
@@ -871,7 +948,18 @@ function prettifyLeaveBalanceLabel(value) {
   if (lower === 'sick') return 'Sick Leave'
   if (lower === 'vacation leave') return 'Vacation Leave'
   if (lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'spl' || lower === 'special privilege') return 'Special Privilege Leave'
   if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+  if (lower === 'solo parent' || lower === 'solo parent leave') return 'Solo Parent Leave'
+  if (
+    lower === 'cl' ||
+    lower === 'calamity' ||
+    lower === 'calamity leave' ||
+    lower === 'special emergency' ||
+    lower === 'special emergency leave' ||
+    lower === 'special emergency calamity leave' ||
+    lower === 'special emergency (calamity) leave'
+  ) return 'Special Emergency (Calamity) Leave'
 
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
@@ -882,30 +970,21 @@ function getLeaveTypeDisplayLabel(value) {
   return prettified
 }
 
-function toLeaveBalanceAcronym(value) {
-  const label = prettifyLeaveBalanceLabel(value)
-  if (!label) return ''
-
-  const lower = label.toLowerCase()
-  if (lower === 'mandatory / forced leave') return 'FL'
-  if (lower === 'special privilege leave') return 'SPL'
-  if (lower === 'cto leave') return 'CTO'
-  if (lower === 'sick leave') return 'SL'
-  if (lower === 'vacation leave') return 'VL'
-  if (lower === 'wellness leave') return 'WL'
-
-  const normalized = label
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((part) => part.trim().toUpperCase())
-    .filter((part) => part && !['AND', 'FOR', 'OF', 'THE'].includes(part))
-
-  if (!normalized.length) return ''
-  return normalized.map((part) => part[0]).join('')
-}
-
 function getLeaveBalanceTypeKey(value) {
   return prettifyLeaveBalanceLabel(value).trim().toLowerCase()
+}
+
+const FORCED_LEAVE_TYPE_KEY = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
+const VACATION_LEAVE_TYPE_KEY = getLeaveBalanceTypeKey('Vacation Leave')
+const VACATION_BACKED_LEAVE_TYPE_KEYS = [
+  'Special Privilege Leave',
+  'Wellness Leave',
+  'Solo Parent Leave',
+  'Special Emergency (Calamity) Leave',
+].map((leaveTypeName) => getLeaveBalanceTypeKey(leaveTypeName))
+
+function isVacationBackedLeaveTypeKey(leaveTypeKey) {
+  return VACATION_BACKED_LEAVE_TYPE_KEYS.includes(getLeaveBalanceTypeKey(leaveTypeKey))
 }
 
 function addLeaveBalanceEntry(entries, seen, label, value) {
@@ -1008,28 +1087,6 @@ function collectLeaveBalanceEntries(entries, seen, source) {
   collectLeaveBalanceEntriesFromValue(entries, seen, source?.employee_leave_balances)
   collectLeaveBalanceEntriesFromValue(entries, seen, source?.leaveBalance)
   collectLeaveBalanceEntriesFromValue(entries, seen, source)
-}
-
-function buildOrderedLeaveBalanceEntries(...sources) {
-  let orderedLabels = REQUIRED_LEAVE_BALANCE_TYPES
-  let sourceEntries = sources
-
-  if (Array.isArray(sources[0])) {
-    orderedLabels = sources[0].length ? sources[0] : []
-    sourceEntries = sources.slice(1)
-  }
-
-  const entries = []
-  const seen = new Set()
-
-  for (const source of sourceEntries) {
-    collectLeaveBalanceEntries(entries, seen, source)
-  }
-
-  const entryByType = new Map(entries.map((entry) => [getLeaveBalanceTypeKey(entry.label), entry]))
-  return orderedLabels.map((label) =>
-    entryByType.get(getLeaveBalanceTypeKey(label)) || { label, value: '0' },
-  )
 }
 
 function buildLeaveBalanceEntries(...sources) {
@@ -1317,33 +1374,9 @@ const employeeApplicationsForBalanceByRecency = computed(() =>
 
 const resolvedLeaveBalanceEntries = computed(() =>
   buildLeaveBalanceEntries(
-    ...employeeApplicationsForBalanceByRecency.value,
     selectedEmployeeRecord.value,
+    ...employeeApplicationsForBalanceByRecency.value,
   ),
-)
-
-const dialogAllowedLeaveBalanceTypes = computed(() => {
-  const allowedTypeKeys = new Set(
-    getAllowedLeaveTypesForEmployee()
-      .filter((leaveType) => leaveType?.is_credit_based)
-      .map((leaveType) => getLeaveBalanceTypeKey(leaveType?.name)),
-  )
-
-  return REQUIRED_LEAVE_BALANCE_TYPES.filter((label) =>
-    allowedTypeKeys.has(getLeaveBalanceTypeKey(label)),
-  )
-})
-
-const dialogLeaveBalanceItems = computed(() =>
-  buildOrderedLeaveBalanceEntries(
-    dialogAllowedLeaveBalanceTypes.value,
-    ...employeeApplicationsForBalanceByRecency.value,
-    selectedEmployeeRecord.value,
-  ).map((entry) => ({
-    key: getLeaveBalanceTypeKey(entry.label),
-    label: `${toLeaveBalanceAcronym(entry.label) || entry.label}: ${entry.value}`,
-    tooltip: entry.label,
-  })),
 )
 
 function getLockedDatePriority(state) {
@@ -1431,8 +1464,37 @@ function getDefaultLeaveTypeId(leaveTypes = getAllowedLeaveTypesForEmployee()) {
   return leaveTypes[0]?.id ?? null
 }
 
+function getLeaveTypeBalanceValue(leaveType) {
+  const directValue = Number(
+    leaveType?.balance ??
+      leaveType?.remaining_balance ??
+      leaveType?.available_balance ??
+      leaveType?.credits,
+  )
+
+  if (Number.isFinite(directValue)) {
+    return directValue
+  }
+
+  const leaveTypeKey = getLeaveBalanceTypeKey(leaveType?.name)
+  const matchedEntry = resolvedLeaveBalanceEntries.value.find(
+    (entry) => getLeaveBalanceTypeKey(entry.label) === leaveTypeKey,
+  )
+  const resolvedValue = Number(matchedEntry?.value)
+
+  return Number.isFinite(resolvedValue) ? resolvedValue : null
+}
+
+function shouldShowLeaveTypeOption(leaveType) {
+  if (getLeaveBalanceTypeKey(leaveType?.name) !== FORCED_LEAVE_TYPE_KEY) return true
+
+  const balanceValue = getLeaveTypeBalanceValue(leaveType)
+  return balanceValue === null || balanceValue > 0
+}
+
 function sortLeaveTypeOptions(leaveTypes) {
   return [...leaveTypes]
+    .filter(shouldShowLeaveTypeOption)
     .sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
     .map((leaveType) => ({
       label: getLeaveTypeDisplayLabel(leaveType.name),
@@ -1442,9 +1504,10 @@ function sortLeaveTypeOptions(leaveTypes) {
 
 function refreshLeaveTypeOptions() {
   const allowedLeaveTypes = getAllowedLeaveTypesForEmployee()
-  leaveTypeOptions.value = sortLeaveTypeOptions(allowedLeaveTypes)
+  const visibleLeaveTypes = allowedLeaveTypes.filter(shouldShowLeaveTypeOption)
+  leaveTypeOptions.value = sortLeaveTypeOptions(visibleLeaveTypes)
 
-  const selectedLeaveTypeStillAllowed = allowedLeaveTypes.some(
+  const selectedLeaveTypeStillAllowed = visibleLeaveTypes.some(
     (leaveType) => String(leaveType.id) === String(form.value.leaveTypeId ?? ''),
   )
 
@@ -1452,12 +1515,15 @@ function refreshLeaveTypeOptions() {
     return
   }
 
-  const defaultLeaveTypeId = getDefaultLeaveTypeId(allowedLeaveTypes)
+  const defaultLeaveTypeId = getDefaultLeaveTypeId(visibleLeaveTypes)
   form.value.leaveTypeId = defaultLeaveTypeId
   onLeaveTypeChange(defaultLeaveTypeId)
 }
 
 onMounted(async () => {
+  void fetchSickIllnessOptions()
+  void fetchSpecialPrivilegeReasons()
+
   try {
     const [{ data }] = await Promise.all([
       api.get('/admin/employees-for-leave'),
@@ -1512,7 +1578,7 @@ function onEmployeeChange(controlNo) {
     form.value.lastName = emp.surname
     form.value.position = emp.designation
     form.value.office = emp.office || authStore.user?.department?.name || authStore.user?.department_name || ''
-    form.value.salary = emp.salary || emp.rate_mon || ''
+    form.value.salary = emp.rate_mon || emp.salary || ''
   }
   refreshLeaveTypeOptions()
   clearCalendarDateWarning()
@@ -1525,7 +1591,7 @@ function applyPrefilledEmployee(employee) {
   form.value.lastName = employee.surname || ''
   form.value.position = employee.designation || ''
   form.value.office = employee.office || authStore.user?.department?.name || authStore.user?.department_name || ''
-  form.value.salary = employee.salary || employee.rate_mon || ''
+  form.value.salary = employee.rate_mon || employee.salary || ''
   refreshLeaveTypeOptions()
   clearCalendarDateWarning()
 }
@@ -1542,9 +1608,6 @@ const selectedLeaveTypeName = computed(() => {
 const selectedLeaveTypeConfig = computed(() =>
   allLeaveTypes.value.find((leaveType) => leaveType.id === form.value.leaveTypeId) || null,
 )
-const selectedLeaveTypeRequiresDocuments = computed(() =>
-  Boolean(selectedLeaveTypeConfig.value?.requires_documents ?? selectedLeaveTypeConfig.value?.requiresDocuments ?? false),
-)
 
 function formatDayCountValue(value) {
   const numericValue = Number(value)
@@ -1556,6 +1619,12 @@ const selectedLeaveTypeBalanceValue = computed(() => {
   const leaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
   if (!leaveTypeKey) return null
 
+  return resolveLeaveBalanceValueForTypeKey(leaveTypeKey)
+})
+
+function resolveLeaveBalanceValueForTypeKey(leaveTypeKey) {
+  if (!leaveTypeKey) return null
+
   const matchedEntry = resolvedLeaveBalanceEntries.value.find(
     (entry) => getLeaveBalanceTypeKey(entry.label) === leaveTypeKey,
   )
@@ -1564,7 +1633,7 @@ const selectedLeaveTypeBalanceValue = computed(() => {
 
   const numericValue = Number(matchedEntry.value)
   return Number.isFinite(numericValue) ? numericValue : null
-})
+}
 
 const pendingSelectedLeaveDays = computed(() =>
   employeeApplicationsForBalance.value
@@ -1576,13 +1645,56 @@ const pendingSelectedLeaveDays = computed(() =>
     .reduce((total, application) => total + getApplicationRequestedDayCount(application), 0),
 )
 
+function resolvePendingLeaveDaysForTypeKey(leaveTypeKey) {
+  if (!leaveTypeKey) return 0
+
+  return employeeApplicationsForBalance.value
+    .filter((application) => getBlockingLeaveApplicationState(application) === 'pending')
+    .filter((application) => getLeaveBalanceTypeKey(getApplicationLeaveTypeName(application)) === leaveTypeKey)
+    .reduce((total, application) => total + getApplicationRequestedDayCount(application), 0)
+}
+
 const availableSelectedLeaveBalance = computed(() => {
-  if (selectedLeaveTypeBalanceValue.value === null) return null
-  return Math.max(0, selectedLeaveTypeBalanceValue.value - pendingSelectedLeaveDays.value)
+  const leaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
+  const selectedAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(leaveTypeKey)
+  if (selectedAvailableBalance === null) return null
+
+  if (leaveTypeKey === FORCED_LEAVE_TYPE_KEY) {
+    const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
+    if (selectedAvailableBalance <= 0 || vacationAvailableBalance <= 0) return 0
+
+    return Math.max(0, vacationAvailableBalance)
+  }
+
+  if (isVacationBackedLeaveTypeKey(leaveTypeKey)) {
+    const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
+
+    return Math.max(0, selectedAvailableBalance + vacationAvailableBalance)
+  }
+
+  return selectedAvailableBalance
 })
+
+const forcedLeaveVacationBalanceWarning = computed(() => {
+  if (getLeaveBalanceTypeKey(selectedLeaveTypeName.value) !== FORCED_LEAVE_TYPE_KEY) return ''
+
+  const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
+  return vacationAvailableBalance <= 0
+    ? 'Mandatory / Forced Leave requires available Vacation Leave balance.'
+    : ''
+})
+
+function resolveAvailableLeaveBalanceForTypeKey(leaveTypeKey) {
+  const balanceValue = resolveLeaveBalanceValueForTypeKey(leaveTypeKey)
+  if (balanceValue === null) return null
+
+  return Math.max(0, balanceValue - resolvePendingLeaveDaysForTypeKey(leaveTypeKey))
+}
 
 function getLeaveBalanceWarningForTotal(totalDays) {
   if (isMonetization.value || totalDays <= 0) return ''
+  if (forcedLeaveVacationBalanceWarning.value) return forcedLeaveVacationBalanceWarning.value
+
   const trackedBalance = selectedLeaveTypeBalanceValue.value
   if (trackedBalance === null) return ''
 
@@ -1596,6 +1708,10 @@ function getLeaveBalanceWarningForTotal(totalDays) {
     }
 
     return `This employee's ${selectedLeaveTypeName.value} balance is insufficient. CTO stays WP-only, so reduce the selected dates or wait for more valid CTO credits.`
+  }
+
+  if (allowSlVlCrossDeduction.value && canUseSlVlCrossDeductionForTotal()) {
+    return ''
   }
 
   const withoutPayDays = Math.max(totalDays - availableSelectedLeaveBalance.value, 0)
@@ -1612,10 +1728,7 @@ const leaveBalanceWarning = computed(() => {
   return getLeaveBalanceWarningForTotal(selectedDateCreditTotalDays.value)
 })
 
-const selectedLeaveTypeMaxDays = computed(() => {
-  const lt = allLeaveTypes.value.find(t => t.id === form.value.leaveTypeId)
-  return lt ? lt.max_days : null
-})
+const selectedLeaveTypeMaxDays = computed(() => effectiveSelectedLeaveTypeConfig.value?.max_days ?? null)
 
 function getMaxDaysWarningForTotal(totalDays) {
   const max = Number(selectedLeaveTypeMaxDays.value)
@@ -1629,84 +1742,345 @@ function getSelectionLimitWarningForTotal(totalDays) {
 }
 
 const isMco6Leave = computed(() => selectedLeaveTypeName.value === 'Special Privilege Leave')
-const isMaternityLeave = computed(() => selectedLeaveTypeName.value === 'Maternity Leave')
-const isPaternityLeave = computed(() => selectedLeaveTypeName.value === 'Paternity Leave')
 const isCtoType = computed(() => selectedLeaveTypeName.value === 'CTO Leave')
 const isMonetization = computed(() => selectedLeaveTypeName.value === 'Monetization Leave')
+const isTerminalLeave = computed(() => {
+  const selectedLeaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
+  const otherPurposeKey = getLeaveBalanceTypeKey(form.value.otherPurpose)
+  const otherLeaveTypeKey = getLeaveBalanceTypeKey(form.value.leaveTypeOther)
+
+  return selectedLeaveTypeKey === 'terminal leave'
+    || (selectedLeaveTypeKey === 'others' && otherPurposeKey === 'terminal leave')
+    || otherLeaveTypeKey === 'terminal leave'
+})
+const terminalLeaveTypeConfig = computed(() =>
+  allLeaveTypes.value.find((leaveType) => getLeaveBalanceTypeKey(leaveType.name) === 'terminal leave') || null,
+)
+const terminalLeaveTypeId = computed(() =>
+  terminalLeaveTypeConfig.value ? terminalLeaveTypeConfig.value.id : null,
+)
+const effectiveSelectedLeaveTypeConfig = computed(() =>
+  isTerminalLeave.value && terminalLeaveTypeConfig.value
+    ? terminalLeaveTypeConfig.value
+    : selectedLeaveTypeConfig.value,
+)
+const selectedLeaveTypeRequiresDocuments = computed(() =>
+  Boolean(
+    effectiveSelectedLeaveTypeConfig.value?.requires_documents
+      ?? effectiveSelectedLeaveTypeConfig.value?.requiresDocuments
+      ?? false,
+  ),
+)
 
 const showDetailsOfLeave = computed(() => {
-  const types = ['Vacation Leave', 'Sick Leave']
+  const types = ['Vacation Leave', 'Special Privilege Leave', 'Sick Leave', 'Wellness Leave']
   return types.includes(selectedLeaveTypeName.value) || selectedLeaveTypeRequiresDocuments.value
 })
 
 const isVacationType = computed(() => selectedLeaveTypeName.value === 'Vacation Leave')
+const isWellnessType = computed(() => selectedLeaveTypeName.value === 'Wellness Leave')
+const isSpecialPrivilegeType = computed(() => selectedLeaveTypeName.value === 'Special Privilege Leave')
+const isAbroadWeekendWopType = computed(() =>
+  (isVacationType.value || isWellnessType.value) && form.value.vacationDetail === 'Abroad',
+)
+
 const isSickType = computed(() => selectedLeaveTypeName.value === 'Sick Leave')
 const moveDialogActionsUp = computed(() => props.inDialog && !isMonetization.value && showDetailsOfLeave.value)
 
-// Monetization state
-const monetization = ref({
-  leaveTypeId: null,
-  availableBalance: null,
-  daysToMonetize: null,
-  loadingBalance: false,
+function resolveLeaveBalanceValueByTypeKey(leaveTypeName) {
+  const leaveTypeKey = getLeaveBalanceTypeKey(leaveTypeName)
+  if (!leaveTypeKey) return 0
+
+  const matchedEntry = resolvedLeaveBalanceEntries.value.find(
+    (entry) => getLeaveBalanceTypeKey(entry.label) === leaveTypeKey,
+  )
+  const numericValue = Number(matchedEntry?.value)
+
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
+function resolveAvailableLeaveBalanceByTypeKey(leaveTypeKey) {
+  if (!leaveTypeKey) return 0
+
+  const matchedEntry = resolvedLeaveBalanceEntries.value.find(
+    (entry) => getLeaveBalanceTypeKey(entry.label) === leaveTypeKey,
+  )
+  const numericValue = Number(matchedEntry?.value)
+  if (!Number.isFinite(numericValue)) return 0
+
+  return Math.max(numericValue - resolvePendingLeaveDaysForTypeKey(leaveTypeKey), 0)
+}
+
+const slVlCrossDeductionContext = computed(() => {
+  const selectedLeaveTypeKey = getLeaveBalanceTypeKey(selectedLeaveTypeName.value)
+  if (selectedLeaveTypeKey === 'sick leave') {
+    return {
+      alternateLeaveTypeKey: 'vacation leave',
+      alternateLeaveTypeLabel: 'Vacation Leave',
+      alternateAvailableBalance: resolveAvailableLeaveBalanceByTypeKey('vacation leave'),
+    }
+  }
+
+  if (selectedLeaveTypeKey === 'vacation leave') {
+    return {
+      alternateLeaveTypeKey: 'sick leave',
+      alternateLeaveTypeLabel: 'Sick Leave',
+      alternateAvailableBalance: resolveAvailableLeaveBalanceByTypeKey('sick leave'),
+    }
+  }
+
+  return null
 })
+
+const terminalLeaveVacationBalanceValue = computed(() =>
+  resolveLeaveBalanceValueByTypeKey('Vacation Leave'),
+)
+const terminalLeaveSickBalanceValue = computed(() =>
+  resolveLeaveBalanceValueByTypeKey('Sick Leave'),
+)
+const terminalLeaveVacationBalanceLabel = computed(() =>
+  formatLeaveBalanceValue(terminalLeaveVacationBalanceValue.value) || '0.000',
+)
+const terminalLeaveSickBalanceLabel = computed(() =>
+  formatLeaveBalanceValue(terminalLeaveSickBalanceValue.value) || '0.000',
+)
+const terminalLeaveTotalCreditsValue = computed(() =>
+  roundToThreeDecimals(terminalLeaveVacationBalanceValue.value + terminalLeaveSickBalanceValue.value),
+)
+const terminalLeaveEstimatedAmountValue = computed(() => {
+  const salary = Number(parseSalary(form.value.salary))
+  if (!Number.isFinite(salary) || salary <= 0) return null
+
+  return terminalLeaveTotalCreditsValue.value * salary * TERMINAL_LEAVE_ESTIMATE_FACTOR
+})
+const terminalLeaveEstimatedAmountLabel = computed(() => {
+  const estimatedAmount = terminalLeaveEstimatedAmountValue.value
+  if (!Number.isFinite(estimatedAmount)) return '-'
+
+  const truncatedEstimatedAmount = truncateCurrencyValue(estimatedAmount)
+
+  return truncatedEstimatedAmount === null
+    ? '-'
+    : terminalLeaveCurrencyFormatter.format(truncatedEstimatedAmount)
+})
+
+// Monetization state
+const MONETIZATION_MINIMUM_REQUEST_DAYS = 10
+const MONETIZATION_MINIMUM_BALANCE_DAYS = 15
+const MONETIZATION_ATTACHMENT_THRESHOLD_DAYS = 10
+
+function createEmptyMonetizationState() {
+  return {
+    leaveTypeIds: [],
+    availableBalances: {},
+    daysByType: {},
+    loadingBalances: {},
+  }
+}
+
+const monetization = ref(createEmptyMonetizationState())
+
+function resolveLeaveTypeOptionId(leaveType) {
+  const rawId = leaveType?.leave_type_id || leaveType?.id
+  const resolvedId = Number(rawId)
+  return Number.isFinite(resolvedId) && resolvedId > 0 ? resolvedId : null
+}
 
 const monetizationLeaveTypeOptions = computed(() => {
   const opts = []
   const vl = allLeaveTypes.value.find(t => t.name === 'Vacation Leave')
   const sl = allLeaveTypes.value.find(t => t.name === 'Sick Leave')
-  if (vl) opts.push({ label: 'Vacation Leave', value: vl.id })
-  if (sl) opts.push({ label: 'Sick Leave', value: sl.id })
+  const vacationLeaveTypeId = resolveLeaveTypeOptionId(vl)
+  const sickLeaveTypeId = resolveLeaveTypeOptionId(sl)
+  if (vacationLeaveTypeId) opts.push({ label: 'Vacation Leave', value: vacationLeaveTypeId })
+  if (sickLeaveTypeId) opts.push({ label: 'Sick Leave', value: sickLeaveTypeId })
   return opts
 })
 
-watch(isMonetization, async (val) => {
-  if (val && selectedEmployeeControlNo.value) {
-    const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
-    if (vlOpt) {
-      monetization.value.leaveTypeId = vlOpt.value
-      await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, vlOpt.value)
-    }
-  } else {
-    monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
-  }
+function normalizeMonetizationTypeId(value) {
+  const normalized = Number(value)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null
+}
+
+function normalizeMonetizationTypeIds(value) {
+  const rawValues = Array.isArray(value) ? value : (value ? [value] : [])
+  return [...new Set(rawValues.map(normalizeMonetizationTypeId).filter(Boolean))]
+}
+
+const selectedMonetizationTypeIds = computed(() => normalizeMonetizationTypeIds(monetization.value.leaveTypeIds))
+
+const selectedMonetizationOptions = computed(() => {
+  const selectedIds = new Set(selectedMonetizationTypeIds.value)
+  return monetizationLeaveTypeOptions.value.filter(option => selectedIds.has(Number(option.value)))
 })
 
-async function onMonetizationTypeChange(typeId) {
-  if (typeId && selectedEmployeeControlNo.value) {
-    await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, typeId)
+function getMonetizationAvailableBalance(typeId) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return null
+  const balances = monetization.value.availableBalances || {}
+  return Object.prototype.hasOwnProperty.call(balances, normalizedTypeId)
+    ? balances[normalizedTypeId]
+    : null
+}
+
+function isMonetizationBalanceLoading(typeId) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  return normalizedTypeId ? Boolean(monetization.value.loadingBalances?.[normalizedTypeId]) : false
+}
+
+function getMonetizationDays(typeId) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return null
+  const daysByType = monetization.value.daysByType || {}
+  return Object.prototype.hasOwnProperty.call(daysByType, normalizedTypeId)
+    ? daysByType[normalizedTypeId]
+    : null
+}
+
+function setMonetizationDays(typeId, value) {
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return
+
+  const normalizedDays = value === null || value === ''
+    ? null
+    : Math.max(Number(value), 0)
+
+  monetization.value.daysByType = {
+    ...(monetization.value.daysByType || {}),
+    [normalizedTypeId]: Number.isFinite(normalizedDays) ? normalizedDays : null,
   }
 }
 
+const monetizationComponents = computed(() => selectedMonetizationOptions.value
+  .map(option => ({
+    leave_type_id: Number(option.value),
+    leave_type_name: option.label,
+    days: Number(getMonetizationDays(option.value) || 0),
+  }))
+  .filter(component => component.days > 0))
+
+const monetizationTotalDays = computed(() => Number(
+  monetizationComponents.value
+    .reduce((total, component) => total + Number(component.days || 0), 0)
+    .toFixed(3),
+))
+
+const monetizationRequiresAttachment = computed(() =>
+  monetizationComponents.value.some(component => Number(component.days || 0) > MONETIZATION_ATTACHMENT_THRESHOLD_DAYS),
+)
+
+watch(isMonetization, async (val) => {
+  monetization.value = createEmptyMonetizationState()
+  if (val && selectedEmployeeControlNo.value) {
+    const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
+    if (vlOpt) {
+      await onMonetizationTypeChange([vlOpt.value])
+    }
+  } else {
+    form.value.attachmentFile = null
+  }
+})
+
+watch(selectedEmployeeControlNo, async (controlNo) => {
+  if (!isMonetization.value) return
+
+  monetization.value = createEmptyMonetizationState()
+  if (!controlNo) {
+    form.value.attachmentFile = null
+    return
+  }
+
+  const vlOpt = monetizationLeaveTypeOptions.value.find(o => o.label === 'Vacation Leave')
+  if (vlOpt) {
+    await onMonetizationTypeChange([vlOpt.value])
+  }
+})
+
+watch(monetizationRequiresAttachment, (required) => {
+  if (!required && isMonetization.value) {
+    form.value.attachmentFile = null
+  }
+})
+
+async function onMonetizationTypeChange(typeIds) {
+  const normalizedTypeIds = normalizeMonetizationTypeIds(typeIds)
+  monetization.value.leaveTypeIds = normalizedTypeIds
+
+  const retainedDaysByType = {}
+  normalizedTypeIds.forEach((typeId) => {
+    if (Object.prototype.hasOwnProperty.call(monetization.value.daysByType || {}, typeId)) {
+      retainedDaysByType[typeId] = monetization.value.daysByType[typeId]
+    }
+  })
+  monetization.value.daysByType = retainedDaysByType
+
+  if (!selectedEmployeeControlNo.value) return
+
+  await Promise.all(normalizedTypeIds.map(async (typeId) => {
+    if (getMonetizationAvailableBalance(typeId) === null && !isMonetizationBalanceLoading(typeId)) {
+      await fetchEmployeeMonetizationBalance(selectedEmployeeControlNo.value, typeId)
+    }
+  }))
+}
+
 async function fetchEmployeeMonetizationBalance(empId, typeId) {
-  monetization.value.loadingBalance = true
-  monetization.value.availableBalance = null
-  monetization.value.daysToMonetize = null
+  const normalizedTypeId = normalizeMonetizationTypeId(typeId)
+  if (!normalizedTypeId) return
+
+  monetization.value.loadingBalances = {
+    ...(monetization.value.loadingBalances || {}),
+    [normalizedTypeId]: true,
+  }
+  monetization.value.availableBalances = {
+    ...(monetization.value.availableBalances || {}),
+    [normalizedTypeId]: null,
+  }
   try {
-    const { data } = await api.get(`/admin/employee-leave-balance/${empId}/${typeId}`)
-    monetization.value.availableBalance = data.balance
+    const { data } = await api.get(`/admin/employee-leave-balance/${empId}/${normalizedTypeId}`)
+    monetization.value.availableBalances = {
+      ...(monetization.value.availableBalances || {}),
+      [normalizedTypeId]: Number(data.balance || 0),
+    }
+    const resolvedSalary = parseSalary(data?.rate_mon ?? data?.salary)
+    if (resolvedSalary) {
+      form.value.salary = resolvedSalary
+    }
   } catch {
-    monetization.value.availableBalance = 0
+    monetization.value.availableBalances = {
+      ...(monetization.value.availableBalances || {}),
+      [normalizedTypeId]: 0,
+    }
   } finally {
-    monetization.value.loadingBalance = false
+    monetization.value.loadingBalances = {
+      ...(monetization.value.loadingBalances || {}),
+      [normalizedTypeId]: false,
+    }
   }
 }
 
 const monetizationEstimatedAmount = computed(() => {
   const salary = parseSalary(form.value.salary)
-  const days = monetization.value.daysToMonetize
+  const days = monetizationTotalDays.value
   if (!salary || !days || days <= 0) return '0.00'
   const dailyRate = Number(salary) / 22
   return (days * dailyRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 })
 
 const monetizationSubmitDisabled = computed(() => {
-  const bal = monetization.value.availableBalance
-  const days = monetization.value.daysToMonetize
-  if (bal === null || bal < 10) return true
-  if (!days || days < 1 || days > bal) return true
-  if (!monetization.value.leaveTypeId) return true
+  if (!selectedMonetizationTypeIds.value.length) return true
+  if (!monetizationComponents.value.length) return true
+  if (monetizationTotalDays.value < MONETIZATION_MINIMUM_REQUEST_DAYS) return true
+
+  for (const component of monetizationComponents.value) {
+    const balance = getMonetizationAvailableBalance(component.leave_type_id)
+    if (balance === null || isMonetizationBalanceLoading(component.leave_type_id)) return true
+    if (Number(balance) < MONETIZATION_MINIMUM_BALANCE_DAYS) return true
+    if (Number(component.days) > Number(balance)) return true
+  }
+
+  if (monetizationRequiresAttachment.value && !resolveSingleFile(form.value.attachmentFile)) return true
   if (!selectedEmployeeControlNo.value) return true
+
   return false
 })
 
@@ -1720,6 +2094,7 @@ function onLeaveTypeChange(newValue) {
   }
 
   lastLeaveTypeId.value = newValue
+  allowSlVlCrossDeduction.value = false
   const preservedReason = form.value.reason
   const selectedLeaveType = allLeaveTypes.value.find((leaveType) => leaveType.id === newValue)
 
@@ -1727,6 +2102,8 @@ function onLeaveTypeChange(newValue) {
     ? 'Within the Philippines'
     : ''
   form.value.vacationSpecify = ''
+  form.value.splDetail = ''
+  form.value.splSpecify = ''
   form.value.sickDetail = ''
   form.value.sickSpecify = ''
   form.value.sickSpecifyOther = ''
@@ -1740,7 +2117,7 @@ function onLeaveTypeChange(newValue) {
   selectedDatePayStatuses.value = {}
   selectedDateHalfDayPortions.value = {}
   clearCalendarDateWarning()
-  monetization.value = { leaveTypeId: null, availableBalance: null, daysToMonetize: null, loadingBalance: false }
+  monetization.value = createEmptyMonetizationState()
   form.value.reason = preservedReason
 }
 
@@ -1754,7 +2131,12 @@ const sortedSelectedDates = computed(() =>
 )
 
 function getSelectedDateTotalForDates(dates, durations = selectedDateDurations.value) {
-  return dates.reduce((total, date) => total + ((durations?.[date] === 'half_day') ? 0.5 : 1), 0)
+  return dates.reduce((total, date) => {
+    if (isAbroadWeekendWopType.value && isWeekendDate(date)) {
+      return total
+    }
+    return total + ((durations?.[date] === 'half_day') ? 0.5 : 1)
+  }, 0)
 }
 
 function getSelectedDateCreditTotalForDates(
@@ -1764,6 +2146,9 @@ function getSelectedDateCreditTotalForDates(
 ) {
   return dates.reduce((total, date) => {
     if ((payStatuses?.[date] || 'with_pay') === 'without_pay') {
+      return total
+    }
+    if (isAbroadWeekendWopType.value && isWeekendDate(date)) {
       return total
     }
 
@@ -1944,20 +2329,6 @@ function getLockedDateConflict(dateStr) {
   const normalizedDate = normalizeIsoDate(dateStr)
   if (!normalizedDate) return null
 
-  if (isMaternityLeave.value || isPaternityLeave.value) {
-    const totalDays = isMaternityLeave.value ? 105 : 7
-    const conflictingDate = enumerateInclusiveDates(
-      normalizedDate,
-      offsetIsoDate(normalizedDate, totalDays - 1),
-    ).find((date) => lockedLeaveDates.value.has(date))
-
-    if (!conflictingDate) return null
-    return {
-      date: conflictingDate,
-      state: getLockedDateState(conflictingDate) || 'pending',
-    }
-  }
-
   if (!lockedLeaveDates.value.has(normalizedDate)) return null
 
   return {
@@ -1995,14 +2366,6 @@ function getSelectionLimitWarningForDate(dateStr) {
   if (currentDates.includes(normalizedDate)) return ''
 
   if (!leaveDateOptions.value(toSlash(normalizedDate))) return ''
-
-  if (isMaternityLeave.value || isPaternityLeave.value) {
-    const totalDays = isMaternityLeave.value ? 105 : 7
-    const proposedDates = Array.from({ length: totalDays }, (_, index) =>
-      offsetIsoDate(normalizedDate, index),
-    )
-    return getSelectionLimitWarningForDates(proposedDates)
-  }
 
   return getSelectionLimitWarningForDates([...currentDates, normalizedDate])
 }
@@ -2203,14 +2566,13 @@ function countWorkingDaysFromNextDay(lastAbsentDate, filedDate) {
   return count
 }
 
-function countWorkingDaysBeforeDate(filedDate, targetDate) {
+function countWorkingDaysFromFiledDateBeforeDate(filedDate, targetDate) {
   if (!(filedDate instanceof Date) || Number.isNaN(filedDate.getTime())) return 0
   if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) return 0
   if (targetDate <= filedDate) return 0
 
   let count = 0
   const cursor = new Date(filedDate.getFullYear(), filedDate.getMonth(), filedDate.getDate())
-  cursor.setDate(cursor.getDate() + 1)
 
   while (cursor < targetDate) {
     const dayOfWeek = cursor.getDay()
@@ -2280,18 +2642,62 @@ function resolveSickLeaveDisplayPayMode() {
 }
 
 function applySickLeaveDisplayPayStatusPolicy() {
-  if (isMonetization.value || !isSickType.value) return
+  const sortedDates = [...sortedSelectedDates.value]
+  const activeDates = new Set(sortedDates)
 
-  const resolvedPayMode = resolveSickLeaveDisplayPayMode()
-  if (resolvedPayMode !== 'without_pay') {
+  Array.from(forcedSickLateWopDateKeys).forEach((date) => {
+    if (activeDates.has(date)) {
+      return
+    }
+
+    forcedSickLateWopDateKeys.delete(date)
+  })
+
+  const releaseForcedSickLateWopDates = () => {
+    Array.from(forcedSickLateWopDateKeys).forEach((date) => {
+      if (!activeDates.has(date)) {
+        forcedSickLateWopDateKeys.delete(date)
+        return
+      }
+
+      if (
+        selectedDatePayStatuses.value[date] === 'without_pay'
+      ) {
+        selectedDatePayStatuses.value[date] = 'with_pay'
+      }
+
+      forcedSickLateWopDateKeys.delete(date)
+    })
+  }
+
+  if (isMonetization.value || !isSickType.value) {
+    releaseForcedSickLateWopDates()
     return
   }
 
-  const sortedDates = [...sortedSelectedDates.value]
+  const resolvedPayMode = resolveSickLeaveDisplayPayMode()
+  if (resolvedPayMode !== 'without_pay') {
+    releaseForcedSickLateWopDates()
+    return
+  }
+
   sortedDates.forEach((date) => {
     selectedDatePayStatuses.value[date] = 'without_pay'
+    forcedSickLateWopDateKeys.add(date)
   })
 }
+
+function isWeekendDate(date) {
+  const parsedDate = parseIsoDateValue(date)
+  if (!(parsedDate instanceof Date) || Number.isNaN(parsedDate.getTime())) return false
+
+  const dayOfWeek = parsedDate.getDay()
+  return dayOfWeek === 0 || dayOfWeek === 6
+}
+
+
+
+
 
 function applyCtoDisplayPayStatusPolicy() {
   if (isMonetization.value || !isCtoType.value) return
@@ -2302,9 +2708,251 @@ function applyCtoDisplayPayStatusPolicy() {
   })
 }
 
+function resolveCreditBasedWithPayCap() {
+  if (isMonetization.value || isCtoType.value || isTerminalLeave.value) {
+    return null
+  }
+
+  const availableCredits = availableSelectedLeaveBalance.value
+  if (!Number.isFinite(availableCredits)) {
+    return null
+  }
+
+  return Math.max(availableCredits, 0)
+}
+
+function resolveSlVlCrossDeductionAlternateDays(payStatuses = selectedDatePayStatuses.value) {
+  const context = slVlCrossDeductionContext.value
+  if (!context) {
+    return null
+  }
+
+  const withPayCap = resolveCreditBasedWithPayCap()
+  if (!Number.isFinite(withPayCap)) {
+    return null
+  }
+
+  let remainingPrimaryBalance = Math.max(withPayCap, 0)
+  let alternateDeductionDays = 0
+
+  sortedSelectedDates.value.forEach((date) => {
+    const status = payStatuses?.[date] || 'with_pay'
+    if (status === 'without_pay') {
+      return
+    }
+
+    const dateWeight = selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1
+    if (remainingPrimaryBalance + 1e-9 >= dateWeight) {
+      remainingPrimaryBalance = Math.max(remainingPrimaryBalance - dateWeight, 0)
+      return
+    }
+
+    alternateDeductionDays += dateWeight
+  })
+
+  return alternateDeductionDays
+}
+
+function canUseSlVlCrossDeductionForTotal(payStatuses = selectedDatePayStatuses.value) {
+  const context = slVlCrossDeductionContext.value
+  if (!context) {
+    return false
+  }
+
+  const alternateDeductionDays = resolveSlVlCrossDeductionAlternateDays(payStatuses)
+  if (!Number.isFinite(alternateDeductionDays) || alternateDeductionDays <= 1e-9) {
+    return false
+  }
+
+  return alternateDeductionDays <= context.alternateAvailableBalance + 1e-9
+}
+
+async function confirmSlVlCrossDeductionForTotal(payStatuses = selectedDatePayStatuses.value) {
+  const context = slVlCrossDeductionContext.value
+  const alternateDeductionDays = resolveSlVlCrossDeductionAlternateDays(payStatuses)
+  if (!context || !Number.isFinite(alternateDeductionDays) || alternateDeductionDays <= 1e-9) {
+    return false
+  }
+
+  const message = `${formatDayCountValue(alternateDeductionDays)} day(s) will be deducted from ${context.alternateLeaveTypeLabel} to keep this leave with pay. Continue?`
+  if (typeof $q?.dialog === 'function') {
+    return await new Promise((resolve) => {
+      let settled = false
+
+      const finish = (value) => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        resolve(value)
+      }
+
+      $q.dialog({
+        title: 'Keep This Leave With Pay?',
+        message,
+        persistent: true,
+        ok: {
+          label: 'Continue',
+          color: 'primary',
+          unelevated: true,
+        },
+        cancel: {
+          label: 'Cancel',
+          flat: true,
+          color: 'primary',
+        },
+      })
+        .onOk(() => finish(true))
+        .onCancel(() => finish(false))
+        .onDismiss(() => finish(false))
+    })
+  }
+
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+    return false
+  }
+
+  return window.confirm(message)
+}
+
+async function confirmSetDateToWithoutPay() {
+  const message = 'This date will be marked as without pay. Do you want to continue?'
+  if (typeof $q?.dialog === 'function') {
+    return await new Promise((resolve) => {
+      let settled = false
+
+      const finish = (value) => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        resolve(value)
+      }
+
+      $q.dialog({
+        title: 'Set date to WOP?',
+        message,
+        persistent: true,
+        ok: {
+          label: 'Yes, set WOP',
+          color: 'negative',
+          unelevated: true,
+        },
+        cancel: {
+          label: 'Cancel',
+          flat: true,
+          color: 'grey-7',
+        },
+      })
+        .onOk(() => finish(true))
+        .onCancel(() => finish(false))
+        .onDismiss(() => finish(false))
+    })
+  }
+
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+    return false
+  }
+
+  return window.confirm(message)
+}
+
+async function confirmSetDateToWithPay() {
+  const message = 'This date will be marked as with pay. Do you want to continue?'
+  if (typeof $q?.dialog === 'function') {
+    return await new Promise((resolve) => {
+      let settled = false
+
+      const finish = (value) => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        resolve(value)
+      }
+
+      $q.dialog({
+        title: 'Set date to WP?',
+        message,
+        persistent: true,
+        ok: {
+          label: 'Yes, set WP',
+          color: 'primary',
+          unelevated: true,
+        },
+        cancel: {
+          label: 'Cancel',
+          flat: true,
+          color: 'grey-7',
+        },
+      })
+        .onOk(() => finish(true))
+        .onCancel(() => finish(false))
+        .onDismiss(() => finish(false))
+    })
+  }
+
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+    return false
+  }
+
+  return window.confirm(message)
+}
+
+function enforceCreditBasedPayStatusLimit() {
+  const withPayCap = resolveCreditBasedWithPayCap()
+  if (!Number.isFinite(withPayCap)) {
+    allowSlVlCrossDeduction.value = false
+    return
+  }
+
+  const sortedDates = [...sortedSelectedDates.value]
+  if (!sortedDates.length) {
+    allowSlVlCrossDeduction.value = false
+    return
+  }
+
+  let currentWithPayDays = getSelectedDateCreditTotalForDates(sortedDates)
+  if (currentWithPayDays <= withPayCap + 1e-9) {
+    allowSlVlCrossDeduction.value = false
+    return
+  }
+
+  if (
+    allowSlVlCrossDeduction.value
+    && canUseSlVlCrossDeductionForTotal()
+  ) {
+    return
+  }
+
+  allowSlVlCrossDeduction.value = false
+
+  for (
+    let index = sortedDates.length - 1;
+    index >= 0 && currentWithPayDays > withPayCap + 1e-9;
+    index -= 1
+  ) {
+    const date = sortedDates[index]
+    if (selectedDatePayStatuses.value[date] === 'without_pay') {
+      continue
+    }
+
+    selectedDatePayStatuses.value[date] = 'without_pay'
+    currentWithPayDays -= selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1
+  }
+}
+
 const selectedDateTotalDays = computed(() =>
   sortedSelectedDates.value.reduce(
-    (total, date) => total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1),
+    (total, date) => {
+      if (isAbroadWeekendWopType.value && isWeekendDate(date)) {
+        return total
+      }
+      return total + (selectedDateDurations.value[date] === 'half_day' ? 0.5 : 1)
+    },
     0,
   ),
 )
@@ -2423,8 +3071,10 @@ function toggleSelectedDateDuration(date) {
     selectedDateHalfDayPortions.value[date] = 'AM'
   }
 
+
   applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
+  enforceCreditBasedPayStatusLimit()
 }
 
 function selectedDateHalfDayPortionLabel(date) {
@@ -2445,7 +3095,9 @@ function selectedDatePayStatusLabel(date) {
   return selectedDatePayStatuses.value[date] === 'without_pay' ? 'WOP' : 'WP'
 }
 
-function toggleSelectedDatePayStatus(date) {
+async function toggleSelectedDatePayStatus(date) {
+
+
   if (isCtoType.value) {
     applyCtoDisplayPayStatusPolicy()
     $q.notify({ type: 'info', message: 'CTO applications stay WP-only. Use half day or whole day blocks instead.' })
@@ -2458,11 +3110,61 @@ function toggleSelectedDatePayStatus(date) {
     resolveSickLeaveDisplayPayMode() === 'without_pay'
   ) {
     applySickLeaveDisplayPayStatusPolicy()
+    $q.notify({
+      type: 'warning',
+      message:
+        'Late-filed Sick Leave can still be submitted, but it stays WOP in the application. If you want it to be WP, please ask HR to review and change it during processing.',
+    })
     return
   }
 
-  selectedDatePayStatuses.value[date] =
-    selectedDatePayStatuses.value[date] === 'without_pay' ? 'with_pay' : 'without_pay'
+  const currentStatus = selectedDatePayStatuses.value[date] || 'with_pay'
+  if (currentStatus === 'without_pay') {
+    if (!(await confirmSetDateToWithPay())) {
+      return
+    }
+
+    const projectedPayStatuses = {
+      ...selectedDatePayStatuses.value,
+      [date]: 'with_pay',
+    }
+    const projectedWithPayDays = getSelectedDateCreditTotalForDates(
+      sortedSelectedDates.value,
+      selectedDateDurations.value,
+      projectedPayStatuses,
+    )
+    const withPayCap = resolveCreditBasedWithPayCap()
+
+    if (Number.isFinite(withPayCap) && projectedWithPayDays > withPayCap + 1e-9) {
+      if (
+        canUseSlVlCrossDeductionForTotal(projectedPayStatuses)
+        && await confirmSlVlCrossDeductionForTotal(projectedPayStatuses)
+      ) {
+        allowSlVlCrossDeduction.value = true
+        selectedDatePayStatuses.value[date] = 'with_pay'
+        enforceCreditBasedPayStatusLimit()
+        return
+      }
+
+      $q.notify({
+        type: 'warning',
+        message: 'Not enough leave credits. Set another selected day to WOP first.',
+      })
+      return
+    }
+
+    allowSlVlCrossDeduction.value = false
+    selectedDatePayStatuses.value[date] = 'with_pay'
+    enforceCreditBasedPayStatusLimit()
+    return
+  }
+
+  if (!(await confirmSetDateToWithoutPay())) {
+    return
+  }
+
+  selectedDatePayStatuses.value[date] = 'without_pay'
+  enforceCreditBasedPayStatusLimit()
 }
 
 const leaveDateOptions = computed(() => {
@@ -2473,69 +3175,17 @@ const leaveDateOptions = computed(() => {
   return (date) => {
     const dashDate = normalizeIsoDate(date)
 
-    // Maternity/Paternity Leave stays continuous and can still include locked-date checks.
-    if (isMaternityLeave.value || isPaternityLeave.value) {
-      return isLockedDateSelection(dashDate) === false
-    }
-
+    if (isLockedDateSelection(dashDate)) return false
     if (blockedDates.has(dashDate) && selected.includes(dashDate) === false) return false
 
     return true
   }
 })
 
-const maternityStartDate = ref(null)
-
-// Auto-calculate days for Maternity (105) or Paternity (7)
-watch(maternityStartDate, (newDate) => {
-  if (newDate) {
-    if (isLockedDateSelection(newDate)) {
-      showCalendarDateWarning(newDate)
-      maternityStartDate.value = null
-      selectedDates.value = []
-      return
-    }
-
-    clearCalendarDateWarning()
-    let daysCount = 0
-    if (isMaternityLeave.value) daysCount = 105
-    else if (isPaternityLeave.value) daysCount = 7
-    
-    if (daysCount > 0) {
-      const dates = []
-      const start = new Date(newDate)
-      for (let i = 0; i < daysCount; i++) {
-        const d = new Date(start)
-        d.setDate(start.getDate() + i)
-        dates.push(d.toISOString().split('T')[0])
-      }
-      const normalizedDates = normalizeSelectedDates(dates)
-      const limitWarning = getSelectionLimitWarningForDates(normalizedDates)
-      if (limitWarning) {
-        showCalendarDateWarning(newDate, { message: limitWarning })
-        maternityStartDate.value = null
-        selectedDates.value = []
-        return
-      }
-      selectedDates.value = normalizedDates
-    }
-  }
-})
-
-// Reset start date if leave type changes
-watch([isMaternityLeave, isPaternityLeave], ([mat, pat]) => {
-  if (!mat && !pat) maternityStartDate.value = null
-})
-
 watch(unavailableLeaveDates, (dates) => {
   const invalidSelectedDate = selectedDatesList.value.find((date) => dates.has(date))
   if (invalidSelectedDate) {
     selectedDates.value = selectedDatesList.value.filter((date) => dates.has(date) === false)
-  }
-
-  if (maternityStartDate.value && isLockedDateSelection(maternityStartDate.value)) {
-    maternityStartDate.value = null
-    selectedDates.value = []
   }
 
   if (calendarDateWarningDate.value && dates.has(calendarDateWarningDate.value) === false) {
@@ -2584,10 +3234,13 @@ watch(selectedDates, (dates) => {
   syncSelectedDateDurations(normalized)
   syncSelectedDatePayStatuses(normalized)
   syncSelectedDateHalfDayPortions(normalized)
+
   applyCtoDisplayPayStatusPolicy()
   applySickLeaveDisplayPayStatusPolicy()
+  enforceCreditBasedPayStatusLimit()
 
   if (normalized.length === 0) {
+    allowSlVlCrossDeduction.value = false
     form.value.days = 1
     form.value.startDate = ''
     form.value.endDate = ''
@@ -2604,10 +3257,22 @@ watch(selectedDates, (dates) => {
 }, { deep: true })
 
 watch(
-  [sortedSelectedDates, selectedDateTotalDays, isSickType, isCtoType, isMonetization],
+  [
+    sortedSelectedDates,
+    selectedDateTotalDays,
+    isSickType,
+    isCtoType,
+    isMonetization,
+    isAbroadWeekendWopType,
+
+    availableSelectedLeaveBalance,
+    () => slVlCrossDeductionContext.value?.alternateAvailableBalance ?? 0,
+  ],
   () => {
+
     applyCtoDisplayPayStatusPolicy()
     applySickLeaveDisplayPayStatusPolicy()
+    enforceCreditBasedPayStatusLimit()
   },
   { immediate: true },
 )
@@ -2664,6 +3329,8 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
   const leaveDetailsPayload = {
     vacation_detail: form.value.vacationDetail,
     vacation_specify: form.value.vacationSpecify,
+    spl_detail: form.value.splDetail,
+    spl_specify: form.value.splSpecify,
     sick_detail: form.value.sickDetail,
     sick_specify: resolvedSickIllness.value,
     women_specify: form.value.womenSpecify,
@@ -2679,6 +3346,10 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
   const selectedDateHalfDayPortionPayload = buildSelectedDateHalfDayPortionPayload(
     sortedSelectedDates.value,
   )
+  const isTerminalSubmission = !isMonetizationSubmission && isTerminalLeave.value
+  const submittedTotalDays = isMonetizationSubmission
+    ? monetizationTotalDays.value
+    : (isTerminalSubmission ? terminalLeaveTotalCreditsValue.value : selectedDateTotalDays.value)
 
   return {
     ...(backendApplication && typeof backendApplication === 'object' ? backendApplication : {}),
@@ -2700,11 +3371,19 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
       selectedEmployeeControlNo.value ??
       form.value.employeeControlNo ??
       null,
-    startDate: backendApplication?.startDate ?? backendApplication?.start_date ?? form.value.startDate,
-    endDate: backendApplication?.endDate ?? backendApplication?.end_date ?? form.value.endDate,
-    days: backendApplication?.days ?? backendApplication?.total_days ?? selectedDateTotalDays.value,
-    total_days: backendApplication?.total_days ?? selectedDateTotalDays.value,
-    selected_dates: backendApplication?.selected_dates ?? [...selectedDatesList.value],
+    startDate:
+      backendApplication?.startDate
+      ?? backendApplication?.start_date
+      ?? (isTerminalSubmission ? null : form.value.startDate),
+    endDate:
+      backendApplication?.endDate
+      ?? backendApplication?.end_date
+      ?? (isTerminalSubmission ? null : form.value.endDate),
+    days: backendApplication?.days ?? backendApplication?.total_days ?? submittedTotalDays,
+    total_days: backendApplication?.total_days ?? submittedTotalDays,
+    selected_dates:
+      backendApplication?.selected_dates
+      ?? ((isMonetizationSubmission || isTerminalSubmission) ? [] : [...selectedDatesList.value]),
     selected_date_half_day_portion:
       backendApplication?.selected_date_half_day_portion ??
       backendApplication?.selectedDateHalfDayPortion ??
@@ -2718,6 +3397,10 @@ function buildSubmittedApplicationOverride(backendApplication, isMonetizationSub
     is_monetization:
       backendApplication?.is_monetization ??
       isMonetizationSubmission,
+    monetization_leave_credits:
+      backendApplication?.monetization_leave_credits ??
+      backendApplication?.monetizationLeaveCredits ??
+      (isMonetizationSubmission ? monetizationComponents.value : undefined),
     dateFiled:
       backendApplication?.dateFiled ??
       backendApplication?.date_filed ??
@@ -2754,20 +3437,58 @@ async function onSubmit() {
 
   // Monetization submission
   if (isMonetization.value) {
-    if (!monetization.value.leaveTypeId || monetizationSubmitDisabled.value) {
+    const monetizationPayloadComponents = monetizationComponents.value.map(component => ({
+      leave_type_id: component.leave_type_id,
+      days: component.days,
+    }))
+    const selectedAttachmentFile = resolveSingleFile(form.value.attachmentFile)
+
+    if (monetizationRequiresAttachment.value && !selectedAttachmentFile) {
+      $q.notify({ type: 'negative', message: 'Please upload a supporting document when Vacation Leave or Sick Leave monetization exceeds 10 days.' })
+      return
+    }
+
+    if (selectedAttachmentFile) {
+      if (!isAllowedAttachmentImage(selectedAttachmentFile)) {
+        $q.notify({ type: 'negative', message: 'Attachment must be an image, PDF, DOC, or DOCX file.' })
+        return
+      }
+
+      if (Number(selectedAttachmentFile.size || 0) > attachmentMaxSizeBytes) {
+        $q.notify({ type: 'negative', message: 'Attachment must not exceed 10 MB.' })
+        return
+      }
+    }
+
+    if (!monetizationPayloadComponents.length || monetizationSubmitDisabled.value) {
       $q.notify({ type: 'negative', message: 'Please complete all monetization fields.' })
       return
     }
+
     loading.value = true
     try {
-      const response = await api.post('/admin/leave-applications', {
+      const payload = {
         is_monetization: true,
         employee_control_no: selectedEmployeeControlNo.value,
-        leave_type_id: monetization.value.leaveTypeId,
-        total_days: monetization.value.daysToMonetize,
+        leave_type_id: monetizationPayloadComponents[0].leave_type_id,
+        total_days: monetizationTotalDays.value,
+        monetization_leave_credits: monetizationPayloadComponents,
         reason: String(form.value.reason || '').trim() || null,
         salary: parseSalary(form.value.salary) || null,
-      })
+        attachment_submitted: Boolean(selectedAttachmentFile),
+      }
+
+      if (selectedAttachmentFile) {
+        payload.attachment = selectedAttachmentFile
+      }
+
+      const isMultipartPayload = Boolean(payload.attachment)
+      const requestPayload = isMultipartPayload ? buildMultipartPayload(payload) : payload
+      const requestConfig = isMultipartPayload
+        ? { headers: { 'Content-Type': 'multipart/form-data' } }
+        : undefined
+
+      const response = await api.post('/admin/leave-applications', requestPayload, requestConfig)
       const submittedApplication = buildSubmittedApplicationOverride(
         extractSubmittedApplicationFromResponse(response?.data),
         true,
@@ -2790,20 +3511,50 @@ async function onSubmit() {
       return
   }
 
+  if (forcedLeaveVacationBalanceWarning.value) {
+    $q.notify({ type: 'negative', message: forcedLeaveVacationBalanceWarning.value, position: 'top' })
+    return
+  }
+
   if (leaveBalanceWarning.value) {
     $q.notify({ type: 'warning', message: leaveBalanceWarning.value, position: 'top' })
   }
 
   loading.value = true
   try {
-    if (selectedDatesList.value.length === 0) {
+    const isTerminalLeaveSubmission = isTerminalLeave.value
+    const terminalLeaveRequestedDays = terminalLeaveTotalCreditsValue.value
+
+    if (isTerminalLeaveSubmission && terminalLeaveRequestedDays <= 0) {
+      $q.notify({ type: 'negative', message: 'No terminal leave credits are available for this employee.' })
+      loading.value = false
+      return
+    }
+
+    if (!isTerminalLeaveSubmission && selectedDatesList.value.length === 0) {
       $q.notify({ type: 'negative', message: 'Please select at least 1 date.' })
       loading.value = false
       return
     }
 
-    const sortedSelectedDatesPayload = [...selectedDatesList.value].sort()
-    const payStatusBreakdown = getSelectedDatePayStatusBreakdown(sortedSelectedDatesPayload)
+    const sortedSelectedDatesPayload = isTerminalLeaveSubmission ? [] : [...selectedDatesList.value].sort()
+    const payStatusBreakdown = isTerminalLeaveSubmission
+      ? {
+          withPayTotalDays: terminalLeaveRequestedDays,
+          withoutPayTotalDays: 0,
+          withPayDates: [],
+          withoutPayDates: [],
+        }
+      : getSelectedDatePayStatusBreakdown(sortedSelectedDatesPayload)
+    const requestedTotalDays = isTerminalLeaveSubmission
+      ? terminalLeaveRequestedDays
+      : selectedDateTotalDays.value
+    const submittedDayCount = isTerminalLeaveSubmission
+      ? formatSelectedDayCount(terminalLeaveRequestedDays)
+      : form.value.days
+    const submissionLeaveTypeId = isTerminalLeaveSubmission
+      ? (terminalLeaveTypeId.value || form.value.leaveTypeId)
+      : form.value.leaveTypeId
     const selectedAttachmentFile = resolveSingleFile(form.value.attachmentFile)
     const selectedIllness = String(form.value.sickSpecify || '').trim()
 
@@ -2817,11 +3568,14 @@ async function onSubmit() {
       const firstAvailmentDate = parseIsoDateValue(sortedSelectedDatesPayload[0])
       const nowDate = new Date()
       const filedDate = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate())
-      const workingDaysBeforeAvailment = countWorkingDaysBeforeDate(filedDate, firstAvailmentDate)
-      if (workingDaysBeforeAvailment < 5) {
+      const workingDaysBeforeAvailment = countWorkingDaysFromFiledDateBeforeDate(
+        filedDate,
+        firstAvailmentDate,
+      )
+      if (workingDaysBeforeAvailment < 3) {
         $q.notify({
           type: 'negative',
-          message: 'CTO applications must be submitted at least 5 working days before the first availment date.',
+          message: 'CTO applications must be submitted at least 3 working days before the first availment date.',
         })
         loading.value = false
         return
@@ -2833,6 +3587,19 @@ async function onSubmit() {
           type: 'negative',
           message: 'CTO may only be availed for up to 5 consecutive working days per application.',
         })
+        loading.value = false
+        return
+      }
+    }
+
+    if (isSpecialPrivilegeType.value) {
+      if (!String(form.value.splDetail || '').trim()) {
+        $q.notify({ type: 'negative', message: 'Please select a reason for Special Privilege Leave.' })
+        loading.value = false
+        return
+      }
+      if (!String(form.value.splSpecify || '').trim()) {
+        $q.notify({ type: 'negative', message: 'Please specify details for Special Privilege Leave.' })
         loading.value = false
         return
       }
@@ -2886,6 +3653,8 @@ async function onSubmit() {
     const leaveDetailsPayload = {
       vacation_detail: form.value.vacationDetail,
       vacation_specify: form.value.vacationSpecify,
+      spl_detail: form.value.splDetail,
+      spl_specify: form.value.splSpecify,
       sick_detail: form.value.sickDetail,
       sick_specify: resolvedSickIllness.value,
       women_specify: form.value.womenSpecify,
@@ -2896,13 +3665,13 @@ async function onSubmit() {
 
     const payload = {
       employee_control_no: selectedEmployeeControlNo.value,
-      leave_type_id: form.value.leaveTypeId,
-      start_date: form.value.startDate,
-      end_date: form.value.endDate,
-      total_days: selectedDateTotalDays.value,
-      actual_total_days: form.value.days,
-      applied_total_days: form.value.days,
-      requested_total_days: form.value.days,
+      leave_type_id: submissionLeaveTypeId,
+      start_date: isTerminalLeaveSubmission ? null : form.value.startDate,
+      end_date: isTerminalLeaveSubmission ? null : form.value.endDate,
+      total_days: requestedTotalDays,
+      actual_total_days: submittedDayCount,
+      applied_total_days: submittedDayCount,
+      requested_total_days: submittedDayCount,
       credit_deducting_days: payStatusBreakdown.withPayTotalDays,
       deductible_days: payStatusBreakdown.withPayTotalDays,
       with_pay_days: payStatusBreakdown.withPayTotalDays,
@@ -2911,18 +3680,21 @@ async function onSubmit() {
       selected_dates: sortedSelectedDatesPayload,
       with_pay_dates: payStatusBreakdown.withPayDates,
       without_pay_dates: payStatusBreakdown.withoutPayDates,
-      selected_date_durations: buildSelectedDateDurationsPayload(sortedSelectedDatesPayload),
-      selected_date_coverage: buildSelectedDateCoveragePayload(sortedSelectedDatesPayload),
-      selected_date_half_day_portion: buildSelectedDateHalfDayPortionPayload(sortedSelectedDatesPayload),
-      selectedDateHalfDayPortion: buildSelectedDateHalfDayPortionPayload(sortedSelectedDatesPayload),
-      selected_date_pay_statuses: buildSelectedDatePayStatusesPayload(sortedSelectedDatesPayload),
-      selected_date_pay_status_codes: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
-      selected_date_pay_status: buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
-      pay_mode: isCtoType.value ? 'WP' : resolveSelectedDatePayMode(sortedSelectedDatesPayload),
+      selected_date_durations: isTerminalLeaveSubmission ? {} : buildSelectedDateDurationsPayload(sortedSelectedDatesPayload),
+      selected_date_coverage: isTerminalLeaveSubmission ? {} : buildSelectedDateCoveragePayload(sortedSelectedDatesPayload),
+      selected_date_half_day_portion: isTerminalLeaveSubmission ? {} : buildSelectedDateHalfDayPortionPayload(sortedSelectedDatesPayload),
+      selectedDateHalfDayPortion: isTerminalLeaveSubmission ? {} : buildSelectedDateHalfDayPortionPayload(sortedSelectedDatesPayload),
+      selected_date_pay_statuses: isTerminalLeaveSubmission ? {} : buildSelectedDatePayStatusesPayload(sortedSelectedDatesPayload),
+      selected_date_pay_status_codes: isTerminalLeaveSubmission ? {} : buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
+      selected_date_pay_status: isTerminalLeaveSubmission ? {} : buildSelectedDatePayStatusCodesPayload(sortedSelectedDatesPayload),
+      allow_sl_vl_cross_deduction: isTerminalLeaveSubmission || isMonetization.value ? false : allowSlVlCrossDeduction.value,
+      pay_mode: isTerminalLeaveSubmission ? 'WP' : (isCtoType.value ? 'WP' : resolveSelectedDatePayMode(sortedSelectedDatesPayload)),
       attachment_submitted: Boolean(selectedAttachmentFile),
       commutation: form.value.commutation,
       vacation_detail: leaveDetailsPayload.vacation_detail,
       vacation_specify: leaveDetailsPayload.vacation_specify,
+      spl_detail: leaveDetailsPayload.spl_detail,
+      spl_specify: leaveDetailsPayload.spl_specify,
       sick_detail: leaveDetailsPayload.sick_detail,
       sick_specify: leaveDetailsPayload.sick_specify,
       women_specify: leaveDetailsPayload.women_specify,
@@ -3095,10 +3867,6 @@ watch(
 .dialog-summary-meta-item--salary {
   grid-row: 2;
 }
-.dialog-summary-meta-item--leave-balance {
-  grid-row: 3;
-  align-items: center;
-}
 .dialog-summary-meta-label {
   font-size: 0.84rem;
   font-weight: 700;
@@ -3108,29 +3876,6 @@ watch(
   font-size: 0.92rem;
   font-weight: 600;
   color: #46535d;
-}
-.dialog-summary-badges {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 3px;
-  min-height: 1rem;
-  max-width: 100%;
-}
-.dialog-summary-badges--loading {
-  min-height: 20px;
-}
-.dialog-summary-badge {
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid #d8dee6;
-  background: #f5f7fa;
-  color: #72808c;
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
 }
 .dialog-summary-skeleton {
   display: block;
@@ -3149,12 +3894,6 @@ watch(
 .dialog-summary-skeleton--department {
   width: min(300px, 64%);
   height: 18px;
-}
-.dialog-summary-badge-skeleton {
-  flex: 0 0 auto;
-  width: 58px;
-  height: 22px;
-  border-radius: 999px;
 }
 @media (max-width: 768px) {
   .dialog-summary-header {
@@ -3179,10 +3918,6 @@ watch(
     grid-column: auto;
     grid-row: auto;
     justify-self: auto;
-    justify-content: flex-start;
-  }
-  .dialog-summary-badges {
-    flex-wrap: wrap;
     justify-content: flex-start;
   }
 }
@@ -3252,6 +3987,22 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.dialog-section-stack--terminal,
+.leave-support-sections--terminal {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  align-items: start;
+}
+.dialog-section-stack--terminal {
+  grid-column: 1 / -1;
+}
+.dialog-section-stack--terminal .dialog-section--details,
+.dialog-section-stack--terminal .dialog-section--commutation,
+.leave-support-sections--terminal .dialog-section--details,
+.leave-support-sections--terminal .dialog-section--commutation {
+  grid-column: auto;
 }
 .dialog-section--type,
 .dialog-section--details,
@@ -3586,6 +4337,12 @@ watch(
   .dialog-section--actions-raised {
     justify-self: stretch;
     align-self: auto;
+  }
+
+  .dialog-section-stack--terminal,
+  .leave-support-sections--terminal {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
 
   .dialog-dates-layout {

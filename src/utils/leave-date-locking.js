@@ -339,7 +339,9 @@ export function getApplicationBlockingDates(application) {
   const remarks = String(application?.remarks || '').trim().toLowerCase()
   if (remarks.includes('cancel')) return []
 
-  const selectedDates = getApplicationSelectedDates(application)
+  const selectedDates = Object.entries(resolveApplicationDateOccupancy(application))
+    .filter(([, occupiedSlots]) => occupiedSlots?.AM === true && occupiedSlots?.PM === true)
+    .map(([date]) => date)
   if (!rawStatus.includes('RECALLED')) {
     return selectedDates
   }
@@ -404,6 +406,60 @@ function resolveSelectedDateDurations(application) {
       acc[date] = 'whole_day'
     }
 
+    return acc
+  }, {})
+}
+
+function normalizeSelectedDateHalfDayPortions(value) {
+  if (!value) return {}
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return {}
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+function resolveSelectedDateHalfDayPortions(application) {
+  return normalizeSelectedDateHalfDayPortions(
+    application?.selected_date_half_day_portion ??
+      application?.selectedDateHalfDayPortion ??
+      application?.selected_date_half_day_period ??
+      application?.selectedDateHalfDayPeriod ??
+      application?.selected_date_halfday_period,
+  )
+}
+
+function resolveApplicationDateOccupancy(application) {
+  const selectedDates = getApplicationSelectedDates(application)
+  if (!selectedDates.length) return {}
+
+  const selectedDateDurations = resolveSelectedDateDurations(application)
+  const selectedDateHalfDayPortions = resolveSelectedDateHalfDayPortions(application)
+
+  return selectedDates.reduce((acc, date) => {
+    const normalizedDuration = String(selectedDateDurations[date] || '').trim().toLowerCase()
+    const normalizedHalfDayPortion = String(selectedDateHalfDayPortions[date] || '').trim().toUpperCase()
+
+    if (normalizedDuration === 'half_day' && normalizedHalfDayPortion === 'AM') {
+      acc[date] = { AM: true, PM: false }
+      return acc
+    }
+
+    if (normalizedDuration === 'half_day' && normalizedHalfDayPortion === 'PM') {
+      acc[date] = { AM: false, PM: true }
+      return acc
+    }
+
+    acc[date] = { AM: true, PM: true }
     return acc
   }, {})
 }

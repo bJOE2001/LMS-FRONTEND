@@ -75,17 +75,36 @@
               </div>
 
               <div class="application-timeline-body">
-                <div v-if="entry.subtitle" class="application-timeline-meta">
-                  {{ entry.subtitle }}
-                </div>
-                <div class="application-timeline-title">
-                  {{ entry.title }}
-                </div>
-                <div v-if="entry.actor" class="application-timeline-actor">
-                  Action by: {{ entry.actor }}
-                </div>
-                <div v-else-if="entry.description" class="application-timeline-actor">
-                  {{ entry.description }}
+                <div class="application-timeline-body-row">
+                  <div class="application-timeline-body-copy">
+                    <div v-if="entry.subtitle" class="application-timeline-meta">
+                      {{ entry.subtitle }}
+                    </div>
+                    <div class="application-timeline-title">
+                      {{ entry.title }}
+                    </div>
+                    <div v-if="entry.actor" class="application-timeline-actor">
+                      Action by: {{ entry.actor }}
+                    </div>
+                    <div v-else-if="entry.description" class="application-timeline-actor">
+                      {{ entry.description }}
+                    </div>
+                  </div>
+                  <q-btn
+                    v-if="canShowUndoTimelineEntryAction(entry)"
+                    flat
+                    dense
+                    round
+                    size="sm"
+                    icon="reply"
+                    color="warning"
+                    :loading="isUndoTimelineEntryLoading(entry)"
+                    :disable="isUndoTimelineEntryDisabled()"
+                    class="application-timeline-row-action"
+                    @click.stop="handleUndoTimelineEntryClick(entry)"
+                  >
+                    <q-tooltip>{{ getUndoTimelineEntryTooltip(entry) }}</q-tooltip>
+                  </q-btn>
                 </div>
               </div>
             </div>
@@ -101,7 +120,7 @@
             dense
             no-caps
             icon="inventory_2"
-            color="primary"
+            color="teal-6"
             :label="receiveActionLabel"
             :loading="receiveLoading"
             :disable="loadingTimeline"
@@ -115,7 +134,7 @@
             no-caps
             disable
             icon="inventory_2"
-            color="positive"
+            color="teal-6"
             :label="receivedActionLabel"
             class="application-timeline-footer-button application-timeline-footer-button--completed"
           />
@@ -125,7 +144,7 @@
             dense
             no-caps
             icon="outbox"
-            color="secondary"
+            color="indigo-6"
             :label="releaseActionLabel"
             :loading="releaseLoading"
             :disable="loadingTimeline"
@@ -154,6 +173,7 @@ import { computed, ref, watch } from 'vue'
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+const REQUEST_ACTION_RECALL = 'REQUEST_RECALL'
 
 function normalizeUpdateRequestStatusToken(value) {
   const normalized = String(value || '')
@@ -174,6 +194,14 @@ function normalizeLeaveRequestActionTypeToken(value) {
     .replace(/[\s-]+/g, '_')
 
   if (!normalized) return ''
+
+  if (
+    normalized === REQUEST_ACTION_RECALL ||
+    normalized === 'RECALL_REQUEST' ||
+    normalized === 'LEAVE_RECALL_REQUEST'
+  ) {
+    return REQUEST_ACTION_RECALL
+  }
 
   if (
     normalized === REQUEST_ACTION_CANCEL ||
@@ -235,6 +263,9 @@ function resolveLeaveRequestActionType(application = null) {
   if (payloadType) return payloadType
 
   const remarksToken = String(application?.remarks || '').toLowerCase()
+  if (remarksToken.includes('recall request')) {
+    return REQUEST_ACTION_RECALL
+  }
   if (remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')) {
     return REQUEST_ACTION_CANCEL
   }
@@ -326,13 +357,28 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  undoReceiveLoading: {
+    type: Boolean,
+    default: false,
+  },
+  undoReleaseLoading: {
+    type: Boolean,
+    default: false,
+  },
   loadingTimeline: {
     type: Boolean,
     default: false,
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'receive', 'release', 'view-attachment'])
+const emit = defineEmits([
+  'update:modelValue',
+  'receive',
+  'release',
+  'undo-receive',
+  'undo-release',
+  'view-attachment',
+])
 const localReceivedStateByKey = ref({})
 const localReleasedStateByKey = ref({})
 const lastRequestedReceiveKey = ref('')
@@ -362,14 +408,18 @@ const backendReleasedState = computed(() => isBackendReleasedState(props.applica
 const currentUpdateRequestCycleStartAt = computed(() =>
   resolveCurrentUpdateRequestCycleStartAt(props.application),
 )
-const isUpdateRequestCycle = computed(() => Boolean(currentUpdateRequestCycleStartAt.value))
+const hasRequestCycle = computed(() => Boolean(currentUpdateRequestCycleStartAt.value))
+const currentRequestActionType = computed(() => resolveLeaveRequestActionType(props.application))
+const isRecallRequestCycle = computed(
+  () => hasRequestCycle.value && currentRequestActionType.value === REQUEST_ACTION_RECALL,
+)
+const isUpdateRequestCycle = computed(() => hasRequestCycle.value && !isRecallRequestCycle.value)
 const currentUpdateRequestStatus = computed(() =>
   normalizeUpdateRequestStatusToken(props.application?.latest_update_request_status),
 )
 const isRejectedUpdateRequestCycle = computed(
   () => isUpdateRequestCycle.value && currentUpdateRequestStatus.value === 'REJECTED',
 )
-const currentRequestActionType = computed(() => resolveLeaveRequestActionType(props.application))
 const isCancellationRequestCycle = computed(
   () => isUpdateRequestCycle.value && currentRequestActionType.value === REQUEST_ACTION_CANCEL,
 )
@@ -384,7 +434,7 @@ const receivedActionLabel = computed(() =>
   requestCycleDocumentLabel.value ? requestCycleDocumentLabel.value + ' Received' : 'Received',
 )
 const releaseActionLabel = computed(() =>
-  requestCycleDocumentLabel.value ? 'Release ' + requestCycleDocumentLabel.value : 'Released',
+  requestCycleDocumentLabel.value ? 'Release ' + requestCycleDocumentLabel.value : 'Release',
 )
 const releasedActionLabel = computed(() =>
   requestCycleDocumentLabel.value ? requestCycleDocumentLabel.value + ' Released' : 'Released',
@@ -422,23 +472,26 @@ const timelineEntries = computed(() => {
   const cleanedTimeline = baseTimeline.filter(
     (entry) => !isReceivedTimelineEntryTitle(entry) && !isReleasedTimelineEntryTitle(entry),
   )
-  const existingClosedEntries = cleanedTimeline.filter((entry) =>
-    isEntryTitle(entry, 'Application Closed'),
-  )
   const coreEntries = cleanedTimeline.filter((entry) => !isEntryTitle(entry, 'Application Closed'))
   const hasUpdateCycle = isUpdateRequestCycle.value
+  const hasRecallCycle = isRecallRequestCycle.value
+  const hasTrackedRequestCycle = hasUpdateCycle || hasRecallCycle
   const cycleDisapprovedEntry = hasUpdateCycle
     ? getCurrentCycleDisapprovedTimelineEntry(coreEntries)
     : null
   const isAdminDisapprovedUpdateCycle =
     hasUpdateCycle && isAdminDisapprovedUpdateRequestTimelineEntry(cycleDisapprovedEntry)
-  const historicalReceivedEntry = hasUpdateCycle
+  const historicalReceivedEntry = hasTrackedRequestCycle
     ? buildHistoricalReceivedTimelineEntry(existingReceivedApplicationEntry)
     : null
-  const historicalReleasedEntry = hasUpdateCycle
+  const historicalReleasedEntry = hasTrackedRequestCycle
     ? buildHistoricalReleasedTimelineEntry(existingReleasedApplicationEntry)
     : null
-  const shouldShowCurrentCycleReceivedEntry = !cycleDisapprovedEntry || isReceivedState.value
+  const shouldShowCurrentCycleReceivedEntry = hasRecallCycle
+    ? false
+    : hasUpdateCycle
+      ? (!cycleDisapprovedEntry || isReceivedState.value)
+      : true
 
   const cycleReceivedSourceEntry = hasUpdateCycle
     ? existingUpdateReceivedEntry || existingReceivedApplicationEntry
@@ -447,22 +500,19 @@ const timelineEntries = computed(() => {
     ? existingUpdateReleasedEntry || existingReleasedApplicationEntry
     : existingReleasedApplicationEntry || existingUpdateReleasedEntry
 
-  const cycleReceivedEntry = buildReceivedTimelineEntry(cycleReceivedSourceEntry)
-  const cycleReleasedEntry = buildReleasedTimelineEntry(
-    cycleReleasedSourceEntry,
-    cycleDisapprovedEntry,
-  )
+  const cycleReceivedEntry = hasRecallCycle
+    ? null
+    : buildReceivedTimelineEntry(cycleReceivedSourceEntry)
+  const cycleReleasedEntry = hasRecallCycle
+    ? null
+    : buildReleasedTimelineEntry(cycleReleasedSourceEntry, cycleDisapprovedEntry)
+  const cmoCbmoReviewEntry = buildCmoCbmoReviewTimelineEntry()
   const receivedInsertEntry =
     historicalReceivedEntry || (shouldShowCurrentCycleReceivedEntry ? cycleReceivedEntry : null)
   if (receivedInsertEntry) {
     const receivedInsertIndex = getReceivedInsertionIndex(coreEntries)
     coreEntries.splice(receivedInsertIndex, 0, receivedInsertEntry)
   }
-
-  const closedEntry = buildClosedTimelineEntry(
-    existingClosedEntries[0] || null,
-    cycleDisapprovedEntry,
-  )
 
   const finalizedEntries = [...coreEntries]
   if (hasUpdateCycle) {
@@ -478,13 +528,19 @@ const timelineEntries = computed(() => {
       const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
       finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
     }
+  } else if (hasRecallCycle) {
+    if (historicalReleasedEntry) {
+      const historicalReleaseInsertIndex = getHistoricalReleasedInsertionIndex(finalizedEntries)
+      finalizedEntries.splice(historicalReleaseInsertIndex, 0, historicalReleasedEntry)
+    }
   } else {
     const cycleReleaseInsertIndex = getReleasedInsertionIndex(finalizedEntries)
-    finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
-  }
-
-  if (closedEntry) {
-    finalizedEntries.push(closedEntry)
+    if (cmoCbmoReviewEntry) {
+      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cmoCbmoReviewEntry)
+      finalizedEntries.splice(cycleReleaseInsertIndex + 1, 0, cycleReleasedEntry)
+    } else {
+      finalizedEntries.splice(cycleReleaseInsertIndex, 0, cycleReleasedEntry)
+    }
   }
 
   return finalizedEntries.map((entry) => adjustPendingHrReviewTimelineEntry(entry))
@@ -530,6 +586,48 @@ const isReleasedState = computed(() => {
   return Boolean(props.isReleased || isLocalActionStateActive(localReleasedState.value))
 })
 
+const canUndoReleaseState = computed(() => {
+  return Boolean(props.application && isReleasedState.value)
+})
+
+const canUndoReceiveState = computed(() => {
+  if (!props.application || !isReceivedState.value) return false
+  if (isReleasedState.value) return false
+  if (!isUpdateRequestCycle.value && isBackendCmoCbmoReviewState(props.application)) return false
+  return true
+})
+
+function getUndoTimelineEntryType(entry) {
+  if (isReceivedTimelineEntryTitle(entry) && canUndoReceiveState.value) return 'receive'
+  if (isReleasedTimelineEntryTitle(entry) && canUndoReleaseState.value) return 'release'
+  return ''
+}
+
+function canShowUndoTimelineEntryAction(entry) {
+  return Boolean(getUndoTimelineEntryType(entry))
+}
+
+function isUndoTimelineEntryLoading(entry) {
+  const actionType = getUndoTimelineEntryType(entry)
+  if (actionType === 'receive') return props.undoReceiveLoading
+  if (actionType === 'release') return props.undoReleaseLoading
+  return false
+}
+
+function isUndoTimelineEntryDisabled() {
+  return Boolean(
+    props.loadingTimeline ||
+      props.receiveLoading ||
+      props.releaseLoading ||
+      props.undoReceiveLoading ||
+      props.undoReleaseLoading,
+  )
+}
+
+function getUndoTimelineEntryTooltip(entry) {
+  return getUndoTimelineEntryType(entry) === 'release' ? 'Undo Release' : 'Undo Receive'
+}
+
 // const receivedSummaryText = computed(() => {
 //   if (typeof props.getReceivedByHrSummary === 'function') {
 //     const summary = String(props.getReceivedByHrSummary(props.application) || '').trim()
@@ -560,15 +658,39 @@ function handleReceiveClick() {
   if (!props.application || !canReceiveState.value) return
 
   lastRequestedReceiveKey.value = applicationKey.value
-  markLocalActionAsCompleted(localReceivedStateByKey, 'HR')
   emit('receive', props.application)
 }
 
 function handleReleaseClick() {
   if (!props.application || !canReleaseState.value) return
   lastRequestedReleaseKey.value = applicationKey.value
-  markLocalActionAsCompleted(localReleasedStateByKey, 'HR')
   emit('release', props.application)
+}
+
+function handleUndoReceiveClick() {
+  if (!props.application || !canUndoReceiveState.value) return
+
+  clearLocalActionState(localReceivedStateByKey, applicationKey.value)
+  emit('undo-receive', props.application)
+}
+
+function handleUndoReleaseClick() {
+  if (!props.application || !canUndoReleaseState.value) return
+
+  clearLocalActionState(localReleasedStateByKey, applicationKey.value)
+  emit('undo-release', props.application)
+}
+
+function handleUndoTimelineEntryClick(entry) {
+  const actionType = getUndoTimelineEntryType(entry)
+  if (actionType === 'receive') {
+    handleUndoReceiveClick()
+    return
+  }
+
+  if (actionType === 'release') {
+    handleUndoReleaseClick()
+  }
 }
 
 function getBaseTimelineEntries() {
@@ -652,10 +774,19 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       'REQUESTED_CANCELLATION',
       'REQUEST_CANCELLATION',
     ].includes(actionToken)
+    const isRecallRequestAction = [
+      'REQUEST_RECALL',
+      'RECALL_REQUESTED',
+      'RECALL_REQUEST_SUBMITTED',
+      'REQUESTED_RECALL',
+    ].includes(actionToken)
 
+    if (requestActionType === REQUEST_ACTION_RECALL) {
+      if (isRecallRequestAction) return resolveStatusHistoryTimestamp(entry)
+    } else
     if (requestActionType === REQUEST_ACTION_CANCEL) {
       if (isCancelRequestAction) return resolveStatusHistoryTimestamp(entry)
-    } else if (isUpdateRequestAction || isCancelRequestAction) {
+    } else if (isUpdateRequestAction || isCancelRequestAction || isRecallRequestAction) {
       return resolveStatusHistoryTimestamp(entry)
     }
 
@@ -665,10 +796,16 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       stageToken.includes('cancel request submitted') ||
       stageToken.includes('cancellation request submitted') ||
       stageToken.includes('cancellation requested')
+    const stageIsRecallSignal =
+      stageToken.includes('recall request submitted') ||
+      stageToken.includes('recall requested')
 
+    if (requestActionType === REQUEST_ACTION_RECALL) {
+      if (stageIsRecallSignal) return resolveStatusHistoryTimestamp(entry)
+    } else
     if (requestActionType === REQUEST_ACTION_CANCEL) {
       if (stageIsCancelSignal) return resolveStatusHistoryTimestamp(entry)
-    } else if (stageIsUpdateSignal || stageIsCancelSignal) {
+    } else if (stageIsUpdateSignal || stageIsCancelSignal || stageIsRecallSignal) {
       return resolveStatusHistoryTimestamp(entry)
     }
 
@@ -676,15 +813,21 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       remarksToken.includes('edit request') || remarksToken.includes('request update')
     const remarksHasCancelSignal =
       remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')
+    const remarksHasRecallSignal = remarksToken.includes('recall request')
 
+    if (requestActionType === REQUEST_ACTION_RECALL && !remarksHasRecallSignal) {
+      continue
+    }
     if (requestActionType === REQUEST_ACTION_CANCEL && !remarksHasCancelSignal) {
       continue
     }
 
     if (
       requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
       !remarksHasUpdateSignal &&
-      !remarksHasCancelSignal
+      !remarksHasCancelSignal &&
+      !remarksHasRecallSignal
     ) {
       continue
     }
@@ -694,7 +837,8 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
       actionToken.includes('REQUEST') ||
       actionToken.includes('SUBMIT') ||
       actionToken.includes('EDIT') ||
-      actionToken.includes('CANCEL')
+      actionToken.includes('CANCEL') ||
+      actionToken.includes('RECALL')
     ) {
       return resolveStatusHistoryTimestamp(entry)
     }
@@ -770,6 +914,12 @@ function isReleasedStatusHistoryEntry(entry) {
   )
 }
 
+function isCmoCbmoReviewStatusHistoryEntry(entry) {
+  const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+  const stageToken = normalizeStatusHistoryToken(entry?.stage)
+  return actionToken === 'CMO_CBMO_REVIEWED' || stageToken === 'CMO/CVMO Reviewed'
+}
+
 function resolveHistoricalReceivedBeforeCurrentUpdateMeta(application) {
   const cycleStart = currentUpdateRequestCycleStartAt.value
   if (!cycleStart) return null
@@ -827,6 +977,24 @@ function pickPreferredReleaseDateValue(application, historyEntry = null) {
   return sortedByNewest[0] || ''
 }
 
+function pickPreferredCmoCbmoReviewDateValue(application, historyEntry = null) {
+  const reviewDateCandidates = [
+    String(application?.cmo_cbmo_reviewed_at || '').trim(),
+    String(application?.cmoCbmoReviewedAt || '').trim(),
+    String(resolveStatusHistoryTimestamp(historyEntry) || '').trim(),
+  ].filter(Boolean)
+  if (!reviewDateCandidates.length) return ''
+
+  const sortedByNewest = [...reviewDateCandidates].sort((left, right) => {
+    const leftTimestamp = toComparableTimestamp(left)
+    const rightTimestamp = toComparableTimestamp(right)
+    if (Number.isNaN(leftTimestamp) || Number.isNaN(rightTimestamp)) return 0
+    return rightTimestamp - leftTimestamp
+  })
+
+  return sortedByNewest[0] || ''
+}
+
 function resolveCurrentReleasedMeta(application) {
   if (!application || typeof application !== 'object') return null
 
@@ -855,16 +1023,25 @@ function resolveCurrentReleasedMeta(application) {
   }
 }
 
-function markLocalActionAsCompleted(stateByKeyRef, actor = 'HR') {
-  const key = applicationKey.value
-  if (!key) return
+function resolveCurrentCmoCbmoReviewMeta(application) {
+  if (!application || typeof application !== 'object') return null
 
-  stateByKeyRef.value = {
-    ...stateByKeyRef.value,
-    [key]: {
-      actor: String(actor || 'HR').trim() || 'HR',
-      at: new Date().toISOString(),
-    },
+  const historyEntry =
+    getStatusHistoryEntries(application).find((entry) => isCmoCbmoReviewStatusHistoryEntry(entry)) ||
+    null
+  const at = pickPreferredCmoCbmoReviewDateValue(application, historyEntry)
+  if (!at) return null
+
+  const actor = String(
+    application?.cmo_cbmo_reviewed_by ||
+      application?.cmoCbmoReviewedBy ||
+      resolveStatusHistoryActor(historyEntry) ||
+      '',
+  ).trim()
+
+  return {
+    at,
+    actor: actor || null,
   }
 }
 
@@ -892,6 +1069,8 @@ function normalizeEntryTitle(entry) {
   return String(entry?.title || '')
     .trim()
     .toLowerCase()
+    .replace(/^hr certification completed$/, 'chrmo certification completed')
+    .replace(/^hr certification$/, 'chrmo certification')
 }
 
 function isEntryTitle(entry, title) {
@@ -932,25 +1111,35 @@ function getReleasedTimelineTitle() {
 }
 
 function getDisapprovedDocumentTimelineTitle() {
-  if (!isUpdateRequestCycle.value) return 'Application Disapproved'
-  return requestCycleDocumentLabel.value + ' Disapproved'
+  if (!isUpdateRequestCycle.value) return 'Application Not Certified'
+  return requestCycleDocumentLabel.value + ' Not Certified'
 }
 
 function isHrPhaseEntry(entry) {
   const normalizedTitle = normalizeEntryTitle(entry)
   return (
     normalizedTitle.includes('pending hr review') ||
+    normalizedTitle.includes('chrmo certification') ||
     normalizedTitle.includes('approved by hr') ||
+    normalizedTitle.includes('CMO/CVMO Review') ||
     normalizedTitle.includes('application disapproved') ||
+    normalizedTitle.includes('application not certified') ||
     normalizedTitle.includes('recalled by hr') ||
     normalizedTitle.includes('pending edit review (hr)') ||
     normalizedTitle.includes('pending cancellation review (hr)') ||
+    normalizedTitle.includes('pending recall review (hr)') ||
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request approved') ||
     normalizedTitle.includes('cancellation request rejected') ||
     normalizedTitle.includes('cancellation request disapproved') ||
+    normalizedTitle.includes('cancellation request not certified') ||
+    normalizedTitle.includes('recall request approved') ||
+    normalizedTitle.includes('recall request rejected') ||
+    normalizedTitle.includes('recall request disapproved') ||
+    normalizedTitle.includes('recall request not certified') ||
     normalizedTitle.includes('current status')
   )
 }
@@ -963,11 +1152,19 @@ function isUpdateRequestTimelineEntry(entry) {
     normalizedTitle.includes('edit request approved') ||
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request submitted') ||
     normalizedTitle.includes('pending cancellation review') ||
     normalizedTitle.includes('cancellation request approved') ||
     normalizedTitle.includes('cancellation request rejected') ||
-    normalizedTitle.includes('cancellation request disapproved')
+    normalizedTitle.includes('cancellation request disapproved') ||
+    normalizedTitle.includes('cancellation request not certified') ||
+    normalizedTitle.includes('recall request submitted') ||
+    normalizedTitle.includes('pending recall review') ||
+    normalizedTitle.includes('recall request approved') ||
+    normalizedTitle.includes('recall request rejected') ||
+    normalizedTitle.includes('recall request disapproved') ||
+    normalizedTitle.includes('recall request not certified')
   )
 }
 
@@ -976,8 +1173,13 @@ function isDisapprovedUpdateRequestTimelineEntry(entry) {
   return (
     normalizedTitle.includes('edit request rejected') ||
     normalizedTitle.includes('edit request disapproved') ||
+    normalizedTitle.includes('edit request not certified') ||
     normalizedTitle.includes('cancellation request rejected') ||
-    normalizedTitle.includes('cancellation request disapproved')
+    normalizedTitle.includes('cancellation request disapproved') ||
+    normalizedTitle.includes('cancellation request not certified') ||
+    normalizedTitle.includes('recall request rejected') ||
+    normalizedTitle.includes('recall request disapproved') ||
+    normalizedTitle.includes('recall request not certified')
   )
 }
 
@@ -999,22 +1201,31 @@ function getReceivedInsertionIndex(entries) {
   if (isCocApplicationType.value) {
     const pendingHrIndex = entries.findIndex(
       (entry) =>
+        isEntryTitle(entry, 'CHRMO Certification') ||
         isEntryTitle(entry, 'Pending HR Review') ||
         isEntryTitle(entry, 'Pending Edit Review (HR)') ||
         isEntryTitle(entry, 'Pending Cancellation Review (HR)'),
     )
     if (pendingHrIndex >= 0) return pendingHrIndex + 1
 
-    const approvedByHrIndex = entries.findIndex((entry) => isEntryTitle(entry, 'Approved by HR'))
+    const approvedByHrIndex = entries.findIndex(
+      (entry) =>
+        isEntryTitle(entry, 'CHRMO Certification Completed') ||
+        isEntryTitle(entry, 'Approved by HR'),
+    )
     if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
   }
 
   const adminCompletedIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Department Recommendation Completed') ||
+    isEntryTitle(entry, 'Admin Recommendation Completed') ||
     isEntryTitle(entry, 'Admin Review Completed'),
   )
   if (adminCompletedIndex >= 0) return adminCompletedIndex + 1
 
   const adminPendingIndex = entries.findIndex((entry) =>
+    isEntryTitle(entry, 'Department Recommendation') ||
+    isEntryTitle(entry, 'Admin Recommendation') ||
     isEntryTitle(entry, 'Department Admin Review Pending'),
   )
   if (adminPendingIndex >= 0) return adminPendingIndex + 1
@@ -1026,7 +1237,11 @@ function getReceivedInsertionIndex(entries) {
 }
 
 function getHistoricalReleasedInsertionIndex(entries) {
-  const approvedByHrIndex = entries.findIndex((entry) => isEntryTitle(entry, 'Approved by HR'))
+  const approvedByHrIndex = entries.findIndex(
+    (entry) =>
+        isEntryTitle(entry, 'CHRMO Certification Completed') ||
+      isEntryTitle(entry, 'Approved by HR'),
+  )
   if (approvedByHrIndex >= 0) return approvedByHrIndex + 1
 
   const updateTimelineIndex = entries.findIndex((entry) => isUpdateRequestTimelineEntry(entry))
@@ -1094,7 +1309,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
     if (canReceiveState.value) {
       return {
         title: entryTitle,
-        subtitle: 'Current stage',
+        subtitle: 'On Process',
         description: isCoc
           ? 'Waiting for HR to acknowledge this COC application.'
           : isUpdateCycle
@@ -1109,7 +1324,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
 
     return {
       title: entryTitle,
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: isCoc
         ? 'HR will acknowledge this COC application for review.'
         : isUpdateCycle
@@ -1145,7 +1360,7 @@ function buildReceivedTimelineEntry(existingEntry = null) {
             : 'HR confirmed receipt of the updated hard copy leave application form.'
           : 'HR confirmed receipt of the hard copy leave application form.'),
     icon: String(existingEntry?.icon || '').trim() || 'inventory_2',
-    color: String(existingEntry?.color || '').trim() || 'positive',
+    color: 'teal-6',
     actor: actor || undefined,
   }
 }
@@ -1153,7 +1368,8 @@ function buildReceivedTimelineEntry(existingEntry = null) {
 function adjustPendingHrReviewTimelineEntry(entry) {
   if (
     !entry ||
-    (!isEntryTitle(entry, 'Pending HR Review') &&
+    (!isEntryTitle(entry, 'CHRMO Certification') &&
+      !isEntryTitle(entry, 'Pending HR Review') &&
       !isEntryTitle(entry, 'Pending Edit Review (HR)') &&
       !isEntryTitle(entry, 'Pending Cancellation Review (HR)'))
   ) {
@@ -1171,11 +1387,54 @@ function adjustPendingHrReviewTimelineEntry(entry) {
 
   return {
     ...entry,
-    subtitle: 'Upcoming',
+    subtitle: 'On Process',
     description: pendingDescription,
     icon: 'radio_button_unchecked',
     color: 'grey-5',
     actor: undefined,
+  }
+}
+
+function buildCmoCbmoReviewTimelineEntry() {
+  if (isUpdateRequestCycle.value || !props.application) return null
+
+  const rawStatus = getApplicationRawStatusKey(props.application)
+  const isRejectedAfterReceive =
+    (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') &&
+    isReceivedState.value &&
+    !isReleasedState.value
+  const shouldShowStage =
+    ['PENDING_ADMIN', 'PENDING_HR', 'APPROVED'].includes(rawStatus) ||
+    isRejectedAfterReceive ||
+    isBackendCmoCbmoReviewState(props.application) ||
+    isReleasedState.value
+  if (!shouldShowStage) return null
+
+  const reviewMeta = resolveCurrentCmoCbmoReviewMeta(props.application)
+  if (isBackendCmoCbmoReviewState(props.application)) {
+    return {
+      title: 'CMO/CVMO Review',
+      subtitle: formatDateTime(reviewMeta?.at) || 'Completed',
+      description: 'Application was cleared for release.',
+      icon: 'task_alt',
+      color: 'positive',
+      actor: String(reviewMeta?.actor || '').trim() || undefined,
+    }
+  }
+
+  const isCurrent =
+    rawStatus === 'APPROVED' &&
+    isReceivedState.value &&
+    !isReleasedState.value
+
+  return {
+    title: 'CMO/CVMO Review',
+    subtitle: 'On Process',
+    description: isCurrent
+      ? 'Waiting for CMO/CVMO Review before release.'
+      : 'This stage starts after HR certification.',
+    icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
+    color: isCurrent ? 'warning' : 'grey-5',
   }
 }
 
@@ -1193,8 +1452,8 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
       description:
         String(disapprovedEntry?.description || '').trim() ||
         (isCancellationCycle
-          ? 'Cancellation form release ended because the request was disapproved.'
-          : 'Update release ended because the request was disapproved.'),
+          ? 'Cancellation form release ended because the request was not certified.'
+          : 'Update release ended because the request was not certified.'),
       icon: 'cancel',
       color: 'negative',
       actor: String(disapprovedEntry?.actor || '').trim() || undefined,
@@ -1205,7 +1464,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
     const isCurrent = canReleaseState.value
     return {
       title: entryTitle,
-      subtitle: isCurrent ? 'Current stage' : 'Upcoming',
+      subtitle: 'On Process',
       description: isCurrent
         ? isCoc
           ? 'Waiting for HR to release this COC application.'
@@ -1220,7 +1479,7 @@ function buildReleasedTimelineEntry(existingEntry = null, disapprovedEntry = nul
             ? isCancellationCycle
               ? 'The cancellation form will be released before final closure.'
               : 'The updated physical document will be released before final closure.'
-            : 'The physical document will be released before final closure.',
+            : 'Application will be released after final approval.',
       icon: isCurrent ? 'pending_actions' : 'radio_button_unchecked',
       color: isCurrent ? 'warning' : 'grey-5',
     }
@@ -1272,7 +1531,7 @@ function buildHistoricalReceivedTimelineEntry(existingEntry = null) {
       String(existingEntry?.description || '').trim() ||
       'HR confirmed receipt of the hard copy leave application form.',
     icon: 'inventory_2',
-    color: 'positive',
+    color: 'teal-6',
     actor: meta.actor && meta.actor !== 'Unknown' ? meta.actor : undefined,
   }
 }
@@ -1290,40 +1549,6 @@ function buildHistoricalReleasedTimelineEntry(existingEntry = null) {
     icon: 'outbox',
     color: 'positive',
     actor: meta.actor && meta.actor !== 'Unknown' ? meta.actor : undefined,
-  }
-}
-
-function getDefaultClosedTimelineEntry() {
-  return {
-    title: 'Application Closed',
-    subtitle: 'Upcoming',
-    description: 'Application workflow is complete.',
-    icon: 'radio_button_unchecked',
-    color: 'grey-5',
-  }
-}
-
-function buildClosedTimelineEntry(existingEntry = null, disapprovedEntry = null) {
-  const baseEntry = existingEntry ? { ...existingEntry } : getDefaultClosedTimelineEntry()
-  if (disapprovedEntry) {
-    return {
-      ...baseEntry,
-      subtitle: String(disapprovedEntry?.subtitle || '').trim() || 'Completed',
-      description: 'Application workflow is complete.',
-      icon: 'task_alt',
-      color: 'positive',
-      actor: String(disapprovedEntry?.actor || '').trim() || undefined,
-    }
-  }
-  if (isReleasedState.value) return baseEntry
-
-  return {
-    ...baseEntry,
-    subtitle: 'Upcoming',
-    description: 'Application will be closed after document release.',
-    icon: 'radio_button_unchecked',
-    color: 'grey-5',
-    actor: undefined,
   }
 }
 
@@ -1356,18 +1581,58 @@ function getTimelineEntryTone(entry) {
     return 'recalled'
   }
   if (color.includes('negative') || icon.includes('cancel')) return 'negative'
+  if (color.includes('teal')) return 'received'
   if (color.includes('warning') || icon.includes('pending')) return 'warning'
   if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
   return 'positive'
 }
 
 function getTimelineEntryIcon(entry) {
+  const title = String(entry?.title || '')
+    .trim()
+    .toLowerCase()
   const tone = getTimelineEntryTone(entry)
+
+  if (title.includes('application filed') || title.includes('submitted')) return 'description'
+  if (title.includes('department recommendation')) {
+    return title.includes('completed') ? 'check_box' : 'pending_actions'
+  }
+  if (title.includes('received')) return 'receipt_long'
+  if (title.includes('chrmo certification')) {
+    return title.includes('completed') ? 'task_alt' : 'assignment_ind'
+  }
+  if (title.includes('CMO/CVMO Review')) return 'groups'
+  if (title.includes('released')) return 'assignment_turned_in'
+  if (title.includes('application closed')) return 'assignment_turned_in'
+  if (title.includes('current status')) return 'info'
+
   if (tone === 'recalled') return 'undo'
   if (tone === 'negative') return 'close'
+  if (tone === 'received') return 'inventory_2'
   if (tone === 'warning') return 'schedule'
   if (tone === 'neutral') return 'radio_button_unchecked'
   return 'check'
+}
+
+function normalizeRawStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function getApplicationRawStatusKey(application) {
+  return normalizeRawStatusKey(
+    application?.rawStatus || application?.raw_status || application?.status,
+  )
+}
+
+function isTruthyBackendFlag(value) {
+  if (value === true) return true
+  if (value === false || value === null || value === undefined) return false
+  if (typeof value === 'number') return value === 1
+  const normalized = String(value).trim().toLowerCase()
+  return ['1', 'true', 'yes', 'y'].includes(normalized)
 }
 
 function isBackendReceivedState(application) {
@@ -1376,6 +1641,17 @@ function isBackendReceivedState(application) {
   }
 
   return Boolean(props.isReceived)
+}
+
+function isBackendCmoCbmoReviewState(application) {
+  if (!application) return false
+  if (isBackendReleasedState(application)) return true
+
+  return Boolean(
+    isTruthyBackendFlag(application?.has_cmo_cbmo_reviewed) ||
+      isTruthyBackendFlag(application?.hasCmoCbmoReviewed) ||
+      resolveCurrentCmoCbmoReviewMeta(application),
+  )
 }
 
 function isBackendReleasedState(application) {
@@ -1518,6 +1794,10 @@ watch(
   background: #f59e0b;
 }
 
+.application-timeline-marker--received {
+  background: #0d9488;
+}
+
 .application-timeline-marker--recalled {
   background: #2563eb;
 }
@@ -1547,6 +1827,10 @@ watch(
   background: #f59e0b;
 }
 
+.application-timeline-line--received {
+  background: #0d9488;
+}
+
 .application-timeline-line--recalled {
   background: #2563eb;
 }
@@ -1563,11 +1847,31 @@ watch(
   padding-bottom: 18px;
 }
 
+.application-timeline-body-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.application-timeline-body-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.application-timeline-row-action {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  width: 30px;
+  height: 30px;
+}
+
 .application-timeline-meta {
   font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: #64748b;
 }
 
@@ -1634,3 +1938,4 @@ watch(
   margin-top: 6px;
 }
 </style>
+

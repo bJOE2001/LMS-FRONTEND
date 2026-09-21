@@ -50,18 +50,6 @@
               v-close-popup
             />
           </div>
-          <div
-            v-if="shouldShowCurrentLeaveBalance(application)"
-            class="hr-application-details-header-balance-text"
-          >
-            <div class="hr-application-details-label">Available Leave Balance</div>
-            <div
-              class="hr-application-details-header-balance-value"
-              :class="getCurrentLeaveBalanceClass(application)"
-            >
-              {{ getCurrentLeaveBalanceDisplay(application) }}
-            </div>
-          </div>
         </div>
       </q-card-section>
       <q-card-section class="q-gutter-y-sm hr-application-details-content">
@@ -81,13 +69,13 @@
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Inclusive Dates</div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Current:</span>
+                <span class="hr-application-requested-changes-key">{{ getFromLabel(application) }}:</span>
                 <span class="hr-application-requested-changes-value">{{
                   formatInclusiveDateSummary(getApplicationEditRequestFromDates(application))
                 }}</span>
               </div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span class="hr-application-requested-changes-key">{{ getToLabel(application) }}:</span>
                 <span
                   class="
                     hr-application-requested-changes-value
@@ -100,13 +88,13 @@
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Duration</div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Current:</span>
+                <span class="hr-application-requested-changes-key">{{ getDurationFromLabel(application) }}:</span>
                 <span class="hr-application-requested-changes-value">{{
                   getApplicationEditRequestCurrentDuration(application)
                 }}</span>
               </div>
               <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Requested:</span>
+                <span class="hr-application-requested-changes-key">{{ getDurationToLabel(application) }}:</span>
                 <span
                   class="
                     hr-application-requested-changes-value
@@ -133,7 +121,10 @@
             </div>
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Request Details</div>
-              <div class="hr-application-requested-changes-line">
+              <div
+                v-if="getApplicationEditRequestRequestedAt(application) !== 'N/A'"
+                class="hr-application-requested-changes-line"
+              >
                 <span class="hr-application-requested-changes-key">Requested At:</span>
                 <span class="hr-application-requested-changes-value">{{
                   getApplicationEditRequestRequestedAt(application)
@@ -152,7 +143,7 @@
             class="row items-center q-col-gutter-md q-mt-sm"
           >
             <div class="col-12 col-md-8 hr-application-requested-changes-meta">
-              <div>
+              <div v-if="getApplicationEditRequestRequestedAt(application) !== 'N/A'">
                 <strong>Requested At:</strong>
                 {{ getApplicationEditRequestRequestedAt(application) }}
               </div>
@@ -198,30 +189,16 @@
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Application Status</div>
-            <StatusBadge class="self-start" :status="getFinalStatusForStatusColumn(application)" />
+            <StatusBadge
+              class="self-start"
+              :status="getFinalStatusForStatusColumn(application)"
+              :tooltip="getStatusTooltipForStatusColumn(application)"
+            />
           </div>
           <div class="hr-application-details-item">
             <div class="text-caption text-grey-7">Office</div>
             <div class="text-weight-medium">
               {{ application.officeShort || application.office }}
-            </div>
-          </div>
-          <div v-if="isCtoLeaveApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Available CTO Hours</div>
-            <div class="text-weight-medium">
-              {{ getCurrentCtoAvailableHoursDisplay(application) }}
-            </div>
-          </div>
-          <div v-if="isCtoLeaveApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">Required CTO Hours</div>
-            <div class="text-weight-medium">
-              {{ getApplicationCtoRequiredHoursDisplay(application) }}
-            </div>
-          </div>
-          <div v-if="isCtoLeaveApplication(application)" class="hr-application-details-item">
-            <div class="text-caption text-grey-7">CTO Deducted Hours</div>
-            <div class="text-weight-medium">
-              {{ getCtoDeductedHoursDisplay(application) }}
             </div>
           </div>
           <div v-if="isCocApplication(application)" class="hr-application-details-item">
@@ -253,14 +230,14 @@
               </div>
             </div>
             <div
-              v-else-if="hasPendingDateUpdate(application)"
+              v-else-if="hasPendingDateUpdate(application) && !isEditRequestApproved(application)"
               :class="[
                 'text-weight-medium',
                 'hr-application-date-change-preview',
                 { 'hr-application-details-scroll-area': shouldScrollInclusiveDates(application) },
               ]"
             >
-              <div class="text-caption text-grey-7">Current</div>
+              <div class="text-caption text-grey-7">{{ getFromLabel(application) }}</div>
               <template v-if="getSelectedDatePayStatusRows(application).length">
                 <div class="text-weight-medium hr-application-duration-columns">
                   <div
@@ -315,7 +292,7 @@
                 </div>
               </template>
               <div class="text-caption text-deep-purple-8 hr-application-date-change-label">
-                Requested
+                {{ getToLabel(application) }}
               </div>
               <template v-if="getPendingUpdateDatePayStatusRows(application).length">
                 <div class="text-weight-medium hr-application-duration-columns">
@@ -436,6 +413,24 @@
             </div>
           </div>
           <div
+            v-if="slVlCrossDeductionSummary"
+            class="hr-application-details-item hr-application-details-item--full"
+          >
+            <div class="text-caption text-grey-7">SL/VL Cross Deduction</div>
+            <div class="hr-application-cross-deduction-list">
+              <div
+                v-for="item in slVlCrossDeductionSummary.items"
+                :key="item.label"
+                class="hr-application-cross-deduction-row"
+              >
+                <span class="text-caption text-grey-7">{{ item.label }}</span>
+                <span class="text-weight-medium hr-application-cross-deduction-value">
+                  {{ item.value }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div
             v-if="!isCocApplication(application) && shouldShowDetailsRemarks(application)"
             class="hr-application-details-item"
           >
@@ -485,15 +480,15 @@
             unelevated
             no-caps
             color="negative"
-            label="Disapprove"
+            :label="getRejectActionLabel(application)"
             @click="handleOpenActionConfirm('reject')"
           />
           <q-btn
             v-if="application.rawStatus === 'PENDING_HR'"
             unelevated
             no-caps
-            color="green-7"
-            label="Approve"
+            :color="getApproveActionColor(application)"
+            :label="getApproveActionLabel(application)"
             @click="handleOpenActionConfirm('approve')"
           />
           <q-btn
@@ -532,34 +527,6 @@ const props = defineProps({
     default: false,
   },
   formatDate: {
-    type: Function,
-    default: () => '',
-  },
-  getCurrentLeaveBalanceClass: {
-    type: Function,
-    default: () => '',
-  },
-  getCurrentLeaveBalanceDisplay: {
-    type: Function,
-    default: () => '',
-  },
-  shouldShowCurrentLeaveBalance: {
-    type: Function,
-    default: () => true,
-  },
-  isCtoLeaveApplication: {
-    type: Function,
-    default: () => false,
-  },
-  getCurrentCtoAvailableHoursDisplay: {
-    type: Function,
-    default: () => '',
-  },
-  getApplicationCtoRequiredHoursDisplay: {
-    type: Function,
-    default: () => '',
-  },
-  getCtoDeductedHoursDisplay: {
     type: Function,
     default: () => '',
   },
@@ -715,9 +682,33 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
+  canOverrideApplicationPayStatus: {
+    type: Function,
+    default: () => false,
+  },
+  payStatusOverrideLoading: {
+    type: Boolean,
+    default: false,
+  },
   getFinalStatusForStatusColumn: {
     type: Function,
     default: (app) => String(app?.displayStatus || '').trim(),
+  },
+  getStatusTooltipForStatusColumn: {
+    type: Function,
+    default: () => '',
+  },
+  getApproveActionLabel: {
+    type: Function,
+    default: () => 'Approve',
+  },
+  getApproveActionColor: {
+    type: Function,
+    default: () => 'green-7',
+  },
+  getRejectActionLabel: {
+    type: Function,
+    default: () => 'Disapprove',
   },
 })
 
@@ -728,6 +719,7 @@ const emit = defineEmits([
   'open-action-confirm',
   'open-recall',
   'print-certificate',
+  'override-pay-status',
 ])
 
 const dialogModel = computed({
@@ -784,6 +776,132 @@ const shouldShowFooterActions = computed(() => {
     props.canPrintCocCertificate(app) || (props.isMobile && props.hasMobileApplicationActions(app))
   )
 })
+
+function isEditRequestApproved(app) {
+  if (!app) return false
+  const latestStatus = String(
+    app?.latest_update_request_status ||
+      app?.latestUpdateRequestStatus ||
+      app?.raw?.latest_update_request_status ||
+      app?.raw?.latestUpdateRequestStatus ||
+      '',
+  )
+    .toUpperCase()
+    .trim()
+
+  if (latestStatus === 'APPROVED') return true
+
+  const mainStatus = String(app?.status || app?.rawStatus || '')
+    .toUpperCase()
+    .trim()
+  return mainStatus.includes('EDIT REQUEST APPROVED') || mainStatus.includes('APPROVED_EDIT_REQUEST')
+}
+
+function getFromLabel(app) {
+  return isEditRequestApproved(app) ? 'Old Date' : 'Current'
+}
+
+function getToLabel(app) {
+  return isEditRequestApproved(app) ? 'Updated Date' : 'Requested'
+}
+
+function getDurationFromLabel(app) {
+  return isEditRequestApproved(app) ? 'Old Duration' : 'Current'
+}
+
+function getDurationToLabel(app) {
+  return isEditRequestApproved(app) ? 'Updated Duration' : 'Requested'
+}
+
+const slVlCrossDeductionSummary = computed(() => buildSlVlCrossDeductionSummary(props.application))
+
+function toRoundedDayValue(value) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return 0
+
+  return Math.round(numericValue * 1000) / 1000
+}
+
+function formatDayValue(value) {
+  return toRoundedDayValue(value).toLocaleString('en-US', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })
+}
+
+function getCrossDeductionLeaveTypeName(app) {
+  return String(
+    props.getCurrentLeaveTypeLabel(app) || app?.leave_type_name || app?.leaveType || '',
+  )
+    .trim()
+    .toLowerCase()
+}
+
+function resolveDeductibleDayValue(app) {
+  const candidates = [
+    app?.deductible_days,
+    app?.with_pay_days,
+    app?.requested_total_days,
+    app?.actual_total_days,
+    app?.display_total_days,
+    app?.days,
+    app?.total_days,
+  ]
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate)
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return Math.round(numericValue * 1000) / 1000
+    }
+  }
+
+  return 0
+}
+
+function buildSlVlCrossDeductionSummary(app) {
+  if (!app || typeof app !== 'object') return null
+
+  const leaveTypeName = getCrossDeductionLeaveTypeName(app)
+  if (leaveTypeName !== 'sick leave' && leaveTypeName !== 'vacation leave') {
+    return null
+  }
+
+  const linkedVacationDays = toRoundedDayValue(app?.linked_vacation_leave_deducted_days)
+  const linkedSickDays = toRoundedDayValue(app?.linked_sick_leave_deducted_days)
+  if (linkedVacationDays <= 0 && linkedSickDays <= 0) {
+    return null
+  }
+
+  const deductibleDays = resolveDeductibleDayValue(app)
+  const primaryDeductionDays = Math.max(
+    deductibleDays - linkedVacationDays - linkedSickDays,
+    0,
+  )
+  const items = []
+
+  if (primaryDeductionDays > 0) {
+    items.push({
+      label: leaveTypeName === 'sick leave' ? 'Sick Leave charged' : 'Vacation Leave charged',
+      value: `${formatDayValue(primaryDeductionDays)} day(s)`,
+    })
+  }
+
+  if (linkedVacationDays > 0) {
+    items.push({
+      label: 'Vacation Leave cross-deducted',
+      value: `${formatDayValue(linkedVacationDays)} day(s)`,
+    })
+  }
+
+  if (linkedSickDays > 0) {
+    items.push({
+      label: 'Sick Leave cross-deducted',
+      value: `${formatDayValue(linkedSickDays)} day(s)`,
+    })
+  }
+
+  return items.length ? { items } : null
+}
 
 function getCurrentInclusiveDateEntryCount(app) {
   const currentPayStatusRows = props.getSelectedDatePayStatusRows(app)
@@ -955,18 +1073,6 @@ function handlePrintCertificate() {
   flex-shrink: 0;
 }
 
-.hr-application-details-header-balance-text {
-  text-align: right;
-}
-
-.hr-application-details-header-balance-value {
-  margin-top: 2px;
-  color: #1b5e20;
-  font-size: 0.86rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
 .hr-application-details-close {
   color: #607d8b;
   margin-top: 0;
@@ -1044,6 +1150,23 @@ function handlePrintCertificate() {
 
 .hr-application-details-item--full {
   grid-column: 1 / -1;
+}
+
+.hr-application-cross-deduction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-application-cross-deduction-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hr-application-cross-deduction-value {
+  text-align: right;
 }
 
 .hr-application-details-label {
@@ -1168,6 +1291,20 @@ function handlePrintCertificate() {
   justify-content: center;
 }
 
+.hr-application-pay-status-badge--clickable {
+  cursor: pointer;
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.hr-application-pay-status-badge--clickable:hover,
+.hr-application-pay-status-badge--clickable:focus-visible {
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.28);
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .hr-application-coverage-badge {
   flex: 0 0 auto;
   min-width: 78px;
@@ -1200,10 +1337,6 @@ function handlePrintCertificate() {
 
   .hr-application-details-header-side {
     gap: 6px;
-  }
-
-  .hr-application-details-header-balance-value {
-    font-size: 0.8rem;
   }
 
   .hr-application-details-icon {

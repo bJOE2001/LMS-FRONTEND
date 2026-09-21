@@ -1,7 +1,39 @@
 <template>
   <q-page class="q-pa-md">
-    <div class="row items-center q-mb-lg">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
+    <div class="row items-center justify-between q-col-gutter-sm q-mb-lg">
+      <div class="col-auto">
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
+          <q-input
+            class="dashboard-kpi-range-input"
+            dense
+            outlined
+            readonly
+            label="Date Range"
+            :model-value="kpiDateRangeLabel"
+          >
+            <template #prepend>
+              <q-icon name="event" />
+            </template>
+            <template #append>
+              <q-icon name="arrow_drop_down" class="cursor-pointer">
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date
+                    :model-value="kpiDateRangeModel"
+                    mask="YYYY-MM-DD"
+                    range
+                    today-btn
+                    @update:model-value="handleKpiDateRangeChange"
+                  />
+                </q-popup-proxy>
+              </q-icon>
+            </template>
+          </q-input>
+          <q-btn flat dense no-caps label="Today" @click="resetKpiDateRangeToToday" />
+        </div>
+      </div>
     </div>
 
     <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
@@ -29,7 +61,7 @@
               </div>
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ dashboardData.total_count }}</template>
+                <template v-else>{{ kpiCardMetrics.total_count }}</template>
               </div>
             </div>
             <div class="stat-breakdown dashboard-kpi-breakdown">
@@ -64,7 +96,7 @@
                 <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
                   <q-icon name="schedule" size="28px" color="warning" />
                   <q-icon
-                    v-if="dashboardData.pending_count > 5"
+                    v-if="kpiCardMetrics.pending_count > 5"
                     name="warning"
                     size="18px"
                     color="warning"
@@ -76,7 +108,7 @@
               </div>
               <div class="stat-value text-warning dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="warning" />
-                <template v-else>{{ dashboardData.pending_count }}</template>
+                <template v-else>{{ kpiCardMetrics.pending_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -107,7 +139,7 @@
               </div>
               <div class="stat-value text-primary dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ dashboardData.total_approved }}</template>
+                <template v-else>{{ kpiCardMetrics.total_approved }}</template>
               </div>
             </div>
           </q-card-section>
@@ -138,7 +170,7 @@
               </div>
               <div class="stat-value text-negative dashboard-kpi-value">
                 <q-spinner v-if="loading" size="32px" color="negative" />
-                <template v-else>{{ dashboardData.rejected_count }}</template>
+                <template v-else>{{ kpiCardMetrics.rejected_count }}</template>
               </div>
             </div>
           </q-card-section>
@@ -178,7 +210,7 @@
               icon="print"
               label="Print Applications"
               size="sm"
-              @click="printApplicationsPdf"
+              @click="showPrintDialog = true"
             />
           </div>
         </div>
@@ -246,7 +278,7 @@
               <template v-if="props.row?.is_monetization">
                 <span class="text-weight-medium text-grey-9">N/A</span>
               </template>
-              <template v-else-if="hasPendingDateUpdate(props.row)">
+              <template v-else-if="hasPendingDateUpdate(props.row) && (props.row?.latest_update_request_status || props.row?.latestUpdateRequestStatus) !== 'APPROVED'">
                 <span class="text-caption text-grey-7">Current</span>
                 <span
                   v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
@@ -294,7 +326,11 @@
                 rounded
                 class="text-weight-medium q-pa-xs application-status-badge"
                 style="padding-left: 10px; padding-right: 10px"
-              />
+              >
+                <q-tooltip v-if="getApplicationStatusTooltip(props.row)">
+                  {{ getApplicationStatusTooltip(props.row) }}
+                </q-tooltip>
+              </q-badge>
               <q-badge
                 v-if="isEditUpdateRequest(props.row)"
                 color="deep-purple-7"
@@ -398,6 +434,11 @@
     </q-card>
 
     <!-- View dialog -->
+    <AdminPrintApplicationsDialog
+      v-model="showPrintDialog"
+      @print="printApplicationsPdf"
+    />
+
     <q-dialog v-model="showDetailsDialog" persistent position="standard">
       <q-card
         v-if="selectedApp"
@@ -719,6 +760,7 @@ import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
+import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
@@ -861,6 +903,135 @@ function normalizeDashboardAnalytics(value) {
   }
 }
 
+function normalizeEmploymentTypeKey(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[_\s]+/g, '-')
+
+  if (!normalized) return ''
+  if (normalized.includes('ELECTIVE')) return 'elective'
+  if (
+    normalized.includes('CO-TER') ||
+    normalized.includes('CO-TERM') ||
+    normalized.includes('COTER')
+  )
+    return 'co_terminous'
+  if (normalized.includes('REGULAR')) return 'regular'
+  if (normalized.includes('CASUAL')) return 'casual'
+  return ''
+}
+
+function buildEmploymentBreakdown(applications) {
+  const breakdown = emptyEmploymentBreakdown()
+
+  for (const application of applications) {
+    const candidates = [
+      application?.employment_status,
+      application?.employmentStatus,
+      application?.appointment_status,
+      application?.appointmentStatus,
+      application?.employee_status,
+      application?.employeeStatus,
+      application?.status_type,
+      application?.statusType,
+      application?.employee?.status,
+      application?.employee?.employment_status,
+      application?.employee?.employmentStatus,
+      application?.user?.status,
+      application?.user?.employment_status,
+      application?.user?.employmentStatus,
+    ]
+
+    for (const candidate of candidates) {
+      const normalizedKey = normalizeEmploymentTypeKey(candidate)
+      if (!normalizedKey) continue
+      breakdown[normalizedKey] += 1
+      break
+    }
+  }
+
+  return breakdown
+}
+
+function getCurrentIsoDate() {
+  const currentDate = new Date()
+  const year = currentDate.getFullYear()
+  const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+  const day = String(currentDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function toIsoDate(value) {
+  const rawValue = String(value || '').trim()
+  if (!rawValue) return ''
+
+  const matchedValue = rawValue.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (matchedValue) return matchedValue[1]
+
+  const parsedDate = new Date(rawValue)
+  if (Number.isNaN(parsedDate.getTime())) return ''
+
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+  const day = String(parsedDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function resolveKpiDateRange(value) {
+  if (typeof value === 'string') {
+    const normalizedDate = toIsoDate(value)
+    if (normalizedDate) return { from: normalizedDate, to: normalizedDate }
+  }
+
+  const fromDate = toIsoDate(value?.from ?? value?.to)
+  const toDate = toIsoDate(value?.to ?? value?.from)
+  const today = getCurrentIsoDate()
+  const resolvedFrom = fromDate || toDate || today
+  const resolvedTo = toDate || fromDate || today
+
+  return resolvedFrom <= resolvedTo
+    ? { from: resolvedFrom, to: resolvedTo }
+    : { from: resolvedTo, to: resolvedFrom }
+}
+
+function formatRangeDateLabel(value) {
+  const parsedDate = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return value
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function getApplicationKpiDateIso(application) {
+  const candidates = [
+    application?.dateFiled,
+    application?.date_filed,
+    application?.filed_at,
+    application?.filedAt,
+    application?.created_at,
+    application?.createdAt,
+    application?.startDate,
+    application?.start_date,
+  ]
+
+  for (const candidate of candidates) {
+    const normalizedDate = toIsoDate(candidate)
+    if (normalizedDate) return normalizedDate
+  }
+
+  return ''
+}
+
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
   { key: 'elective', label: 'Elective' },
   { key: 'co_terminous', label: 'Co-term' },
@@ -877,6 +1048,7 @@ const applicationsPagination = ref({
   rowsPerPage: 10,
 })
 const showDetailsDialog = ref(false)
+const showPrintDialog = ref(false)
 const showDisapproveDialog = ref(false)
 const showConfirmActionDialog = ref(false)
 const showActionResultDialog = ref(false)
@@ -889,6 +1061,7 @@ const rejectionMode = ref('disapprove')
 const disapproveTargetApp = ref(null)
 const actionResultType = ref('approved')
 const actionResultApp = ref(null)
+const kpiDateRangeModel = ref(resolveKpiDateRange(getCurrentIsoDate()))
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -916,7 +1089,7 @@ function countRejectedApplications(applications) {
   }).length
 }
 
-const kpiBreakdown = computed(() => {
+const baseKpiBreakdown = computed(() => {
   const source = dashboardData.value.kpi_breakdown ?? {}
   return {
     pending: { ...emptyEmploymentBreakdown(), ...(source.pending ?? {}) },
@@ -926,12 +1099,93 @@ const kpiBreakdown = computed(() => {
   }
 })
 
+const normalizedKpiDateRange = computed(() => resolveKpiDateRange(kpiDateRangeModel.value))
+
+const kpiDateRangeLabel = computed(() => {
+  const range = normalizedKpiDateRange.value
+  if (range.from === range.to) return formatRangeDateLabel(range.from)
+  return `${formatRangeDateLabel(range.from)} - ${formatRangeDateLabel(range.to)}`
+})
+
+const kpiFilteredApplications = computed(() => {
+  const range = normalizedKpiDateRange.value
+
+  return applicationRows.value.filter((application) => {
+    const applicationDate = getApplicationKpiDateIso(application)
+    if (!applicationDate) return false
+    return applicationDate >= range.from && applicationDate <= range.to
+  })
+})
+
+const kpiCardMetrics = computed(() => {
+  const filteredApplications = kpiFilteredApplications.value.filter(
+    (application) => !isCancelledByUser(application),
+  )
+
+  let pendingCount = 0
+  let approvedCount = 0
+  let rejectedCount = 0
+
+  for (const application of filteredApplications) {
+    const rawStatusKey = normalizeStatusKey(application?.rawStatus ?? application?.raw_status)
+    const statusKey = normalizeStatusKey(application?.status)
+    const resolvedStatusKey = rawStatusKey || statusKey
+
+    if (resolvedStatusKey === 'PENDING_ADMIN' || resolvedStatusKey === 'PENDING') {
+      pendingCount += 1
+      continue
+    }
+
+    if (resolvedStatusKey === 'PENDING_HR' || resolvedStatusKey === 'APPROVED') {
+      approvedCount += 1
+      continue
+    }
+
+    if (
+      resolvedStatusKey === 'REJECTED' ||
+      resolvedStatusKey === 'DISAPPROVED' ||
+      statusKey.includes('REJECT')
+    ) {
+      rejectedCount += 1
+    }
+  }
+
+  return {
+    total_count: filteredApplications.length,
+    pending_count: pendingCount,
+    total_approved: approvedCount,
+    rejected_count: rejectedCount,
+  }
+})
+
+const kpiCardEmploymentBreakdown = computed(() => {
+  const filteredBreakdown = buildEmploymentBreakdown(kpiFilteredApplications.value)
+  if (Object.values(filteredBreakdown).some((value) => value > 0)) {
+    return filteredBreakdown
+  }
+
+  if (kpiCardMetrics.value.total_count === 0) {
+    return emptyEmploymentBreakdown()
+  }
+
+  return baseKpiBreakdown.value.total
+})
+
 const totalApplicationBreakdownCards = computed(() =>
   EMPLOYMENT_TYPE_BREAKDOWN_CARDS.map((card) => ({
     ...card,
-    value: kpiBreakdown.value.total[card.key] ?? 0,
+    value: kpiCardEmploymentBreakdown.value[card.key] ?? 0,
   })),
 )
+
+function handleKpiDateRangeChange(value) {
+  kpiDateRangeModel.value = resolveKpiDateRange(value)
+}
+
+function resetKpiDateRangeToToday() {
+  const today = getCurrentIsoDate()
+  kpiDateRangeModel.value = { from: today, to: today }
+}
 
 const applicationTableColumns = computed(() => {
   if (!$q.screen.lt.sm) return columns
@@ -1134,7 +1388,7 @@ async function fetchDashboard() {
 }
 
 function maybeShowPendingReminder() {
-  const pendingCount = Number(dashboardData.value.pending_count || 0)
+  const pendingCount = Number(kpiCardMetrics.value.pending_count || 0)
   syncPendingReminderNotification(pendingCount)
   if (props.applicationsOnly) return
   if (pendingCount <= 0) return
@@ -1850,6 +2104,11 @@ function formatGroupedInclusiveDateLines(dateValues) {
       return `${group.monthName} ${dayLabel}`
     })
 
+    const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+    if (hasSingleDayOnly) {
+      return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
+    }
+
     return `${rangeLabels.join(', ')} ${group.year}`
   })
     .filter(Boolean)
@@ -2014,11 +2273,40 @@ function buildHalfDayInclusiveDateLines(source) {
 
   if (!rows.some((row) => row.isHalfDay)) return []
 
-  return rows.map((row) => {
+  const lines = []
+  let wholeDayDateSet = []
+
+  const appendWholeDayLines = () => {
+    if (!wholeDayDateSet.length) return
+
+    const groupedLines = formatGroupedInclusiveDateLines(wholeDayDateSet)
+    lines.push(
+      ...(groupedLines.length
+        ? groupedLines
+        : wholeDayDateSet.map((dateValue) => formatDate(dateValue))),
+    )
+    wholeDayDateSet = []
+  }
+
+  for (const row of rows) {
+    if (!row.isHalfDay) {
+      wholeDayDateSet.push(row.dateKey)
+      continue
+    }
+
+    appendWholeDayLines()
+
     const dateText = formatDate(row.dateKey) || row.dateKey
-    if (!row.isHalfDay) return dateText
-    return row.halfDayPortion ? `${dateText} (${row.halfDayPortion})` : `${dateText} (Half Day)`
-  })
+    lines.push(
+      row.halfDayPortion
+        ? `${dateText} (${row.halfDayPortion})`
+        : `${dateText} (Half Day)`,
+    )
+  }
+
+  appendWholeDayLines()
+
+  return lines
 }
 
 function getPendingUpdatePayload(app) {
@@ -2175,6 +2463,24 @@ function getApplicationInclusiveDateLines(app) {
 
   const start = app.startDate ? formatDate(app.startDate) : 'N/A'
   const end = app.endDate ? formatDate(app.endDate) : 'N/A'
+  if (start === 'N/A' && end === 'N/A') {
+    if (isCocApplication(app)) {
+      const year = app.application_year || app.applicationYear
+      const month = app.application_month || app.applicationMonth
+      if (year && month) {
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December',
+        ]
+        const monthName = monthNames[Number(month) - 1]
+        if (monthName) return [`${monthName} ${year}`]
+      }
+      if (year) return [`${year}`]
+    }
+    return ['N/A']
+  }
+  if (start === 'N/A') return [end]
+  if (end === 'N/A' || start === end) return [start]
   return [`${start} - ${end}`]
 }
 
@@ -2246,18 +2552,27 @@ function getSearchTokens(value) {
 
 function getApplicationStatusLabel(app) {
   if (isCancelledByUser(app)) return 'Cancelled'
-  if (app?.status) return app.status
+  if (isApplicationReleased(app)) return 'Released'
+  if (app?.status) {
+    return String(app.status)
+      .trim()
+      .replace(/^HR Certification(?: Completed)?$/i, (match) =>
+        match.replace(/^HR Certification/i, 'CHRMO Certification'),
+      )
+      .replace(/\b(rejected|disapproved)\b/gi, 'Not Certified')
+  }
 
   if (app?.rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
   if (app?.rawStatus === 'PENDING_HR') return 'Pending HR'
   if (app?.rawStatus === 'APPROVED') return 'Approved'
   if (app?.rawStatus === 'RECALLED') return 'Recalled'
-  if (app?.rawStatus === 'REJECTED') return 'Disapproved'
+  if (app?.rawStatus === 'REJECTED') return 'Not Certified'
   return 'Unknown'
 }
 
 function getApplicationStatusColor(app) {
   if (isCancelledByUser(app)) return 'grey-7'
+  if (isApplicationReleased(app)) return 'positive'
   if (app?.rawStatus === 'PENDING_ADMIN') return 'warning'
   if (app?.rawStatus === 'PENDING_HR') return 'blue-6'
   if (app?.rawStatus === 'APPROVED') return 'green'
@@ -2288,7 +2603,8 @@ function isEditUpdateRequest(app) {
 function canPrintApplication(app) {
   if (isCocApplication(app)) {
     const rawStatus = String(app?.rawStatus ?? app?.raw_status ?? '').trim().toUpperCase()
-    return rawStatus === 'APPROVED' || getApplicationStatusLabel(app) === 'Approved'
+    const statusLabel = getApplicationStatusLabel(app)
+    return rawStatus === 'APPROVED' || statusLabel === 'Approved' || statusLabel === 'Released'
   }
 
   return getApplicationStatusLabel(app) !== 'Pending Admin'
@@ -2387,22 +2703,22 @@ function buildApplicationTimeline(app) {
 
   if (app.rawStatus === 'PENDING_ADMIN') {
     entries.push({
-      title: 'Department Admin Review Pending',
-      subtitle: 'Current stage',
+      title: 'Department Recommendation',
+      subtitle: 'On Process',
       description: 'Waiting for department admin approval or disapproval.',
       icon: 'pending_actions',
       color: 'warning',
     })
     entries.push({
-      title: 'Pending HR Review',
-      subtitle: 'Upcoming',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     })
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -2416,7 +2732,7 @@ function buildApplicationTimeline(app) {
 
     if (resolveDepartmentAdminActionDateValue(app)) {
       entries.push({
-        title: 'Department Admin Review Completed',
+        title: 'Department Recommendation Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
@@ -2445,7 +2761,7 @@ function buildApplicationTimeline(app) {
   }
 
   entries.push({
-    title: 'Department Admin Review Completed',
+    title: 'Department Recommendation Completed',
     subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
     description: 'Application was reviewed and forwarded to HR.',
     icon: 'check_circle',
@@ -2455,15 +2771,15 @@ function buildApplicationTimeline(app) {
 
   if (app.rawStatus === 'PENDING_HR') {
     entries.push({
-      title: 'Pending HR Review',
-      subtitle: 'Current stage',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'Waiting for HR final evaluation and approval.',
       icon: 'pending_actions',
       color: 'warning',
     })
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -2476,7 +2792,7 @@ function buildApplicationTimeline(app) {
     const approvedBy = resolveHrActor(app)
 
     entries.push({
-      title: 'Approved by HR',
+      title: 'CHRMO Certification Completed',
       subtitle: approvedAt,
       description: 'Application is fully approved.',
       icon: 'task_alt',
@@ -2502,7 +2818,7 @@ function buildApplicationTimeline(app) {
 
     if (approvedAt || approvedBy !== 'Unknown') {
       entries.push({
-        title: 'Approved by HR',
+        title: 'CHRMO Certification Completed',
         subtitle: approvedAt || 'Completed',
         description: 'Application was fully approved before recall.',
         icon: 'task_alt',
@@ -2552,7 +2868,23 @@ function getTimelineEntryTone(entry) {
 }
 
 function getTimelineEntryIcon(entry) {
+  const title = String(entry?.title || '')
+    .trim()
+    .toLowerCase()
   const tone = getTimelineEntryTone(entry)
+
+  if (title.includes('application filed') || title.includes('submitted')) return 'description'
+  if (title.includes('department recommendation') || title.includes('department admin review')) {
+    return title.includes('completed') ? 'check_box' : 'pending_actions'
+  }
+  if (title.includes('received')) return 'receipt_long'
+  if (title.includes('chrmo certification') || title.includes('pending hr review')) {
+    return title.includes('completed') ? 'task_alt' : 'assignment_ind'
+  }
+  if (title.includes('cmo/cvmo review')) return 'groups'
+  if (title.includes('released')) return 'assignment_turned_in'
+  if (title.includes('application closed')) return 'assignment_turned_in'
+  if (title.includes('current status')) return 'info'
 
   if (tone === 'negative') return 'close'
   if (tone === 'warning') return 'schedule'
@@ -2601,6 +2933,64 @@ function getStatusHistoryEntries(app) {
 
 function findStatusHistoryEntry(app, matcher) {
   return getStatusHistoryEntries(app).find((entry) => matcher(entry || {})) || null
+}
+
+function resolveReleasedHistoryEntry(app) {
+  return findStatusHistoryEntry(app, (entry) => {
+    const action = String(entry?.action || '').toUpperCase()
+    const stage = String(entry?.stage || '').toLowerCase()
+    return action === 'HR_RELEASED' || stage === 'hr released' || stage === 'released application'
+  })
+}
+
+function resolveReleasedDateValue(app) {
+  const historyEntry = resolveReleasedHistoryEntry(app)
+  return (
+    app?.releasedAt ||
+    app?.released_at ||
+    app?.hrReleasedAt ||
+    app?.hr_released_at ||
+    historyEntry?.created_at ||
+    historyEntry?.createdAt ||
+    null
+  )
+}
+
+function hasReleasedFlag(app) {
+  return [
+    app?.hasHrReleased,
+    app?.has_hr_released,
+    app?.released,
+    app?.isReleased,
+    String(app?.status || '').trim().toUpperCase() === 'RELEASED',
+  ].some(
+    (value) =>
+      value === true ||
+      value === 1 ||
+      value === '1' ||
+      String(value || '').toLowerCase() === 'true',
+  )
+}
+
+function isApplicationReleased(app) {
+  if (!app) return false
+  return Boolean(
+    hasReleasedFlag(app) || resolveReleasedHistoryEntry(app) || resolveReleasedDateValue(app),
+  )
+}
+
+function getApplicationStatusTooltip(app) {
+  if (!isApplicationReleased(app)) return ''
+
+  const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
+  const releasedAt = formatDateTime(resolveReleasedDateValue(app))
+
+  if (approvedAt && releasedAt) {
+    return `Approved by HR on ${approvedAt}; released on ${releasedAt}.`
+  }
+  if (releasedAt) return `Approved by HR, then released on ${releasedAt}.`
+  if (approvedAt) return `Approved by HR on ${approvedAt}; released.`
+  return 'Approved by HR, then released.'
 }
 
 function resolveRecallActor(app) {
@@ -2669,33 +3059,7 @@ function resolveDisapprovedDateValue(app) {
   )
 }
 
-function resolveProcessedBy(app) {
-  if (app?.processedBy) return app.processedBy
-  if (isCancelledByUser(app)) return resolveCancelledActor(app)
-  if (app?.rawStatus === 'PENDING_HR') return resolveDepartmentAdminActor(app)
-  if (app?.rawStatus === 'APPROVED') return resolveHrActor(app)
-  if (app?.rawStatus === 'RECALLED') return resolveRecallActor(app)
-  if (app?.rawStatus === 'REJECTED') return resolveDisapprovalActor(app)
-  return 'N/A'
-}
 
-function resolveReviewedDateValue(app) {
-  if (app?.reviewedAt) return app.reviewedAt
-  if (isCancelledByUser(app)) return app?.cancelledAt || app?.disapprovedAt || null
-  if (app?.rawStatus === 'PENDING_HR') return app?.adminActionAt || null
-  if (app?.rawStatus === 'APPROVED') return app?.hrActionAt || app?.adminActionAt || null
-  if (app?.rawStatus === 'RECALLED') {
-    return resolveRecallDateValue(app) || app?.hrActionAt || app?.adminActionAt || null
-  }
-  if (app?.rawStatus === 'REJECTED')
-    return app?.disapprovedAt || app?.hrActionAt || app?.adminActionAt || null
-  return null
-}
-
-function formatReviewedDate(app) {
-  const reviewedDate = resolveReviewedDateValue(app)
-  return reviewedDate ? formatDate(reviewedDate) : 'N/A'
-}
 
 function getApplicationStatusPriority(app) {
   if (app?.rawStatus === 'PENDING_ADMIN') return 0
@@ -2755,7 +3119,7 @@ function formatRecentRemarks(app) {
 }
 
 function getConfirmActionTitle(type) {
-  if (type === 'approve') return 'Approve'
+  if (type === 'approve') return 'Recommendation'
   if (type === 'cancel') return 'Cancel'
   return 'Disapprove'
 }
@@ -2774,7 +3138,7 @@ function getConfirmActionIconColor(type) {
 
 function getConfirmActionMessage(type) {
   if (type === 'approve') {
-    return 'This will forward the application to HR for final review.'
+    return 'This will recommend the application and forward it to HR for final review.'
   }
   if (type === 'cancel') {
     return 'You will continue to the cancellation form.'
@@ -2783,13 +3147,13 @@ function getConfirmActionMessage(type) {
 }
 
 function getActionResultLabel(type) {
-  if (type === 'approved') return 'Approved'
+  if (type === 'approved') return 'Recommended'
   if (type === 'cancelled') return 'Cancelled'
   return 'Disapproved'
 }
 
 function getActionResultVerb(type) {
-  if (type === 'approved') return 'approved'
+  if (type === 'approved') return 'recommended'
   if (type === 'cancelled') return 'cancelled'
   return 'disapproved'
 }
@@ -3015,8 +3379,26 @@ async function printApplication(app) {
   }
 }
 
-function printApplicationsPdf() {
-  const rowsToPrint = applicationsForTable.value
+function printApplicationsPdf(dateRange = null) {
+  let rowsToPrint = applicationsForTable.value
+
+  if (dateRange && (dateRange.from || dateRange.to)) {
+    const from = dateRange.from ? new Date(dateRange.from) : null
+    const to = dateRange.to ? new Date(dateRange.to) : null
+
+    rowsToPrint = rowsToPrint.filter((app) => {
+      const appDate = new Date(app.dateFiled || app.created_at)
+      if (Number.isNaN(appDate.getTime())) return true // keep if unknown
+
+      if (from && appDate < from) return false
+      if (to) {
+        const toEnd = new Date(to)
+        toEnd.setHours(23, 59, 59, 999)
+        if (appDate > toEnd) return false
+      }
+      return true
+    })
+  }
 
   if (!rowsToPrint.length) {
     $q.notify({ type: 'warning', message: 'No applications available to print.', position: 'top' })
@@ -3044,18 +3426,14 @@ function printApplicationsPdf() {
       { text: 'Inclusive Dates', style: 'tableHeader' },
       { text: 'Duration', style: 'tableHeader' },
       { text: 'Status', style: 'tableHeader' },
-      { text: 'Processed By', style: 'tableHeader' },
-      { text: 'Reviewed Date', style: 'tableHeader' },
     ],
     ...rowsToPrint.map((app) => [
-      `${app.employeeName || ''}${app.employee_control_no ? `\n${app.employee_control_no}` : ''}`,
+      `${app.employeeName || ''}`,
       app.is_monetization ? `${app.leaveType || 'N/A'} (Monetization)` : app.leaveType || 'N/A',
       formatDate(app.dateFiled) || 'N/A',
       getApplicationInclusiveDateLines(app).join('\n'),
       getApplicationDurationDisplay(app),
       getApplicationStatusLabel(app),
-      resolveProcessedBy(app),
-      formatReviewedDate(app),
     ]),
   ]
 
@@ -3070,7 +3448,7 @@ function printApplicationsPdf() {
       {
         table: {
           headerRows: 1,
-          widths: ['*', '*', 72, 125, 38, 68, 100, 82],
+          widths: ['*', '*', 82, 135, 48, 88],
           body: tableBody,
         },
         layout: {
@@ -3153,8 +3531,8 @@ async function handleApprove(target) {
     $q.notify({
       type: 'positive',
       message: isCoc
-        ? 'COC application approved and forwarded to HR!'
-        : 'Leave application approved and forwarded to HR!',
+        ? 'COC application recommended and forwarded to HR!'
+        : 'Leave application recommended and forwarded to HR!',
       position: 'top',
     })
     showDetailsDialog.value = false
@@ -3327,6 +3705,12 @@ async function confirmDisapprove() {
 }
 .dashboard-kpi-label {
   margin-top: 0 !important;
+}
+.dashboard-kpi-range-wrap {
+  justify-content: flex-end;
+}
+.dashboard-kpi-range-input {
+  min-width: 240px;
 }
 .pending-reminder-card {
   min-width: 360px;
@@ -3668,8 +4052,8 @@ async function confirmDisapprove() {
 .application-timeline-meta {
   font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: #64748b;
 }
 .application-timeline-title {
@@ -3770,6 +4154,15 @@ async function confirmDisapprove() {
     margin-bottom: 10px !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+  }
+
+  .dashboard-kpi-range-wrap {
+    justify-content: stretch;
+  }
+
+  .dashboard-kpi-range-input {
+    min-width: 0;
+    width: 100%;
   }
 
   .dashboard-kpi-col {

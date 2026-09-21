@@ -1,15 +1,131 @@
 <template>
-  <q-dialog v-model="dialogModel">
-    <q-card class="rounded-borders leave-ledger-dialog" :style="dialogStyle">
-      <q-card-section class="row items-center q-pb-none">
-        <q-icon name="receipt_long" size="sm" color="secondary" class="q-mr-sm" />
-        <div class="text-h6">Leave Credits Ledger</div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup />
+  <q-dialog
+    v-model="dialogModel"
+    :maximized="isMaximized"
+    transition-show="slide-up"
+    transition-hide="slide-down"
+  >
+    <q-card
+      class="leave-ledger-dialog"
+      :class="{ 'leave-ledger-dialog--maximized': isMaximized }"
+      :style="dialogStyle"
+    >
+      <!-- Tagum Green Header Toolbar -->
+      <q-card-section
+        class="leave-ledger-dialog__header row items-center justify-between text-white q-py-sm q-px-md"
+      >
+        <div class="row items-center q-gutter-x-sm">
+          <q-icon name="receipt_long" size="sm" class="text-green-2" />
+          <span class="text-h6 text-weight-bold tracking-wide">Leave Credits Ledger</span>
+        </div>
+
+        <div class="row items-center q-gutter-x-xs">
+          <!-- Zoom Controls -->
+          <div class="zoom-controls row items-center rounded-borders q-px-xs q-mr-sm gt-xs">
+            <q-btn
+              flat
+              round
+              dense
+              icon="zoom_out"
+              color="white"
+              size="sm"
+              :disable="zoomLevel <= 70"
+              title="Zoom out"
+              @click="zoomOut"
+            />
+            <span class="text-caption text-weight-bold text-white q-px-xs select-none"
+              >{{ zoomLevel }}%</span
+            >
+            <q-btn
+              flat
+              round
+              dense
+              icon="zoom_in"
+              color="white"
+              size="sm"
+              :disable="zoomLevel >= 160"
+              title="Zoom in"
+              @click="zoomIn"
+            />
+            <q-btn
+              flat
+              round
+              dense
+              icon="restart_alt"
+              color="white"
+              size="xs"
+              title="Reset Zoom (100%)"
+              @click="resetZoom"
+            />
+          </div>
+
+          <!-- Maximize Toggle -->
+          <q-btn
+            flat
+            round
+            dense
+            :icon="isMaximized ? 'fullscreen_exit' : 'fullscreen'"
+            color="white"
+            :title="isMaximized ? 'Restore window size' : 'Maximize window'"
+            @click="isMaximized = !isMaximized"
+          />
+          <q-btn icon="close" flat round dense color="white" v-close-popup />
+        </div>
       </q-card-section>
 
-      <q-card-section class="leave-ledger-dialog__body q-pt-sm">
-        <q-banner v-if="error" dense rounded class="bg-orange-1 text-orange-9 q-mb-md">
+      <!-- Clean Mint Balance Summary Badges Bar -->
+      <div
+        v-if="!loading && leaveBalanceBadges.length"
+        class="ledger-balance-sticky-bar row no-wrap items-center justify-between q-px-md q-py-xs bg-green-1"
+      >
+        <div class="ledger-balance-chips-scroll col row items-center q-gutter-xs no-wrap">
+          <span
+            v-for="badge in filteredLeaveBalanceBadges"
+            :key="`sticky-badge-${badge.code}`"
+            class="ledger-summary-chip text-weight-bold"
+            :class="resolveBadgeColorClass(badge.code)"
+          >
+            <span class="chip-code">{{ badge.label }}:</span>
+            <span class="chip-value q-ml-xs">{{ badge.value }}</span>
+          </span>
+        </div>
+
+        <!-- Page Navigator Indicator -->
+        <div
+          v-if="renderedPages.length > 1"
+          class="ledger-page-nav-pill row items-center q-gutter-x-xs text-caption flex-shrink-0 q-ml-sm"
+        >
+          <q-btn
+            flat
+            dense
+            round
+            icon="chevron_left"
+            size="xs"
+            color="green-9"
+            :disable="activePageIndex <= 0"
+            title="Previous page"
+            @click="scrollToPage(activePageIndex - 1)"
+          />
+          <span class="text-weight-bold text-green-10 no-wrap"
+            >Page {{ activePageIndex + 1 }} of {{ renderedPages.length }}</span
+          >
+          <q-btn
+            flat
+            dense
+            round
+            icon="chevron_right"
+            size="xs"
+            color="green-9"
+            :disable="activePageIndex >= renderedPages.length - 1"
+            title="Next page"
+            @click="scrollToPage(activePageIndex + 1)"
+          />
+        </div>
+      </div>
+
+      <!-- Main Stage Body -->
+      <q-card-section class="leave-ledger-dialog__body q-pa-none">
+        <q-banner v-if="error" dense rounded class="bg-orange-1 text-orange-9 q-ma-md">
           <template #avatar>
             <q-icon name="warning" color="orange-8" />
           </template>
@@ -18,24 +134,32 @@
 
         <div
           v-if="loading"
-          class="leave-ledger-dialog__loading row items-center justify-center q-pa-xl text-grey-7"
+          class="leave-ledger-dialog__loading row items-center justify-center q-pa-xl text-grey-8"
         >
-          <q-spinner color="secondary" size="28px" class="q-mr-sm" />
-          <span>Loading leave credits ledger...</span>
+          <q-spinner color="primary" size="36px" class="q-mr-sm" />
+          <span class="text-subtitle2 text-weight-medium">Loading leave credits ledger...</span>
         </div>
 
-        <div v-else class="ledger-preview-stage">
-          <div class="ledger-preview-pages">
+        <div v-else class="ledger-preview-stage" ref="stageContainer" @scroll="onStageScroll">
+          <div
+            class="ledger-preview-pages"
+            :style="{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }"
+          >
             <div
               v-for="(pageRows, pageIndex) in renderedPages"
+              :id="`ledger-page-${pageIndex}`"
               :key="`ledger-page-${pageIndex}`"
               class="ledger-sheet"
               :class="paperSizeClass"
               :style="sheetStyle"
             >
+              <!-- Official Sheet Identity Header -->
               <div class="ledger-sheet__identity">
                 <div class="ledger-sheet__identity-name" :style="identityNameStyle">
                   {{ employeeHeadingName }}
+                </div>
+                <div class="ledger-sheet__identity-status" :style="identityStatusStyle">
+                  {{ employeeHeadingStatus }}
                 </div>
                 <div class="ledger-sheet__identity-office" :style="identityOfficeStyle">
                   {{ employeeHeadingOffice }}
@@ -55,6 +179,9 @@
                   <div class="ledger-sheet__label">Name</div>
                 </div>
                 <div class="ledger-sheet__field">
+                  <div class="ledger-sheet__label">Status</div>
+                </div>
+                <div class="ledger-sheet__field">
                   <div class="ledger-sheet__label">Division Office</div>
                 </div>
                 <div class="ledger-sheet__field ledger-sheet__field--service">
@@ -62,6 +189,7 @@
                 </div>
               </div>
 
+              <!-- Main Official Ledger Table -->
               <div class="ledger-table-wrap">
                 <table class="ledger-table">
                   <colgroup>
@@ -74,7 +202,10 @@
                   <thead>
                     <tr>
                       <th rowspan="2" class="ledger-table__primary-head">
-                        <span class="ledger-table__stacked-head">Period</span>
+                        <span class="ledger-table__stacked-head">
+                          Inclusive<br />
+                          Dates
+                        </span>
                       </th>
                       <th
                         rowspan="2"
@@ -82,13 +213,22 @@
                       >
                         <span class="ledger-table__stacked-head">Particulars</span>
                       </th>
-                      <th colspan="4" class="ledger-table__section-head">
+                      <th
+                        colspan="4"
+                        class="ledger-table__section-head ledger-table__section-head--vl"
+                      >
                         <span class="ledger-table__stacked-head">Vacation Leave</span>
                       </th>
-                      <th colspan="4" class="ledger-table__section-head">
+                      <th
+                        colspan="4"
+                        class="ledger-table__section-head ledger-table__section-head--sl"
+                      >
                         <span class="ledger-table__stacked-head">Sick Leave</span>
                       </th>
-                      <th colspan="4" class="ledger-table__section-head">
+                      <th
+                        colspan="4"
+                        class="ledger-table__section-head ledger-table__section-head--other"
+                      >
                         <span class="ledger-table__stacked-head">Other Type of Leave</span>
                       </th>
                       <th
@@ -157,10 +297,17 @@
                     <tr
                       v-for="entry in pageRows"
                       :key="entry.key"
-                      :class="{ 'ledger-table__row--blank': entry.isBlank }"
+                      class="ledger-row"
+                      :class="{
+                        'ledger-table__row--blank': entry.isBlank,
+                        'ledger-table__row--balance-forwarded': entry.isBalanceForwarded,
+                        'ledger-table__row--restoration': isRestorationEntry(entry),
+                      }"
                     >
                       <td class="ledger-table__cell--period">{{ entry.period }}</td>
-                      <td class="ledger-table__cell--particulars">{{ entry.particulars }}</td>
+                      <td class="ledger-table__cell--particulars" :title="entry.particulars">
+                        {{ entry.particulars }}
+                      </td>
                       <td>
                         <span :class="valueClassResolver(entry.vacationEarned, entry, 'VL')">
                           {{ entry.vacationEarned }}
@@ -221,7 +368,45 @@
                           {{ entry.otherAbsUndWop }}
                         </span>
                       </td>
-                      <td class="ledger-table__cell--action">{{ entry.actionTaken }}</td>
+                      <td class="ledger-table__cell--action">
+                        <div class="row items-center justify-center no-wrap">
+                          <span style="white-space: pre-line">{{ entry.actionTaken }}</span>
+                          <q-btn
+                            v-if="entry.isEditableAccrual && canEditAccrual"
+                            icon="edit"
+                            size="xs"
+                            color="primary"
+                            flat
+                            dense
+                            class="q-ml-xs"
+                            title="Edit this accrual"
+                            @click="emit('edit-accrual', entry)"
+                          />
+                          <q-btn
+                            v-if="isLateDeductionEntry(entry) && canEditLateDeduction"
+                            icon="edit"
+                            size="xs"
+                            color="negative"
+                            flat
+                            dense
+                            class="q-ml-xs"
+                            title="Edit this late deduction"
+                            @click="openEditLateDeduction(entry)"
+                          />
+                          <q-btn
+                            v-if="isRestorationEntry(entry) && canDeleteRestoration"
+                            icon="delete"
+                            size="xs"
+                            color="negative"
+                            flat
+                            dense
+                            class="q-ml-xs"
+                            title="Delete this restoration"
+                            :loading="deletingRestoration"
+                            @click="confirmDeleteRestoration(entry)"
+                          />
+                        </div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -231,30 +416,103 @@
         </div>
       </q-card-section>
 
-      <q-card-actions class="ledger-dialog-actions q-pa-md">
-        <q-space />
-        <q-btn
-          unelevated
-          no-caps
-          label="Print Ledger"
-          color="secondary"
-          icon="print"
-          :loading="printing"
-          :disable="loading || !canPrint"
-          @click="emit('print')"
-        />
+      <!-- Clean Light Footer -->
+      <q-card-actions align="right" class="ledger-dialog-actions q-pa-sm q-px-md bg-white border-top">
+        <div class="row items-center q-gutter-x-xs">
+          <q-btn
+            unelevated
+            no-caps
+            label="Late Deduction"
+            color="negative"
+            icon="timer_off"
+            :disable="loading"
+            class="text-weight-bold"
+            @click="openCreateLateDeduction"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            label="Restore/Cancel/Recall Leave"
+            color="primary"
+            icon="settings_backup_restore"
+            :disable="loading"
+            class="text-weight-bold"
+            @click="showRestoreDialog = true"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            label="Print Ledger"
+            color="secondary"
+            icon="print"
+            :loading="printing"
+            :disable="loading || !canPrint"
+            class="text-weight-bold"
+            @click="emit('print')"
+          />
+        </div>
       </q-card-actions>
     </q-card>
+
+    <HrLeaveRestorationDialog
+      v-model="showRestoreDialog"
+      :employee="employee"
+      @restored="handleRestored"
+    />
+
+    <HrLateDeductionDialog
+      v-model="showLateDeductionDialog"
+      :employee="employee"
+      :deduction="editingLateDeduction"
+      @deducted="handleRestored"
+      @updated="handleRestored"
+    />
   </q-dialog>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
+import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
+import { useAuthStore } from 'src/stores/auth-store'
+import HrLeaveRestorationDialog from 'src/components/hr/HrLeaveRestorationDialog.vue'
+import HrLateDeductionDialog from 'src/components/hr/HrLateDeductionDialog.vue'
+
+const $q = useQuasar()
+const authStore = useAuthStore()
+const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
+const canDeleteRestoration = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_restore_delete')
+})
+const canEditAccrual = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_accrual_edit')
+})
+const canEditLateDeduction = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_late_deduction_edit')
+})
+const showRestoreDialog = ref(false)
+const showLateDeductionDialog = ref(false)
+const editingLateDeduction = ref(null)
+const deletingRestoration = ref(false)
+const isMaximized = ref(false)
+const zoomLevel = ref(100)
+const activePageIndex = ref(0)
+const stageContainer = ref(null)
 
 const props = defineProps({
   modelValue: {
     type: Boolean,
     default: false,
+  },
+  employee: {
+    type: Object,
+    default: null,
   },
   error: {
     type: String,
@@ -272,6 +530,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  leaveBalanceBadges: {
+    type: Array,
+    default: () => [],
+  },
   paperSize: {
     type: String,
     default: 'A4',
@@ -288,6 +550,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  identityStatusStyle: {
+    type: Object,
+    default: () => ({}),
+  },
   identityOfficeStyle: {
     type: Object,
     default: () => ({}),
@@ -297,6 +563,10 @@ const props = defineProps({
     default: () => ({}),
   },
   employeeHeadingName: {
+    type: String,
+    default: 'N/A',
+  },
+  employeeHeadingStatus: {
     type: String,
     default: 'N/A',
   },
@@ -322,7 +592,11 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'print'])
+const emit = defineEmits(['update:modelValue', 'print', 'edit-accrual', 'restored'])
+
+function handleRestored(data) {
+  emit('restored', data)
+}
 
 const dialogModel = computed({
   get: () => props.modelValue,
@@ -332,6 +606,218 @@ const dialogModel = computed({
 const paperSizeClass = computed(
   () => `ledger-sheet--${String(props.paperSize || 'A4').toLowerCase()}`,
 )
+
+const filteredLeaveBalanceBadges = computed(() => {
+  const badges = Array.isArray(props.leaveBalanceBadges) ? props.leaveBalanceBadges : []
+  return badges.filter((b) => {
+    const code = String(b?.code || '').toUpperCase()
+    const label = String(b?.label || '').toUpperCase()
+    return !code.includes('CTO') && !code.includes('COC') && !label.includes('CTO') && !label.includes('COC') && !label.includes('COMPENSATORY')
+  })
+})
+
+function zoomIn() {
+  if (zoomLevel.value < 160) {
+    zoomLevel.value += 15
+  }
+}
+
+function zoomOut() {
+  if (zoomLevel.value > 70) {
+    zoomLevel.value -= 15
+  }
+}
+
+function resetZoom() {
+  zoomLevel.value = 100
+}
+
+function scrollToPage(index) {
+  if (index < 0 || index >= props.renderedPages.length) return
+  activePageIndex.value = index
+  const el = document.getElementById(`ledger-page-${index}`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+function onStageScroll(e) {
+  const container = e.target
+  if (!container) return
+  
+  const pages = container.querySelectorAll('.ledger-sheet')
+  if (!pages || pages.length === 0) return
+
+  let closestIndex = 0
+  let minDistance = Infinity
+  
+  const containerRect = container.getBoundingClientRect()
+  const containerCenter = containerRect.top + containerRect.height / 2
+  
+  pages.forEach((page, index) => {
+    const rect = page.getBoundingClientRect()
+    const pageCenter = rect.top + rect.height / 2
+    const distance = Math.abs(containerCenter - pageCenter)
+    if (distance < minDistance) {
+      minDistance = distance
+      closestIndex = index
+    }
+  })
+  
+  if (activePageIndex.value !== closestIndex) {
+    activePageIndex.value = closestIndex
+  }
+}
+
+function openEditLateDeduction(entry) {
+  editingLateDeduction.value = entry
+  showLateDeductionDialog.value = true
+}
+
+function openCreateLateDeduction() {
+  editingLateDeduction.value = null
+  showLateDeductionDialog.value = true
+}
+
+function isLateDeductionEntry(entry) {
+  if (!entry) return false
+  if (entry.isLateDeduction) return true
+  const rowId = String(entry.id || entry.row_id || entry.merge_key || '').toLowerCase()
+  if (rowId.includes('late-deduction') || rowId.includes('latededuction')) return true
+  if (entry.late_deduction_id || entry.lateDeductionId) return true
+  const actionTaken = String(entry.actionTaken || entry.action_taken || '').toLowerCase()
+  if (actionTaken.includes('late deduction')) return true
+  const particulars = String(entry.particulars || '').toLowerCase()
+  return particulars.startsWith('late ') || particulars.includes('late deduction')
+}
+
+const controlNo = computed(() => {
+  return String(props.employee?.control_no || props.employee?.controlNo || '').trim()
+})
+
+function getRestorationId(entry) {
+  if (!entry) return null
+  if (entry.restoration_id) return entry.restoration_id
+  if (entry.restorationId) return entry.restorationId
+  if (entry.rawEntry?.restoration_id) return entry.rawEntry.restoration_id
+  const rowId = String(entry.id || entry.row_id || entry.merge_key || '')
+  if (rowId.startsWith('restoration-')) {
+    const id = parseInt(rowId.replace('restoration-', ''), 10)
+    if (!Number.isNaN(id) && id > 0) return id
+  }
+  return null
+}
+
+function isRestorationEntry(entry) {
+  if (!entry) return false
+  if (entry.isRestoration) return true
+  if (entry.restoration_id || entry.restorationId) return true
+  const rowId = String(entry.id || entry.row_id || entry.merge_key || '').toLowerCase()
+  if (rowId.includes('restoration') || rowId.startsWith('restore-')) return true
+  const particulars = String(entry.particulars || '').toLowerCase()
+  return (
+    particulars === 'restore' ||
+    particulars.includes('restore') ||
+    particulars.includes('restoration')
+  )
+}
+
+function confirmDeleteRestoration(entry) {
+  const restorationId = getRestorationId(entry)
+  if (!restorationId) {
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to identify restoration record ID to delete.',
+      position: 'top',
+    })
+    return
+  }
+
+  const employeeCtrlNo = controlNo.value
+  if (!employeeCtrlNo) {
+    $q.notify({
+      type: 'warning',
+      message: 'No employee control number found.',
+      position: 'top',
+    })
+    return
+  }
+
+  const restoredDaysDisplay =
+    entry.otherEarned ||
+    entry.vacationEarned ||
+    entry.sickEarned ||
+    entry.restored_days ||
+    entry.amount ||
+    'N/A'
+  const particularsDisplay = entry.particulars || 'N/A'
+  const periodDisplay = entry.period || entry.actionTaken || 'N/A'
+  const leaveTypeDisplay = entry.leave_type_code || entry.leaveTypeCode || 'Leave Credits'
+
+  $q.dialog({
+    title: 'Delete Restored Leave Entry',
+    message: `<div style="font-size: 0.95rem; line-height: 1.6;">
+      <p style="margin-bottom: 8px; font-weight: 500; color: #b91c1c;">
+        Are you sure you want to delete this restored leave entry?
+      </p>
+      <p style="margin-bottom: 12px; font-size: 0.85rem; color: #4b5563;">
+        Deleting this entry will remove it from the ledger and deduct the previously credited days back from the employee's balance.
+      </p>
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px;">
+        <div style="margin-bottom: 4px;"><strong>Target Leave Type:</strong> ${leaveTypeDisplay}</div>
+        <div style="margin-bottom: 4px;"><strong>Particulars:</strong> ${particularsDisplay}</div>
+        <div style="margin-bottom: 4px;"><strong>Date / Period:</strong> ${periodDisplay}</div>
+        <div><strong>Restored Days:</strong> <span style="color: #b91c1c; font-weight: 700;">${restoredDaysDisplay}</span></div>
+      </div>
+    </div>`,
+    html: true,
+    cancel: {
+      flat: true,
+      label: 'Cancel',
+      color: 'grey-8',
+    },
+    ok: {
+      unelevated: true,
+      label: 'Confirm Delete',
+      color: 'negative',
+      icon: 'delete',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    deletingRestoration.value = true
+    try {
+      const res = await api.post(
+        `/hr/employees/${employeeCtrlNo}/restore-leave-credits/${restorationId}/delete`,
+      )
+      $q.notify({
+        type: 'positive',
+        message: res.data?.message || 'Restoration entry deleted successfully.',
+        position: 'top',
+      })
+      emit('restored')
+    } catch (err) {
+      const message =
+        err.response?.data?.message || 'Failed to delete restoration entry.'
+      $q.notify({
+        type: 'negative',
+        message,
+        position: 'top',
+      })
+    } finally {
+      deletingRestoration.value = false
+    }
+  })
+}
+
+function resolveBadgeColorClass(code) {
+  const c = String(code || '').toUpperCase()
+  if (c.includes('VL')) return 'badge-vl'
+  if (c.includes('SL')) return 'badge-sl'
+  if (c.includes('FL')) return 'badge-fl'
+  if (c.includes('SPL')) return 'badge-spl'
+  if (c.includes('CTO')) return 'badge-cto'
+  return 'badge-other'
+}
 </script>
 
 <style scoped>
@@ -339,10 +825,138 @@ const paperSizeClass = computed(
   width: 96vw;
   max-width: 96vw;
   max-height: 96vh;
-  background: #f4f4f1;
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.25);
+}
+
+.leave-ledger-dialog--maximized {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+}
+
+.leave-ledger-dialog__header {
+  background: linear-gradient(135deg, #1b5e20 0%, #14532d 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.zoom-controls {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ledger-balance-sticky-bar {
+  border-bottom: 1px solid #dcfce7;
+  min-height: 40px;
+  background: #f0fdf4;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ledger-balance-chips-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.ledger-balance-chips-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.ledger-balance-chips-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.ledger-page-nav-pill {
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 2px 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .ledger-balance-sticky-bar {
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 6px;
+  }
+
+  .ledger-page-nav-pill {
+    padding: 1px 6px;
+    font-size: 0.72rem;
+  }
+}
+
+.ledger-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.73rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.badge-vl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-sl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-fl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-spl {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+
+.badge-cto {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-other {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #cbd5e1;
+}
+
+.ledger-summary-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .leave-ledger-dialog__body {
@@ -351,20 +965,22 @@ const paperSizeClass = computed(
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: #f1f5f9;
 }
 
 .leave-ledger-dialog__loading {
   flex: 1 1 auto;
   min-height: 0;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .ledger-preview-stage {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 4px;
-  border-radius: 12px;
-  background: #e5e7eb;
+  padding: 16px;
+  background: #e2e8f0;
 }
 
 .ledger-preview-pages {
@@ -372,31 +988,36 @@ const paperSizeClass = computed(
   flex-direction: column;
   gap: 32px;
   align-items: center;
-  padding: 12px 0 28px;
+  padding: 8px 0 32px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ledger-sheet {
   margin: 0 auto;
   border: 1px solid #000000;
   overflow: hidden;
-  background: #fffdf8;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  box-shadow:
+    0 10px 25px -5px rgba(0, 0, 0, 0.15),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
   font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   display: flex;
   flex-direction: column;
+  border-radius: 2px;
 }
 
 .ledger-sheet__identity {
   display: grid;
-  grid-template-columns: 34% 42% 24%;
+  grid-template-columns: 34% 13% 29% 24%;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 0;
   min-height: 40px;
   padding: 8px 12px 4px;
-  border-bottom: 1px solid #000000;
+  border-bottom: 1.5px solid #000000;
 }
 
 .ledger-sheet__identity-name,
+.ledger-sheet__identity-status,
 .ledger-sheet__identity-office,
 .ledger-sheet__identity-service {
   min-width: 0;
@@ -412,6 +1033,11 @@ const paperSizeClass = computed(
 .ledger-sheet__identity-name {
   letter-spacing: 0.005em;
   text-align: center;
+}
+
+.ledger-sheet__identity-status {
+  text-align: center;
+  letter-spacing: 0.005em;
 }
 
 .ledger-sheet__identity-office {
@@ -432,8 +1058,8 @@ const paperSizeClass = computed(
 
 .ledger-sheet__header {
   display: grid;
-  grid-template-columns: 34% 42% 24%;
-  border-bottom: 1px solid #000000;
+  grid-template-columns: 34% 13% 29% 24%;
+  border-bottom: 1.5px solid #000000;
 }
 
 .ledger-sheet__field {
@@ -475,9 +1101,9 @@ const paperSizeClass = computed(
 .ledger-table th,
 .ledger-table td {
   border: 1px solid #000000;
-  padding: 1px 2px;
-  font-size: 0.64rem;
-  line-height: 1.02;
+  padding: 2px 3px;
+  font-size: 0.65rem;
+  line-height: 1.05;
   vertical-align: middle;
   color: #000000;
   text-align: center;
@@ -487,32 +1113,52 @@ const paperSizeClass = computed(
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  background: #fffdf8;
+  background: #f8fafc;
   color: #000000;
   padding: 0;
+  border: 1px solid #000000;
 }
 
 .ledger-table thead tr:first-child th {
-  height: 20px;
+  height: 22px;
 }
 
 .ledger-table thead tr:nth-child(2) th {
-  height: 34px;
+  height: 36px;
 }
 
 .ledger-table thead tr:nth-child(2) .ledger-table__stacked-head {
-  font-size: 0.56rem;
-  line-height: 0.96;
+  font-size: 0.58rem;
+  line-height: 0.98;
   letter-spacing: 0.01em;
   padding: 1px 1px;
 }
 
 .ledger-table td {
-  padding: 1px 3px;
+  padding: 2px 4px;
 }
 
 .ledger-table tbody tr {
-  height: 20px;
+  height: 22px;
+  transition: background-color 0.12s ease;
+}
+
+.ledger-table tbody tr:hover td {
+  background-color: #e6f4ea !important;
+}
+
+.ledger-table__row--blank td {
+  background: #ffffff;
+}
+
+.ledger-table__row--balance-forwarded td {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.ledger-table__row--restoration td {
+  background: #f0fdf4;
+  font-weight: 600;
 }
 
 .ledger-table__stacked-head {
@@ -537,11 +1183,13 @@ const paperSizeClass = computed(
 }
 
 .ledger-table__value--wl {
-  color: #1e5fbf;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .ledger-table__value--mco6 {
-  color: #1b8f3a;
+  color: #15803d;
+  font-weight: 600;
 }
 
 .ledger-table__cell--period,
@@ -551,18 +1199,20 @@ const paperSizeClass = computed(
 }
 
 .ledger-table__cell--particulars {
-  font-size: 0.55rem;
+  font-size: 0.58rem;
   line-height: 1;
   font-weight: 600;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .ledger-table__primary-head--particulars .ledger-table__stacked-head {
-  font-size: 0.56rem;
+  font-size: 0.58rem;
   letter-spacing: 0.01em;
 }
 
 .ledger-table__primary-head--action .ledger-table__stacked-head {
-  font-size: 0.52rem;
+  font-size: 0.54rem;
   line-height: 0.94;
   letter-spacing: 0.01em;
   padding: 1px 1px;
@@ -570,6 +1220,7 @@ const paperSizeClass = computed(
 
 .ledger-table__cell--period {
   font-weight: 600;
+  white-space: pre-line;
 }
 
 .ledger-table__cell--action {
@@ -577,11 +1228,8 @@ const paperSizeClass = computed(
   font-weight: 600;
 }
 
-.ledger-dialog-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.border-top {
+  border-top: 1px solid #cbd5e1;
 }
 
 @media (max-width: 900px) {
@@ -599,6 +1247,7 @@ const paperSizeClass = computed(
   }
 
   .ledger-sheet__identity-name,
+  .ledger-sheet__identity-status,
   .ledger-sheet__identity-office,
   .ledger-sheet__identity-service {
     text-align: center;

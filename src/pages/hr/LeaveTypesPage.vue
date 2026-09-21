@@ -454,7 +454,7 @@ async function saveLeaveType() {
   try {
     const payload = buildPayload()
     if (isEditMode.value && editingId.value) {
-      await api.put(`/hr/leave-types/${editingId.value}`, payload)
+      await api.post(`/hr/leave-types/${editingId.value}/update`, payload)
       $q.notify({ type: 'positive', message: 'Leave type updated successfully.', position: 'top' })
     } else {
       await api.post('/hr/leave-types', payload)
@@ -494,7 +494,7 @@ function confirmDelete(row) {
   }).onOk(async () => {
     deletingId.value = row.id
     try {
-      await api.delete(`/hr/leave-types/${row.id}`)
+      await api.post(`/hr/leave-types/${row.id}/delete`)
       $q.notify({ type: 'positive', message: 'Leave type deleted successfully.', position: 'top' })
       await fetchLeaveTypes()
     } catch (err) {

@@ -4,7 +4,6 @@ import { enrichAppWithDepartmentHead, getDepartmentHeadSignature } from './depar
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
-const COC_VISIBLE_ROW_COUNT = 15
 const MAYOR_NAME = 'REY T. UY'
 const MAYOR_TITLE = 'City Mayor'
 const HEADER_BAR_HEIGHT = 26
@@ -777,19 +776,15 @@ export async function generateCocApplicationPdf(app, options = {}) {
   )
   const monthLabel = resolveForMonthLabel(printableApp, overtimeRows)
 
-  const visibleRows = overtimeRows.slice(0, COC_VISIBLE_ROW_COUNT)
-  const hiddenRowsCount = Math.max(0, overtimeRows.length - COC_VISIBLE_ROW_COUNT)
-  const paddedRows = [...visibleRows]
-  while (paddedRows.length < COC_VISIBLE_ROW_COUNT) {
-    paddedRows.push({
-      dateText: '',
-      natureText: '',
-      fromText: '',
-      toText: '',
-      durationText: '',
-      runningTotalText: '',
-    })
-  }
+  const visibleRows = overtimeRows.length > 0 ? overtimeRows : [{
+    dateText: '',
+    natureText: '',
+    fromText: '',
+    toText: '',
+    creditedText: '',
+    runningCreditedText: '',
+  }]
+  const hiddenRowsCount = 0
 
   let logoBase64 = null
   try {
@@ -833,7 +828,7 @@ export async function generateCocApplicationPdf(app, options = {}) {
       {},
       {},
     ],
-    ...paddedRows.map((row) => [
+    ...visibleRows.map((row) => [
       { text: row.dateText || ' ', style: 'tableValueCenter' },
       { text: row.natureText || ' ', style: 'tableValueLeft' },
       { text: row.fromText || ' ', style: 'tableValueCenter' },

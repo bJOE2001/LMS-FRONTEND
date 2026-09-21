@@ -69,7 +69,7 @@
             />
           </div>
 
-          <div class="col-6 col-md-2">
+          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-6 col-md-2">
             <q-select
               v-model="filters.month"
               :options="monthOptions"
@@ -83,7 +83,7 @@
             />
           </div>
 
-          <div class="col-6 col-md-2">
+          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-6 col-md-2">
             <q-select
               v-model="filters.year"
               :options="yearOptions"
@@ -97,7 +97,41 @@
             />
           </div>
 
-          <div class="col-12 col-md-2">
+          <div v-if="selectedReportType === 'applicationProcessing'" class="col-6 col-md-2">
+            <q-input
+              v-model="filters.fromDate"
+              type="date"
+              outlined
+              dense
+              label="From Date"
+            />
+          </div>
+
+          <div v-if="selectedReportType === 'applicationProcessing'" class="col-6 col-md-2">
+            <q-input
+              v-model="filters.toDate"
+              type="date"
+              outlined
+              dense
+              label="To Date"
+            />
+          </div>
+
+          <div v-if="selectedReportType === 'applicationProcessing'" class="col-12 col-md-2">
+            <q-select
+              v-model="filters.actionType"
+              :options="actionTypeOptions"
+              option-label="label"
+              option-value="value"
+              emit-value
+              map-options
+              outlined
+              dense
+              label="Action"
+            />
+          </div>
+
+          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-12 col-md-2">
             <q-select
               v-model="filters.office"
               :options="officeOptions"
@@ -111,7 +145,7 @@
             />
           </div>
 
-          <div class="col-12 col-md-2">
+          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-12 col-md-2">
             <q-select
               v-model="filters.status"
               :options="statusOptions"
@@ -264,10 +298,13 @@ import MonetizationReportTable from 'components/report/MonetizationReportTable.v
 import CtoAvailmentReportTable from 'components/report/CtoAvailmentReportTable.vue'
 import CocBalancesReportTable from 'components/report/CocBalancesReportTable.vue'
 import LeaveAvailmentPerOfficeReportTable from 'components/report/LeaveAvailmentPerOfficeReportTable.vue'
+import LeaveAdjustmentReportTable from 'components/report/LeaveAdjustmentReportTable.vue'
+import ApplicationProcessingReportTable from 'components/report/ApplicationProcessingReportTable.vue'
 import {
   exportReportsMonitoringCsv,
   exportReportsMonitoringExcel,
 } from 'src/utils/reports-monitoring-export'
+import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import { useReportStore } from 'stores/reportStore'
 
 const reportStore = useReportStore()
@@ -296,6 +333,16 @@ const filters = reactive({
   office: null,
   status: null,
   employeeName: '',
+  fromDate: (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })(),
+  toDate: (() => {
+    const d = new Date()
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+    return `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
+  })(),
+  actionType: 'all',
 })
 
 const monthNames = [
@@ -321,46 +368,48 @@ const monthOptions = [
   })),
 ]
 
-const OFFICE_ACRONYM_STOP_WORDS = new Set([
-  'A',
-  'AN',
-  'AND',
-  'FOR',
-  'IN',
-  'OF',
-  'OFFICE',
-  'ON',
-  'THE',
-  'TO',
-])
+const actionTypeOptions = [
+  { label: 'All Actions', value: 'all' },
+  { label: 'Received', value: 'received' },
+  { label: 'Certified', value: 'certified' },
+  { label: 'CMO/CVMO Reviewed', value: 'cmo_reviewed' },
+  { label: 'Released', value: 'released' },
+]
 
-function toOfficeCode(value) {
-  const source = String(value || '').trim()
-  if (!source) return '-'
-
-  if (!/\s/.test(source) && source === source.toUpperCase()) {
-    return source
+function formatInclusiveDates(dates) {
+  if (typeof dates === 'string') {
+    try {
+      dates = JSON.parse(dates)
+    } catch {
+      return dates
+    }
   }
+  if (!Array.isArray(dates) || dates.length === 0) return ''
+  return dates
+    .map((d) => {
+      const date = new Date(d)
+      return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    })
+    .join(', ')
+}
 
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
+function formatDateActionTaken(dateString) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+}
 
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !OFFICE_ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word),
-  )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source
+function getOfficeFilterValue(row) {
+  const officeAcronym = resolveOfficeAcronymLabel(row)
+  return String(officeAcronym || '').trim()
 }
 
 function getOfficeColumnValue(row) {
-  return toOfficeCode(row?.office)
+  return getOfficeFilterValue(row) || '-'
 }
 
 const STATUS_SORT_SEQUENCE = [
@@ -384,8 +433,13 @@ function normalizeStatusSortKey(status) {
 }
 
 function formatStatusLabel(status) {
-  const normalizedStatus = String(status || '').trim()
-  if (normalizedStatus.toUpperCase() === 'HONORARIUM') return 'Honorarium'
+  const normalizedStatus = String(status || '')
+    .trim()
+    .toUpperCase()
+  if (!normalizedStatus) return '-'
+  if (normalizedStatus === 'REGULAR') return 'PERMANENT'
+  if (normalizedStatus === 'CONTRACTUAL') return 'COS(Job Order)'
+  if (normalizedStatus === 'HONORARIUM') return 'COS(Honorarium)'
   return normalizedStatus
 }
 
@@ -398,21 +452,29 @@ function trimNullable(value) {
   return normalized !== '' ? normalized : ''
 }
 
-function formatNameFromParts(surname, firstname) {
-  const nameParts = [trimNullable(surname), trimNullable(firstname)].filter(Boolean)
-  return nameParts.join(', ')
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
 }
 
-function formatGivenNamesWithoutTrailingMiddle(givenNamesValue) {
-  const givenNameTokens = String(givenNamesValue ?? '')
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean)
+function formatNameFromParts(surname, firstname, middlename = '') {
+  const nameParts = [trimNullable(surname), trimNullable(firstname)].filter(Boolean)
+  const formattedName = nameParts.join(', ')
+  if (!formattedName) return ''
 
-  if (!givenNameTokens.length) return ''
-  if (givenNameTokens.length === 1) return givenNameTokens[0]
-
-  return givenNameTokens.slice(0, -1).join(' ')
+  const middleInitial = getMiddleInitial(middlename)
+  return middleInitial ? `${formattedName} ${middleInitial}` : formattedName
 }
 
 function formatExistingName(value) {
@@ -422,17 +484,34 @@ function formatExistingName(value) {
   if (rawName.includes(',')) {
     const [rawSurname, ...rawGivenNames] = rawName.split(',')
     const surname = trimNullable(rawSurname)
-    const givenNames = trimNullable(rawGivenNames.join(' ').replace(/\s+/g, ' '))
-    const firstname = trimNullable(formatGivenNamesWithoutTrailingMiddle(givenNames))
-    return formatNameFromParts(surname, firstname) || rawName
+    const givenTokens = trimNullable(rawGivenNames.join(' ').replace(/\s+/g, ' ')).split(/\s+/).filter(Boolean)
+    
+    let firstname = ''
+    let middlename = ''
+    if (givenTokens.length > 1) {
+      middlename = givenTokens.pop()
+      firstname = givenTokens.join(' ')
+    } else {
+      firstname = givenTokens.join(' ')
+    }
+    return formatNameFromParts(surname, firstname, middlename) || rawName
   }
 
   const nameTokens = rawName.split(/\s+/).filter(Boolean)
   if (nameTokens.length < 2) return rawName
 
   const surname = trimNullable(nameTokens.pop())
-  const firstname = trimNullable(formatGivenNamesWithoutTrailingMiddle(nameTokens.join(' ')))
-  return formatNameFromParts(surname, firstname) || rawName
+  
+  let firstname = ''
+  let middlename = ''
+  if (nameTokens.length > 1) {
+    middlename = nameTokens.pop()
+    firstname = nameTokens.join(' ')
+  } else {
+    firstname = nameTokens.join(' ')
+  }
+  
+  return formatNameFromParts(surname, firstname, middlename) || rawName
 }
 
 function formatReportRowName(row) {
@@ -441,10 +520,11 @@ function formatReportRowName(row) {
   const formattedFromParts = formatNameFromParts(
     row?.surname ?? row?.last_name ?? row?.lastName,
     row?.firstname ?? row?.first_name ?? row?.firstName,
+    row?.middlename ?? row?.middle_name ?? row?.middleName,
   )
 
   if (formattedFromParts) return formattedFromParts
-  return formatExistingName(row?.name)
+  return formatExistingName(row?.name || row?.employee_name)
 }
 
 const leaveBalanceColumnGroupOptions = [
@@ -493,6 +573,8 @@ const monetizationRows = computed(() => reportStore.monetizationReports)
 const ctoAvailmentRows = computed(() => reportStore.ctoAvailmentReports)
 const cocBalancesRows = computed(() => reportStore.cocBalanceReports)
 const leaveAvailmentRows = computed(() => reportStore.leaveAvailmentReports)
+const adjustmentRequestsRows = computed(() => reportStore.adjustmentRequestsReports)
+const applicationProcessingRows = computed(() => reportStore.applicationProcessingReports)
 // Mapping of report types to their configurations
 const reportConfigs = {
   lwop: {
@@ -504,7 +586,7 @@ const reportConfigs = {
     metricUnit: 'days',
     balanceField: null,
     columns: [
-      { name: 'name', label: 'Name', field: 'name', align: 'left' },
+      { name: 'name', label: 'Name', field: formatReportRowName, align: 'left' },
       { name: 'office', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'status', label: 'Status', field: getStatusColumnValue, align: 'left' },
       {
@@ -544,7 +626,7 @@ const reportConfigs = {
     balanceField: 'totalNoLeave',
     balanceUnit: 'days',
     columns: [
-      { name: 'name', label: 'Name', field: 'name', align: 'left' },
+      { name: 'name', label: 'Name', field: formatReportRowName, align: 'left' },
       {
         name: 'designation',
         label: 'Designation',
@@ -678,7 +760,7 @@ const reportConfigs = {
         field: 'dateOfFiling',
         align: 'left',
       },
-      { name: 'name', label: 'Name', field: 'name', align: 'left' },
+      { name: 'name', label: 'Name', field: formatReportRowName, align: 'left' },
       {
         name: 'designation',
         label: 'Designation',
@@ -702,7 +784,7 @@ const reportConfigs = {
     balanceUnit: 'hours',
     columns: [
       { name: 'dateFiled', label: 'Date Filed', field: 'dateFiled', align: 'left' },
-      { name: 'name', label: 'Name', field: 'name', align: 'left' },
+      { name: 'name', label: 'Name', field: formatReportRowName, align: 'left' },
       {
         name: 'designation',
         label: 'Designation',
@@ -765,7 +847,7 @@ const reportConfigs = {
     balanceField: 'totalBalanceHours',
     balanceUnit: 'hours',
     columns: [
-      { name: 'name', label: 'Name', field: 'name', align: 'left' },
+      { name: 'name', label: 'Name', field: formatReportRowName, align: 'left' },
       {
         name: 'designation',
         label: 'Designation',
@@ -804,7 +886,7 @@ const reportConfigs = {
     metricUnit: 'days',
     balanceField: null,
     columns: [
-      { name: 'name', label: 'Name', field: 'name', align: 'left' },
+      { name: 'name', label: 'Name', field: formatReportRowName, align: 'left' },
       {
         name: 'designation',
         label: 'Designation',
@@ -827,13 +909,52 @@ const reportConfigs = {
       { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' },
     ],
   },
+  adjustmentRequests: {
+    label: 'Summary of Request for Adjustment of Approved Leave Application',
+    component: LeaveAdjustmentReportTable,
+    rows: adjustmentRequestsRows,
+    minTableWidth: '1400px',
+    metricField: null,
+    balanceField: null,
+    columns: [
+      { name: 'no', label: 'NO.', field: 'no', align: 'center' },
+      { name: 'date_of_request', label: 'DATE OF REQUEST', field: 'date_of_request', align: 'left' },
+      { name: 'employee_name', label: 'NAME OF EMPLOYEE', field: formatReportRowName, align: 'left' },
+      { name: 'status', label: 'STATUS', field: 'status', align: 'center' },
+      { name: 'office', label: 'OFFICE', field: 'office', align: 'center' },
+      { name: 'from', label: 'FROM', field: 'from', align: 'left' },
+      { name: 'to', label: 'TO', field: 'to', align: 'left' },
+      { name: 'reason', label: 'REASON/S', field: 'reason', align: 'left' },
+    ],
+  },
+  applicationProcessing: {
+    label: 'Processed Applications',
+    component: ApplicationProcessingReportTable,
+    rows: applicationProcessingRows,
+    minTableWidth: '1200px',
+    metricField: null,
+    balanceField: null,
+    columns: [
+      { name: 'no', label: 'No.', field: 'no', align: 'left' },
+      { name: 'employee_name', label: 'Employee Name', field: (row) => formatExistingName(row.employee_name), align: 'left' },
+      { name: 'office_acronym', label: 'Office', field: 'office_acronym', align: 'left' },
+      { name: 'leave_type_name', label: 'Leave Type', field: 'leave_type_name', align: 'left' },
+      { name: 'inclusive_dates', label: 'Inclusive Dates', field: (row) => formatInclusiveDates(row.inclusive_dates), align: 'left' },
+      { name: 'action', label: 'Action', field: 'action', align: 'center' },
+      { name: 'date_action_taken', label: 'Date Action Taken', field: (row) => formatDateActionTaken(row.date_action_taken), align: 'center' },
+    ],
+  },
 }
 
 async function ensureSelectedReportLoaded() {
   loading.value = true
 
   try {
-    await reportStore.ensureReportLoaded(resolvedReportType.value)
+    if (resolvedReportType.value === 'applicationProcessing') {
+      await reportStore.fetchApplicationProcessingReports(filters.fromDate, filters.toDate, filters.actionType)
+    } else {
+      await reportStore.ensureReportLoaded(resolvedReportType.value)
+    }
   } catch {
     $q.notify({
       type: 'negative',
@@ -994,14 +1115,14 @@ const officeOptions = computed(() => {
   const offices = Array.from(
     new Set(
       selectedReportRows.value
-        .map((row) => row?.office)
+        .map((row) => getOfficeFilterValue(row))
         .filter((office) => office != null && String(office).trim() !== ''),
     ),
   ).sort()
 
   return [
     { label: 'All Offices', value: null },
-    ...offices.map((office) => ({ label: toOfficeCode(office), value: office })),
+    ...offices.map((office) => ({ label: office, value: office })),
   ]
 })
 
@@ -1053,8 +1174,15 @@ const filteredRows = computed(() => {
       if (filters.year && !rowYears.includes(filters.year)) return false
     }
 
-    if (filters.office && row?.office !== filters.office) return false
+    if (filters.office && getOfficeFilterValue(row) !== filters.office) return false
     if (filters.status && row?.status !== filters.status) return false
+    
+    // For application processing, it's filtered backend-side. We just apply the search filter.
+    if (resolvedReportType.value === 'applicationProcessing') {
+      if (search && !String(row?.employee_name || '').toLowerCase().includes(search)) return false
+      return true
+    }
+    
     if (search && !String(row?.name || '').toLowerCase().includes(search)) return false
     return true
   })
@@ -1085,6 +1213,16 @@ watch(selectedReportType, () => {
   }
 
   void ensureSelectedReportLoaded()
+  if (selectedReportType.value === 'applicationProcessing') {
+    void ensureSelectedReportLoaded()
+  }
+})
+
+// Refetch application processing report when date/action filters change
+watch([() => filters.fromDate, () => filters.toDate, () => filters.actionType], () => {
+  if (selectedReportType.value === 'applicationProcessing') {
+    void ensureSelectedReportLoaded()
+  }
 })
 
 function getColumnWidth(column, rows) {

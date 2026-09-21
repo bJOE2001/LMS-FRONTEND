@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { generateCocCertificatePdf } from 'src/utils/coc-certificate-pdf'
+import { isAbroadLeaveApplication } from 'src/utils/leave-application-details'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
@@ -16,19 +17,37 @@ const router = useRouter()
 const loading = ref(false)
 const receiveLoading = ref(false)
 const releaseLoading = ref(false)
+const undoReceiveLoading = ref(false)
+const undoReleaseLoading = ref(false)
 const timelineLoading = ref(false)
+const payStatusOverrideLoading = ref(false)
+const bulkCmoCbmoReviewLoading = ref(false)
+const bulkReleaseLoading = ref(false)
+const selectedApplications = ref([])
 const applications = ref([])
+const isServerPaginatedLeaveView = normalizeApplicationType(options?.applicationType) === 'LEAVE'
 const tablePagination = ref({
   page: 1,
   rowsPerPage: 10,
+  ...(isServerPaginatedLeaveView ? { rowsNumber: 0 } : {}),
 })
 const statusSearch = ref('')
 const employmentTypeFilter = ref('')
+const pendingReceiveFilter = ref(Boolean(options?.pendingReceive || false))
+const pendingReleaseFilter = ref(Boolean(options?.pendingRelease || false))
 const applicationTypeFilter = ref(normalizeApplicationType(options?.applicationType))
 const applicationSourceFilter = String(options?.applicationSource || '')
   .trim()
   .toLowerCase()
-const searchableStatusValues = new Set(['pending', 'approved', 'rejected', 'disapproved', 'recalled'])
+let applicationsRequestSequence = 0
+const searchableStatusValues = new Set([
+  'pending',
+  'approved',
+  'released',
+  'rejected',
+  'disapproved',
+  'recalled',
+])
 const queueGroupRenderOrder = ['PENDING', 'APPROVED', 'REJECTED', 'RECALLED', 'OTHER']
 const EMPLOYMENT_TYPE_FILTER_LABELS = {
   elective: 'Elective',
@@ -51,6 +70,7 @@ const EVENT_BASED_LEAVE_TYPES = [
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
+const REQUEST_ACTION_RECALL = 'REQUEST_RECALL'
 
 function getActualRequestedDayCount(app) {
   const explicitCandidates = [
@@ -250,14 +270,103 @@ function normalizeOptionalBackendFlag(...values) {
   return null
 }
 
+function trimText(value) {
+  return String(value ?? '').trim()
+}
+
+function getMiddleInitial(value) {
+  const normalized = trimText(value)
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function formatEmployeeNameFromParts(surname, firstname, middlename = '') {
+  const cleanSurname = trimText(surname)
+  const cleanFirstname = trimText(firstname)
+  if (!cleanSurname || !cleanFirstname) return ''
+
+  const formattedName = `${cleanSurname}, ${cleanFirstname}`
+  const middleInitial = getMiddleInitial(middlename)
+  return middleInitial ? `${formattedName} ${middleInitial}` : formattedName
+}
+
+function formatEmployeeNameFromRaw(value) {
+  const rawName = trimText(value)
+  if (!rawName) return ''
+
+  if (rawName.includes(',')) {
+    const [rawSurname, ...rawGivenNames] = rawName.split(',')
+    const surname = trimText(rawSurname)
+    const givenTokens = rawGivenNames
+      .join(' ')
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean)
+
+    const firstname = givenTokens[0] || ''
+    const middlename = givenTokens.slice(1).join(' ')
+
+    return formatEmployeeNameFromParts(surname, firstname, middlename) || rawName
+  }
+
+  const tokens = rawName
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+  if (tokens.length < 2) return rawName
+
+  const firstname = tokens[0]
+  const surname = tokens[tokens.length - 1]
+  const middlename = tokens.slice(1, -1).join(' ')
+
+  return formatEmployeeNameFromParts(surname, firstname, middlename) || rawName
+}
+
+function formatApplicationEmployeeName(application) {
+  const formattedFromParts = formatEmployeeNameFromParts(
+    application?.surname ?? application?.last_name ?? application?.lastName,
+    application?.firstname ?? application?.first_name ?? application?.firstName,
+    application?.middlename ?? application?.middle_name ?? application?.middleName,
+  )
+  if (formattedFromParts) return formattedFromParts
+
+  const formattedFromEmployeeObject = formatEmployeeNameFromParts(
+    application?.employee?.surname ?? application?.employee?.last_name ?? application?.employee?.lastName,
+    application?.employee?.firstname ?? application?.employee?.first_name ?? application?.employee?.firstName,
+    application?.employee?.middlename ?? application?.employee?.middle_name ?? application?.employee?.middleName,
+  )
+  if (formattedFromEmployeeObject) return formattedFromEmployeeObject
+
+  const fallbackRawName =
+    application?.employee_name ??
+    application?.employeeName ??
+    application?.employee?.full_name ??
+    application?.employee?.employee_name ??
+    application?.employee?.name ??
+    application?.name ??
+    application?.full_name ??
+    ''
+
+  return formatEmployeeNameFromRaw(fallbackRawName)
+}
+
 function normalizeBackendApplicationShape(application, index = 0) {
   if (!application || typeof application !== 'object') return null
 
   const normalizedLeaveType = String(application?.leave_type_name ?? application?.leaveType ?? '').trim()
   const normalizedLeaveTypeName =
     normalizedLeaveType || 'Unknown'
-  const normalizedEmployeeName =
-    String(application?.employee_name ?? application?.employeeName ?? '').trim() || 'Unknown'
+  const normalizedEmployeeName = formatApplicationEmployeeName(application) || 'Unknown'
   const normalizedFiledAt = String(
     application?.filed_at ??
       application?.created_at ??
@@ -317,9 +426,17 @@ function normalizeBackendApplicationShape(application, index = 0) {
   const normalizedReleasedBy = pickFirstDefinedValue(
     application?.released_by,
   )
+  const normalizedCmoCbmoReviewedBy = pickFirstDefinedValue(
+    application?.cmo_cbmo_reviewed_by,
+    application?.cmoCbmoReviewedBy,
+  )
   const normalizedReceivedAt = pickFirstDefinedValue(
     application?.received_at,
     application?.hr_received_at,
+  )
+  const normalizedCmoCbmoReviewedAt = pickFirstDefinedValue(
+    application?.cmo_cbmo_reviewed_at,
+    application?.cmoCbmoReviewedAt,
   )
   const normalizedReleasedAt = pickFirstDefinedValue(
     application?.released_at,
@@ -366,6 +483,7 @@ function normalizeBackendApplicationShape(application, index = 0) {
     pending_update: application?.pending_update ?? null,
     pending_update_reason: application?.pending_update_reason ?? '',
     pending_update_action_type: application?.pending_update_action_type ?? null,
+    pending_update_previous_status: application?.pending_update_previous_status ?? null,
     ...(normalizedHasPendingUpdateRequest === null
       ? {}
       : { has_pending_update_request: normalizedHasPendingUpdateRequest }),
@@ -373,6 +491,7 @@ function normalizeBackendApplicationShape(application, index = 0) {
     latest_update_request_action_type: application?.latest_update_request_action_type ?? null,
     latest_update_request_payload: application?.latest_update_request_payload ?? null,
     latest_update_request_reason: application?.latest_update_request_reason ?? '',
+    latest_update_request_previous_status: application?.latest_update_request_previous_status ?? null,
     latest_update_requested_at: application?.latest_update_requested_at ?? null,
     latest_update_reviewed_at: application?.latest_update_reviewed_at ?? null,
     latest_update_review_remarks: application?.latest_update_review_remarks ?? '',
@@ -387,6 +506,15 @@ function normalizeBackendApplicationShape(application, index = 0) {
     ...(normalizedHasHrReleased === null ? {} : { has_hr_released: normalizedHasHrReleased }),
     ...(normalizedReceivedBy === null ? {} : { received_by: normalizedReceivedBy }),
     ...(normalizedReceivedAt === null ? {} : { received_at: normalizedReceivedAt }),
+    ...(normalizedCmoCbmoReviewedBy === null
+      ? {}
+      : { cmo_cbmo_reviewed_by: normalizedCmoCbmoReviewedBy }),
+    ...(normalizedCmoCbmoReviewedAt === null
+      ? {}
+      : { cmo_cbmo_reviewed_at: normalizedCmoCbmoReviewedAt }),
+    ...(normalizeOptionalBackendFlag(application?.has_cmo_cbmo_reviewed) === null
+      ? {}
+      : { has_cmo_cbmo_reviewed: normalizeOptionalBackendFlag(application?.has_cmo_cbmo_reviewed) }),
     ...(normalizedReleasedBy === null ? {} : { released_by: normalizedReleasedBy }),
     ...(normalizedReleasedAt === null ? {} : { released_at: normalizedReleasedAt }),
     attachment_reference: application?.attachment_reference ?? null,
@@ -433,15 +561,19 @@ function getCocReleaseStageStatus(app) {
 
   const rawStatus = getApplicationRawStatusKey(app)
   if (rawStatus === 'PENDING_LATE_HR') return 'Pending Late Filing'
-  if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
-  if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
+  if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+  if (rawStatus === 'PENDING_HR') {
+    if (isApplicationReceivedByHr(app)) return 'CHRMO Certification'
+    return 'Pending Receive'
+  }
   if (rawStatus !== 'APPROVED') return ''
 
   if (isApplicationReleased(app)) {
     return 'Approved'
   }
-  if (isApplicationReceivedByHr(app)) return 'Pending Release'
-  return 'Pending HR Receive'
+  if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
+  if (isApplicationReceivedByHr(app)) return 'CMO/CVMO Review'
+  return 'Pending Receive'
 }
 
 function normalizeQueueStageKeyToken(value) {
@@ -471,39 +603,41 @@ function isPendingUpdateWorkflowCycle(app) {
   return getLatestUpdateRequestStatus(app) === 'PENDING'
 }
 
-function isApprovedUpdateWorkflowCycle(app) {
-  if (!app || isCocApplication(app)) return false
-  if (!isEditUpdateRequest(app)) return false
-  return getLatestUpdateRequestStatus(app) === 'APPROVED'
-}
-
 function getLeaveWorkflowStageStatus(app) {
   if (!app || isCocApplication(app)) return ''
 
   const queueStageKey = getApplicationQueueStageKey(app)
-  if (queueStageKey === 'PENDING_ADMIN') return 'Pending Admin'
-  if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Pending Admin Review'
+  if (queueStageKey === 'PENDING_ADMIN') return 'Department Recommendation'
+  if (queueStageKey === 'PENDING_ADMIN_REVIEW') return 'Department Recommendation'
   if (queueStageKey === 'PENDING_HR_RECEIVE') {
-    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
+    if (isApplicationReceivedByHr(app)) {
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'CHRMO Certification'
+    }
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
   }
   if (queueStageKey === 'PENDING_HR_REVIEW') {
-    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'Pending HR Review'
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'CHRMO Certification'
+  }
+  if (queueStageKey === 'PENDING_CMO_CBMO_REVIEW') {
+    if (isApplicationCmoCbmoReviewed(app)) return 'Pending Release'
+    return 'CMO/CVMO Review'
   }
   if (queueStageKey === 'PENDING_RELEASE') {
-    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+    return 'Pending Release'
   }
 
   const rawStatus = getApplicationRawStatusKey(app)
-  if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin'
+  if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
   if (rawStatus === 'PENDING_HR') {
     if (isApplicationReceivedByHr(app)) {
-      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'Pending HR Review'
+      return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Review' : 'CHRMO Certification'
     }
-    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending HR Receive'
+    return isPendingUpdateWorkflowCycle(app) ? 'Pending Update Receive' : 'Pending Receive'
   }
   if (rawStatus === 'APPROVED') {
     if (isApplicationReleased(app)) return 'Approved'
-    return isApprovedUpdateWorkflowCycle(app) ? 'Pending Update Release' : 'Pending Release'
+    if (!isApplicationCmoCbmoReviewed(app)) return 'CMO/CVMO Review'
+    return 'Pending Release'
   }
 
   return ''
@@ -522,8 +656,10 @@ function mergeStatus(app) {
   const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
   if (leaveWorkflowStageStatus) return leaveWorkflowStageStatus
 
-  if (raw === 'PENDING_ADMIN' || normalizedStatus.includes('PENDING ADMIN')) return 'Pending Admin'
-  if (raw === 'PENDING_HR' || normalizedStatus.includes('PENDING HR')) return 'Pending HR'
+  if (raw === 'PENDING_ADMIN' || normalizedStatus.includes('PENDING ADMIN')) {
+    return 'Department Recommendation'
+  }
+  if (raw === 'PENDING_HR' || normalizedStatus.includes('PENDING HR')) return 'CHRMO Certification'
 
   if (raw.includes('PENDING') || normalizedStatus.includes('PENDING')) return 'Pending'
   if (raw.includes('RECALLED') || normalizedStatus.includes('RECALLED')) {
@@ -568,6 +704,14 @@ function normalizeLeaveRequestActionTypeToken(value) {
     .replace(/[\s-]+/g, '_')
 
   if (!normalized) return ''
+
+  if (
+    normalized === REQUEST_ACTION_RECALL ||
+    normalized === 'RECALL_REQUEST' ||
+    normalized === 'LEAVE_RECALL_REQUEST'
+  ) {
+    return REQUEST_ACTION_RECALL
+  }
 
   if (
     normalized === REQUEST_ACTION_CANCEL ||
@@ -616,6 +760,15 @@ function resolveLeaveRequestActionTypeFromStatusHistory(app) {
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
     if (
+      actionToken.includes('REQUEST_RECALL') ||
+      actionToken.includes('RECALL_REQUEST') ||
+      stageToken.includes('recall request') ||
+      remarksToken.includes('recall request')
+    ) {
+      return REQUEST_ACTION_RECALL
+    }
+
+    if (
       actionToken.includes('REQUEST_CANCEL') ||
       stageToken.includes('cancel request') ||
       stageToken.includes('cancellation request') ||
@@ -658,6 +811,9 @@ function getLeaveRequestActionType(app) {
   if (payloadType) return payloadType
 
   const workflowRemarks = normalizeStatusHistoryToken(app?.remarks || '')
+  if (workflowRemarks.includes('recall request')) {
+    return REQUEST_ACTION_RECALL
+  }
   if (workflowRemarks.includes('cancel request') || workflowRemarks.includes('cancellation request')) {
     return REQUEST_ACTION_CANCEL
   }
@@ -672,11 +828,17 @@ function isCancellationRequestAction(app) {
   return getLeaveRequestActionType(app) === REQUEST_ACTION_CANCEL
 }
 
+function isRecallRequestAction(app) {
+  return getLeaveRequestActionType(app) === REQUEST_ACTION_RECALL
+}
+
 function getEditRequestLabelPrefix(app) {
+  if (isRecallRequestAction(app)) return 'Recall Request'
   return isCancellationRequestAction(app) ? 'Cancel Request' : 'Edit Request'
 }
 
 function getEditRequestStatusFieldLabel(app) {
+  if (isRecallRequestAction(app)) return 'Recall Request Status'
   return isCancellationRequestAction(app)
     ? 'Cancellation Request Status'
     : 'Edit Request Status'
@@ -729,6 +891,14 @@ function getEditRequestBadgeLabel(app) {
   const labelPrefix = getEditRequestLabelPrefix(app)
   const stageStatus = getLeaveWorkflowStageStatus(app)
   if (status === 'PENDING') {
+    if (isRecallRequestAction(app)) {
+      if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+      if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+      if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+      if (stageStatus === 'Pending Update Review') return labelPrefix + ' Pending HR'
+      return 'Recall Request Pending HR'
+    }
+
     if (isCancellationRequestAction(app)) {
       if (rawStatus === 'PENDING_ADMIN') return labelPrefix + ' Pending Admin'
       if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
@@ -737,18 +907,32 @@ function getEditRequestBadgeLabel(app) {
       return labelPrefix + ' Pending'
     }
     if (!isCancellationRequestAction(app)) {
-      if (rawStatus === 'PENDING_ADMIN') return 'Pending Update Admin Review'
-      return 'Pending Update HR Review'
+      if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
+      if (stageStatus === 'Pending Update Receive') return labelPrefix + ' Pending Receive'
+      if (stageStatus === 'Pending Update Release') return labelPrefix + ' Pending Release'
+      if (stageStatus === 'Pending Update Review') return labelPrefix + ' Pending HR'
+      return 'CHRMO Certification'
     }
   }
   if (status === 'APPROVED') {
     if (isCancellationRequestAction(app) && stageStatus === 'Pending Update Release') {
       return labelPrefix + ' Pending Release'
     }
-    return labelPrefix + ' Approved'
+    return ''
   }
-  if (status === 'REJECTED') return labelPrefix + ' Disapproved'
+  if (status === 'REJECTED') return ''
   return ''
+}
+
+function hasApprovedEditRequest(app) {
+  if (!app || isCocApplication(app)) return false
+  if (isCancelledByUser(app)) return false
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'RECALLED' || rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') {
+    return false
+  }
+  if (isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
+  return getLatestUpdateRequestStatus(app) === 'APPROVED'
 }
 
 function getEditRequestBadgeColor(app) {
@@ -766,8 +950,14 @@ function getEditRequestStatusLabel(app) {
   const status = getLatestUpdateRequestStatus(app)
   if (status === 'PENDING') {
     const rawStatus = getApplicationRawStatusKey(app)
-    if (rawStatus === 'PENDING_HR') return 'Pending HR Review'
-    if (rawStatus === 'PENDING_ADMIN') return 'Pending Admin Review'
+    if (rawStatus === 'PENDING_HR') {
+      const stageStatus = getLeaveWorkflowStageStatus(app)
+      if (stageStatus === 'Pending Update Receive') return 'Edit Request Pending Receive'
+      if (stageStatus === 'Pending Update Release') return 'Edit Request Pending Release'
+      if (stageStatus === 'Pending Update Review') return 'Edit Request Pending HR'
+      return 'CHRMO Certification'
+    }
+    if (rawStatus === 'PENDING_ADMIN') return 'Department Recommendation'
     return 'Pending Review'
   }
   if (status === 'APPROVED') return 'Approved'
@@ -1069,7 +1259,7 @@ function enumerateInclusiveDateRange(startDateValue, endDateValue) {
   return dates.filter(Boolean)
 }
 
-function formatGroupedInclusiveDateLines(dateValues) {
+function formatGroupedInclusiveDateLines(dateValues, expandConsecutiveDays = false) {
   if (!Array.isArray(dateValues) || dateValues.length === 0) return []
 
   const groupedByMonthYear = new Map()
@@ -1097,6 +1287,10 @@ function formatGroupedInclusiveDateLines(dateValues) {
     .map((group) => {
     const uniqueDays = [...new Set(group.days)].sort((a, b) => a - b)
     if (!uniqueDays.length) return ''
+
+    if (expandConsecutiveDays) {
+      return `${group.monthName} ${uniqueDays.join(', ')}, ${group.year}`
+    }
 
     const dayRanges = []
     let rangeStart = uniqueDays[0]
@@ -1126,9 +1320,59 @@ function formatGroupedInclusiveDateLines(dateValues) {
       return `${group.monthName} ${dayLabel}`
     })
 
+    const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+    if (hasSingleDayOnly) {
+      return `${group.monthName} ${dayRanges[0][0]}, ${group.year}`
+    }
+
     return `${rangeLabels.join(', ')} ${group.year}`
   })
     .filter(Boolean)
+}
+
+function formatCoverageAwareInclusiveDateLines(indicatorRows, expandConsecutiveDays = false) {
+  if (!Array.isArray(indicatorRows) || indicatorRows.length === 0) return []
+
+  const lines = []
+  let wholeDayDateSet = []
+
+  const appendWholeDayLines = () => {
+    if (!wholeDayDateSet.length) return
+
+    const groupedLines = formatGroupedInclusiveDateLines(
+      wholeDayDateSet,
+      expandConsecutiveDays,
+    )
+
+    lines.push(
+      ...(groupedLines.length
+        ? groupedLines
+        : wholeDayDateSet.map((dateValue) => formatDate(dateValue))),
+    )
+    wholeDayDateSet = []
+  }
+
+  for (const entry of indicatorRows) {
+    const coverageLabel = String(entry?.coverageLabel || '').trim()
+    if (!coverageLabel.startsWith('Half Day')) {
+      wholeDayDateSet.push(entry?.dateKey)
+      continue
+    }
+
+    appendWholeDayLines()
+
+    const dateText = String(entry?.dateText || '').trim()
+    const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
+    lines.push(
+      halfDayPortion === 'AM' || halfDayPortion === 'PM'
+        ? `${dateText} (${halfDayPortion})`
+        : `${dateText} (Half Day)`,
+    )
+  }
+
+  appendWholeDayLines()
+
+  return lines
 }
 
 function parseSelectedDatesValue(value) {
@@ -1425,11 +1669,57 @@ function shouldShowApplicationEditRequestDateComparison(app) {
 
 function shouldShowApplicationEditRequestSection(app) {
   if (!hasApplicationEditRequest(app)) return false
-  return getLatestUpdateRequestStatus(app) !== 'APPROVED'
+  return true
 }
 
 function getApplicationEditRequestFromDates(app) {
   if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const indicatorRows = getSelectedDatePayStatusRows(app)
+  if (
+    indicatorRows.length &&
+    indicatorRows.some((entry) => String(entry?.coverageLabel || '').startsWith('Half Day'))
+  ) {
+    return formatCoverageAwareInclusiveDateLines(
+      indicatorRows,
+      isAbroadLeaveApplication(app),
+    ).join(', ')
+  }
+
+  const payload = getPendingUpdatePayload(app)
+  if (payload && typeof payload === 'object') {
+    const previousDates = payload.previous_selected_dates || payload.previousSelectedDates
+    if (Array.isArray(previousDates) && previousDates.length > 0) {
+      const expandConsecutiveDays = isAbroadLeaveApplication(app)
+      const formatted = formatGroupedInclusiveDateLines(previousDates, expandConsecutiveDays)
+      if (formatted.length > 0) return formatted.join(', ')
+    }
+    if (payload.previous_start_date || payload.previousStartDate) {
+      const startDate = payload.previous_start_date || payload.previousStartDate
+      const endDate = payload.previous_end_date || payload.previousEndDate || startDate
+      const dates = enumerateInclusiveDateRange(startDate, endDate)
+      if (dates.length > 0) {
+        const expandConsecutiveDays = isAbroadLeaveApplication(app)
+        const formatted = formatGroupedInclusiveDateLines(dates, expandConsecutiveDays)
+        if (formatted.length > 0) return formatted.join(', ')
+      }
+    }
+  }
+
+  const updateRequests = Array.isArray(app?.update_requests)
+    ? app.update_requests
+    : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
+  for (const req of updateRequests) {
+    const reqPayload = req?.requested_payload || req?.payload
+    if (reqPayload && typeof reqPayload === 'object') {
+      const pDates = reqPayload.previous_selected_dates || reqPayload.previousSelectedDates
+      if (Array.isArray(pDates) && pDates.length > 0) {
+        const expandConsecutiveDays = isAbroadLeaveApplication(app)
+        const formatted = formatGroupedInclusiveDateLines(pDates, expandConsecutiveDays)
+        if (formatted.length > 0) return formatted.join(', ')
+      }
+    }
+  }
 
   const inclusiveDateLines = getApplicationInclusiveDateLines(app)
   return inclusiveDateLines.length ? inclusiveDateLines.join(', ') : 'N/A'
@@ -1444,6 +1734,28 @@ function getApplicationEditRequestToDates(app) {
 
 function getApplicationEditRequestCurrentDuration(app) {
   if (!hasApplicationEditRequest(app)) return 'N/A'
+
+  const payload = getPendingUpdatePayload(app)
+  if (payload && typeof payload === 'object') {
+    const previousDays = payload.previous_total_days ?? payload.previousTotalDays
+    if (Number.isFinite(Number(previousDays)) && Number(previousDays) > 0) {
+      return `${formatDayValue(previousDays)} day(s)`
+    }
+  }
+
+  const updateRequests = Array.isArray(app?.update_requests)
+    ? app.update_requests
+    : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
+  for (const req of updateRequests) {
+    const reqPayload = req?.requested_payload || req?.payload
+    if (reqPayload && typeof reqPayload === 'object') {
+      const pDays = reqPayload.previous_total_days ?? reqPayload.previousTotalDays
+      if (Number.isFinite(Number(pDays)) && Number(pDays) > 0) {
+        return `${formatDayValue(pDays)} day(s)`
+      }
+    }
+  }
+
   return getApplicationDurationDisplay(app) || 'N/A'
 }
 
@@ -1473,8 +1785,14 @@ function getDetailsRemarksRows(app) {
   const rows = []
   const pendingUpdateReason = getPendingUpdateReason(app)
   if (pendingUpdateReason) {
+    const requestLabel = isRecallRequestAction(app)
+      ? 'Recall Request'
+      : isCancellationRequestAction(app)
+        ? 'Cancellation Request'
+        : 'Update Request'
+
     rows.push({
-      label: isCancellationRequestAction(app) ? 'Cancellation Request' : 'Update Request',
+      label: requestLabel,
       text: pendingUpdateReason,
     })
   }
@@ -1743,11 +2061,15 @@ function shouldShowCurrentLeaveBalance(app) {
 function isCtoLeaveApplication(app) {
   if (!app || isCocApplication(app)) return false
 
-  const normalizedLabel = normalizeLeaveBalanceLookupKey(
-    getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || '',
-  )
+  const label = getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || ''
+  const normalizedLabel = normalizeLeaveBalanceLookupKey(label)
 
-  return normalizedLabel === normalizeLeaveBalanceLookupKey('CTO Leave')
+  return (
+    normalizedLabel === normalizeLeaveBalanceLookupKey('CTO Leave') ||
+    normalizedLabel === normalizeLeaveBalanceLookupKey('Compensatory Time Off') ||
+    normalizedLabel === normalizeLeaveBalanceLookupKey('Compensatory Leave') ||
+    normalizedLabel === 'cto'
+  )
 }
 
 function roundCtoHours(value) {
@@ -1765,7 +2087,12 @@ function resolveCtoHoursFromDays(value) {
 function getApplicationCtoRequiredHoursValue(app) {
   if (!isCtoLeaveApplication(app)) return null
 
-  const directCandidates = [app?.cto_deducted_hours]
+  const directCandidates = [
+    app?.cto_deducted_hours,
+    app?.ctoDeductedHours,
+    app?.required_cto_balance_hours,
+    app?.requiredCtoBalanceHours,
+  ]
 
   for (const candidate of directCandidates) {
     const resolvedHours = roundCtoHours(candidate)
@@ -1792,6 +2119,13 @@ function getApplicationCtoRequiredHoursValue(app) {
 function getApplicationCtoRequiredHoursDisplay(app) {
   const requiredHours = getApplicationCtoRequiredHoursValue(app)
   return requiredHours !== null ? `${formatDayValue(requiredHours)} hour(s)` : 'N/A'
+}
+
+function getCtoHoursRowCaption(app) {
+  if (!isCtoLeaveApplication(app)) return ''
+  const requiredHours = getApplicationCtoRequiredHoursValue(app)
+  if (requiredHours === null || requiredHours <= 0) return ''
+  return `${formatDayValue(requiredHours)} hour(s)`
 }
 
 function getCurrentCtoAvailableHoursValue(app) {
@@ -1826,16 +2160,7 @@ function getPendingUpdateInclusiveDateLines(app) {
     requestedIndicatorRows.length &&
     requestedIndicatorRows.some((entry) => String(entry?.coverageLabel || '').startsWith('Half Day'))
   ) {
-    return requestedIndicatorRows.map((entry) => {
-      const dateText = String(entry?.dateText || '').trim()
-      const coverageLabel = String(entry?.coverageLabel || '').trim()
-      if (!coverageLabel.startsWith('Half Day')) return dateText
-
-      const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
-      return halfDayPortion === 'AM' || halfDayPortion === 'PM'
-        ? `${dateText} (${halfDayPortion})`
-        : `${dateText} (Half Day)`
-    })
+    return formatCoverageAwareInclusiveDateLines(requestedIndicatorRows)
   }
 
   const requestedDateSet = resolveDateSetFromSource(payload)
@@ -1849,30 +2174,11 @@ function hasPendingDateUpdate(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
-  const currentIndicatorRows = getSelectedDatePayStatusRows(app)
   const requestedIndicatorRows = getPendingUpdateDatePayStatusRows(app)
-  if (requestedIndicatorRows.length) {
-    if (currentIndicatorRows.length !== requestedIndicatorRows.length) return true
+  if (requestedIndicatorRows.length) return true
 
-    return requestedIndicatorRows.some((requestedRow, index) => {
-      const currentRow = currentIndicatorRows[index]
-      if (!currentRow) return true
-
-      return (
-        requestedRow.dateKey !== currentRow.dateKey ||
-        requestedRow.coverageLabel !== currentRow.coverageLabel ||
-        requestedRow.payStatus !== currentRow.payStatus
-      )
-    })
-  }
-
-  const currentDateSet = resolveDateSetFromSource(app)
   const requestedDateSet = resolveDateSetFromSource(payload)
-  if (!requestedDateSet.length) return false
-  if (!currentDateSet.length) return true
-  if (currentDateSet.length !== requestedDateSet.length) return true
-
-  return requestedDateSet.some((date, index) => date !== currentDateSet[index])
+  return requestedDateSet.length > 0
 }
 
 function resolveRequestedDurationSnapshot(app) {
@@ -1967,26 +2273,38 @@ function getApplicationInclusiveDateLines(app) {
     indicatorRows.length &&
     indicatorRows.some((entry) => String(entry?.coverageLabel || '').startsWith('Half Day'))
   ) {
-    return indicatorRows.map((entry) => {
-      const dateText = String(entry?.dateText || '').trim()
-      const coverageLabel = String(entry?.coverageLabel || '').trim()
-      if (!coverageLabel.startsWith('Half Day')) return dateText
-
-      const halfDayPortion = String(entry?.halfDayPortion || '').trim().toUpperCase()
-      return halfDayPortion === 'AM' || halfDayPortion === 'PM'
-        ? `${dateText} (${halfDayPortion})`
-        : `${dateText} (Half Day)`
-    })
+    return formatCoverageAwareInclusiveDateLines(
+      indicatorRows,
+      isAbroadLeaveApplication(app),
+    )
   }
 
   const dateSet = getVisibleDateSetForDisplay(app)
   if (dateSet.length > 0) {
-    const groupedDates = formatGroupedInclusiveDateLines(dateSet)
+    const groupedDates = formatGroupedInclusiveDateLines(dateSet, isAbroadLeaveApplication(app))
     if (groupedDates.length > 0) return groupedDates
   }
 
   const start = app.startDate ? formatDate(app.startDate) : 'N/A'
   const end = app.endDate ? formatDate(app.endDate) : 'N/A'
+  if (start === 'N/A' && end === 'N/A') {
+    if (isCocApplication(app)) {
+      const year = app.application_year || app.applicationYear
+      const month = app.application_month || app.applicationMonth
+      if (year && month) {
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December',
+        ]
+        const monthName = monthNames[Number(month) - 1]
+        if (monthName) return [`${monthName} ${year}`]
+      }
+      if (year) return [`${year}`]
+    }
+    return ['N/A']
+  }
+  if (start === 'N/A') return [end]
+  if (end === 'N/A' || start === end) return [start]
   return [`${start} - ${end}`]
 }
 
@@ -2092,7 +2410,7 @@ function resolveQueueGroupStatusForDisplay(app) {
   const rawStatus = getApplicationRawStatusKey(app)
   if (rawStatus === 'RECALLED') return 'RECALLED'
   if (rawStatus === 'REJECTED' || rawStatus === 'DISAPPROVED') return 'REJECTED'
-  if (rawStatus === 'APPROVED') return 'APPROVED'
+  if (rawStatus === 'APPROVED') return isApplicationReleased(app) ? 'APPROVED' : 'PENDING'
   if (rawStatus.includes('PENDING')) return 'PENDING'
 
   const mergedStatus = String(getApplicationStatusLabel(app) || '').toUpperCase()
@@ -2117,8 +2435,9 @@ function resolveQueueStagePriorityForDisplay(app) {
     PENDING_HR_CLASSIFICATION: 4,
     PENDING_ADMIN: 5,
     PENDING_ADMIN_REVIEW: 6,
-    PENDING_RELEASE: 7,
-    PENDING: 8,
+    PENDING_CMO_CBMO_REVIEW: 7,
+    PENDING_RELEASE: 8,
+    PENDING: 9,
   }
 
   const queueStageKey = normalizeQueueStageKeyToken(app?.queue_stage_key ?? app?.queueStageKey)
@@ -2138,7 +2457,11 @@ function resolveQueueStagePriorityForDisplay(app) {
       ? queueStagePriorityMap.PENDING_HR_REVIEW
       : queueStagePriorityMap.PENDING_HR_RECEIVE
   }
-  if (rawStatus === 'APPROVED' && !isApplicationReleased(app)) return queueStagePriorityMap.PENDING_RELEASE
+  if (rawStatus === 'APPROVED' && !isApplicationReleased(app)) {
+    return isApplicationCmoCbmoReviewed(app)
+      ? queueStagePriorityMap.PENDING_RELEASE
+      : queueStagePriorityMap.PENDING_CMO_CBMO_REVIEW
+  }
   if (rawStatus.includes('PENDING')) return queueStagePriorityMap.PENDING
 
   return queueStagePriorityMap.PENDING
@@ -2245,13 +2568,6 @@ function getApplicationSearchStatusLabel(app) {
     return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
   }
 
-  if (hasApplicationEditRequest(app)) {
-    const editRequestStatusLabel = getEditRequestStatusLabel(app)
-    if (editRequestStatusLabel && editRequestStatusLabel !== 'N/A') {
-      return normalizeDisapprovedStatusLabel(editRequestStatusLabel)
-    }
-  }
-
   return normalizeDisapprovedStatusLabel(
     getApplicationStatusLabel(app) || app?.displayStatus,
   )
@@ -2292,19 +2608,33 @@ function getApplicationSearchTokenSet(app) {
 }
 
 const applicationsForTable = computed(() => {
-  const queryTokens = getSearchTokens(statusSearch.value)
+  const queryTokens = isServerPaginatedLeaveView ? [] : getSearchTokens(statusSearch.value)
   const rows = applications.value.filter((app) => {
     if (isCancelledByUser(app)) return false
     if (applicationTypeFilter.value && getApplicationType(app) !== applicationTypeFilter.value) {
+      return false
+    }
+    if (pendingReceiveFilter.value && !canReceiveApplication(app)) {
+      return false
+    }
+    if (pendingReleaseFilter.value && !canReleaseApplication(app)) {
+      return false
+    }
+    if (
+      !isCocApplication(app) &&
+      !pendingReleaseFilter.value &&
+      !pendingReceiveFilter.value &&
+      canReleaseApplication(app)
+    ) {
       return false
     }
     const rawStatus = getApplicationRawStatusKey(app)
     const shouldHidePendingAdmin =
       rawStatus === 'PENDING_ADMIN' &&
       !isPendingEditRequest(app) &&
-      !(isLateCocSourceView() && getApplicationType(app) === 'COC')
+      !(applicationTypeFilter.value === 'COC' && getApplicationType(app) === 'COC')
     if (shouldHidePendingAdmin) return false
-    return matchesEmploymentTypeFilter(app)
+    return isServerPaginatedLeaveView || matchesEmploymentTypeFilter(app)
   })
   if (!queryTokens.length) return groupApplicationsForDisplay(rows)
 
@@ -2371,43 +2701,48 @@ const statusColumn = { name: 'status', label: 'Status', align: 'left' }
 const actionsColumn = { name: 'actions', label: 'Actions', align: 'center' }
 const cocEmployeeColumn = {
   ...employeeColumn,
-  style: 'width: 27%',
-  headerStyle: 'width: 27%',
+  style: 'min-width: 200px; width: 22%;',
+  headerStyle: 'min-width: 200px; width: 22%;',
 }
 const cocOfficeColumn = {
   ...officeColumn,
-  style: 'width: 8%',
-  headerStyle: 'width: 8%',
+  style: 'min-width: 90px; width: 8%;',
+  headerStyle: 'min-width: 90px; width: 8%;',
 }
 const cocLeaveTypeColumn = {
   ...leaveTypeColumn,
-  style: 'width: 11%',
-  headerStyle: 'width: 11%',
+  style: 'min-width: 110px; width: 10%;',
+  headerStyle: 'min-width: 110px; width: 10%;',
 }
 const cocDateFiledColumn = {
   ...dateFiledColumn,
-  style: 'width: 10%',
-  headerStyle: 'width: 10%',
+  style: 'min-width: 105px; width: 9%;',
+  headerStyle: 'min-width: 105px; width: 9%;',
 }
 const cocLateDeadlineColumn = {
   ...lateDeadlineColumn,
-  style: 'width: 10%',
-  headerStyle: 'width: 10%',
+  style: 'min-width: 115px; width: 10%;',
+  headerStyle: 'min-width: 115px; width: 10%;',
 }
 const cocInclusiveDatesColumn = {
   ...inclusiveDatesColumn,
-  style: 'width: 11%',
-  headerStyle: 'width: 11%',
+  style: 'min-width: 120px; width: 11%;',
+  headerStyle: 'min-width: 120px; width: 11%;',
+}
+const cocDurationColumn = {
+  ...durationColumn,
+  style: 'min-width: 90px; width: 8%;',
+  headerStyle: 'min-width: 90px; width: 8%;',
 }
 const cocStatusColumn = {
   ...statusColumn,
-  style: 'width: 13%',
-  headerStyle: 'width: 13%',
+  style: 'min-width: 140px; width: 12%;',
+  headerStyle: 'min-width: 140px; width: 12%;',
 }
 const cocActionsColumn = {
   ...actionsColumn,
-  style: 'width: 10%',
-  headerStyle: 'width: 10%',
+  style: 'min-width: 125px; width: 10%;',
+  headerStyle: 'min-width: 125px; width: 10%; text-align: center;',
 }
 
 const columns = [
@@ -2427,29 +2762,38 @@ const cocLateColumns = [
   cocDateFiledColumn,
   cocLateDeadlineColumn,
   cocInclusiveDatesColumn,
+  cocDurationColumn,
   cocStatusColumn,
   cocActionsColumn,
 ]
 const mobileApplicationColumnWidths = {
   employee: {
-    style: 'min-width: 230px',
-    headerStyle: 'min-width: 230px',
+    style: 'min-width: 170px',
+    headerStyle: 'min-width: 170px',
   },
   status: {
-    style: 'min-width: 120px',
-    headerStyle: 'min-width: 120px',
-  },
-  office: {
-    style: 'min-width: 120px',
-    headerStyle: 'min-width: 120px',
-  },
-  leaveType: {
-    style: 'min-width: 145px',
-    headerStyle: 'min-width: 145px',
-  },
-  dateFiled: {
     style: 'min-width: 130px',
     headerStyle: 'min-width: 130px',
+  },
+  days: {
+    style: 'min-width: 90px',
+    headerStyle: 'min-width: 90px',
+  },
+  office: {
+    style: 'min-width: 90px',
+    headerStyle: 'min-width: 90px',
+  },
+  leaveType: {
+    style: 'min-width: 120px',
+    headerStyle: 'min-width: 120px',
+  },
+  dateFiled: {
+    style: 'min-width: 100px',
+    headerStyle: 'min-width: 100px',
+  },
+  actions: {
+    style: 'min-width: 120px; text-align: center;',
+    headerStyle: 'min-width: 120px; text-align: center;',
   },
 }
 const applicationTableColumns = computed(() => {
@@ -2457,8 +2801,8 @@ const applicationTableColumns = computed(() => {
   if (!q.screen.lt.sm) return desktopColumns
 
   const mobileColumnNames = applicationTypeFilter.value === 'COC'
-    ? ['employee', 'status', 'office', 'dateFiled']
-    : ['employee', 'status', 'office', 'leaveType']
+    ? ['employee', 'status', 'days', 'actions']
+    : ['employee', 'status', 'office', 'leaveType', 'actions']
 
   return mobileColumnNames
     .map((name) => {
@@ -2485,11 +2829,14 @@ const rejectTargetApp = ref(null)
 const recallTargetApp = ref(null)
 const confirmActionType = ref('approve')
 const confirmActionTarget = ref(null)
-const showApplicationEditAction = false
+const showApplicationEditAction = true
 const recallDialogApplication = computed(() => recallTargetApp.value || selectedApp.value)
 
 function canEditApplication(app) {
-  return getApplicationRawStatusKey(app) === 'PENDING_HR' && !isCocApplication(app)
+  if (!app || isCocApplication(app)) return false
+
+  const editableStatuses = new Set(['PENDING_HR', 'APPROVED'])
+  return editableStatuses.has(getApplicationRawStatusKey(app))
 }
 
 function getApplicationLeaveTypeName(app) {
@@ -2509,11 +2856,7 @@ function isRecallableLeaveApplication(app) {
 
 function canRecallApplication(app) {
   if (!app || isCocApplication(app)) return false
-  return (
-    getApplicationRawStatusKey(app) === 'APPROVED' &&
-    getRemainingRecallableDateKeys(app).length > 0 &&
-    isRecallableLeaveApplication(app)
-  )
+  return false
 }
 
 function getRecallDateOptions(app) {
@@ -2536,33 +2879,99 @@ function toIsoDate(value) {
   return `${year}-${month}-${day}`
 }
 
-async function fetchApplications() {
+function mapApplicationsForPanel(applicationsForDisplay = []) {
+  return normalizeBackendApplications(applicationsForDisplay).map((app, index) => {
+    const normalized = normalizeBackendApplicationShape(app, index) || app
+    return {
+      ...normalized,
+      application_type: getApplicationType(normalized),
+      application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
+      employeeName: normalized?.employeeName || 'Unknown',
+      officeShort: resolveOfficeAcronymLabel(normalized),
+      displayStatus: mergeStatus(normalized),
+    }
+  })
+}
+
+function applyLeaveServerPagination(payload, requestedPage, requestedRowsPerPage) {
+  const pagination = payload?.pagination && typeof payload.pagination === 'object'
+    ? payload.pagination
+    : {}
+
+  tablePagination.value = {
+    ...tablePagination.value,
+    page: Number(pagination.current_page) || requestedPage,
+    rowsPerPage: Number(pagination.per_page) || requestedRowsPerPage,
+    rowsNumber: Math.max(Number(pagination.total) || 0, 0),
+  }
+}
+
+async function fetchApplications(options = {}) {
+  const requestSequence = ++applicationsRequestSequence
+  const requestedPage = Math.max(Number(options?.page ?? tablePagination.value.page) || 1, 1)
+  const requestedRowsPerPage = Math.max(
+    Number(options?.rowsPerPage ?? tablePagination.value.rowsPerPage) || 10,
+    1,
+  )
   loading.value = true
   try {
-    if (applicationTypeFilter.value === 'COC' && applicationSourceFilter === 'late_filing') {
-      const cocLateResponse = await api.get('/hr/coc-applications/late-filings')
-      const lateApplications = normalizeBackendApplications(
-        extractApplicationsFromPayload(cocLateResponse?.data),
+    if (applicationTypeFilter.value === 'COC') {
+      const [cocApplicationsResponse, cocLateResponse] = await Promise.all([
+        applicationSourceFilter === 'late_filing'
+          ? Promise.resolve(null)
+          : api.get('/hr/coc-applications', { params: { include_imported: 1 } }).catch(() => null),
+        !applicationSourceFilter || applicationSourceFilter === 'late_filing'
+          ? api.get('/hr/coc-applications/late-filings').catch(() => null)
+          : Promise.resolve(null),
+      ])
+
+      const mergedCocApplications = mergeApplications(
+        normalizeBackendApplications(extractApplicationsFromPayload(cocApplicationsResponse?.data)),
+        normalizeBackendApplications(extractApplicationsFromPayload(cocLateResponse?.data)),
       )
 
-      applications.value = lateApplications.map((app, index) => {
-        const normalized = normalizeBackendApplicationShape(app, index) || app
-        return {
-          ...normalized,
-          application_type: getApplicationType(normalized),
-          application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
-          employeeName: normalized?.employeeName || 'Unknown',
-          officeShort: resolveOfficeAcronymLabel(normalized),
-          displayStatus: mergeStatus(normalized),
-        }
+      applications.value = mapApplicationsForPanel(mergedCocApplications)
+      return
+    }
+
+    if (applicationTypeFilter.value === 'LEAVE') {
+      const leaveApplicationsResponse = await api.get('/hr/leave-applications', {
+        params: {
+          page: requestedPage,
+          per_page: requestedRowsPerPage,
+          search: String(statusSearch.value || '').trim() || undefined,
+          employment_type: employmentTypeFilter.value || undefined,
+          pending_receive: pendingReceiveFilter.value ? 1 : undefined,
+          pending_release: pendingReleaseFilter.value ? 1 : undefined,
+        },
       })
+      if (requestSequence !== applicationsRequestSequence) return
+
+      const leaveApplications = normalizeBackendApplications(
+        extractApplicationsFromPayload(leaveApplicationsResponse?.data),
+      )
+      const detailWorkflowSnapshots = await fetchWorkflowDetailSnapshotsForApprovedLeaveRows(
+        leaveApplications,
+      )
+      const applicationsForDisplay = expandApplicationsForDisplay(
+        detailWorkflowSnapshots.length > 0
+          ? mergeApplications(leaveApplications, detailWorkflowSnapshots)
+          : leaveApplications,
+      )
+
+      applications.value = mapApplicationsForPanel(applicationsForDisplay)
+      applyLeaveServerPagination(
+        leaveApplicationsResponse?.data,
+        requestedPage,
+        requestedRowsPerPage,
+      )
       return
     }
 
     const [leaveApplicationsResponse, cocApplicationsResponse] =
       await Promise.all([
         api.get('/hr/leave-applications').catch(() => null),
-        api.get('/hr/coc-applications').catch(() => null),
+        api.get('/hr/coc-applications', { params: { include_imported: 1 } }).catch(() => null),
       ])
 
     const mergedApplications = mergeApplications(
@@ -2580,18 +2989,10 @@ async function fetchApplications() {
       mergedApplicationsWithWorkflowSnapshots,
     )
 
-    applications.value = normalizeBackendApplications(applicationsForDisplay).map((app, index) => {
-      const normalized = normalizeBackendApplicationShape(app, index) || app
-      return {
-        ...normalized,
-        application_type: getApplicationType(normalized),
-        application_uid: normalized?.application_uid || getApplicationRowKey(normalized, index),
-        employeeName: normalized?.employeeName || 'Unknown',
-        officeShort: resolveOfficeAcronymLabel(normalized),
-        displayStatus: mergeStatus(normalized),
-      }
-    })
+    applications.value = mapApplicationsForPanel(applicationsForDisplay)
   } catch (err) {
+    if (requestSequence !== applicationsRequestSequence) return
+
     const msg = resolveApiErrorMessage(err, 'Unable to load applications right now.')
     q.notify({
       type: 'negative',
@@ -2599,8 +3000,19 @@ async function fetchApplications() {
       position: 'top',
     })
   } finally {
-    loading.value = false
+    if (requestSequence === applicationsRequestSequence) {
+      loading.value = false
+    }
   }
+}
+
+function handleTableRequest({ pagination } = {}) {
+  if (!isServerPaginatedLeaveView) return
+
+  return fetchApplications({
+    page: pagination?.page,
+    rowsPerPage: pagination?.rowsPerPage,
+  })
 }
 
 onMounted(fetchApplications)
@@ -2624,6 +3036,10 @@ watch(
 
 watch([statusSearch, employmentTypeFilter], () => {
   tablePagination.value.page = 1
+
+  if (isServerPaginatedLeaveView) {
+    fetchApplications({ page: 1 })
+  }
 })
 
 watch(showEditDialog, (isOpen) => {
@@ -2833,20 +3249,35 @@ function getApplicationRawStatusKey(app) {
 function getApplicationStatusColor(app) {
   const cocReleaseStageStatus = getCocReleaseStageStatus(app)
   if (cocReleaseStageStatus === 'Approved' || cocReleaseStageStatus === 'Released') return 'positive'
-  if (cocReleaseStageStatus === 'Pending Release') return 'indigo-6'
-  if (cocReleaseStageStatus === 'Pending HR Receive') return 'teal-6'
-  if (cocReleaseStageStatus === 'Pending HR Review') return 'blue-6'
-  if (cocReleaseStageStatus === 'Pending Admin') return 'warning'
+  if (cocReleaseStageStatus === 'Pending Release' || cocReleaseStageStatus === 'Release') {
+    return 'indigo-6'
+  }
+  if (cocReleaseStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
+  if (cocReleaseStageStatus === 'CHRMO Certification') return 'blue-6'
+  if (cocReleaseStageStatus === 'Pending Receive') return 'teal-6'
+  if (
+    cocReleaseStageStatus === 'Department Recommendation' ||
+    cocReleaseStageStatus === 'Admin Recommendation'
+  ) {
+    return 'warning'
+  }
 
   const leaveWorkflowStageStatus = getLeaveWorkflowStageStatus(app)
-  if (leaveWorkflowStageStatus === 'Pending Admin') return 'warning'
-  if (leaveWorkflowStageStatus === 'Pending Admin Review') return 'warning'
+  if (
+    leaveWorkflowStageStatus === 'Department Recommendation' ||
+    leaveWorkflowStageStatus === 'Admin Recommendation'
+  ) {
+    return 'warning'
+  }
   if (leaveWorkflowStageStatus === 'Pending Update Receive') return 'teal-6'
-  if (leaveWorkflowStageStatus === 'Pending HR Receive') return 'teal-6'
+  if (leaveWorkflowStageStatus === 'Pending Receive') return 'teal-6'
   if (leaveWorkflowStageStatus === 'Pending Update Review') return 'blue-6'
-  if (leaveWorkflowStageStatus === 'Pending HR Review') return 'blue-6'
+  if (leaveWorkflowStageStatus === 'CHRMO Certification') return 'blue-6'
+  if (leaveWorkflowStageStatus === 'CMO/CVMO Review') return 'deep-purple-6'
   if (leaveWorkflowStageStatus === 'Pending Update Release') return 'indigo-6'
-  if (leaveWorkflowStageStatus === 'Pending Release') return 'indigo-6'
+  if (leaveWorkflowStageStatus === 'Pending Release' || leaveWorkflowStageStatus === 'Release') {
+    return 'indigo-6'
+  }
   if (leaveWorkflowStageStatus === 'Approved') return 'green'
 
   const rawStatus = getApplicationRawStatusKey(app)
@@ -2898,13 +3329,10 @@ function resolveHrActor(app) {
 }
 
 function resolveFinalApprovalDateValue(app) {
-  const directValue =
-    app?.hr_action_at ||
-    app?.reviewed_at
-  if (directValue) return directValue
+  if (app?.hr_action_at) return app.hr_action_at
 
   const historyEntry = resolveHrApprovalHistoryEntry(app)
-  return resolveStatusHistoryTimestamp(historyEntry)
+  return resolveStatusHistoryTimestamp(historyEntry) || null
 }
 
 function getStatusHistoryEntries(app) {
@@ -2996,6 +3424,7 @@ function hasEditRequestSignal(app) {
   if (
     remarksSignal.includes('edit request') ||
     remarksSignal.includes('request update') ||
+    remarksSignal.includes('recall request') ||
     remarksSignal.includes('cancel request') ||
     remarksSignal.includes('cancellation request')
   ) {
@@ -3004,20 +3433,26 @@ function hasEditRequestSignal(app) {
 
   return getStatusHistoryEntries(app).some((entry) => {
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+    if (actionToken.includes('HR_APPLICATION_EDIT')) return false
+    
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const historyRemarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
     return (
       actionToken.includes('EDIT') ||
       actionToken.includes('UPDATE_REQUEST') ||
+      actionToken.includes('REQUEST_RECALL') ||
+      actionToken.includes('RECALL_REQUEST') ||
       actionToken.includes('REQUEST_CANCEL') ||
       actionToken.includes('CANCELLATION_REQUEST') ||
       stageToken.includes('edit request') ||
       stageToken.includes('request update') ||
+      stageToken.includes('recall request') ||
       stageToken.includes('cancel request') ||
       stageToken.includes('cancellation request') ||
       historyRemarksToken.includes('edit request') ||
       historyRemarksToken.includes('request update') ||
+      historyRemarksToken.includes('recall request') ||
       historyRemarksToken.includes('cancel request') ||
       historyRemarksToken.includes('cancellation request')
     )
@@ -3039,6 +3474,12 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
       'REQUESTED_UPDATE',
       'EDIT_REQUESTED',
     ]
+    const recallSubmittedActions = [
+      'REQUEST_RECALL',
+      'RECALL_REQUESTED',
+      'RECALL_REQUEST_SUBMITTED',
+      'REQUESTED_RECALL',
+    ]
     const cancelSubmittedActions = [
       'REQUEST_CANCEL',
       'CANCEL_REQUESTED',
@@ -3047,17 +3488,27 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
       'REQUEST_CANCELLATION',
     ]
 
+    if (requestActionType === REQUEST_ACTION_RECALL && recallSubmittedActions.includes(actionToken)) {
+      return true
+    }
+
     if (requestActionType === REQUEST_ACTION_CANCEL && cancelSubmittedActions.includes(actionToken)) {
       return true
     }
 
-    if (requestActionType !== REQUEST_ACTION_CANCEL && updateSubmittedActions.includes(actionToken)) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
+      updateSubmittedActions.includes(actionToken)
+    ) {
       return true
     }
 
     if (
       stageToken.includes('edit request submitted') ||
       stageToken.includes('edit requested') ||
+      stageToken.includes('recall request submitted') ||
+      stageToken.includes('recall requested') ||
       stageToken.includes('cancel request submitted') ||
       stageToken.includes('cancellation request submitted') ||
       stageToken.includes('cancellation requested')
@@ -3067,14 +3518,24 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
 
     const hasUpdateKeyword =
       remarksToken.includes('edit request') || remarksToken.includes('request update')
+    const hasRecallKeyword = remarksToken.includes('recall request')
     const hasCancelKeyword =
       remarksToken.includes('cancel request') || remarksToken.includes('cancellation request')
+
+    if (requestActionType === REQUEST_ACTION_RECALL && !hasRecallKeyword) {
+      return false
+    }
 
     if (requestActionType === REQUEST_ACTION_CANCEL && !hasCancelKeyword) {
       return false
     }
 
-    if (requestActionType !== REQUEST_ACTION_CANCEL && !hasUpdateKeyword && !hasCancelKeyword) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
+      !hasUpdateKeyword &&
+      !hasCancelKeyword
+    ) {
       return false
     }
 
@@ -3083,6 +3544,7 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
       actionToken.includes('REQUEST') ||
       actionToken.includes('SUBMIT') ||
       actionToken.includes('EDIT') ||
+      actionToken.includes('RECALL') ||
       actionToken.includes('CANCEL')
     )
   })
@@ -3100,6 +3562,9 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
       stageToken.includes('request update') ||
       remarksToken.includes('edit request') ||
       remarksToken.includes('request update')
+    const recallRequestSignal =
+      stageToken.includes('recall request') ||
+      remarksToken.includes('recall request')
     const cancelRequestSignal =
       stageToken.includes('cancel request') ||
       stageToken.includes('cancellation request') ||
@@ -3108,16 +3573,33 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
 
     const targetDecision = String(decision || '').toUpperCase()
     const explicitApprovedSignal =
-      ['EDIT_REQUEST_APPROVED', 'UPDATE_REQUEST_APPROVED', 'CANCELLATION_REQUEST_APPROVED', 'CANCEL_REQUEST_APPROVED']
+      [
+        'EDIT_REQUEST_APPROVED',
+        'UPDATE_REQUEST_APPROVED',
+        'RECALL_REQUEST_APPROVED',
+        'REQUEST_RECALL_APPROVED',
+        'CANCELLATION_REQUEST_APPROVED',
+        'CANCEL_REQUEST_APPROVED',
+      ]
         .includes(actionToken) ||
       stageToken.includes('edit request approved') ||
+      stageToken.includes('recall request approved') ||
       stageToken.includes('cancellation request approved') ||
       stageToken.includes('cancel request approved')
     const explicitRejectedSignal =
-      ['EDIT_REQUEST_REJECTED', 'UPDATE_REQUEST_REJECTED', 'CANCELLATION_REQUEST_REJECTED', 'CANCEL_REQUEST_REJECTED']
+      [
+        'EDIT_REQUEST_REJECTED',
+        'UPDATE_REQUEST_REJECTED',
+        'RECALL_REQUEST_REJECTED',
+        'REQUEST_RECALL_REJECTED',
+        'CANCELLATION_REQUEST_REJECTED',
+        'CANCEL_REQUEST_REJECTED',
+      ]
         .includes(actionToken) ||
       stageToken.includes('edit request rejected') ||
       stageToken.includes('edit request disapproved') ||
+      stageToken.includes('recall request rejected') ||
+      stageToken.includes('recall request disapproved') ||
       stageToken.includes('cancellation request rejected') ||
       stageToken.includes('cancellation request disapproved') ||
       stageToken.includes('cancel request rejected')
@@ -3130,8 +3612,13 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
       : ['HR_APPROVED']
     if (!expectedDecisionActions.includes(actionToken)) return false
 
+    if (requestActionType === REQUEST_ACTION_RECALL && recallRequestSignal) return true
     if (requestActionType === REQUEST_ACTION_CANCEL && cancelRequestSignal) return true
-    if (requestActionType !== REQUEST_ACTION_CANCEL && (updateRequestSignal || cancelRequestSignal)) {
+    if (
+      requestActionType !== REQUEST_ACTION_CANCEL &&
+      requestActionType !== REQUEST_ACTION_RECALL &&
+      (updateRequestSignal || cancelRequestSignal)
+    ) {
       return true
     }
 
@@ -3156,20 +3643,89 @@ function resolveEditRequestReviewRole(decisionHistoryEntry) {
   return ''
 }
 
+function resolveEmployeeFullName(app) {
+  const directName = String(
+    app?.employee_name ||
+    app?.employeeName ||
+    app?.raw?.employee_name ||
+    app?.raw?.employeeName ||
+    ''
+  ).trim()
+  if (directName) return directName
+
+  const employee = app?.employee || app?.raw?.employee || null
+  if (employee && typeof employee === 'object') {
+    const parts = [
+      employee.firstname || employee.first_name || employee.firstName,
+      employee.middlename || employee.middle_name || employee.middleName,
+      employee.surname || employee.last_name || employee.lastName,
+    ]
+      .filter(Boolean)
+      .map((part) => String(part).trim())
+      .filter(Boolean)
+    if (parts.length) return parts.join(' ')
+  }
+
+  const directParts = [
+    app?.firstname || app?.first_name || app?.firstName,
+    app?.middlename || app?.middle_name || app?.middleName,
+    app?.surname || app?.last_name || app?.lastName,
+  ]
+    .filter(Boolean)
+    .map((part) => String(part).trim())
+    .filter(Boolean)
+  if (directParts.length) return directParts.join(' ')
+
+  const user = app?.user || app?.raw?.user || null
+  if (user && typeof user === 'object' && user.name) {
+    return String(user.name).trim()
+  }
+
+  return ''
+}
+
 function resolveEditRequestSubmittedMeta(app) {
   const submittedHistoryEntry = resolveEditRequestSubmittedHistoryEntry(app)
   const pendingPayload = getPendingUpdatePayload(app)
+  const isRecall = isRecallRequestAction(app)
 
   const submittedAt = pickFirstDefinedValue(
     app?.latest_update_requested_at,
     resolveStatusHistoryTimestamp(submittedHistoryEntry),
   )
-  const submittedBy = String(resolveFiledByActor(app) || 'Unknown').trim() || 'Unknown'
+  const submittedHistoryActor = String(resolveStatusHistoryActor(submittedHistoryEntry) || '').trim()
+  const departmentAdminActor = String(resolveDepartmentAdminActor(app) || '').trim()
+  const employeeFullName = resolveEmployeeFullName(app)
+  const defaultSubmitter = employeeFullName || 'Employee'
+
+  let submittedBy
+  if (isRecall) {
+    submittedBy =
+      submittedHistoryActor && submittedHistoryActor !== 'Unknown'
+        ? submittedHistoryActor
+        : departmentAdminActor && departmentAdminActor !== 'Unknown'
+          ? departmentAdminActor
+          : 'Department Admin'
+  } else {
+    const isControlNoOrUsername =
+      /^\d+$/.test(submittedHistoryActor) ||
+      submittedHistoryActor === String(app?.employee_control_no || '').trim() ||
+      submittedHistoryActor.toLowerCase() === String(app?.user?.username || '').toLowerCase()
+
+    if (employeeFullName) {
+      submittedBy = employeeFullName
+    } else if (submittedHistoryActor && !isControlNoOrUsername && submittedHistoryActor !== 'Unknown') {
+      submittedBy = submittedHistoryActor
+    } else {
+      submittedBy = defaultSubmitter
+    }
+  }
 
   const submittedReason = String(
     pickFirstDefinedValue(
       app?.latest_update_request_reason,
       getPendingUpdateReason(app),
+      pendingPayload?.recall_reason,
       pendingPayload?.cancel_reason,
       pendingPayload?.reason,
       submittedHistoryEntry?.remarks,
@@ -3182,6 +3738,61 @@ function resolveEditRequestSubmittedMeta(app) {
     submittedBy,
     submittedReason,
   }
+}
+
+function resolveEditRequestAdminApprovalMeta(app) {
+  if (isRecallRequestAction(app)) return null
+
+  const cycleStart = resolveCurrentUpdateRequestCycleStartValue(app)
+  if (!cycleStart) return null
+
+  const historyEntry = findLatestStatusHistoryEntry(app, (entry) => {
+    const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+    const stageToken = normalizeStatusHistoryToken(entry?.stage)
+    const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
+
+    const isDeptApprovalAction =
+      [
+        'ADMIN_APPROVED',
+        'DEPT_RECOMMENDED',
+        'RECOMMENDED',
+        'EDIT_REQUEST_ADMIN_APPROVED',
+        'CANCELLATION_REQUEST_ADMIN_APPROVED',
+        'CANCEL_REQUEST_ADMIN_APPROVED',
+        'UPDATE_REQUEST_ADMIN_APPROVED',
+      ].includes(actionToken) ||
+      stageToken.includes('department recommendation completed') ||
+      stageToken.includes('edit request approved by admin') ||
+      stageToken.includes('cancellation request approved by admin') ||
+      stageToken.includes('recommended') ||
+      stageToken.includes('forwarded to hr') ||
+      remarksToken.includes('edit request recommended') ||
+      remarksToken.includes('cancellation request recommended')
+
+    if (!isDeptApprovalAction) return false
+
+    const entryTime = resolveStatusHistoryTimestamp(entry)
+    return isTimestampOnOrAfter(entryTime, cycleStart)
+  })
+
+  if (historyEntry) {
+    return {
+      reviewedAt: resolveStatusHistoryTimestamp(historyEntry),
+      reviewedBy:
+        String(resolveStatusHistoryActor(historyEntry) || resolveDepartmentAdminActor(app) || '').trim() ||
+        'Department Admin',
+    }
+  }
+
+  const adminActionAt = app?.admin_action_at || null
+  if (adminActionAt && isTimestampOnOrAfter(adminActionAt, cycleStart)) {
+    return {
+      reviewedAt: adminActionAt,
+      reviewedBy: String(resolveDepartmentAdminActor(app) || '').trim() || 'Department Admin',
+    }
+  }
+
+  return null
 }
 
 function resolveEditRequestApprovalMeta(app) {
@@ -3223,14 +3834,33 @@ function resolveEditRequestRejectionMeta(app) {
 function getPreEditHrApprovalTimelineEntry(app) {
   if (!hasEditRequestSignal(app)) return null
 
+  const previousStatus = String(
+    app?.pending_update_previous_status ??
+      app?.latest_update_request_previous_status ??
+      '',
+  )
+    .trim()
+    .toUpperCase()
+
+  const hrApprovalHistoryEntry = resolveHrApprovalHistoryEntry(app)
+  const isActuallyApprovedByHr =
+    previousStatus === 'APPROVED' ||
+    Boolean(app?.hr_action_at) ||
+    Boolean(hrApprovalHistoryEntry)
+
+  if (!isActuallyApprovedByHr) return null
+
   const approvedAt = formatDateTime(resolveFinalApprovalDateValue(app))
   const approvedBy = resolveHrActor(app)
-  if (!approvedAt && approvedBy === 'Unknown') return null
 
-  const requestLabel = isCancellationRequestAction(app) ? 'cancellation request' : 'edit request'
+  const requestLabel = isRecallRequestAction(app)
+    ? 'recall request'
+    : isCancellationRequestAction(app)
+      ? 'cancellation request'
+      : 'edit request'
 
   return {
-    title: 'Approved by HR',
+    title: 'CHRMO Certification Completed',
     subtitle: approvedAt || 'Completed',
     description: 'Application was approved before the ' + requestLabel + '.',
     icon: 'task_alt',
@@ -3240,7 +3870,28 @@ function getPreEditHrApprovalTimelineEntry(app) {
 }
 
 function getEditRequestTimelineTerminology(app) {
+  const isRecallRequest = isRecallRequestAction(app)
   const isCancelRequest = isCancellationRequestAction(app)
+
+  if (isRecallRequest) {
+    return {
+      submittedTitle: 'Recall Request Submitted',
+      pendingAdminTitle: 'Recall Request Submitted',
+      adminApprovedTitle: 'Recall Request Submitted',
+      adminRejectedTitle: 'Recall Request Disapproved by Admin',
+      approvedTitle: 'Recall Request Approved',
+      rejectedTitle: 'Recall Request Disapproved',
+      pendingHrTitle: 'Pending Recall Review (HR)',
+      submittedFallback: 'Department admin requested recall for this approved application.',
+      pendingAdminDescription: 'Waiting for HR final review of the recall request.',
+      adminApprovedDescription: 'Recall request was submitted by department admin to HR.',
+      adminRejectedDescription: 'Department admin disapproved the recall request.',
+      approvedDescription: 'Recall request was reviewed and approved.',
+      rejectedDescription: 'Recall request was reviewed and disapproved.',
+      pendingHrDescription: 'Waiting for HR final review of the recall request.',
+      submittedIcon: 'undo',
+    }
+  }
 
   return {
     submittedTitle: isCancelRequest ? 'Cancellation Request Submitted' : 'Edit Request Submitted',
@@ -3287,22 +3938,20 @@ function getEditRequestTimelineEntries(app) {
   if (!hasEditRequestSignal(app)) return []
 
   const terminology = getEditRequestTimelineTerminology(app)
+  const isRecallRequest = isRecallRequestAction(app)
   const entries = []
   const submittedMeta = resolveEditRequestSubmittedMeta(app)
   const latestUpdateStatus = getLatestUpdateRequestStatus(app)
   const approvalMeta = resolveEditRequestApprovalMeta(app)
   const rejectionMeta = resolveEditRequestRejectionMeta(app)
+  const adminApprovalMeta = resolveEditRequestAdminApprovalMeta(app)
   const resolvedStatus = approvalMeta
     ? 'APPROVED'
     : rejectionMeta
       ? 'REJECTED'
       : latestUpdateStatus || 'PENDING'
-  const rawStatus = getApplicationRawStatusKey(app)
-  const isAdminReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_ADMIN'
-  const isHrReviewPending = resolvedStatus === 'PENDING' && rawStatus === 'PENDING_HR'
-  const isRejectedByAdmin =
-    rejectionMeta && String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN'
 
+  // 1. Request Submitted Step
   entries.push({
     title: terminology.submittedTitle,
     subtitle: formatDateTime(submittedMeta.submittedAt) || 'Submitted',
@@ -3314,35 +3963,49 @@ function getEditRequestTimelineEntries(app) {
     actor: submittedMeta.submittedBy,
   })
 
-  if (isAdminReviewPending) {
+  // 2. Rejection Step (if rejected by Admin or HR)
+  if (rejectionMeta || resolvedStatus === 'REJECTED') {
+    const isRejectedByAdmin =
+      rejectionMeta &&
+      (String(rejectionMeta.reviewedByRole || '').toUpperCase() === 'ADMIN' ||
+        !adminApprovalMeta)
+    const actorName = rejectionMeta?.reviewedBy || resolveDepartmentAdminActor(app)
+    const reviewRemarks = rejectionMeta?.reviewRemarks
     entries.push({
-      title: terminology.pendingAdminTitle,
-      subtitle: 'Current stage',
-      description: terminology.pendingAdminDescription,
-      icon: 'pending_actions',
-      color: 'warning',
-    })
-  } else if (isRejectedByAdmin && rejectionMeta) {
-    entries.push({
-      title: terminology.adminRejectedTitle,
-      subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-      description: rejectionMeta.reviewRemarks || terminology.adminRejectedDescription,
+      title: isRejectedByAdmin ? terminology.adminRejectedTitle : terminology.rejectedTitle,
+      subtitle: formatDateTime(rejectionMeta?.reviewedAt) || 'Reviewed',
+      description: reviewRemarks || (isRejectedByAdmin ? terminology.adminRejectedDescription : terminology.rejectedDescription),
       icon: 'cancel',
       color: 'negative',
-      actor: rejectionMeta.reviewedBy,
+      actor: actorName,
     })
     return entries
-  } else {
-    entries.push({
-      title: terminology.adminApprovedTitle,
-      subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
-      description: terminology.adminApprovedDescription,
-      icon: 'check_circle',
-      color: 'positive',
-      actor: resolveDepartmentAdminActor(app),
-    })
   }
 
+  // 3. Admin Review Step (only for non-recall requests)
+  if (!isRecallRequest) {
+    if (adminApprovalMeta) {
+      entries.push({
+        title: terminology.adminApprovedTitle,
+        subtitle: formatDateTime(adminApprovalMeta.reviewedAt) || 'Completed',
+        description: terminology.adminApprovedDescription,
+        icon: 'check_circle',
+        color: 'positive',
+        actor: adminApprovalMeta.reviewedBy,
+      })
+    } else if (!approvalMeta) {
+      entries.push({
+        title: terminology.pendingAdminTitle,
+        subtitle: 'On Process',
+        description: terminology.pendingAdminDescription,
+        icon: 'pending_actions',
+        color: 'warning',
+      })
+      return entries
+    }
+  }
+
+  // 4. HR Review Step
   if (approvalMeta) {
     entries.push({
       title: terminology.approvedTitle,
@@ -3352,30 +4015,13 @@ function getEditRequestTimelineEntries(app) {
       color: 'positive',
       actor: approvalMeta.reviewedBy,
     })
-  } else if (rejectionMeta) {
-    entries.push({
-      title: terminology.rejectedTitle,
-      subtitle: formatDateTime(rejectionMeta.reviewedAt) || 'Reviewed',
-      description: rejectionMeta.reviewRemarks || terminology.rejectedDescription,
-      icon: 'cancel',
-      color: 'negative',
-      actor: rejectionMeta.reviewedBy,
-    })
-  } else if (isHrReviewPending) {
-    entries.push({
-      title: terminology.pendingHrTitle,
-      subtitle: 'Current stage',
-      description: terminology.pendingHrDescription,
-      icon: 'pending_actions',
-      color: 'warning',
-    })
   } else {
     entries.push({
       title: terminology.pendingHrTitle,
-      subtitle: 'Upcoming',
-      description: 'This stage starts after department admin review.',
-      icon: 'radio_button_unchecked',
-      color: 'grey-5',
+      subtitle: 'On Process',
+      description: terminology.pendingHrDescription,
+      icon: 'pending_actions',
+      color: 'warning',
     })
   }
 
@@ -3459,7 +4105,7 @@ function isApplicationReceivedByHr(app) {
 
   if (cycleStart) {
     if (!receivedAt) return false
-    if (!isTimestampOnOrAfter(receivedAt, cycleStart)) return false
+    return isTimestampOnOrAfter(receivedAt, cycleStart)
   }
 
   return Boolean(app?.has_hr_received || resolveReceivedHistoryEntry(app) || receivedAt)
@@ -3503,7 +4149,7 @@ function getReceivedApplicationTimelineEntry(app) {
     subtitle: receivedAt,
     description,
     icon: 'inventory_2',
-    color: 'positive',
+    color: 'teal-6',
     actor: receivedBy,
   }
 }
@@ -3532,6 +4178,54 @@ function getReleasedApplicationTimelineEntry(app) {
     color: 'positive',
     actor: releasedBy,
   }
+}
+
+function resolveCmoCbmoReviewHistoryEntry(app) {
+  return findLatestStatusHistoryEntry(app, (entry) => {
+    const action = String(entry?.action || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_')
+    const stage = String(entry?.stage || '').trim().toLowerCase()
+    return action === 'CMO_CBMO_REVIEWED' || stage === 'CMO/CVMO Reviewed'
+  })
+}
+
+function resolveCmoCbmoReviewActor(app) {
+  const directActor = String(app?.cmo_cbmo_reviewed_by || app?.cmoCbmoReviewedBy || '').trim()
+  if (directActor) return directActor
+
+  const historyActor = String(resolveStatusHistoryActor(resolveCmoCbmoReviewHistoryEntry(app)) || '').trim()
+  return historyActor || 'Unknown'
+}
+
+function resolveCmoCbmoReviewDateValue(app) {
+  return pickLatestTimestampValue(
+    app?.cmo_cbmo_reviewed_at || null,
+    app?.cmoCbmoReviewedAt || null,
+    resolveStatusHistoryTimestamp(resolveCmoCbmoReviewHistoryEntry(app)) || null,
+  )
+}
+
+function isApplicationCmoCbmoReviewed(app) {
+  if (!app) return false
+  if (isApplicationReleased(app)) return true
+
+  const reviewedAt = resolveCmoCbmoReviewDateValue(app)
+  return Boolean(app?.has_cmo_cbmo_reviewed || app?.hasCmoCbmoReviewed || resolveCmoCbmoReviewHistoryEntry(app) || reviewedAt)
+}
+
+function canCmoCbmoReviewApplication(app) {
+  if (!app) return false
+  if (isCocApplication(app)) return false
+  if (isApplicationCmoCbmoReviewed(app)) return false
+  if (isApplicationReleased(app)) return false
+  if (isCancelledByUser(app)) return false
+  if (getLatestUpdateRequestStatus(app) === 'REJECTED') return false
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus !== 'APPROVED') return false
+  return isApplicationReceivedByHr(app)
 }
 
 function resolveReleasedHistoryEntry(app) {
@@ -3583,7 +4277,7 @@ function canReleaseApplication(app) {
   const rawStatus = getApplicationRawStatusKey(app)
   if (isCocApplication(app)) {
     if (rawStatus !== 'APPROVED') return false
-    return isApplicationReceivedByHr(app)
+    return isApplicationReceivedByHr(app) && isApplicationCmoCbmoReviewed(app)
   }
 
   const isCancellationRequestApproved =
@@ -3593,7 +4287,7 @@ function canReleaseApplication(app) {
 
   if (isCancelledByUser(app) && !isCancellationRequestApproved) return false
 
-  if (rawStatus === 'APPROVED') return true
+  if (rawStatus === 'APPROVED') return isApplicationCmoCbmoReviewed(app)
   if (isCancellationRequestApproved) return isApplicationReceivedByHr(app)
   return false
 }
@@ -3602,7 +4296,268 @@ function shouldUseUpdateReceiveEndpoint(app) {
   if (!app || isCocApplication(app)) return false
   if (getApplicationRawStatusKey(app) !== 'PENDING_HR') return false
   if (getLatestUpdateRequestStatus(app) !== 'PENDING') return false
-  return Boolean(resolveCurrentUpdateRequestCycleStartValue(app))
+
+  return Boolean(
+    resolveCurrentUpdateRequestCycleStartValue(app) ||
+      isTruthyBackendFlag(app?.has_pending_update_request) ||
+      isEditUpdateRequest(app),
+  )
+}
+
+function getReceiveConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Receive COC Application',
+      message: 'This will confirm that HR received this COC application.',
+    }
+  }
+
+  if (shouldUseUpdateReceiveEndpoint(app)) {
+    if (isCancellationRequestAction(app)) {
+      return {
+        title: 'Receive Cancellation Form',
+        message: 'This will confirm that HR received the hard-copy cancellation form.',
+      }
+    }
+
+    return {
+      title: 'Receive Updated Application',
+      message: 'This will confirm that HR received the updated hard-copy leave application form.',
+    }
+  }
+
+  return {
+    title: 'Receive Application',
+    message: 'This will confirm that HR received the hard-copy leave application form.',
+  }
+}
+
+function confirmApplicationReceive(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canReceiveApplication(application)) return false
+
+  const confirmationCopy = getReceiveConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Receive',
+      color: 'primary',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationReceived(application)
+  })
+
+  return true
+}
+
+function confirmApplicationCmoCbmoReview(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canCmoCbmoReviewApplication(application)) return false
+
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: 'Confirm CMO/CVMO Review',
+    message: 'This will confirm CMO/CVMO Review and move the application to Pending Release.',
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Confirm',
+      color: 'deep-purple-6',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationCmoCbmoReviewed(application)
+  })
+
+  return true
+}
+
+function getReleaseConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Release COC Application',
+      message: 'This will confirm that HR released this COC application.',
+    }
+  }
+
+  if (shouldUseUpdateReleaseEndpoint(app)) {
+    if (isCancellationRequestAction(app)) {
+      return {
+        title: 'Release Cancellation Form',
+        message: 'This will confirm that HR released the cancellation form.',
+      }
+    }
+
+    return {
+      title: 'Release Updated Application',
+      message: 'This will confirm that HR released the updated hard-copy leave application form.',
+    }
+  }
+
+  return {
+    title: 'Release Application',
+    message: 'This will confirm that HR released the hard-copy leave application form.',
+  }
+}
+
+function confirmApplicationRelease(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canReleaseApplication(application)) return false
+
+  const confirmationCopy = getReleaseConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Release',
+      color: 'secondary',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await markApplicationReleased(application)
+  })
+
+  return true
+}
+
+function getUndoReceiveConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Undo Receive COC Application',
+      message: 'This will undo HR receipt for this COC application.',
+    }
+  }
+
+  if (isCancellationRequestAction(app)) {
+    return {
+      title: 'Undo Receive Cancellation Form',
+      message: 'This will move the cancellation form back before HR receipt.',
+    }
+  }
+
+  if (hasEditRequestSignal(app)) {
+    return {
+      title: 'Undo Receive Updated Application',
+      message: 'This will move the updated hard-copy application back before HR receipt.',
+    }
+  }
+
+  return {
+    title: 'Undo Receive Application',
+    message: 'This will undo HR receipt for the hard-copy leave application.',
+  }
+}
+
+function confirmApplicationReceiveUndo(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReceivedByHr(application)) return false
+
+  const confirmationCopy = getUndoReceiveConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Undo',
+      color: 'warning',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await undoApplicationReceive(application)
+  })
+
+  return true
+}
+
+function getUndoReleaseConfirmationCopy(app) {
+  if (isCocApplication(app)) {
+    return {
+      title: 'Undo Release COC Application',
+      message: 'This will undo HR release for this COC application.',
+    }
+  }
+
+  if (isCancellationRequestAction(app)) {
+    return {
+      title: 'Undo Release Cancellation Form',
+      message: 'This will move the cancellation form back before HR release.',
+    }
+  }
+
+  if (hasEditRequestSignal(app)) {
+    return {
+      title: 'Undo Release Updated Application',
+      message: 'This will move the updated hard-copy application back before HR release.',
+    }
+  }
+
+  return {
+    title: 'Undo Release Application',
+    message: 'This will undo HR release for the hard-copy leave application.',
+  }
+}
+
+function confirmApplicationReleaseUndo(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReleased(application)) return false
+
+  const confirmationCopy = getUndoReleaseConfirmationCopy(application)
+  q.dialog({
+    class: 'hr-receive-required-dialog',
+    title: confirmationCopy.title,
+    message: confirmationCopy.message,
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      class: 'hr-receive-required-dialog__button',
+    },
+    ok: {
+      label: 'Undo',
+      color: 'warning',
+      unelevated: true,
+      class: 'hr-receive-required-dialog__button',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    await undoApplicationRelease(application)
+  })
+
+  return true
 }
 
 function shouldUseUpdateReleaseEndpoint(app) {
@@ -3705,7 +4660,12 @@ function formatRecentRemarks(app) {
 }
 
 function isLateCocWorkflowApplication(app) {
-  return isLateCocSourceView() && isCocApplication(app)
+  if (!isCocApplication(app)) return false
+
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'PENDING_LATE_HR') return true
+
+  return Boolean(app?.is_late_filed || app?.isLateFiled || app?.late_filing_status)
 }
 
 function getLateCocHrEvaluationTimelineEntry(app) {
@@ -3715,7 +4675,7 @@ function getLateCocHrEvaluationTimelineEntry(app) {
   if (rawStatus === 'PENDING_LATE_HR') {
     return {
       title: 'Under HR Evaluation',
-      subtitle: 'Current stage',
+      subtitle: 'On Process',
       description: 'Waiting for HR evaluation of this late COC application.',
       icon: 'pending_actions',
       color: 'warning',
@@ -3804,15 +4764,15 @@ function buildApplicationTimeline(app) {
 
   if (rawStatus === 'PENDING_LATE_HR') {
     entries.push({
-      title: 'Department Admin Review Pending',
-      subtitle: 'Upcoming',
+      title: 'Department Recommendation',
+      subtitle: 'On Process',
       description: 'This stage starts after HR approves the late COC application.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
     })
     entries.push({
-      title: 'Pending HR Review',
-      subtitle: 'Upcoming',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3820,7 +4780,7 @@ function buildApplicationTimeline(app) {
     entries.push(...editRequestEntries)
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3831,7 +4791,7 @@ function buildApplicationTimeline(app) {
   if (rawStatus === 'PENDING_ADMIN') {
     if (hasEditRequest) {
       entries.push({
-        title: 'Admin Review Completed',
+        title: 'Department Recommendation Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
@@ -3847,7 +4807,7 @@ function buildApplicationTimeline(app) {
       entries.push(...editRequestEntries)
       entries.push({
         title: 'Application Closed',
-        subtitle: 'Upcoming',
+        subtitle: 'On Process',
         description: 'Application will be closed after final HR action.',
         icon: 'radio_button_unchecked',
         color: 'grey-5',
@@ -3856,15 +4816,15 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: 'Department Admin Review Pending',
-      subtitle: 'Current stage',
+      title: 'Department Recommendation',
+      subtitle: 'On Process',
       description: 'Waiting for department admin approval or disapproval.',
       icon: 'pending_actions',
       color: 'warning',
     })
     entries.push({
-      title: 'Pending HR Review',
-      subtitle: 'Upcoming',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
       description: 'This stage starts after department admin approval.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3872,7 +4832,7 @@ function buildApplicationTimeline(app) {
     entries.push(...editRequestEntries)
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -3888,7 +4848,7 @@ function buildApplicationTimeline(app) {
 
     if (resolveDepartmentAdminActionDateValue(app)) {
       entries.push({
-        title: 'Admin Review Completed',
+        title: 'Department Recommendation Completed',
         subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
         description: 'Application was reviewed and forwarded to HR.',
         icon: 'check_circle',
@@ -3901,11 +4861,11 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Disapproved',
+      title: isApprovedCancellationRequest ? 'Application Cancelled' : 'Application Not Certified',
       subtitle: disapprovedAt,
       description: isApprovedCancellationRequest
         ? formatRecentRemarks(app) || 'Application was cancelled through the approved cancellation request.'
-        : formatRecentRemarks(app) || 'Application was disapproved.',
+        : formatRecentRemarks(app) || 'Application was not certified.',
       icon: isApprovedCancellationRequest ? 'event_busy' : 'cancel',
       color: 'negative',
       actor: disapprovedBy,
@@ -3923,7 +4883,7 @@ function buildApplicationTimeline(app) {
   }
 
   entries.push({
-    title: 'Admin Review Completed',
+    title: 'Department Recommendation Completed',
     subtitle: formatDateTime(resolveDepartmentAdminActionDateValue(app)) || 'Completed',
     description: 'Application was reviewed and forwarded to HR.',
     icon: 'check_circle',
@@ -3942,7 +4902,7 @@ function buildApplicationTimeline(app) {
       entries.push(...editRequestEntries)
       entries.push({
         title: 'Application Closed',
-        subtitle: 'Upcoming',
+        subtitle: 'On Process',
         description: 'Application will be closed after final HR action.',
         icon: 'radio_button_unchecked',
         color: 'grey-5',
@@ -3951,16 +4911,16 @@ function buildApplicationTimeline(app) {
     }
 
     entries.push({
-      title: 'Pending HR Review',
-      subtitle: 'Current stage',
-      description: 'Waiting for HR final evaluation and approval.',
+      title: 'CHRMO Certification',
+      subtitle: 'On Process',
+      description: 'Waiting for HR evaluation.',
       icon: 'pending_actions',
       color: 'warning',
     })
     entries.push(...editRequestEntries)
     entries.push({
       title: 'Application Closed',
-      subtitle: 'Upcoming',
+      subtitle: 'On Process',
       description: 'Application will be closed after final HR action.',
       icon: 'radio_button_unchecked',
       color: 'grey-5',
@@ -4003,7 +4963,7 @@ function buildApplicationTimeline(app) {
     const approvedBy = resolveHrActor(app)
 
     entries.push({
-      title: 'Approved by HR',
+      title: 'CHRMO Certification Completed',
       subtitle: approvedAt,
       description: 'Application is fully approved.',
       icon: 'task_alt',
@@ -4033,7 +4993,7 @@ function buildApplicationTimeline(app) {
       entries.push(preEditHrApprovalEntry)
     } else if (approvedAt || approvedBy !== 'Unknown') {
       entries.push({
-        title: 'Approved by HR',
+        title: 'CHRMO Certification Completed',
         subtitle: approvedAt || 'Completed',
         description: 'Application was fully approved before recall.',
         icon: 'task_alt',
@@ -4363,13 +5323,25 @@ function getSelectedDateCoverageWeights(app) {
 
   let defaultCoverageWeight = 1
   const dateCount = dateSet.length
-  if (dateCount > 0 && totalDays > 0) {
-    const halfMatch = Math.abs(dateCount * 0.5 - totalDays) < 0.00001
-    const wholeMatch = Math.abs(dateCount - totalDays) < 0.00001
+  
+  const isAbroad = isAbroadLeaveApplication(app)
+  const effectiveDateCount = isAbroad
+    ? dateSet.filter((dateValue) => {
+        const dateStr = toIsoDateString(dateValue)
+        if (!dateStr) return true
+        const dateObj = new Date(dateStr)
+        if (Number.isNaN(dateObj.getTime())) return true
+        return dateObj.getDay() !== 0 && dateObj.getDay() !== 6
+      }).length
+    : dateCount
+
+  if (effectiveDateCount > 0 && totalDays > 0) {
+    const halfMatch = Math.abs(effectiveDateCount * 0.5 - totalDays) < 0.00001
+    const wholeMatch = Math.abs(effectiveDateCount - totalDays) < 0.00001
     if (halfMatch) {
       defaultCoverageWeight = 0.5
     } else if (!wholeMatch) {
-      defaultCoverageWeight = Math.max(Math.min(totalDays / dateCount, 1), 0.5)
+      defaultCoverageWeight = Math.max(Math.min(totalDays / effectiveDateCount, 1), 0.5)
     }
   }
 
@@ -4482,6 +5454,355 @@ function getSelectedDatePayStatusColumns(app, columnCount = 3) {
   }
 
   return columns
+}
+
+function isPreviouslyApprovedUpdateWorkflow(app) {
+  if (!app || isCocApplication(app)) return false
+
+  const previousStatusCandidates = [
+    app?.pending_update_previous_status,
+    app?.latest_update_request_previous_status,
+  ]
+
+  return previousStatusCandidates.some(
+    (status) => String(status || '').trim().toUpperCase() === 'APPROVED',
+  )
+}
+
+function canOverrideApplicationPayStatus(app) {
+  if (!app || typeof app !== 'object') return false
+  if (isCocApplication(app)) return false
+  if (app?.is_monetization === true) return false
+  if (getApplicationRawStatusKey(app) !== 'PENDING_HR') return false
+  if (isPendingUpdateWorkflowCycle(app) || isPreviouslyApprovedUpdateWorkflow(app)) return false
+  if (isCtoLeaveApplication(app)) return false
+
+  const leaveTypeLabel =
+    getCurrentLeaveTypeLabel(app) ||
+    app?.leaveType ||
+    app?.leave_type_name ||
+    ''
+  if (resolveApplicationLeaveTypeCategory(app) === 'EVENT' || isEventBasedLeaveType(leaveTypeLabel)) {
+    return false
+  }
+
+  return getSelectedDatePayStatusRows(app).length > 0
+}
+
+function buildPayStatusOverrideSelectedDatePayStatusMap(app, targetEntry = {}) {
+  const rows = getSelectedDatePayStatusRows(app)
+  const targetDateKey = String(targetEntry?.dateKey || '').trim()
+  const nextPayStatus = normalizePayStatusCode(targetEntry?.nextPayStatus) === 'WOP' ? 'WOP' : 'WP'
+
+  const selectedDatePayStatus = rows.reduce((acc, row) => {
+    const dateKey = String(row?.dateKey || '').trim()
+    if (!dateKey) return acc
+
+    acc[dateKey] = row?.payStatus === 'WOP' ? 'WOP' : 'WP'
+    return acc
+  }, {})
+
+  if (targetDateKey) {
+    selectedDatePayStatus[targetDateKey] = nextPayStatus
+  }
+
+  return selectedDatePayStatus
+}
+
+function buildPayStatusOverridePayload(app, targetEntry = {}) {
+  const selectedDatePayStatus = buildPayStatusOverrideSelectedDatePayStatusMap(app, targetEntry)
+
+  const payStatuses = Object.values(selectedDatePayStatus)
+  const hasWithPay = payStatuses.some((status) => status === 'WP')
+  const hasWithoutPay = payStatuses.some((status) => status === 'WOP')
+
+  return {
+    pay_mode: hasWithoutPay && !hasWithPay ? 'WOP' : 'WP',
+    selected_date_pay_status: selectedDatePayStatus,
+    allow_sl_vl_cross_deduction: shouldAllowPayStatusOverrideSlVlCrossDeduction(app, targetEntry),
+  }
+}
+
+function resolvePayStatusOverrideSlVlCrossDeductionContext(app) {
+  if (!app || typeof app !== 'object') return null
+
+  const leaveTypeKey = normalizeLeaveBalanceLookupKey(
+    getCurrentLeaveTypeLabel(app) || app?.leaveType || app?.leave_type_name || '',
+  )
+  const rawPrimaryAvailableBalance = getCurrentLeaveBalanceValue(app)
+  if (!Number.isFinite(rawPrimaryAvailableBalance)) return null
+
+  const currentPrimaryDeduction = Number(app?.deductible_days || app?.deductibleDays || 0) || 0
+  const currentLinkedVacationDeduction =
+    Number(app?.linked_vacation_leave_deducted_days || app?.linkedVacationLeaveDeductedDays || 0) || 0
+  const currentLinkedSickDeduction =
+    Number(app?.linked_sick_leave_deducted_days || app?.linkedSickLeaveDeductedDays || 0) || 0
+
+  if (leaveTypeKey === normalizeLeaveBalanceLookupKey('Sick Leave')) {
+    const rawAlternateBalance = getLeaveBalanceValueByTypeLabel(app, 'Vacation Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+
+    const primaryAvailableBalance = Math.max(rawPrimaryAvailableBalance + currentPrimaryDeduction, 0)
+    const alternateAvailableBalance = Math.max(rawAlternateBalance + currentLinkedVacationDeduction, 0)
+
+    return {
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Vacation Leave',
+      primaryAvailableBalance,
+    }
+  }
+
+  if (leaveTypeKey === normalizeLeaveBalanceLookupKey('Vacation Leave')) {
+    const rawAlternateBalance = getLeaveBalanceValueByTypeLabel(app, 'Sick Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+
+    const primaryAvailableBalance = Math.max(rawPrimaryAvailableBalance + currentPrimaryDeduction, 0)
+    const alternateAvailableBalance = Math.max(rawAlternateBalance + currentLinkedSickDeduction, 0)
+
+    return {
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Sick Leave',
+      primaryAvailableBalance,
+    }
+  }
+
+  return null
+}
+
+function getLeaveBalanceValueByTypeLabel(app, leaveTypeLabel = '') {
+  const entry = findLeaveBalanceEntry(app, null, leaveTypeLabel)
+  if (!entry || !Number.isFinite(Number(entry.balance))) return null
+
+  return Number(entry.balance)
+}
+
+function resolvePayStatusOverrideSelectedDateStatusMap(app, targetEntry = null) {
+  if (targetEntry && typeof targetEntry === 'object') {
+    return normalizeMapKeysWithIsoAlias(
+      toSelectedDatePayStatusMap(buildPayStatusOverrideSelectedDatePayStatusMap(app, targetEntry)),
+    )
+  }
+
+  return normalizeMapKeysWithIsoAlias(
+    toSelectedDatePayStatusMap(app?.selected_date_pay_status),
+  )
+}
+
+function resolvePayStatusOverrideAlternateDeductionDays(app, selectedDateStatusMap = null) {
+  const context = resolvePayStatusOverrideSlVlCrossDeductionContext(app)
+  if (!context) return null
+
+  const rows = getSelectedDatePayStatusRows(app)
+  if (!rows.length) return null
+
+  const coverageWeights = getSelectedDateCoverageWeights(app)
+  let remainingPrimaryBalance = Math.max(context.primaryAvailableBalance, 0)
+  let alternateDeductionDays = 0
+
+  rows.forEach((row) => {
+    const dateKey = String(row?.dateKey || '').trim()
+    if (!dateKey) return
+
+    const payStatus =
+      normalizePayStatusCode(selectedDateStatusMap?.[dateKey] ?? row?.payStatus) === 'WOP'
+        ? 'WOP'
+        : 'WP'
+    if (payStatus === 'WOP') return
+
+    const rawWeight = Number(coverageWeights[dateKey])
+    const dateWeight =
+      Number.isFinite(rawWeight) && rawWeight > 0
+        ? rawWeight
+        : String(row?.coverageLabel || '').toLowerCase().startsWith('half')
+          ? 0.5
+          : 1
+
+    if (remainingPrimaryBalance + 1e-9 >= dateWeight) {
+      remainingPrimaryBalance = Math.max(remainingPrimaryBalance - dateWeight, 0)
+      return
+    }
+
+    alternateDeductionDays += dateWeight
+  })
+
+  return Math.round(alternateDeductionDays * 1000) / 1000
+}
+
+function resolvePayStatusOverrideProjectedCrossDeduction(app, targetEntry = null) {
+  const context = resolvePayStatusOverrideSlVlCrossDeductionContext(app)
+  if (!context) return null
+
+  const projectedAlternateDeductionDays = resolvePayStatusOverrideAlternateDeductionDays(
+    app,
+    resolvePayStatusOverrideSelectedDateStatusMap(app, targetEntry),
+  )
+
+  if (
+    !Number.isFinite(projectedAlternateDeductionDays)
+    || projectedAlternateDeductionDays <= 1e-9
+    || projectedAlternateDeductionDays > context.alternateAvailableBalance + 1e-9
+  ) {
+    return null
+  }
+
+  return {
+    ...context,
+    projectedAlternateDeductionDays,
+  }
+}
+
+function shouldAllowPayStatusOverrideSlVlCrossDeduction(app, targetEntry = null) {
+  return resolvePayStatusOverrideProjectedCrossDeduction(app, targetEntry) !== null
+}
+
+function getPayStatusOverrideDateLabel(entry = {}) {
+  const rawDate = String(entry?.dateKey || entry?.dateText || '').trim()
+  if (!rawDate) return 'This date'
+
+  return formatDate(rawDate) || rawDate
+}
+
+function getPayStatusOverrideConfirmationCopy(app, entry = {}) {
+  const currentPayStatus = normalizePayStatusCode(entry?.payStatus) === 'WOP' ? 'WOP' : 'WP'
+  const nextPayStatus = normalizePayStatusCode(entry?.nextPayStatus) === 'WOP' ? 'WOP' : 'WP'
+  const dateLabel = getPayStatusOverrideDateLabel(entry)
+  const crossDeductionPreview = resolvePayStatusOverrideProjectedCrossDeduction(app, entry)
+
+  if (currentPayStatus === nextPayStatus) {
+    return {
+      title: 'Override Pay Status',
+      message: `No pay-status change is needed for ${dateLabel}.`,
+      color: 'primary',
+      okLabel: 'Continue',
+      cancelLabel: 'Cancel',
+    }
+  }
+
+  if (nextPayStatus === 'WOP') {
+    return {
+      title: 'Set date to WOP?',
+      message: `${dateLabel} will be marked as without pay. Do you want to continue?`,
+      color: 'negative',
+      okLabel: 'Yes, set WOP',
+      cancelLabel: 'Cancel',
+    }
+  }
+
+  if (crossDeductionPreview) {
+    return {
+      title: 'Keep This Leave With Pay?',
+      message: `${formatDayValue(crossDeductionPreview.projectedAlternateDeductionDays)} day(s) will be deducted from ${crossDeductionPreview.alternateLeaveTypeLabel} to keep this leave with pay. Continue?`,
+      color: 'primary',
+      okLabel: 'Continue',
+      cancelLabel: 'Cancel',
+    }
+  }
+
+  return {
+    title: 'Set date to WP?',
+    message: `${dateLabel} will be marked as with pay. Do you want to continue?`,
+    color: 'primary',
+    okLabel: 'Yes, set WP',
+    cancelLabel: 'Cancel',
+  }
+}
+
+async function updateApplicationPayStatus(application, id, entry = {}) {
+  payStatusOverrideLoading.value = true
+  try {
+    const response = await api.post(
+      `/hr/leave-applications/${id}/pay-status/update`,
+      buildPayStatusOverridePayload(application, entry),
+    )
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication =
+        normalizeBackendApplicationShape({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        }) ||
+        ({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        })
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      applyLeaveApplicationUpdate(mergedApplication)
+      await fetchLatestHrLeaveApplication(mergedApplication)
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'Application pay status updated.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to update this application pay status.')
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    payStatusOverrideLoading.value = false
+  }
+}
+
+async function overrideApplicationPayStatus(target, entry = {}) {
+  const application = resolveApplication(target) || target
+  if (!canOverrideApplicationPayStatus(application)) {
+    q.notify({
+      type: 'negative',
+      message: 'WOP/WP can only be changed during CHRMO Certification before final approval.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this leave application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const confirmationCopy = getPayStatusOverrideConfirmationCopy(application, entry)
+
+  return new Promise((resolve) => {
+    q.dialog({
+      class: 'hr-receive-required-dialog',
+      title: confirmationCopy.title,
+      message: confirmationCopy.message,
+      cancel: {
+        label: confirmationCopy.cancelLabel,
+        flat: true,
+        color: 'grey-7',
+        class: 'hr-receive-required-dialog__button',
+      },
+      ok: {
+        label: confirmationCopy.okLabel,
+        color: confirmationCopy.color,
+        unelevated: true,
+        class: 'hr-receive-required-dialog__button',
+      },
+      persistent: true,
+    })
+      .onOk(async () => {
+        resolve(await updateApplicationPayStatus(application, id, entry))
+      })
+      .onCancel(() => {
+        resolve(false)
+      })
+  })
 }
 
 function getPendingUpdateDatePayStatusRows(app) {
@@ -4740,6 +6061,9 @@ async function printCocCertificate(app = selectedApp.value) {
   const targetApp = resolveApplication(app) || app
   if (!canPrintCocCertificate(targetApp)) return
 
+  const pdfWindow =
+    typeof window !== 'undefined' && window.open ? window.open('about:blank', '_blank') : null
+
   let printableApp = targetApp
   const id = getApplicationId(targetApp)
 
@@ -4760,7 +6084,14 @@ async function printCocCertificate(app = selectedApp.value) {
     }
   }
 
-  await generateCocCertificatePdf(printableApp)
+  try {
+    await generateCocCertificatePdf(printableApp, { targetWindow: pdfWindow })
+  } catch (err) {
+    if (pdfWindow && !pdfWindow.closed) {
+      pdfWindow.close()
+    }
+    throw err
+  }
 }
 
 function promptCocCertificateAfterReceive(app) {
@@ -4790,8 +6121,9 @@ function promptCocCertificateAfterReceive(app) {
   return true
 }
 
-function handleApplicationRowClick(_evt, row) {
+function handleApplicationRowClick(evt, row) {
   if (!row) return
+  if (evt?.target?.closest?.('.q-checkbox, .q-btn, button, a')) return
   openTimeline(row)
 }
 
@@ -5117,6 +6449,7 @@ async function markApplicationReceived(target = selectedApp.value) {
       }
 
       applyLeaveApplicationUpdate(mergedApplication)
+      await fetchLatestHrLeaveApplication(mergedApplication)
     }
 
     q.notify({
@@ -5279,6 +6612,397 @@ async function markApplicationReleased(target = selectedApp.value) {
   }
 }
 
+async function undoApplicationReceive(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReceivedByHr(application)) return false
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  undoReceiveLoading.value = true
+  try {
+    const endpoint = isCocApplication(application)
+      ? '/hr/coc-applications/' + id + '/undo-receive'
+      : '/hr/leave-applications/' + id + '/undo-receive'
+    const response = await api.post(endpoint)
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication =
+        normalizeBackendApplicationShape({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        }) ||
+        ({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        })
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      if (isCocApplication(mergedApplication)) {
+        applyCocApplicationUpdate(mergedApplication)
+        await fetchLatestHrCocApplication(mergedApplication)
+      } else {
+        applyLeaveApplicationUpdate(mergedApplication)
+        await fetchLatestHrLeaveApplication(mergedApplication)
+      }
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'HR receipt was undone.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to undo HR receipt right now.')
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    undoReceiveLoading.value = false
+  }
+}
+
+async function undoApplicationRelease(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!isApplicationReleased(application)) return false
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  undoReleaseLoading.value = true
+  try {
+    const endpoint = isCocApplication(application)
+      ? '/hr/coc-applications/' + id + '/undo-release'
+      : '/hr/leave-applications/' + id + '/undo-release'
+    const response = await api.post(endpoint)
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+
+    if (updatedApplication && typeof updatedApplication === 'object') {
+      const mergedApplication =
+        normalizeBackendApplicationShape({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        }) ||
+        ({
+          ...(application && typeof application === 'object' ? application : {}),
+          ...updatedApplication,
+        })
+
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+
+      if (isCocApplication(mergedApplication)) {
+        applyCocApplicationUpdate(mergedApplication)
+        await fetchLatestHrCocApplication(mergedApplication)
+      } else {
+        applyLeaveApplicationUpdate(mergedApplication)
+        await fetchLatestHrLeaveApplication(mergedApplication)
+      }
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'HR release was undone.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(err, 'Unable to undo HR release right now.')
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    undoReleaseLoading.value = false
+  }
+}
+
+async function markApplicationCmoCbmoReviewed(target = selectedApp.value) {
+  const application = resolveApplication(target) || target
+  if (!canCmoCbmoReviewApplication(application)) return false
+
+  const id = getApplicationId(application)
+  if (!id) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to identify this application.',
+      position: 'top',
+    })
+    return false
+  }
+
+  releaseLoading.value = true
+  try {
+    const endpoint = isCocApplication(application)
+      ? '/hr/coc-applications/' + id + '/cmo-cbmo-review'
+      : '/hr/leave-applications/' + id + '/cmo-cbmo-review'
+    const response = await api.post(endpoint)
+    const responseMessage = String(response?.data?.message || '').trim()
+    const updatedApplication = normalizeBackendApplicationShape(
+      extractSingleApplicationFromPayload(response?.data),
+    )
+    const reviewedAt = new Date().toISOString()
+    const fallbackApplication =
+      normalizeBackendApplicationShape({
+        ...(application && typeof application === 'object' ? application : {}),
+        has_cmo_cbmo_reviewed: true,
+        hasCmoCbmoReviewed: true,
+        cmo_cbmo_reviewed_at: reviewedAt,
+        cmoCbmoReviewedAt: reviewedAt,
+      }) ||
+      ({
+        ...(application && typeof application === 'object' ? application : {}),
+        has_cmo_cbmo_reviewed: true,
+        hasCmoCbmoReviewed: true,
+        cmo_cbmo_reviewed_at: reviewedAt,
+        cmoCbmoReviewedAt: reviewedAt,
+      })
+    const mergedApplication =
+      updatedApplication && typeof updatedApplication === 'object'
+        ? normalizeBackendApplicationShape({
+            ...(application && typeof application === 'object' ? application : {}),
+            ...updatedApplication,
+          }) ||
+          ({
+            ...(application && typeof application === 'object' ? application : {}),
+            ...updatedApplication,
+          })
+        : fallbackApplication
+
+    if (isCocApplication(mergedApplication)) {
+      applyCocApplicationUpdate(mergedApplication)
+      await fetchLatestHrCocApplication(mergedApplication)
+    } else {
+      const selectedId = String(getApplicationId(selectedApp.value) ?? '').trim()
+      if (selectedId === String(id).trim()) {
+        selectedApp.value = mergedApplication
+      }
+      applyLeaveApplicationUpdate(mergedApplication)
+      await fetchLatestHrLeaveApplication(mergedApplication)
+    }
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || 'Application marked for CMO/CVMO Review.',
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to mark this application for CMO/CVMO Review right now.',
+    )
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    releaseLoading.value = false
+  }
+}
+
+async function bulkApproveCmoCbmoReview(applicationsToApprove = selectedApplications.value, remarks = '') {
+  const eligibleApps = (Array.isArray(applicationsToApprove) ? applicationsToApprove : [])
+    .filter((app) => !isCocApplication(app) && canCmoCbmoReviewApplication(app))
+
+  if (!eligibleApps.length) {
+    q.notify({
+      type: 'warning',
+      message: 'No eligible Leave applications selected for CMO/CVMO Review.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const ids = eligibleApps
+    .map((app) => getApplicationId(app))
+    .filter((id) => id != null && Number(id) > 0)
+    .map((id) => Number(id))
+
+  if (!ids.length) {
+    q.notify({
+      type: 'negative',
+      message: 'Unable to resolve application IDs.',
+      position: 'top',
+    })
+    return false
+  }
+
+  bulkCmoCbmoReviewLoading.value = true
+  try {
+    const payload = { ids }
+    if (remarks && String(remarks).trim()) {
+      payload.remarks = String(remarks).trim()
+    }
+    const response = await api.post('/hr/leave-applications/bulk-cmo-cbmo-review', payload)
+    const processedCount = Number(response?.data?.processed_count ?? ids.length)
+    const responseMessage = String(response?.data?.message || '').trim()
+
+    // Update local rows
+    const updatedApps = Array.isArray(response?.data?.applications) ? response.data.applications : []
+    if (updatedApps.length) {
+      for (const updatedApp of updatedApps) {
+        applyLeaveApplicationUpdate(updatedApp)
+      }
+    } else {
+      const reviewedAt = new Date().toISOString()
+      for (const app of eligibleApps) {
+        applyLeaveApplicationUpdate({
+          ...app,
+          has_cmo_cbmo_reviewed: true,
+          hasCmoCbmoReviewed: true,
+          cmo_cbmo_reviewed_at: reviewedAt,
+          cmoCbmoReviewedAt: reviewedAt,
+        })
+      }
+    }
+
+    await fetchApplications()
+
+    // Clear selection
+    selectedApplications.value = []
+
+    q.notify({
+      type: 'positive',
+      message: responseMessage || `Successfully approved ${processedCount} application(s) for CMO/CVMO review.`,
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to complete bulk CMO/CVMO review right now.',
+    )
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    bulkCmoCbmoReviewLoading.value = false
+  }
+}
+
+async function bulkReleaseApplications(applicationsToRelease = selectedApplications.value) {
+  const eligibleApps = (Array.isArray(applicationsToRelease) ? applicationsToRelease : [])
+    .filter((app) => canReleaseApplication(app))
+
+  if (!eligibleApps.length) {
+    q.notify({
+      type: 'warning',
+      message: 'No eligible applications selected for Release.',
+      position: 'top',
+    })
+    return false
+  }
+
+  const leaveApps = eligibleApps.filter((app) => !isCocApplication(app))
+  const cocApps = eligibleApps.filter((app) => isCocApplication(app))
+
+  const leaveIds = leaveApps
+    .map((app) => getApplicationId(app))
+    .filter((id) => id != null && Number(id) > 0)
+    .map((id) => Number(id))
+
+  bulkReleaseLoading.value = true
+  let successCount = 0
+
+  try {
+    // Process Leave Applications via bulk endpoint
+    if (leaveIds.length) {
+      try {
+        const response = await api.post('/hr/leave-applications/bulk-release', { ids: leaveIds })
+        const processedCount = Number(response?.data?.processed_count ?? leaveIds.length)
+        successCount += processedCount
+
+        const updatedApps = Array.isArray(response?.data?.applications) ? response.data.applications : []
+        if (updatedApps.length) {
+          for (const updatedApp of updatedApps) {
+            applyLeaveApplicationUpdate(updatedApp)
+          }
+        }
+      } catch {
+        // Fallback to sequential release if bulk endpoint fails
+        for (const app of leaveApps) {
+          const id = getApplicationId(app)
+          if (!id) continue
+          try {
+            const useUpdateReleaseEndpoint = shouldUseUpdateReleaseEndpoint(app)
+            const releaseEndpoint = useUpdateReleaseEndpoint
+              ? '/hr/leave-applications/' + id + '/update-release'
+              : '/hr/leave-applications/' + id + '/release'
+            const res = await api.post(releaseEndpoint)
+            const updated = normalizeBackendApplicationShape(extractSingleApplicationFromPayload(res?.data))
+            if (updated) applyLeaveApplicationUpdate(updated)
+            successCount++
+          } catch {
+            // continue
+          }
+        }
+      }
+    }
+
+    // Process COC Applications sequentially
+    if (cocApps.length) {
+      for (const app of cocApps) {
+        const id = getApplicationId(app)
+        if (!id) continue
+        try {
+          const res = await api.post('/hr/coc-applications/' + id + '/release')
+          const updated = normalizeBackendApplicationShape(extractSingleApplicationFromPayload(res?.data))
+          if (updated) applyCocApplicationUpdate(updated)
+          successCount++
+        } catch {
+          // continue
+        }
+      }
+    }
+
+    await fetchApplications()
+
+    // Clear released items from selection
+    selectedApplications.value = (selectedApplications.value || []).filter(
+      (app) => !eligibleApps.some((el) => getApplicationRowKey(el) === getApplicationRowKey(app)),
+    )
+
+    q.notify({
+      type: 'positive',
+      message: `Successfully released ${successCount} application(s).`,
+      position: 'top',
+    })
+    return true
+  } catch (err) {
+    const msg = resolveApiErrorMessage(
+      err,
+      'Unable to complete bulk release right now.',
+    )
+    q.notify({ type: 'negative', message: msg, position: 'top' })
+    return false
+  } finally {
+    bulkReleaseLoading.value = false
+  }
+}
+
 async function openActionConfirm(type, target) {
   const resolvedType = String(type || '').trim().toLowerCase()
   let application = resolveApplication(target) || target || null
@@ -5297,6 +7021,7 @@ async function openActionConfirm(type, target) {
     isApproveAction &&
     !isCocApplication(application) &&
     getApplicationRawStatusKey(application) === 'PENDING_HR' &&
+    !isRecallRequestAction(application) &&
     !isApplicationReceivedByHr(application)
 
   if (needsReceiveBeforeApprove) {
@@ -5369,7 +7094,7 @@ function getLateCocMutationFallbackPatch(actionType) {
       raw_status: 'PENDING_ADMIN',
       rawStatus: 'PENDING_ADMIN',
       group_raw_status: 'PENDING_ADMIN',
-      status: 'Pending Admin',
+      status: 'Department Recommendation',
     }
   }
 
@@ -5477,18 +7202,32 @@ async function handleDialogMutationSuccess(payload = {}) {
     applyLeaveApplicationUpdate,
     buildApplicationTimeline,
     canEditApplication,
+    canOverrideApplicationPayStatus,
     canPrintCocCertificate,
     canRecallApplication,
+    canCmoCbmoReviewApplication,
+    bulkApproveCmoCbmoReview,
+    bulkCmoCbmoReviewLoading,
+    bulkReleaseApplications,
+    bulkReleaseLoading,
+    selectedApplications,
     canReceiveApplication,
     canReleaseApplication,
     clearEmploymentTypeFilter,
     columns,
+    confirmApplicationCmoCbmoReview,
+    confirmApplicationReceive,
+    confirmApplicationReceiveUndo,
+    confirmApplicationRelease,
+    confirmApplicationReleaseUndo,
     confirmActionTarget,
     confirmActionType,
     createRecalledCompanionRow,
     editTargetApp,
     employmentTypeFilter,
     employmentTypeFilterLabel,
+    pendingReceiveFilter,
+    pendingReleaseFilter,
     enumerateInclusiveDateRange,
     expandApplicationsForDisplay,
     extractApplicationsFromPayload,
@@ -5535,6 +7274,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getApplicationType,
     getApplicationCtoRequiredHoursDisplay,
     getApplicationCtoRequiredHoursValue,
+    getCtoHoursRowCaption,
     getCtoDeductedHoursDisplay,
     getCurrentCtoAvailableHoursDisplay,
     getCurrentCtoAvailableHoursValue,
@@ -5555,6 +7295,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     shouldShowDetailsRemarks,
     getEditRequestBadgeColor,
     getEditRequestBadgeLabel,
+    hasApprovedEditRequest,
     getEditRequestStatusFieldLabel,
     getEditRequestStatusLabel,
     getEditRequestTimelineEntries,
@@ -5588,6 +7329,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getStoredRecallDateKeys,
     getVisibleDateSetForDisplay,
     handleApplicationRowClick,
+    handleTableRequest,
     handleConfirmRequestReject,
     handleDialogMutationSuccess,
     hasApplicationAttachment,
@@ -5601,11 +7343,14 @@ async function handleDialogMutationSuccess(payload = {}) {
     hasPendingLeaveTypeUpdate,
     hasPendingReasonUpdate,
     isApplicationReceivedByHr,
+    isApplicationCmoCbmoReviewed,
     isApplicationReleased,
     isApplicationEditCancellationRequest,
     isCancelledByUser,
     isCocApplication,
+    isServerPaginatedLeaveView,
     isCancellationRequestAction,
+    isRecallRequestAction,
     isEditUpdateRequest,
     isPendingEditRequest,
     isRecallableLeaveApplication,
@@ -5613,7 +7358,10 @@ async function handleDialogMutationSuccess(payload = {}) {
     latestLeaveBalanceEntriesByEmployee,
     loading,
     markApplicationReceived,
+    markApplicationCmoCbmoReviewed,
     markApplicationReleased,
+    undoApplicationReceive,
+    undoApplicationRelease,
     matchesEmploymentTypeFilter,
     mergeApplications,
     mergeStatus,
@@ -5638,11 +7386,13 @@ async function handleDialogMutationSuccess(payload = {}) {
     openActionConfirm,
     openDetails,
     openEdit,
+    overrideApplicationPayStatus,
     openRecall,
     openReject,
     openTimeline,
     parseDateTimeValue,
     parseSelectedDatesValue,
+    payStatusOverrideLoading,
     pickFirstDefinedValue,
     printCocCertificate,
     recallDialogApplication,
@@ -5650,6 +7400,8 @@ async function handleDialogMutationSuccess(payload = {}) {
     receiveLoading,
     rejectTargetApp,
     releaseLoading,
+    undoReceiveLoading,
+    undoReleaseLoading,
     resolveApplication,
     resolveApplicationAttachmentReference,
     resolveApplicationPayModeCode,
@@ -5682,6 +7434,9 @@ async function handleDialogMutationSuccess(payload = {}) {
     resolveReleasedActor,
     resolveReleasedDateValue,
     resolveReleasedHistoryEntry,
+    resolveCmoCbmoReviewActor,
+    resolveCmoCbmoReviewDateValue,
+    resolveCmoCbmoReviewHistoryEntry,
     resolveRequestedDurationSnapshot,
     resolveStatusHistoryActor,
     resolveStatusHistoryTimestamp,
