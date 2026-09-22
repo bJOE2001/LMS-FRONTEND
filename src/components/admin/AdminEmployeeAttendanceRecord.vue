@@ -1,384 +1,397 @@
 <template>
   <div class="attendance-record-shell">
-    <template v-if="employee">
-      <div class="row items-center justify-between q-col-gutter-md attendance-record-header">
-        <div class="col-12 col-md">
-          <q-btn
-            flat
-            no-caps
-            color="primary"
-            icon="arrow_back"
-            label="Back to Attendance Management"
-            class="q-px-none"
-            @click="goBack"
-          />
-          <h1 class="text-h4 text-weight-bold q-mt-sm q-mb-xs">Attendance Record</h1>
-        </div>
-        <div class="col-12 col-md-auto row q-gutter-sm attendance-record-header__actions">
-          <q-btn
-            unelevated
-            no-caps
-            color="primary"
-            icon="fingerprint"
-            :label="employee.biometric.status === 'Enrolled' ? 'Update Bio' : 'Enroll Bio'"
-            @click="openEnrollmentDialog"
-          />
+    <!-- Top Navigation Header -->
+    <div class="row items-center justify-between q-mb-md no-print">
+      <div>
+        <div class="row items-center q-gutter-x-sm q-mb-xs">
           <q-btn
             outline
+            dense
             no-caps
-            color="secondary"
-            icon="summarize"
-            label="Generate Employee Report"
-            @click="generateEmployeeReport"
+            color="green-9"
+            icon="arrow_back"
+            label="Back"
+            class="back-btn q-px-sm"
+            @click="goBack"
           />
+        </div>
+
+        <div class="text-h5 text-weight-bold text-dark q-mt-xs">
+          Attendance Details of <span class="text-green-9 text-weight-bolder">{{ employeeName }}</span>
+        </div>
+        <div class="text-caption text-grey-7 text-uppercase text-weight-medium q-mt-none">
+          {{ employeeDesignation }}
+        </div>
+
+        <div class="q-mt-xs">
+          <span class="shift-pill">
+            Regular Shift (8:00 AM - 5:00 PM)
+          </span>
         </div>
       </div>
 
-      <q-card flat bordered class="rounded-borders attendance-profile-card">
-        <q-card-section class="attendance-profile-card__section">
-          <div class="row q-col-gutter-lg items-center">
-            <div class="col-12 col-lg-7">
-              <div class="row items-center no-wrap">
-                <q-avatar :color="employee.avatarColor" text-color="white" size="62px">
-                  {{ employee.avatar }}
-                </q-avatar>
-                <div class="q-ml-md">
-                  <div class="text-h5 text-weight-bold">{{ employee.fullName }}</div>
-                  <div class="text-subtitle2 text-grey-7">{{ employee.position }}</div>
-                  <div class="row q-gutter-sm q-mt-sm">
-                    <q-badge
-                      rounded
-                      color="green-1"
-                      text-color="green-9"
-                      :label="employee.department"
-                    />
-                    <q-badge
-                      rounded
-                      color="blue-grey-1"
-                      text-color="blue-grey-8"
-                      :label="employee.employmentType"
-                    />
-                    <q-badge
-                      rounded
-                      class="text-weight-medium"
-                      :color="statusMeta(metrics.attendanceStatus).color"
-                      :text-color="statusMeta(metrics.attendanceStatus).textColor"
-                      :label="metrics.attendanceStatus"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+      <!-- Action Buttons & Month Selector -->
+      <div class="row items-center q-gutter-sm q-mt-sm q-mt-md-none">
+        <q-select
+          v-model="selectedMonth"
+          :options="monthOptions"
+          emit-value
+          map-options
+          outlined
+          dense
+          label="Month"
+          style="width: 130px"
+          @update:model-value="fetchMonthlyDtr"
+        />
+        <q-select
+          v-model="selectedYear"
+          :options="yearOptions"
+          outlined
+          dense
+          label="Year"
+          style="width: 95px"
+          @update:model-value="fetchMonthlyDtr"
+        />
 
-            <div class="col-12 col-lg-5">
-              <div class="attendance-profile-card__meta-grid">
-                <div class="attendance-meta-item">
-                  <span class="attendance-meta-item__label">Biometric Status</span>
-                  <q-badge
-                    rounded
-                    class="text-weight-medium"
-                    :color="statusMeta(employee.biometric.status).color"
-                    :text-color="statusMeta(employee.biometric.status).textColor"
-                    :label="employee.biometric.status"
-                  />
-                </div>
-                <div class="attendance-meta-item">
-                  <span class="attendance-meta-item__label">Preferred Method</span>
-                  <span class="attendance-meta-item__value">
-                    {{ employee.biometric.method || 'Not configured' }}
-                  </span>
-                </div>
-                <div class="attendance-meta-item">
-                  <span class="attendance-meta-item__label">Last Enrolled</span>
-                  <span class="attendance-meta-item__value">
-                    {{
-                      employee.biometric.lastEnrollmentDate
-                        ? formatDisplayDate(employee.biometric.lastEnrollmentDate)
-                        : 'No enrollment record'
-                    }}
-                  </span>
-                </div>
-                <div class="attendance-meta-item">
-                  <span class="attendance-meta-item__label">Last Device</span>
-                  <span class="attendance-meta-item__value">
-                    {{ employee.biometric.deviceName || 'No device assigned' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </q-card-section>
-        <DailyTimeRecordTable />
-      </q-card>
-
-      <q-dialog v-model="showEnrollmentDialog" persistent>
-        <q-card class="enrollment-dialog">
-          <q-card-section class="row items-center q-pb-none">
-            <div class="text-h6">
-              {{
-                employee.biometric.status === 'Enrolled'
-                  ? 'Update Biometric Enrollment'
-                  : 'Biometric Enrollment'
-              }}
-            </div>
-            <q-space />
-            <q-btn icon="close" flat round dense @click="showEnrollmentDialog = false" />
-          </q-card-section>
-
-          <q-card-section class="enrollment-dialog__content">
-            <div class="enrollment-employee-card">
-              <div class="row items-center no-wrap">
-                <q-avatar :color="employee.avatarColor" text-color="white" size="52px">
-                  {{ employee.avatar }}
-                </q-avatar>
-                <div class="q-ml-md">
-                  <div class="text-subtitle1 text-weight-bold">{{ employee.fullName }}</div>
-                  <div class="text-caption text-grey-6">
-                    {{ employee.id }} · {{ employee.department }} · {{ employee.position }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <q-banner
-              rounded
-              dense
-              class="q-mt-md"
-              :class="
-                selectedEnrollmentDevice?.online ? 'bg-green-1 text-green-9' : 'bg-red-1 text-red-9'
-              "
-            >
-              <div class="row items-center q-gutter-sm">
-                <q-icon
-                  :name="selectedEnrollmentDevice?.online ? 'devices' : 'portable_wifi_off'"
-                  size="20px"
-                />
-                <div>
-                  <div class="text-weight-medium">
-                    Device Status:
-                    {{ selectedEnrollmentDevice?.online ? 'Connected' : 'Connection Required' }}
-                  </div>
-                  <div class="text-caption">
-                    {{
-                      selectedEnrollmentDevice?.name || 'Select a device to continue enrollment.'
-                    }}
-                  </div>
-                </div>
-              </div>
-            </q-banner>
-
-            <div class="row q-col-gutter-md q-mt-md">
-              <div class="col-12 col-md-5">
-                <q-select
-                  v-model="enrollmentMethod"
-                  :options="enrollmentMethodOptions"
-                  outlined
-                  dense
-                  emit-value
-                  map-options
-                  label="Enrollment Method"
-                />
-              </div>
-              <div class="col-12 col-md-7">
-                <q-select
-                  v-model="selectedEnrollmentDeviceId"
-                  :options="availableEnrollmentDevices"
-                  option-label="name"
-                  option-value="id"
-                  outlined
-                  dense
-                  emit-value
-                  map-options
-                  label="Enrollment Device"
-                />
-              </div>
-            </div>
-
-            <q-stepper
-              v-model="enrollmentStep"
-              flat
-              bordered
-              animated
-              color="primary"
-              class="q-mt-lg"
-            >
-              <q-step
-                :name="1"
-                title="Connect Device"
-                caption="Verify reader availability"
-                icon="settings_input_component"
-                :done="enrollmentStep > 1"
-              >
-                <div class="text-body2 text-grey-7 q-mb-md">
-                  Confirm the selected biometric reader is online and ready to pair with the
-                  employee.
-                </div>
-                <div class="enrollment-step-card">
-                  <div class="text-caption text-grey-6">Selected Device</div>
-                  <div class="text-subtitle2 text-weight-medium">
-                    {{ selectedEnrollmentDevice?.name || 'No device selected' }}
-                  </div>
-                  <div class="text-caption text-grey-6 q-mt-xs">
-                    {{
-                      selectedEnrollmentDevice?.location || 'Assign a connected device to proceed.'
-                    }}
-                  </div>
-                </div>
-                <q-stepper-navigation class="q-pt-md">
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="primary"
-                    label="Validate Connection"
-                    @click="validateEnrollmentConnection"
-                  />
-                </q-stepper-navigation>
-              </q-step>
-
-              <q-step
-                :name="2"
-                title="Capture Biometric"
-                caption="Fingerprint, face scan, or RFID/card"
-                icon="fingerprint"
-                :done="enrollmentStep > 2"
-              >
-                <div class="text-body2 text-grey-7 q-mb-md">
-                  Guide the employee through the selected capture method and verify a readable
-                  sample.
-                </div>
-                <div class="enrollment-step-card">
-                  <div class="text-caption text-grey-6">Capture Mode</div>
-                  <div class="text-subtitle2 text-weight-medium">{{ enrollmentMethod }}</div>
-                  <div class="text-caption text-grey-6 q-mt-xs">{{ enrollmentMethodGuidance }}</div>
-                </div>
-                <q-stepper-navigation class="q-pt-md row q-gutter-sm">
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="primary"
-                    label="Capture Sample"
-                    @click="advanceEnrollmentCapture"
-                  />
-                  <q-btn flat no-caps color="grey-7" label="Back" @click="enrollmentStep = 1" />
-                </q-stepper-navigation>
-              </q-step>
-
-              <q-step
-                :name="3"
-                title="Review & Save"
-                caption="Finalize or retry enrollment"
-                icon="verified_user"
-              >
-                <div
-                  class="enrollment-result-banner"
-                  :class="`enrollment-result-banner--${enrollmentState}`"
-                >
-                  <div class="row items-center no-wrap">
-                    <q-avatar :color="enrollmentStateMeta.color" text-color="white" size="44px">
-                      <q-icon :name="enrollmentStateMeta.icon" size="22px" />
-                    </q-avatar>
-                    <div class="q-ml-md">
-                      <div class="text-subtitle2 text-weight-bold">
-                        {{ enrollmentStateMeta.label }}
-                      </div>
-                      <div class="text-caption">{{ enrollmentStateMeta.caption }}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <q-stepper-navigation class="q-pt-md row q-gutter-sm">
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="positive"
-                    label="Mark Success"
-                    @click="finalizeEnrollment('success')"
-                  />
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="warning"
-                    label="Set Pending"
-                    @click="finalizeEnrollment('pending')"
-                  />
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="negative"
-                    label="Mark Failed"
-                    @click="finalizeEnrollment('failed')"
-                  />
-                  <q-btn
-                    v-if="enrollmentState === 'failed'"
-                    outline
-                    no-caps
-                    color="primary"
-                    label="Retry"
-                    @click="retryEnrollment"
-                  />
-                </q-stepper-navigation>
-              </q-step>
-            </q-stepper>
-          </q-card-section>
-
-          <q-card-actions align="between" class="enrollment-dialog__actions">
-            <q-btn
-              flat
-              no-caps
-              color="grey-7"
-              label="Close"
-              @click="showEnrollmentDialog = false"
-            />
-            <q-btn
-              flat
-              no-caps
-              color="primary"
-              icon="sync"
-              label="Update Biometric Data"
-              @click="retryEnrollment"
-            />
-          </q-card-actions>
-        </q-card>
-      </q-dialog>
-    </template>
-
-    <q-card v-else flat bordered class="rounded-borders employee-records-card">
-      <q-card-section class="employee-records-card__section">
-        <div class="text-h6">Attendance Record Not Found</div>
-        <div class="text-caption text-grey-6 q-mt-sm">
-          The selected employee attendance record could not be loaded.
-        </div>
         <q-btn
-          class="q-mt-md"
           unelevated
           no-caps
-          color="primary"
-          label="Back to Attendance Management"
-          @click="goBack"
+          class="green-action-btn"
+          icon="visibility"
+          label="DTR Preview"
+          @click="showPreviewDialog = true"
         />
-      </q-card-section>
-    </q-card>
+        <q-btn
+          unelevated
+          no-caps
+          class="green-action-btn"
+          icon="print"
+          label="Print DTR"
+          @click="triggerPrint"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          class="green-action-btn"
+          icon="file_download"
+          label="Export DTR"
+          @click="exportDtrCsv"
+        />
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading && !dtrData" class="row justify-center q-py-xl">
+      <q-spinner-dots color="green-9" size="48px" />
+      <div class="full-width text-center text-grey-6 q-mt-md">Loading Daily Time Record...</div>
+    </div>
+
+    <!-- Error State -->
+    <q-banner v-else-if="errorMessage" class="bg-red-1 text-negative rounded-borders q-my-md">
+      <div class="row items-center q-gutter-x-sm">
+        <q-icon name="error" size="24px" />
+        <span>{{ errorMessage }}</span>
+      </div>
+    </q-banner>
+
+    <template v-else>
+      <!-- 5 Summary Stat Cards -->
+      <div class="row q-col-gutter-sm q-mb-md no-print">
+        <!-- Present Days -->
+        <div class="col-12 col-sm-6 col-md">
+          <div class="detail-stat-card">
+            <div class="row items-center justify-between no-wrap">
+              <span class="stat-card-label">Present Days</span>
+              <q-icon name="check_circle" size="20px" class="text-green-8" />
+            </div>
+            <div class="stat-card-value text-dark q-mt-xs">
+              {{ summaryMetrics.present_days }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Absent Days -->
+        <div class="col-12 col-sm-6 col-md">
+          <div class="detail-stat-card">
+            <div class="row items-center justify-between no-wrap">
+              <span class="stat-card-label">Absent Days</span>
+              <q-icon name="directions_walk" size="20px" class="text-deep-orange-7" />
+            </div>
+            <div class="stat-card-value text-dark q-mt-xs">
+              {{ summaryMetrics.absent_days }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Late -->
+        <div class="col-12 col-sm-6 col-md">
+          <div class="detail-stat-card">
+            <div class="row items-center justify-between no-wrap">
+              <span class="stat-card-label">Late</span>
+              <q-icon name="warning" size="20px" class="text-amber-8" />
+            </div>
+            <div class="stat-card-value text-dark q-mt-xs">
+              {{ summaryMetrics.late_days }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Over Time -->
+        <div class="col-12 col-sm-6 col-md">
+          <div class="detail-stat-card">
+            <div class="row items-center justify-between no-wrap">
+              <span class="stat-card-label">Over Time</span>
+              <q-icon name="alarm" size="20px" class="text-orange-9" />
+            </div>
+            <div class="stat-card-value text-dark q-mt-xs">
+              {{ summaryMetrics.overtime_days }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Worked Hours -->
+        <div class="col-12 col-sm-6 col-md">
+          <div class="detail-stat-card">
+            <div class="row items-center justify-between no-wrap">
+              <span class="stat-card-label">Total Worked Hours</span>
+              <q-icon name="verified" size="20px" class="text-light-blue-8" />
+            </div>
+            <div class="stat-card-value text-dark q-mt-xs">
+              {{ summaryMetrics.total_worked_hours }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs (DTR vs Overtime) -->
+      <div class="q-mb-md no-print">
+        <q-tabs
+          v-model="activeTab"
+          dense
+          no-caps
+          align="left"
+          indicator-color="green-9"
+          active-color="green-9"
+          class="text-grey-7 attendance-tabs"
+        >
+          <q-tab name="dtr" icon="event" label="Daily Time Record (DTR)" class="q-px-md" />
+          <q-tab name="overtime" icon="schedule" label="Overtime Records" class="q-px-md" />
+        </q-tabs>
+      </div>
+
+      <!-- Tab Panels -->
+      <q-tab-panels v-model="activeTab" animated class="bg-transparent no-print">
+        <!-- Panel 1: Daily Time Record (DTR) -->
+        <q-tab-panel name="dtr" class="q-pa-none">
+          <q-card flat bordered class="rounded-borders bg-white">
+            <q-card-section class="q-pb-sm">
+              <div class="text-h6 text-weight-bold text-dark">Attendance Record</div>
+            </q-card-section>
+
+            <q-table
+              :rows="monthDayRows"
+              :columns="dtrColumns"
+              row-key="record_date"
+              flat
+              :loading="loading"
+              :rows-per-page-options="[5, 10, 15, 31]"
+              v-model:pagination="pagination"
+              class="attendance-detail-table"
+            >
+              <!-- Date Column -->
+              <template #body-cell-date="props">
+                <q-td :props="props" class="text-left text-weight-medium">
+                  {{ formatDateLong(props.row.record_date) }}
+                </q-td>
+              </template>
+
+              <!-- Time In (Morning) -->
+              <template #body-cell-time_in="props">
+                <q-td :props="props" class="text-left">
+                  <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
+                    {{ formatPunchTime(props.row.am_arrival) }}
+                  </span>
+                </q-td>
+              </template>
+
+              <!-- Time Out (Lunch) -->
+              <template #body-cell-time_out="props">
+                <q-td :props="props" class="text-left">
+                  {{ formatPunchTime(props.row.am_departure) }}
+                </q-td>
+              </template>
+
+              <!-- PM Time In (Afternoon) -->
+              <template #body-cell-pm_time_in="props">
+                <q-td :props="props" class="text-left">
+                  {{ formatPunchTime(props.row.pm_arrival) }}
+                </q-td>
+              </template>
+
+              <!-- PM Time Out (Afternoon Out) -->
+              <template #body-cell-pm_time_out="props">
+                <q-td :props="props" class="text-left">
+                  <span :class="isRowUndertime(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
+                    {{ formatPunchTime(props.row.pm_departure) }}
+                  </span>
+                </q-td>
+              </template>
+
+              <!-- Action Column (Clock with Pen) -->
+              <template #body-cell-action="props">
+                <q-td :props="props" class="text-left">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    size="sm"
+                    class="action-override-btn"
+                    icon="edit_calendar"
+                    @click="openOverrideDialog(props.row)"
+                  >
+                    <q-tooltip>Override Time</q-tooltip>
+                  </q-btn>
+                </q-td>
+              </template>
+
+              <template #no-data>
+                <div class="full-width text-center q-pa-lg text-grey-6">
+                  No attendance records found for this cutoff.
+                </div>
+              </template>
+            </q-table>
+          </q-card>
+        </q-tab-panel>
+
+        <!-- Panel 2: Overtime Records -->
+        <q-tab-panel name="overtime" class="q-pa-none">
+          <q-card flat bordered class="rounded-borders bg-white">
+            <q-card-section class="q-pb-sm">
+              <div class="text-h6 text-weight-bold text-dark">Overtime Records</div>
+            </q-card-section>
+
+            <q-table
+              :rows="overtimeRows"
+              :columns="overtimeColumns"
+              row-key="record_date"
+              flat
+              :loading="loading"
+              :rows-per-page-options="[5, 10, 15]"
+              v-model:pagination="overtimePagination"
+              class="attendance-detail-table"
+            >
+              <!-- Date Column -->
+              <template #body-cell-date="props">
+                <q-td :props="props" class="text-left text-weight-medium">
+                  {{ formatDateLong(props.row.record_date) }}
+                </q-td>
+              </template>
+
+              <!-- OT Time In -->
+              <template #body-cell-ot_time_in="props">
+                <q-td :props="props" class="text-left">
+                  {{ formatPunchTime(props.row.ot_arrival) }}
+                </q-td>
+              </template>
+
+              <!-- OT Time Out -->
+              <template #body-cell-ot_time_out="props">
+                <q-td :props="props" class="text-left">
+                  {{ formatPunchTime(props.row.ot_departure) }}
+                </q-td>
+              </template>
+
+              <!-- Overtime Hours -->
+              <template #body-cell-ot_hours="props">
+                <q-td :props="props" class="text-left font-mono">
+                  {{ formatOtHours(props.row) }}
+                </q-td>
+              </template>
+
+              <!-- Action Column -->
+              <template #body-cell-action="props">
+                <q-td :props="props" class="text-left">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    size="sm"
+                    class="action-override-btn"
+                    icon="edit_calendar"
+                    @click="openOverrideDialog(props.row)"
+                  >
+                    <q-tooltip>Override Overtime</q-tooltip>
+                  </q-btn>
+                </q-td>
+              </template>
+
+              <template #no-data>
+                <div class="full-width text-center q-pa-lg text-grey-6">
+                  No overtime entries recorded for this cutoff.
+                </div>
+              </template>
+            </q-table>
+          </q-card>
+        </q-tab-panel>
+      </q-tab-panels>
+    </template>
+
+    <!-- Override Time Dialog (Screenshot 3) -->
+    <DtrOverrideDialog
+      v-model="showOverrideDialog"
+      :control-no="employeeControlNo"
+      :employee-name="employeeName"
+      :date="activeOverrideDate"
+      :dtr="activeOverrideDtr"
+      @saved="onOverrideSaved"
+    />
+
+    <!-- CSC Form 48 Preview Dialog -->
+    <q-dialog v-model="showPreviewDialog" maximized transition-show="slide-up" transition-hide="slide-down">
+      <q-card class="bg-grey-2">
+        <q-bar class="bg-green-9 text-white">
+          <div class="text-weight-bold">Civil Service Form 48 — {{ employeeName }} ({{ dtrData?.period?.month_name }} {{ dtrData?.period?.year }})</div>
+          <q-space />
+          <q-btn dense flat icon="print" label="Print" class="q-mr-sm" @click="triggerPrint" />
+          <q-btn dense flat icon="close" v-close-popup />
+        </q-bar>
+        <q-card-section class="q-pa-md flex flex-center">
+          <div style="width: 100%; max-width: 900px;" class="bg-white q-pa-md rounded-borders shadow-2">
+            <DailyTimeRecordTable
+              v-if="dtrData"
+              :records="dtrData.records"
+              :employee="dtrData.employee"
+              :period="dtrData.period"
+              :summary="dtrData.summary"
+              :loading="loading"
+              @adjust="openOverrideDialog"
+            />
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- Hidden Printable Area for Direct Printing -->
+    <div id="print-form-48-hidden" class="print-only">
+      <DailyTimeRecordTable
+        v-if="dtrData"
+        :records="dtrData.records"
+        :employee="dtrData.employee"
+        :period="dtrData.period"
+        :summary="dtrData.summary"
+        :loading="loading"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { useQuasar } from 'quasar'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  CURRENT_ENROLLMENT_DATE,
-  DEFAULT_DETAIL_END,
-  DEFAULT_DETAIL_START,
-  biometricDevices,
-  formatDisplayDate,
-  getAttendanceEmployeeById,
-  getLatestLog,
-  getLogsWithinRange,
-  normalizeRange,
-  statusMeta,
-  summarizeAttendance,
-} from 'src/pages/admin/attendanceManagement.data'
-import DailyTimeRecordTable from './DailyTimeRecordTable.vue'
+import { useQuasar } from 'quasar'
+import { api } from 'boot/axios'
+import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
+import DtrOverrideDialog from 'src/components/admin/DtrOverrideDialog.vue'
 
 const props = defineProps({
   employeeId: {
@@ -387,455 +400,316 @@ const props = defineProps({
   },
 })
 
-const $q = useQuasar()
+const emit = defineEmits(['back'])
 const router = useRouter()
+const $q = useQuasar()
 
-const detailStartDate = ref(DEFAULT_DETAIL_START)
-const detailEndDate = ref(DEFAULT_DETAIL_END)
+const loading = ref(false)
+const errorMessage = ref('')
+const dtrData = ref(null)
 
-const showEnrollmentDialog = ref(false)
-const enrollmentMethod = ref('Fingerprint')
-const selectedEnrollmentDeviceId = ref(null)
-const enrollmentStep = ref(1)
-const enrollmentState = ref('idle')
+const activeTab = ref('dtr')
+const showPreviewDialog = ref(false)
+const showOverrideDialog = ref(false)
+const activeOverrideDate = ref('')
+const activeOverrideDtr = ref(null)
 
-const enrollmentMethodOptions = [
-  { label: 'Fingerprint', value: 'Fingerprint' },
-  { label: 'Face Scan', value: 'Face Scan' },
-  { label: 'RFID/Card', value: 'RFID/Card' },
+const currentDate = new Date()
+const selectedMonth = ref(currentDate.getMonth() + 1)
+const selectedYear = ref(currentDate.getFullYear())
+
+const pagination = ref({
+  page: 1,
+  rowsPerPage: 5, // Exact 5 rows per page as in Screenshot 2
+})
+
+const overtimePagination = ref({
+  page: 1,
+  rowsPerPage: 5,
+})
+
+const monthOptions = [
+  { label: 'January', value: 1 },
+  { label: 'February', value: 2 },
+  { label: 'March', value: 3 },
+  { label: 'April', value: 4 },
+  { label: 'May', value: 5 },
+  { label: 'June', value: 6 },
+  { label: 'July', value: 7 },
+  { label: 'August', value: 8 },
+  { label: 'September', value: 9 },
+  { label: 'October', value: 10 },
+  { label: 'November', value: 11 },
+  { label: 'December', value: 12 },
 ]
 
-const employee = computed(() => getAttendanceEmployeeById(props.employeeId))
-const normalizedDetailRange = computed(() =>
-  normalizeRange(detailStartDate.value, detailEndDate.value),
-)
-
-const detailAttendanceRows = computed(() => {
-  if (!employee.value) return []
-
-  return [...getLogsWithinRange(employee.value.attendanceLogs, normalizedDetailRange.value)].sort(
-    (left, right) => right.date.localeCompare(left.date),
-  )
+const yearOptions = computed(() => {
+  const current = new Date().getFullYear()
+  return [current - 2, current - 1, current, current + 1]
 })
 
-const metrics = computed(() => {
-  if (!employee.value) {
-    return {
-      totalHours: 0,
-      regularHours: 0,
-      overtimeHours: 0,
-      lateHours: 0,
-      absentDays: 0,
-      leaveDays: 0,
-      lateCount: 0,
-      onTimePresentDays: 0,
-      attendanceStatus: 'Present',
-      verificationSummary: '0 verified logs',
-      approvalSummary: 'No approvals yet',
-    }
-  }
+const dtrColumns = [
+  { name: 'date', label: 'Date', field: 'record_date', align: 'left' },
+  { name: 'time_in', label: 'Time In', field: 'am_arrival', align: 'left' },
+  { name: 'time_out', label: 'Time Out', field: 'am_departure', align: 'left' },
+  { name: 'pm_time_in', label: 'PM Time In', field: 'pm_arrival', align: 'left' },
+  { name: 'pm_time_out', label: 'PM Time Out', field: 'pm_departure', align: 'left' },
+  { name: 'action', label: 'Action', field: 'action', align: 'left' },
+]
 
-  const summary = summarizeAttendance(detailAttendanceRows.value)
-  const latestLog =
-    getLatestLog(detailAttendanceRows.value) || getLatestLog(employee.value.attendanceLogs)
-  const approvalStatuses = new Set(
-    detailAttendanceRows.value.map((row) => row.approvalStatus).filter(Boolean),
-  )
-  const verificationCount = detailAttendanceRows.value.reduce(
-    (count, row) => count + row.logs.length,
-    0,
-  )
+const overtimeColumns = [
+  { name: 'date', label: 'Date', field: 'record_date', align: 'left' },
+  { name: 'ot_time_in', label: 'Overtime In', field: 'ot_arrival', align: 'left' },
+  { name: 'ot_time_out', label: 'Overtime Out', field: 'ot_departure', align: 'left' },
+  { name: 'ot_hours', label: 'Rendered Overtime', field: 'overtime_minutes', align: 'left' },
+  { name: 'action', label: 'Action', field: 'action', align: 'left' },
+]
 
+const employeeName = computed(() => {
+  return dtrData.value?.employee?.name || 'Employee'
+})
+
+const employeeDesignation = computed(() => {
+  return dtrData.value?.employee?.designation || 'Staff'
+})
+
+const employeeControlNo = computed(() => {
+  return dtrData.value?.employee?.control_no || props.employeeId || ''
+})
+
+const summaryMetrics = computed(() => {
+  const s = dtrData.value?.summary || {}
   return {
-    ...summary,
-    attendanceStatus: latestLog?.status || 'Present',
-    verificationSummary: `${verificationCount} biometric events captured`,
-    approvalSummary: approvalStatuses.size
-      ? Array.from(approvalStatuses).join(', ')
-      : 'Pending Review',
+    present_days: s.present_days ?? s.days_present ?? 0,
+    absent_days: s.absent_days ?? s.days_absent ?? 0,
+    late_days: s.late_days ?? (s.total_late_minutes > 0 ? 1 : 0),
+    overtime_days: s.overtime_days ?? 0,
+    total_worked_hours: s.total_worked_hours ?? Number(s.total_rendered_hours || 0).toFixed(1),
   }
 })
 
-const availableEnrollmentDevices = computed(() =>
-  biometricDevices
-    .filter((device) => device.methods.includes(enrollmentMethod.value))
-    .map((device) => ({
-      ...device,
-      label: device.name,
-      value: device.id,
-    })),
-)
-
-const selectedEnrollmentDevice = computed(
-  () => biometricDevices.find((device) => device.id === selectedEnrollmentDeviceId.value) || null,
-)
-
-const enrollmentMethodGuidance = computed(() => {
-  if (enrollmentMethod.value === 'Fingerprint') {
-    return 'Capture at least two clean fingerprint samples for verification resilience.'
-  }
-  if (enrollmentMethod.value === 'Face Scan') {
-    return 'Ensure the employee faces the camera directly with consistent lighting.'
-  }
-  return 'Tap the RFID/card twice to validate both read and reassignment status.'
+// Build full calendar day rows for the selected month
+const monthDayRows = computed(() => {
+  if (!dtrData.value?.records) return []
+  return dtrData.value.records
 })
 
-const enrollmentStateMeta = computed(() => {
-  const meta = {
-    idle: {
-      label: 'Ready to Start',
-      caption: 'Begin by validating the selected biometric device connection.',
-      color: 'grey-7',
-      icon: 'play_circle',
-    },
-    pending: {
-      label: 'Enrollment Pending',
-      caption: 'Capture is in progress or awaiting final confirmation.',
-      color: 'warning',
-      icon: 'hourglass_top',
-    },
-    success: {
-      label: 'Enrollment Successful',
-      caption: 'Biometric profile saved and ready for daily attendance verification.',
-      color: 'positive',
-      icon: 'check_circle',
-    },
-    failed: {
-      label: 'Enrollment Failed',
-      caption: 'The capture did not pass verification. Retry or assign another device.',
-      color: 'negative',
-      icon: 'error',
-    },
-  }
-
-  return meta[enrollmentState.value]
+// Overtime rows
+const overtimeRows = computed(() => {
+  if (!dtrData.value?.records) return []
+  return dtrData.value.records.filter(r => (r.overtime_minutes && r.overtime_minutes > 0) || r.ot_arrival || r.ot_departure)
 })
 
-watch(
-  employee,
-  (currentEmployee) => {
-    if (!currentEmployee) return
-
-    enrollmentMethod.value = currentEmployee.biometric.method || 'Fingerprint'
-    const initialDevice =
-      biometricDevices.find((device) => device.name === currentEmployee.biometric.deviceName)?.id ||
-      biometricDevices.find((device) => device.methods.includes(enrollmentMethod.value))?.id ||
-      biometricDevices[0]?.id ||
-      null
-
-    selectedEnrollmentDeviceId.value = initialDevice
-  },
-  { immediate: true },
-)
-
-watch(availableEnrollmentDevices, (devices) => {
-  if (!devices.length) {
-    selectedEnrollmentDeviceId.value = null
-    return
+function formatDateLong(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr + 'T00:00:00')
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch {
+    return dateStr
   }
+}
 
-  const hasSelectedDevice = devices.some((device) => device.id === selectedEnrollmentDeviceId.value)
-  if (!hasSelectedDevice) {
-    selectedEnrollmentDeviceId.value = devices[0].id
+function formatPunchTime(timeStr) {
+  if (!timeStr || timeStr === '—' || timeStr === '-') return '—'
+  if (timeStr.toUpperCase().includes('AM') || timeStr.toUpperCase().includes('PM')) {
+    return timeStr.trim()
   }
-})
+  const parts = timeStr.split(':')
+  if (parts.length >= 2) {
+    let h = parseInt(parts[0], 10)
+    const m = parts[1]
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12
+    h = h ? h : 12
+    return `${h}:${m} ${ampm}`
+  }
+  return timeStr
+}
+
+function formatOtHours(row) {
+  const mins = row.overtime_minutes || 0
+  if (mins <= 0) return '—'
+  const hrs = (mins / 60).toFixed(1)
+  return `${hrs} hr(s) (${mins} mins)`
+}
+
+function isRowLate(row) {
+  return Number(row.late_minutes || 0) > 0
+}
+
+function isRowUndertime(row) {
+  return Number(row.undertime_minutes || 0) > 0
+}
 
 function goBack() {
-  router.push({ name: 'admin-attendance' })
+  emit('back')
+  router.push('/admin/attendance')
 }
 
-function openEnrollmentDialog() {
-  enrollmentStep.value = 1
-  enrollmentState.value = employee.value?.biometric.status === 'Failed' ? 'failed' : 'idle'
-  showEnrollmentDialog.value = true
+function openOverrideDialog(row) {
+  activeOverrideDate.value = row?.record_date || `${selectedYear.value}-${String(selectedMonth.value).padStart(2, '0')}-01`
+  activeOverrideDtr.value = row?.dtr || row
+  showOverrideDialog.value = true
 }
 
-function validateEnrollmentConnection() {
-  if (!selectedEnrollmentDevice.value) {
-    $q.notify({
-      type: 'warning',
-      message: 'Select a biometric device before continuing.',
-      position: 'top',
-    })
+function onOverrideSaved() {
+  fetchMonthlyDtr()
+}
+
+function triggerPrint() {
+  window.print()
+}
+
+function exportDtrCsv() {
+  if (!dtrData.value?.records?.length) {
+    $q.notify({ type: 'warning', message: 'No attendance records available to export.' })
     return
   }
 
-  if (!selectedEnrollmentDevice.value.online) {
-    enrollmentState.value = 'failed'
-    $q.notify({
-      type: 'negative',
-      message: 'The selected device is offline. Reconnect it or switch devices.',
-      position: 'top',
-    })
-    return
-  }
+  const headers = ['Date', 'Day', 'Time In (AM)', 'Time Out (AM)', 'Time In (PM)', 'Time Out (PM)', 'Overtime In', 'Overtime Out', 'Late (Mins)', 'Undertime (Mins)', 'Rendered Hours', 'Status']
+  const rows = dtrData.value.records.map(r => [
+    r.record_date,
+    r.day_of_week,
+    r.am_arrival || '',
+    r.am_departure || '',
+    r.pm_arrival || '',
+    r.pm_departure || '',
+    r.ot_arrival || '',
+    r.ot_departure || '',
+    r.late_minutes || 0,
+    r.undertime_minutes || 0,
+    r.rendered_hours || '0.00',
+    r.status || '',
+  ])
 
-  enrollmentState.value = 'pending'
-  enrollmentStep.value = 2
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
+  const encodedUri = encodeURI(csvContent)
+  const link = document.createElement('a')
+  link.setAttribute('href', encodedUri)
+  link.setAttribute('download', `DTR_${employeeControlNo.value}_${selectedMonth.value}_${selectedYear.value}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
-function advanceEnrollmentCapture() {
-  enrollmentState.value = 'pending'
-  enrollmentStep.value = 3
-}
+async function fetchMonthlyDtr() {
+  if (!props.employeeId) return
 
-function finalizeEnrollment(result) {
-  if (!employee.value) return
+  loading.value = true
+  errorMessage.value = ''
 
-  enrollmentState.value = result
-
-  if (result === 'success') {
-    employee.value.biometric.status = 'Enrolled'
-    employee.value.biometric.method = enrollmentMethod.value
-    employee.value.biometric.lastEnrollmentDate = CURRENT_ENROLLMENT_DATE
-    employee.value.biometric.deviceName =
-      selectedEnrollmentDevice.value?.name || employee.value.biometric.deviceName
-    $q.notify({
-      type: 'positive',
-      message: `${employee.value.fullName} was successfully enrolled for biometric attendance.`,
-      position: 'top',
+  try {
+    const res = await api.get(`/attendance/dtr/employee/${props.employeeId}`, {
+      params: {
+        month: selectedMonth.value,
+        year: selectedYear.value,
+      },
     })
-  }
-
-  if (result === 'pending') {
-    employee.value.biometric.status = 'Pending'
-    employee.value.biometric.method = enrollmentMethod.value
-    employee.value.biometric.deviceName =
-      selectedEnrollmentDevice.value?.name || employee.value.biometric.deviceName
-    $q.notify({
-      type: 'warning',
-      message: `${employee.value.fullName}'s biometric setup is marked as pending confirmation.`,
-      position: 'top',
-    })
-  }
-
-  if (result === 'failed') {
-    employee.value.biometric.status = 'Failed'
-    employee.value.biometric.method = enrollmentMethod.value
-    employee.value.biometric.deviceName =
-      selectedEnrollmentDevice.value?.name || employee.value.biometric.deviceName
-    $q.notify({
-      type: 'negative',
-      message: `${employee.value.fullName}'s biometric enrollment needs another attempt.`,
-      position: 'top',
-    })
+    dtrData.value = res.data
+  } catch (err) {
+    errorMessage.value = err.response?.data?.message || 'Failed to load employee Daily Time Record.'
+  } finally {
+    loading.value = false
   }
 }
 
-function retryEnrollment() {
-  enrollmentState.value = 'pending'
-  enrollmentStep.value = 2
-}
-
-function generateEmployeeReport() {
-  if (!employee.value) return
-
-  $q.notify({
-    type: 'positive',
-    message: `Prepared attendance detail report for ${employee.value.fullName}.`,
-    position: 'top',
-  })
-}
+onMounted(() => {
+  fetchMonthlyDtr()
+})
 </script>
 
 <style scoped>
 .attendance-record-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.attendance-record-header__actions {
-  justify-content: flex-end;
+.back-btn {
+  border: 1.5px solid #2e7d32 !important;
+  color: #2e7d32 !important;
+  font-weight: 700 !important;
+  border-radius: 4px;
 }
 
-.attendance-profile-card,
-.attendance-metric-card,
-.employee-records-card,
-.enrollment-dialog {
-  border-radius: 8px;
-  border-color: #e5e7eb;
-}
-
-.attendance-profile-card__section,
-.attendance-metric-card__section {
-  padding: 20px 22px;
-}
-
-.attendance-profile-card__meta-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.attendance-meta-item,
-.attendance-device-card__row,
-.attendance-breakdown__legend-item,
-.attendance-log-item,
-.enrollment-employee-card,
-.enrollment-step-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-}
-
-.attendance-meta-item__label,
-.attendance-device-card__label {
-  font-size: 0.75rem;
-  color: #607d8b;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.attendance-meta-item__value,
-.attendance-device-card__value {
+.shift-pill {
+  display: inline-block;
+  background-color: #2e7d32;
+  color: #ffffff;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: #1f2937;
+  padding: 3px 12px;
+  border-radius: 4px;
 }
 
-.employee-records-card__section {
-  padding: 14px 16px 12px;
+.green-action-btn {
+  background-color: #2e7d32 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem;
+  border-radius: 4px;
+  padding: 6px 14px;
 }
 
-.employee-records-toolbar {
-  gap: 8px;
+.detail-stat-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px 14px;
+  min-height: 75px;
 }
 
-.employee-records-table :deep(.q-table__middle) {
-  overflow-x: auto;
+.stat-card-label {
+  font-size: 0.82rem;
+  color: #475569;
+  font-weight: 500;
 }
 
-.attendance-records-table :deep(table) {
-  min-width: 1180px;
+.stat-card-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
 }
 
-.attendance-breakdown__bar {
-  display: flex;
-  height: 14px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: #eef2f7;
-}
-
-.attendance-breakdown__segment {
-  min-width: 0;
-}
-
-.attendance-breakdown__legend-item {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  background: #ffffff;
-}
-
-.attendance-breakdown__legend-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-}
-
-.attendance-device-card,
-.attendance-log-stack {
-  display: grid;
-  gap: 8px;
-}
-
-.attendance-slot-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.attendance-slot-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: #eef7ef;
-  color: #2e7d32;
-  font-size: 0.75rem;
+.attendance-tabs :deep(.q-tab__label) {
   font-weight: 600;
+  font-size: 0.92rem;
 }
 
-.attendance-log-cell {
-  min-width: 260px;
+.attendance-detail-table {
+  background-color: #ffffff;
 }
 
-.attendance-log-item__top {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+.attendance-detail-table :deep(th) {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.88rem;
+  border-bottom: 1.5px solid #e2e8f0;
 }
 
-.enrollment-dialog {
-  width: min(920px, calc(100vw - 24px));
-  max-width: calc(100vw - 24px);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+.attendance-detail-table :deep(td) {
+  font-size: 0.88rem;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.enrollment-dialog__content {
-  padding-top: 16px;
+.action-override-btn {
+  color: #2e7d32 !important;
 }
 
-.enrollment-dialog__actions {
-  padding: 8px 24px 24px;
-}
-
-.enrollment-result-banner {
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-}
-
-.enrollment-result-banner--idle {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.enrollment-result-banner--pending {
-  background: #fff8e1;
-  border-color: #f3d275;
-}
-
-.enrollment-result-banner--success {
-  background: #edf8ef;
-  border-color: #bddbbf;
-}
-
-.enrollment-result-banner--failed {
-  background: #ffebee;
-  border-color: #efb7be;
-}
-
-@media (max-width: 1023px) {
-  .attendance-record-header__actions {
-    justify-content: flex-start;
+@media print {
+  .no-print {
+    display: none !important;
   }
 
-  .attendance-profile-card__meta-grid {
-    grid-template-columns: 2fr;
+  .print-only {
+    display: block !important;
   }
 }
 
-@media (max-width: 600px) {
-  .employee-records-card__section {
-    padding: 10px 10px 8px;
-  }
-
-  .attendance-records-table :deep(table) {
-    min-width: 980px;
-  }
-
-  .enrollment-dialog__actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+@media screen {
+  .print-only {
+    display: none !important;
   }
 }
 </style>

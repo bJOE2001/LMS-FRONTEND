@@ -13,7 +13,7 @@ export const ALL_BIOMETRIC_STATUSES = 'All Biometric States'
 export const biometricDevices = [
   {
     id: 'bio-scan-a1',
-    name: 'BioScan A1 Fingerprint Terminal',
+    name: 'BioScan A1 Fingerprint Device',
     location: 'Admin Lobby',
     methods: ['Fingerprint'],
     online: true,
@@ -60,7 +60,7 @@ function presentLog({
   regularHours = 8,
   overtimeHours = 0,
   lateMinutes = 0,
-  deviceName = 'BioScan A1 Fingerprint Terminal',
+  deviceName = 'BioScan A1 Fingerprint Device',
   approvalStatus = 'Approved',
   approver = 'Attendance Admin',
   extraLogs = [],
@@ -207,7 +207,7 @@ export const attendanceEmployees = reactive([
       status: 'Enrolled',
       method: 'Fingerprint',
       lastEnrollmentDate: '2026-03-18',
-      deviceName: 'BioScan A1 Fingerprint Terminal',
+      deviceName: 'BioScan A1 Fingerprint Device',
     },
     attendanceLogs: [
       presentLog({
@@ -303,7 +303,7 @@ export const attendanceEmployees = reactive([
       status: 'Pending',
       method: 'Fingerprint',
       lastEnrollmentDate: '2026-01-27',
-      deviceName: 'BioScan A1 Fingerprint Terminal',
+      deviceName: 'BioScan A1 Fingerprint Device',
     },
     attendanceLogs: [
       absentLog({ date: '2026-04-22' }),

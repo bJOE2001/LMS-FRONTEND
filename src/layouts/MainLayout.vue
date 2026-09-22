@@ -26,20 +26,182 @@
           />
         </div>
         <q-separator class="sidebar-divider" />
-        <q-list class="flex-grow">
+        <!-- HR Navigation List -->
+        <q-list v-if="leaveStore.userRole === 'hr'" class="flex-grow scroll nav-list">
+          <!-- Overview -->
           <q-item
-            v-for="item in navItems"
-            :key="item.path"
+            v-if="canAccessHrModule('dashboard')"
             clickable
-            :active="route.path === item.path"
-            active-class="bg-primary-dark text-white"
-            :to="item.path"
+            :active="route.path === '/hr/dashboard'"
+            active-class="bg-primary-dark text-white text-weight-bold"
+            to="/hr/dashboard"
             class="q-mx-sm q-mb-xs rounded-borders"
           >
             <q-item-section avatar>
-              <q-icon :name="item.icon" />
+              <q-icon name="dashboard" />
             </q-item-section>
-            <q-item-section>{{ item.label }}</q-item-section>
+            <q-item-section>Dashboard</q-item-section>
+          </q-item>
+
+          <!-- Leave Management (Collapsible Submenu) -->
+          <q-expansion-item
+            v-if="visibleHrLeaveNav.length > 0"
+            v-model="hrLeaveMenuExpanded"
+            icon="assignment"
+            label="Leave Management"
+            header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
+            expand-icon-class="text-white opacity-80"
+            :class="{ 'group-active': isHrLeaveRouteActive }"
+            dense-toggle
+          >
+            <q-list class="q-pl-sm q-mb-xs">
+              <q-item
+                v-for="item in visibleHrLeaveNav"
+                :key="item.path"
+                clickable
+                :active="route.path === item.path"
+                active-class="bg-primary-dark text-white text-weight-bold"
+                :to="item.path"
+                class="q-mx-sm q-mb-xs rounded-borders nav-sub-item"
+                dense
+              >
+                <q-item-section avatar class="min-avatar">
+                  <q-icon :name="item.icon" size="19px" />
+                </q-item-section>
+                <q-item-section>{{ item.label }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-expansion-item>
+
+          <!-- BIOMETRICS & TIME -->
+          <template v-if="canAccessHrModule('employee_management')">
+            <div class="nav-section-divider-wrapper">
+              <q-separator class="nav-section-divider" />
+              <div class="nav-section-label">BIOMETRICS & TIME</div>
+            </div>
+
+            <q-item
+              clickable
+              :active="route.path === '/hr/biometric-registration'"
+              active-class="bg-primary-dark text-white text-weight-bold"
+              to="/hr/biometric-registration"
+              class="q-mx-sm q-mb-xs rounded-borders"
+            >
+              <q-item-section avatar>
+                <q-icon name="fingerprint" />
+              </q-item-section>
+              <q-item-section>Biometric Registration</q-item-section>
+            </q-item>
+
+            <q-item
+              clickable
+              :active="route.path === '/hr/biometric-devices'"
+              active-class="bg-primary-dark text-white text-weight-bold"
+              to="/hr/biometric-devices"
+              class="q-mx-sm q-mb-xs rounded-borders"
+            >
+              <q-item-section avatar>
+                <q-icon name="devices" />
+              </q-item-section>
+              <q-item-section>Biometric Devices</q-item-section>
+            </q-item>
+          </template>
+
+          <!-- ADMINISTRATION -->
+          <template v-if="visibleHrAdminNav.length > 0">
+            <div class="nav-section-divider-wrapper">
+              <q-separator class="nav-section-divider" />
+              <div class="nav-section-label">ADMINISTRATION</div>
+            </div>
+
+            <q-item
+              v-for="item in visibleHrAdminNav"
+              :key="item.path"
+              clickable
+              :active="route.path === item.path"
+              active-class="bg-primary-dark text-white text-weight-bold"
+              :to="item.path"
+              class="q-mx-sm q-mb-xs rounded-borders"
+            >
+              <q-item-section avatar>
+                <q-icon :name="item.icon" />
+              </q-item-section>
+              <q-item-section>{{ item.label }}</q-item-section>
+            </q-item>
+          </template>
+        </q-list>
+
+        <!-- Department / Office Admin Navigation List -->
+        <q-list
+          v-else-if="leaveStore.userRole === 'admin' || leaveStore.userRole === 'department_admin'"
+          class="flex-grow scroll nav-list"
+        >
+          <!-- Overview -->
+          <q-item
+            clickable
+            :active="route.path === '/admin/dashboard'"
+            active-class="bg-primary-dark text-white text-weight-bold"
+            to="/admin/dashboard"
+            class="q-mx-sm q-mb-xs rounded-borders"
+          >
+            <q-item-section avatar>
+              <q-icon name="dashboard" />
+            </q-item-section>
+            <q-item-section>Dashboard</q-item-section>
+          </q-item>
+
+          <!-- LEAVE MANAGEMENT -->
+          <div class="nav-section-divider-wrapper">
+            <q-separator class="nav-section-divider" />
+            <div class="nav-section-label">LEAVE MANAGEMENT</div>
+          </div>
+          <q-item
+            clickable
+            :active="route.path === '/admin/applications'"
+            active-class="bg-primary-dark text-white text-weight-bold"
+            to="/admin/applications"
+            class="q-mx-sm q-mb-xs rounded-borders"
+          >
+            <q-item-section avatar>
+              <q-icon name="assignment" />
+            </q-item-section>
+            <q-item-section>Applications</q-item-section>
+          </q-item>
+
+          <!-- TIME & ATTENDANCE -->
+          <div class="nav-section-divider-wrapper">
+            <q-separator class="nav-section-divider" />
+            <div class="nav-section-label">TIME & ATTENDANCE</div>
+          </div>
+          <q-item
+            clickable
+            :active="route.path === '/admin/attendance'"
+            active-class="bg-primary-dark text-white text-weight-bold"
+            to="/admin/attendance"
+            class="q-mx-sm q-mb-xs rounded-borders"
+          >
+            <q-item-section avatar>
+              <q-icon name="co_present" />
+            </q-item-section>
+            <q-item-section>Attendance Management</q-item-section>
+          </q-item>
+
+          <!-- ADMINISTRATION -->
+          <div class="nav-section-divider-wrapper">
+            <q-separator class="nav-section-divider" />
+            <div class="nav-section-label">ADMINISTRATION</div>
+          </div>
+          <q-item
+            clickable
+            :active="route.path === '/admin/employees'"
+            active-class="bg-primary-dark text-white text-weight-bold"
+            to="/admin/employees"
+            class="q-mx-sm q-mb-xs rounded-borders"
+          >
+            <q-item-section avatar>
+              <q-icon name="groups" />
+            </q-item-section>
+            <q-item-section>Employee Management</q-item-section>
           </q-item>
         </q-list>
         <div class="q-pa-md side-panel-footer">
@@ -181,7 +343,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLeaveStore } from 'stores/leave-store'
@@ -257,20 +419,15 @@ onBeforeUnmount(() => {
   if (navbarObserver) navbarObserver.disconnect()
 })
 
-const adminNav = [
-  { path: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { path: '/admin/applications', label: 'Applications', icon: 'assignment' },
-  { path: '/admin/employees', label: 'Employee Management', icon: 'groups' },
-  { path: '/admin/attendance', label: 'Attendance Monitoring', icon: 'schedule' },
-  // { path: '/admin/reports', label: 'Reports', icon: 'bar_chart' },
-]
-const hrNav = [
-  { path: '/hr/dashboard', label: 'Dashboard', icon: 'dashboard', moduleKey: 'dashboard' },
+const hrLeaveNav = [
   { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: 'applications' },
   { path: '/hr/receiving', label: 'Receiving Application', icon: 'move_to_inbox', moduleKey: 'receiving' },
   { path: '/hr/releasing', label: 'Releasing Application', icon: 'outbox', moduleKey: 'releasing' },
   { path: '/hr/application-edit-requests', label: 'Edit Requests', icon: 'edit_note', moduleKey: 'applications', ownerOnly: true },
   { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: 'coc_applications' },
+]
+
+const hrAdminNav = [
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: 'employee_management' },
   { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts', moduleKey: 'user_management' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart', moduleKey: 'reports_monitoring' },
@@ -280,17 +437,36 @@ function canAccessHrModule(moduleKey) {
   return hrUserHasModuleAccess(authStore.user, moduleKey)
 }
 
-const navItems = computed(() => {
-  if (leaveStore.userRole === 'hr') {
-    return hrNav.filter((item) => {
-      if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
-      return canAccessHrModule(item.moduleKey)
-    })
-  }
-  // Admin and department_admin see the admin menu (not HR)
-  if (leaveStore.userRole === 'admin' || leaveStore.userRole === 'department_admin') return adminNav
-  return []
+const visibleHrLeaveNav = computed(() => {
+  return hrLeaveNav.filter((item) => {
+    if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
+    return canAccessHrModule(item.moduleKey)
+  })
 })
+
+const visibleHrAdminNav = computed(() => {
+  return hrAdminNav.filter((item) => {
+    if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
+    return canAccessHrModule(item.moduleKey)
+  })
+})
+
+const isHrLeaveRouteActive = computed(() => {
+  return hrLeaveNav.some((item) => route.path.startsWith(item.path))
+})
+
+const hrLeaveMenuExpanded = ref(false)
+
+// Auto-expand Leave Management whenever navigating to any leave screen
+watch(
+  () => route.path,
+  (newPath) => {
+    if (hrLeaveNav.some((item) => newPath.startsWith(item.path))) {
+      hrLeaveMenuExpanded.value = true
+    }
+  },
+  { immediate: true }
+)
 
 const userDisplayName = computed(() => {
   const user = authStore.user
@@ -435,6 +611,59 @@ async function doLogout() {
   background: var(--q-primary);
   color: white;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+}
+
+/* Sidebar Navigation Enhancements */
+.nav-list {
+  padding-top: 2px;
+  padding-bottom: 8px;
+}
+
+:deep(.nav-expansion-header) {
+  min-height: 40px;
+  padding: 0 16px;
+  transition: background-color 0.2s ease;
+}
+
+:deep(.nav-expansion-header:hover) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.group-active :deep(.nav-expansion-header) {
+  background: rgba(255, 255, 255, 0.14);
+  font-weight: 600;
+}
+
+.nav-sub-item {
+  min-height: 36px;
+  font-size: 0.86rem;
+  transition: background-color 0.15s ease;
+}
+
+.nav-sub-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.min-avatar {
+  min-width: 32px;
+  padding-right: 8px;
+}
+
+.nav-section-divider-wrapper {
+  padding: 10px 16px 4px 16px;
+}
+
+.nav-section-divider {
+  background: rgba(255, 255, 255, 0.18);
+  margin-bottom: 6px;
+}
+
+.nav-section-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
 }
 </style>
 

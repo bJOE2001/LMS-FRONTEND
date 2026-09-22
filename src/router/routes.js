@@ -13,9 +13,13 @@ const routes = [
       { path: 'admin/review/:id', name: 'admin-review', component: () => import('pages/admin/ApplicationReview.vue') },
       { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
       { path: 'admin/print-logs', name: 'admin-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },
+      { path: 'admin/attendance', name: 'admin-attendance', component: () => import('pages/admin/AttendanceManagement.vue') },
+      { path: 'admin/attendance/:employeeId', name: 'admin-attendance-record', component: () => import('pages/admin/AdminEmployeeAttendanceRecordPage.vue') },
 
       // HR
       { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },
+      { path: 'hr/biometric-registration', name: 'hr-biometric-registration', component: () => import('pages/hr/BiometricRegistrationPage.vue') },
+      { path: 'hr/biometric-devices', name: 'hr-biometric-devices', component: () => import('pages/hr/BiometricDevicesPage.vue') },
       { path: 'hr/employees', name: 'hr-employees', component: () => import('pages/hr/EmployeeManagement.vue') },
       { path: 'hr/coc-applications', name: 'hr-coc-applications', component: () => import('pages/hr/CocApplicationsPage.vue') },
       { path: 'hr/work-schedules', name: 'hr-work-schedules', component: () => import('pages/hr/WorkSchedulesPage.vue') },
