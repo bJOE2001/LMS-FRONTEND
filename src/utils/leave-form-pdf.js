@@ -50,17 +50,50 @@ function resolveDocumentVerification(app) {
 
 function toBase64(url) {
   return fetch(url)
-    .then((response) => response.blob())
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Unable to load image: ${url}`)
+      }
+
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase()
+      if (!contentType.startsWith('image/')) {
+        throw new Error(`Unsupported image content type for ${url}: ${contentType || 'unknown'}`)
+      }
+
+      return response.blob()
+    })
     .then(
       (blob) =>
         new Promise((resolve, reject) => {
           const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result)
+          reader.onloadend = () => {
+            const dataUrl = String(reader.result || '')
+            if (!dataUrl.startsWith('data:image/')) {
+              reject(new Error(`Invalid image data URL for ${url}`))
+              return
+            }
+            resolve(dataUrl)
+          }
           reader.onerror = reject
           reader.readAsDataURL(blob)
         }),
     )
 }
+
+async function resolveHeaderLogoDataUrl() {
+  const logoCandidates = ['/logo.png', '/images/CityOfTagumLogo.png']
+
+  for (const logoUrl of logoCandidates) {
+    try {
+      return await toBase64(logoUrl)
+    } catch {
+      // Try next available candidate.
+    }
+  }
+
+  return null
+}
+
 
 function buildCocStyleLeaveHeader(
   logoBase64,
@@ -2228,16 +2261,11 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showBarReview = isStudy && studyDetail === 'BAR Review'
   const showMonetizationPurpose = isMonetization || otherPurpose === 'Monetization'
   const showTerminalPurpose = otherPurpose === 'Terminal Leave'
-  let logoBase64 = null
-  try {
-    logoBase64 = await toBase64('/images/CityOfTagumLogo.png')
-  } catch {
-    logoBase64 = null
-  }
+  const logoBase64 = await resolveHeaderLogoDataUrl()
 
   const docDefinition = {
     pageSize: 'A4',
-    pageMargins: [28, 20, 28, 20],
+    pageMargins: [28, 14, 28, 14],
 
     content: [
       // ═══ TOP HEADER ═══
@@ -2249,7 +2277,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
         fontSize: 14,
         bold: true,
         alignment: 'center',
-        margin: [0, 4, 0, 6],
+        margin: [0, 2, 0, 3],
       },
 
       // ═══ SECTION 1–5: Basic info (sample layout: uppercase labels, values bold/underlined) ═══
@@ -2404,7 +2432,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
           hLineColor: () => '#000',
           vLineColor: () => '#000',
         },
-        margin: [0, 4, 0, 0],
+        margin: [0, 1, 0, 0],
       },
 
       // ═══ SECTION 6: DETAILS OF APPLICATION ═══
@@ -2418,7 +2446,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                 bold: true,
                 fontSize: 9,
                 alignment: 'center',
-                margin: [0, 3, 0, 3],
+                margin: [0, 2, 0, 2],
               },
             ],
           ],
@@ -2535,7 +2563,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     ),
                     { marginLeft: 8 },
                   ),
-                  { text: ' ', fontSize: 4 },
+                  { text: ' ', fontSize: 2 },
                   { text: '   In case of Sick Leave:', fontSize: 7, italics: true, margin: [4, 1] },
                   checkboxRow(
                     showInHospital,
@@ -2559,7 +2587,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     ),
                     { marginLeft: 8 },
                   ),
-                  { text: ' ', fontSize: 4 },
+                  { text: ' ', fontSize: 2 },
                   {
                     text: '   In case of Special Leave Benefits for Women:',
                     fontSize: 7,
@@ -2573,7 +2601,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     }),
                     margin: [8, 1, 0, 0],
                   },
-                  { text: ' ', fontSize: 4 },
+                  { text: ' ', fontSize: 2 },
                   {
                     text: '   In case of Study Leave:',
                     fontSize: 7,
@@ -2584,7 +2612,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     marginLeft: 8,
                   }),
                   checkboxRow(showBarReview, 'BAR/Board Examination Review', { marginLeft: 8 }),
-                  { text: ' ', fontSize: 4 },
+                  { text: ' ', fontSize: 2 },
                   { text: '   Other purpose:', fontSize: 7, italics: true, margin: [4, 1] },
                   checkboxRow(showMonetizationPurpose, 'Monetization Leave', { marginLeft: 8 }),
                   checkboxRow(showTerminalPurpose, 'Terminal Leave', {
@@ -2680,7 +2708,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                 bold: true,
                 fontSize: 9,
                 alignment: 'center',
-                margin: [0, 3, 0, 3],
+                margin: [0, 2, 0, 2],
               },
             ],
           ],
@@ -2696,6 +2724,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
       // 7.A and 7.B side by side
       {
         table: {
+          dontBreakRows: true,
           widths: ['50%', '50%'],
           body: [
             [
@@ -2706,15 +2735,15 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     text: '7.A  CERTIFICATION OF LEAVE CREDITS',
                     bold: true,
                     fontSize: 8,
-                    margin: [4, 4, 0, 2],
+                    margin: [4, 3, 0, 2],
                   },
                   {
                     text: `        As of ${asOfDate || '_______________'}`,
                     fontSize: 8,
-                    margin: [4, 2, 0, 6],
+                    margin: [4, 1, 0, 3],
                   },
                   buildCertificationTable(certificationColumns),
-                  { text: ' ', fontSize: 8 },
+                  { text: ' ', fontSize: 4 },
                   {
                     table: {
                       widths: ['*'],
@@ -2746,7 +2775,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     text: 'CHRMO Leave In-charge',
                     fontSize: 7,
                     alignment: 'center',
-                    margin: [0, 1, 0, 4],
+                    margin: [0, 1, 0, 2],
                   },
                 ],
                 border: [true, false, true, true],
@@ -2755,14 +2784,14 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
               // ─── 7.B ───
               {
                 stack: [
-                  { text: '7.B  RECOMMENDATION', bold: true, fontSize: 8, margin: [4, 4, 0, 4] },
+                  { text: '7.B  RECOMMENDATION', bold: true, fontSize: 8, margin: [4, 3, 0, 3] },
                   checkboxRow(isForApproval, 'For approval', { marginVertical: 2 }),
-                  { text: ' ', fontSize: 3 },
+                  { text: ' ', fontSize: 2 },
                   checkboxRow(isForDisapproval, `For disapproval due to ${disapprovalReason}`, {
                     marginVertical: 2,
                   }),
-                  { text: ' ', fontSize: 14 },
-                  { text: ' ', fontSize: 14 },
+                  { text: ' ', fontSize: 7 },
+                  { text: ' ', fontSize: 7 },
                   {
                     table: {
                       widths: ['*'],
@@ -2794,7 +2823,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     text: recommendationSignatory.designation,
                     fontSize: 7,
                     alignment: 'center',
-                    margin: [0, 2, 0, 4],
+                    margin: [0, 1, 0, 2],
                   },
                 ],
                 border: [false, false, true, true],
@@ -2813,6 +2842,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
       // 7.C and 7.D combined into one box with mayor signature
       {
         table: {
+          dontBreakRows: true,
           widths: ['*'],
           body: [
             [
@@ -2827,7 +2857,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                             text: '7.C  APPROVED FOR:',
                             bold: true,
                             fontSize: 8,
-                            margin: [4, 4, 0, 4],
+                            margin: [4, 3, 0, 3],
                           },
                           buildApprovedForLine(
                             formatApprovedForDays(approvedForSection.withPayDays),
@@ -2840,7 +2870,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                           buildApprovedForLine(
                             formatApprovedForOthers(approvedForSection.others),
                             'others (Specify)',
-                            [4, 2, 0, 4],
+                            [4, 2, 0, 3],
                           ),
                         ],
                       },
@@ -2851,7 +2881,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                             text: '7.D  DISAPPROVED DUE TO:',
                             bold: true,
                             fontSize: 8,
-                            margin: [4, 4, 0, 4],
+                            margin: [4, 3, 0, 3],
                           },
                           {
                             text: '   _______________________________________________',
@@ -2866,13 +2896,13 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                           {
                             text: '   _______________________________________________',
                             fontSize: 8,
-                            margin: [4, 2, 0, 4],
+                            margin: [4, 2, 0, 3],
                           },
                         ],
                       },
                     ],
                   },
-                  { text: ' ', fontSize: 6, margin: [0, 5, 0, 0] },
+                  { text: ' ', fontSize: 2, margin: [0, 2, 0, 0] },
                   {
                     table: {
                       widths: ['*'],
@@ -2905,7 +2935,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                       approvedForSignatory.designation || approvedForSignatoryFallbackDesignation,
                     fontSize: 9,
                     alignment: 'center',
-                    margin: [0, 2, 0, 6],
+                    margin: [0, 1, 0, 2],
                   },
                 ],
               },
