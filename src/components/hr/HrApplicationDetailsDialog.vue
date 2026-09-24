@@ -66,7 +66,51 @@
             v-if="shouldShowApplicationEditRequestDateComparison(application)"
             class="hr-application-requested-changes-grid"
           >
-            <div class="hr-application-requested-changes-item">
+            <div
+              v-if="shouldShowApplicationEditRequestLeaveTypeSection(application)"
+              class="hr-application-requested-changes-item"
+              :class="{
+                'hr-application-requested-changes-item--full':
+                  !shouldShowApplicationEditRequestDateSection(application) ||
+                  Boolean(getApplicationEditRequestRequestedLeaveDetails(application)),
+              }"
+            >
+              <div class="hr-application-requested-changes-title">Leave Type</div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">{{ getLeaveTypeFromLabel(application) }}:</span>
+                <span class="hr-application-requested-changes-value">{{
+                  getApplicationEditRequestCurrentLeaveType(application)
+                }}</span>
+              </div>
+              <div class="hr-application-requested-changes-line">
+                <span class="hr-application-requested-changes-key">{{ getLeaveTypeToLabel(application) }}:</span>
+                <span
+                  class="
+                    hr-application-requested-changes-value
+                    hr-application-requested-changes-value--requested
+                  "
+                  >{{ getApplicationEditRequestRequestedLeaveType(application) }}</span
+                >
+              </div>
+              <div
+                v-if="getApplicationEditRequestRequestedLeaveDetails(application)"
+                class="hr-application-requested-changes-line q-mt-xs"
+              >
+                <span class="hr-application-requested-changes-key">Details:</span>
+                <span
+                  class="
+                    hr-application-requested-changes-value
+                    hr-application-requested-changes-value--requested
+                  "
+                  >{{ getApplicationEditRequestRequestedLeaveDetails(application) }}</span
+                >
+              </div>
+            </div>
+
+            <div
+              v-if="shouldShowApplicationEditRequestDateSection(application)"
+              class="hr-application-requested-changes-item"
+            >
               <div class="hr-application-requested-changes-title">Inclusive Dates</div>
               <div class="hr-application-requested-changes-line">
                 <span class="hr-application-requested-changes-key">{{ getFromLabel(application) }}:</span>
@@ -85,7 +129,10 @@
                 >
               </div>
             </div>
-            <div class="hr-application-requested-changes-item">
+            <div
+              v-if="shouldShowApplicationEditRequestDateSection(application)"
+              class="hr-application-requested-changes-item"
+            >
               <div class="hr-application-requested-changes-title">Duration</div>
               <div class="hr-application-requested-changes-line">
                 <span class="hr-application-requested-changes-key">{{ getDurationFromLabel(application) }}:</span>
@@ -574,6 +621,26 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
+  shouldShowApplicationEditRequestLeaveTypeSection: {
+    type: Function,
+    default: () => false,
+  },
+  shouldShowApplicationEditRequestDateSection: {
+    type: Function,
+    default: () => false,
+  },
+  getApplicationEditRequestCurrentLeaveType: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestRequestedLeaveType: {
+    type: Function,
+    default: () => 'N/A',
+  },
+  getApplicationEditRequestRequestedLeaveDetails: {
+    type: Function,
+    default: () => '',
+  },
   getApplicationEditRequestFromDates: {
     type: Function,
     default: () => 'N/A',
@@ -795,6 +862,14 @@ function isEditRequestApproved(app) {
     .toUpperCase()
     .trim()
   return mainStatus.includes('EDIT REQUEST APPROVED') || mainStatus.includes('APPROVED_EDIT_REQUEST')
+}
+
+function getLeaveTypeFromLabel(app) {
+  return isEditRequestApproved(app) ? 'Old Type' : 'Current'
+}
+
+function getLeaveTypeToLabel(app) {
+  return isEditRequestApproved(app) ? 'Updated Type' : 'Requested'
 }
 
 function getFromLabel(app) {
@@ -1196,6 +1271,10 @@ function handlePrintCertificate() {
   border-radius: 8px;
   padding: 8px 10px;
   background: #ffffff;
+}
+
+.hr-application-requested-changes-item--full {
+  grid-column: 1 / -1;
 }
 
 .hr-application-requested-changes-title {

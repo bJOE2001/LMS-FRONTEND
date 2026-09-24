@@ -545,8 +545,11 @@
                 <div v-if="entry.actor" class="application-timeline-actor">
                   Action by: {{ entry.actor }}
                 </div>
-                <div v-else-if="entry.description" class="application-timeline-actor">
-                  {{ entry.description }}
+                <div
+                  v-if="getTimelineEntryRemarks(entry)"
+                  class="application-timeline-actor text-grey-8"
+                >
+                  <span class="text-weight-medium">Remarks:</span> {{ formatDisplayRemarks(getTimelineEntryRemarks(entry)) }}
                 </div>
               </div>
             </div>
@@ -761,6 +764,7 @@ import { useNotificationStore } from 'stores/notification-store'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
+import { formatDisplayRemarks, getTimelineEntryRemarks } from 'src/utils/application-timeline'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 

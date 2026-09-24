@@ -18,9 +18,9 @@ import { mergeLocalLeaveApplicationDetails } from './leave-application-local-det
 import { isAbroadLeaveApplication } from './leave-application-details'
 import {
   isCityViceMayorApplicant,
-  isSangguniangPanlungsodMemberIApplicant,
 } from './signatory-rules/applicant-role-utils'
 import { resolveRecommendationSignatoryByApplicantType } from './signatory-rules/recommendation-signatory'
+import { resolveSpMemberApprovedForSignatory } from './signatory-rules/sp-member-signatory'
 import { api } from 'boot/axios'
 
 // pdfmake v0.3.x font initialization
@@ -2191,25 +2191,31 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const showWithinPhilippines =
     ((isVacation || isWellness) && normalizedVacationDetail === 'Within the Philippines') || isSpecPriv
   const showAbroad = (isVacation || isWellness) && normalizedVacationDetail === 'Abroad'
-  const useCityViceMayorApprovedForSignatory =
-    shouldUseCityViceMayorApprovedForSignatory(app) &&
-    !isDepartmentHeadApplicant(app) &&
-    !isCityViceMayorApplicant(app) &&
-    !isSangguniangPanlungsodMemberIApplicant(app)
+  const isAbroad = Boolean(showAbroad || isAbroadLeaveApplication(app))
+  const spMemberApprovedSignatory = resolveSpMemberApprovedForSignatory({
+    app,
+    isAbroad,
+    mayorSignatory,
+    cityViceMayorSignatory,
+  })
+  const useCityViceMayorApprovedForSignatory = spMemberApprovedSignatory
+    ? spMemberApprovedSignatory === cityViceMayorSignatory
+    : shouldUseCityViceMayorApprovedForSignatory(app) &&
+      !isDepartmentHeadApplicant(app) &&
+      !isCityViceMayorApplicant(app)
   const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
     app,
-    isAbroad: showAbroad,
+    isAbroad,
     isWithinPhilippines: showWithinPhilippines,
     mayorSignatory,
     cityViceMayorSignatory,
     baseRecommendationSignatory,
   })
-  const approvedForSignatory = useCityViceMayorApprovedForSignatory
-    ? cityViceMayorSignatory
-    : mayorSignatory
-  const approvedForSignatoryFallbackDesignation = useCityViceMayorApprovedForSignatory
-    ? 'City Vice Mayor'
-    : 'City Mayor'
+  const approvedForSignatory =
+    spMemberApprovedSignatory ||
+    (useCityViceMayorApprovedForSignatory ? cityViceMayorSignatory : mayorSignatory)
+  const approvedForSignatoryFallbackDesignation =
+    approvedForSignatory === cityViceMayorSignatory ? 'City Vice Mayor' : 'City Mayor'
   const recommendationSignatoryName = formatSignatoryNameWithMiddleInitial(
     recommendationSignatory.fullName,
   )

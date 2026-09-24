@@ -28,6 +28,7 @@ const routes = [
       { path: 'hr/receiving', name: 'hr-receiving', component: () => import('pages/hr/ReceivingPage.vue') },
       { path: 'hr/releasing', name: 'hr-releasing', component: () => import('pages/hr/ReleasingPage.vue') },
       { path: 'hr/application-edit-requests', name: 'hr-application-edit-requests', component: () => import('pages/hr/ApplicationEditRequestsPage.vue') },
+      { path: 'hr/cancelled-applications', name: 'hr-cancelled-applications', component: () => import('pages/hr/CancelledApplicationsPage.vue') },
       { path: 'hr/calendar', redirect: '/hr/applications' },
       { path: 'hr/reports', name: 'hr-reports', component: () => import('pages/hr/ReportsMonitoring.vue') },
       { path: 'hr/print-logs', name: 'hr-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },

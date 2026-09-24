@@ -106,6 +106,11 @@ export function isElectiveApplicant(app) {
   return hasElectiveStatus || hasSpMemberDesignation
 }
 
-export function isSangguniangPanlungsodMemberIApplicant(app) {
+export function isSangguniangPanlungsodMemberApplicant(app) {
   return isElectiveApplicant(app)
 }
+
+export function isSangguniangPanlungsodMemberIApplicant(app) {
+  return isSangguniangPanlungsodMemberApplicant(app)
+}
+

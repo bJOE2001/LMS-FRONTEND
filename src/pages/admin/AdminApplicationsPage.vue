@@ -436,7 +436,45 @@
               v-if="shouldShowApplicationEditRequestDateComparison(selectedApp)"
               class="admin-application-requested-changes-grid"
             >
-              <div class="admin-application-requested-changes-item">
+              <div
+                v-if="shouldShowApplicationEditRequestLeaveTypeSection(selectedApp)"
+                class="admin-application-requested-changes-item"
+                :class="{
+                  'admin-application-requested-changes-item--full':
+                    !shouldShowApplicationEditRequestDateSection(selectedApp) ||
+                    Boolean(getApplicationEditRequestRequestedLeaveDetails(selectedApp)),
+                }"
+              >
+                <div class="admin-application-requested-changes-title">Leave Type</div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Type:' : 'Current:' }}</span>
+                  <span class="admin-application-requested-changes-value">{{
+                    getApplicationEditRequestCurrentLeaveType(selectedApp)
+                  }}</span>
+                </div>
+                <div class="admin-application-requested-changes-line">
+                  <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Updated Type:' : 'Requested:' }}</span>
+                  <span
+                    class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
+                    >{{ getApplicationEditRequestRequestedLeaveType(selectedApp) }}</span
+                  >
+                </div>
+                <div
+                  v-if="getApplicationEditRequestRequestedLeaveDetails(selectedApp)"
+                  class="admin-application-requested-changes-line q-mt-xs"
+                >
+                  <span class="admin-application-requested-changes-key">Details:</span>
+                  <span
+                    class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
+                    >{{ getApplicationEditRequestRequestedLeaveDetails(selectedApp) }}</span
+                  >
+                </div>
+              </div>
+
+              <div
+                v-if="shouldShowApplicationEditRequestDateSection(selectedApp)"
+                class="admin-application-requested-changes-item"
+              >
                 <div class="admin-application-requested-changes-title">Inclusive Dates</div>
                 <div class="admin-application-requested-changes-line">
                   <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Date:' : 'Current:' }}</span>
@@ -455,7 +493,10 @@
                 </div>
               </div>
 
-              <div class="admin-application-requested-changes-item">
+              <div
+                v-if="shouldShowApplicationEditRequestDateSection(selectedApp)"
+                class="admin-application-requested-changes-item"
+              >
                 <div class="admin-application-requested-changes-title">Duration</div>
                 <div class="admin-application-requested-changes-line">
                   <span class="admin-application-requested-changes-key">{{ isApplicationEditRequestHrApproved(selectedApp) ? 'Old Duration:' : 'Current:' }}</span>
@@ -961,10 +1002,16 @@ const {
   getEditRequestBadgeLabel,
   hasApprovedEditRequest,
   hasApplicationEditRequest,
+  isAdminEditUpdateRequest,
   getApplicationEditRequestApprovedBadgeLabel,
   getApplicationEditRequestSectionTitle,
   getApplicationEditRequestChangeSummaryLabel,
   shouldShowApplicationEditRequestDateComparison,
+  shouldShowApplicationEditRequestLeaveTypeSection,
+  shouldShowApplicationEditRequestDateSection,
+  getApplicationEditRequestCurrentLeaveType,
+  getApplicationEditRequestRequestedLeaveType,
+  getApplicationEditRequestRequestedLeaveDetails,
   isApplicationEditCancellationRequest,
   getApplicationEditRequestRequestedAt,
   getApplicationEditRequestReason,
@@ -1145,7 +1192,16 @@ function getDisplayApplicationStatusColor(app) {
 function getFinalStatusForStatusColumn(app) {
   const updateRequestBadgeLabel = getEditRequestBadgeLabel(app)
   if (updateRequestBadgeLabel) {
-    return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
+    const rawStatus = String(app?.rawStatus || app?.raw_status || '').trim().toUpperCase()
+    const isRecommendationLabel = [
+      'DEPARTMENT RECOMMENDATION',
+      'ADMIN RECOMMENDATION',
+      'RECOMMENDATION',
+    ].includes(updateRequestBadgeLabel.toUpperCase())
+
+    if (!isRecommendationLabel || rawStatus === 'PENDING_ADMIN' || isAdminEditUpdateRequest(app)) {
+      return normalizeDisapprovedStatusLabel(updateRequestBadgeLabel)
+    }
   }
 
   const resolvedStatus = String(app?.displayStatus || getApplicationStatusLabel(app) || '').trim()
@@ -1498,6 +1554,10 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 8px 10px;
   background: #ffffff;
+}
+
+.admin-application-requested-changes-item--full {
+  grid-column: 1 / -1;
 }
 
 .admin-application-requested-changes-title {
