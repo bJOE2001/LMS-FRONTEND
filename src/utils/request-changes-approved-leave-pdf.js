@@ -1,5 +1,9 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
+import {
+  enrichAppWithDepartmentHead,
+  getRecommendationSignatory,
+} from './department-head-signature'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
@@ -258,58 +262,131 @@ function getPendingUpdatePayload(app) {
   return null
 }
 
-function resolveDepartmentHeadName(source) {
-  const directName = normalizeText(
-    source?.departmentHeadName ||
-      source?.department_head_name ||
-      source?.departmentHeadFullName ||
-      source?.department_head_full_name ||
-      source?.approved_by ||
-      source?.approvedBy ||
-      source?.approver_name ||
-      source?.approverName ||
-      source?.admin_action_by ||
-      source?.adminActionBy ||
-      source?.processed_by ||
-      source?.processedBy ||
-      source?.raw?.departmentHeadName ||
-      source?.raw?.department_head_name ||
-      source?.raw?.departmentHeadFullName ||
-      source?.raw?.department_head_full_name ||
-      source?.raw?.approved_by ||
-      source?.raw?.approvedBy ||
-      source?.raw?.approver_name ||
-      source?.raw?.approverName ||
-      source?.raw?.admin_action_by ||
-      source?.raw?.adminActionBy ||
-      source?.raw?.processed_by ||
-      source?.raw?.processedBy,
+function extractHeadNameFromObject(head) {
+  if (!head) return ''
+  if (typeof head === 'string') return normalizeText(head)
+  if (typeof head !== 'object') return ''
+
+  const direct = normalizeText(
+    head.full_name || head.fullName || head.name || head.employee_name || head.employeeName,
   )
-  if (directName) return directName
-
-  const departmentHead =
-    source?.departmentHead ||
-    source?.department_head ||
-    source?.raw?.departmentHead ||
-    source?.raw?.department_head ||
-    null
-
-  if (!departmentHead) return ''
-  if (typeof departmentHead === 'string') return normalizeText(departmentHead)
-  if (typeof departmentHead !== 'object') return ''
-
-  const departmentHeadObjectName = normalizeText(
-    departmentHead?.full_name || departmentHead?.fullName || departmentHead?.name,
-  )
-  if (departmentHeadObjectName) return departmentHeadObjectName
+  if (direct) return direct
 
   return [
-    normalizeText(departmentHead?.firstname),
-    normalizeText(departmentHead?.middlename),
-    normalizeText(departmentHead?.surname),
+    normalizeText(head.firstname || head.firstName),
+    normalizeText(head.middlename || head.middleName),
+    normalizeText(head.surname || head.lastName),
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+function resolveDepartmentHeadName(source, app = null) {
+  const primarySource = source || {}
+  const rawSource = primarySource?.raw && typeof primarySource.raw === 'object' ? primarySource.raw : {}
+  const appSource = app || {}
+  const appRaw = appSource?.raw && typeof appSource.raw === 'object' ? appSource.raw : {}
+
+  // 1. Direct explicit department head fields (strings)
+  const explicitHeadName = normalizeText(
+    primarySource.departmentHeadName ||
+      primarySource.department_head_name ||
+      primarySource.departmentHeadFullName ||
+      primarySource.department_head_full_name ||
+      primarySource.recommendationSignatoryName ||
+      primarySource.recommendation_signatory_name ||
+      rawSource.departmentHeadName ||
+      rawSource.department_head_name ||
+      rawSource.departmentHeadFullName ||
+      rawSource.department_head_full_name ||
+      rawSource.recommendationSignatoryName ||
+      rawSource.recommendation_signatory_name ||
+      appSource.departmentHeadName ||
+      appSource.department_head_name ||
+      appSource.departmentHeadFullName ||
+      appSource.department_head_full_name ||
+      appSource.recommendationSignatoryName ||
+      appSource.recommendation_signatory_name ||
+      appRaw.departmentHeadName ||
+      appRaw.department_head_name,
+  )
+  if (explicitHeadName) return explicitHeadName
+
+  // 2. Department Head object from app / source / raw
+  const headObjectCandidates = [
+    primarySource.departmentHead,
+    primarySource.department_head,
+    rawSource.departmentHead,
+    rawSource.department_head,
+    appSource.departmentHead,
+    appSource.department_head,
+    appRaw.departmentHead,
+    appRaw.department_head,
+  ]
+  for (const candidate of headObjectCandidates) {
+    const extracted = extractHeadNameFromObject(candidate)
+    if (extracted) return extracted
+  }
+
+  // 3. Department Admin / applicantAdmin object (the assigned department admin)
+  const adminCandidates = [
+    primarySource.applicantAdmin,
+    primarySource.departmentAdmin,
+    rawSource.applicantAdmin,
+    rawSource.departmentAdmin,
+    appSource.applicantAdmin,
+    appSource.departmentAdmin,
+    appRaw.applicantAdmin,
+    appRaw.departmentAdmin,
+  ]
+  for (const candidate of adminCandidates) {
+    const extracted = extractHeadNameFromObject(candidate)
+    if (extracted) return extracted
+  }
+
+  // 4. Department recommendation approval from workflow logs (ADMIN_APPROVED)
+  const logs = Array.isArray(primarySource.logs)
+    ? primarySource.logs
+    : Array.isArray(primarySource.status_history)
+      ? primarySource.status_history
+      : Array.isArray(rawSource.logs)
+        ? rawSource.logs
+        : Array.isArray(appSource.logs)
+          ? appSource.logs
+          : []
+
+  const adminApprovedLog = logs.find(
+    (log) => String(log?.action || '').toUpperCase() === 'ADMIN_APPROVED',
+  )
+  if (adminApprovedLog) {
+    const adminActor = normalizeText(
+      adminApprovedLog.actor_name ||
+        adminApprovedLog.action_by_name ||
+        adminApprovedLog.action_by,
+    )
+    if (adminActor) return adminActor
+  }
+
+  // 5. Admin action by field
+  const adminActionBy = normalizeText(
+    primarySource.admin_action_by ||
+      primarySource.adminActionBy ||
+      rawSource.admin_action_by ||
+      rawSource.adminActionBy ||
+      appSource.admin_action_by ||
+      appSource.adminActionBy,
+  )
+  if (adminActionBy) return adminActionBy
+
+  // 6. Recommendation signatory resolution (handles dept head vs city admin for dept head applicant)
+  try {
+    const recSig = getRecommendationSignatory(primarySource) || getRecommendationSignatory(appSource)
+    if (recSig?.fullName) return normalizeText(recSig.fullName)
+  } catch {
+    // Graceful fallback
+  }
+
+  return ''
 }
 
 function formatGroupedInclusiveDateLines(dateValues, expandConsecutiveDays = false) {
@@ -649,7 +726,7 @@ function resolveRequestFormData(app) {
   }
 
   const approvedBy = normalizeText(
-    resolveDepartmentHeadName(app) || resolveDepartmentHeadName(source),
+    resolveDepartmentHeadName(app, source) || resolveDepartmentHeadName(source, app),
   )
 
   return {
@@ -1124,7 +1201,14 @@ export async function generateRequestAmendmentApprovedLeavePdf(app = {}, options
     logoBase64 = null
   }
 
-  const formData = resolveRequestFormData(app)
+  let enrichedApp = app
+  try {
+    enrichedApp = (await enrichAppWithDepartmentHead(app)) || app
+  } catch {
+    enrichedApp = app
+  }
+
+  const formData = resolveRequestFormData(enrichedApp)
 
   const docDefinition = {
     pageSize: 'A4',
