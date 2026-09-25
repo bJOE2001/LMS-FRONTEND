@@ -1362,6 +1362,8 @@ export function useAdminApplicationsPage() {
           'REQUEST_RECALL_APPROVED',
           'REQUEST_UPDATE_APPROVED',
           'REQUEST_CANCEL_APPROVED',
+          'HR_APPLICATION_EDITED',
+          'HR_APPLICATION_EDIT_REQUEST_APPROVED',
         ].includes(actionToken)
       ) {
         return 'APPROVED'
@@ -1377,6 +1379,7 @@ export function useAdminApplicationsPage() {
           'REQUEST_RECALL_REJECTED',
           'REQUEST_UPDATE_REJECTED',
           'REQUEST_CANCEL_REJECTED',
+          'HR_APPLICATION_EDIT_REQUEST_REJECTED',
         ].includes(actionToken)
       ) {
         return 'REJECTED'
@@ -1398,8 +1401,12 @@ export function useAdminApplicationsPage() {
           'CANCELLATION_REQUEST_SUBMITTED',
           'REQUESTED_CANCELLATION',
           'REQUEST_CANCELLATION',
+          'HR_APPLICATION_EDIT_REQUESTED',
         ].includes(actionToken)
       ) {
+        if (!hasUpdateRequestContext && !app?.has_pending_update_request) {
+          return ''
+        }
         return 'PENDING'
       }
 
@@ -1408,10 +1415,14 @@ export function useAdminApplicationsPage() {
         stageToken.includes('recall request approved') ||
         stageToken.includes('cancellation request approved') ||
         stageToken.includes('cancel request approved') ||
+        stageToken.includes('hr edited application') ||
+        stageToken.includes('hr approved application edit') ||
         remarksToken.includes('edit request approved') ||
         remarksToken.includes('recall request approved') ||
         remarksToken.includes('cancellation request approved') ||
-        remarksToken.includes('cancel request approved')
+        remarksToken.includes('cancel request approved') ||
+        remarksToken.includes('approved hr staff edit request') ||
+        (remarksToken.includes('approved') && (remarksToken.includes('edit') || remarksToken.includes('update')))
       ) {
         return 'APPROVED'
       }
@@ -1424,13 +1435,15 @@ export function useAdminApplicationsPage() {
         stageToken.includes('cancellation request rejected') ||
         stageToken.includes('cancellation request disapproved') ||
         stageToken.includes('cancel request rejected') ||
+        stageToken.includes('hr rejected application edit') ||
         remarksToken.includes('edit request rejected') ||
         remarksToken.includes('edit request disapproved') ||
         remarksToken.includes('recall request rejected') ||
         remarksToken.includes('recall request disapproved') ||
         remarksToken.includes('cancellation request rejected') ||
         remarksToken.includes('cancellation request disapproved') ||
-        remarksToken.includes('cancel request rejected')
+        remarksToken.includes('cancel request rejected') ||
+        ((remarksToken.includes('rejected') || remarksToken.includes('disapproved')) && (remarksToken.includes('edit') || remarksToken.includes('update')))
       ) {
         return 'REJECTED'
       }
@@ -1442,11 +1455,18 @@ export function useAdminApplicationsPage() {
         stageToken.includes('cancellation request submitted') ||
         stageToken.includes('cancel request submitted') ||
         stageToken.includes('pending cancellation review') ||
-        remarksToken.includes('edit request') ||
-        remarksToken.includes('request update') ||
-        remarksToken.includes('cancellation request') ||
-        remarksToken.includes('cancel request')
+        stageToken.includes('hr requested application edit') ||
+        remarksToken.includes('submitted edit request') ||
+        remarksToken.includes('submitted update request') ||
+        remarksToken.includes('submitted cancellation request') ||
+        remarksToken.includes('submitted cancel request') ||
+        remarksToken.includes('requested edit') ||
+        remarksToken.includes('requested update') ||
+        remarksToken.includes('requested cancellation')
       ) {
+        if (!hasUpdateRequestContext && !app?.has_pending_update_request) {
+          return ''
+        }
         return 'PENDING'
       }
     }
@@ -3793,6 +3813,239 @@ export function useAdminApplicationsPage() {
     return reason || 'N/A'
   }
 
+  function formatLeaveDetailsSummary(detailsSource) {
+    if (!detailsSource) return ''
+    let parsed = null
+    if (typeof detailsSource === 'string') {
+      const trimmed = detailsSource.trim()
+      if (!trimmed) return ''
+      try {
+        parsed = JSON.parse(trimmed)
+      } catch {
+        return trimmed
+      }
+    } else if (typeof detailsSource === 'object') {
+      parsed = detailsSource
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const nested = parsed.details_of_leave || parsed.detailsOfLeave || parsed.details
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        parsed = { ...parsed, ...nested }
+      }
+      const parts = [
+        parsed.spl_detail || parsed.splDetail,
+        parsed.spl_specify || parsed.splSpecify,
+        parsed.vacation_detail || parsed.vacationDetail,
+        parsed.vacation_specify || parsed.vacationSpecify,
+        parsed.sick_detail || parsed.sickDetail,
+        parsed.sick_specify || parsed.sickSpecify,
+        parsed.women_specify || parsed.womenSpecify,
+        parsed.study_detail || parsed.studyDetail,
+        parsed.other_purpose || parsed.otherPurpose,
+      ].filter(Boolean)
+      if (parts.length > 0) {
+        return parts.join(' - ')
+      }
+      if (!parsed.leave_type_id && !parsed.start_date && !parsed.total_days && !parsed.status) {
+        const values = Object.values(parsed)
+          .filter((v) => typeof v === 'string' && v.trim() !== '')
+          .map((v) => v.trim())
+        if (values.length > 0) {
+          return values.join(' - ')
+        }
+      }
+    }
+    return typeof detailsSource === 'string' ? detailsSource.trim() : ''
+  }
+
+  function getApplicationEditRequestCurrentLeaveType(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+    const payload = getPendingUpdatePayload(app)
+    const prevLeaveType =
+      payload?.previous_leave_type_name ||
+      payload?.previous_leave_type ||
+      payload?.previousLeaveTypeName
+    if (prevLeaveType) {
+      const formatted = formatApplicationLeaveTypeLabel(prevLeaveType)
+      if (formatted) {
+        const isMonetization = app?.is_monetization === true
+        return isMonetization ? `${formatted} (Monetization)` : formatted
+      }
+    }
+
+    const prevLeaveTypeId = Number(payload?.previous_leave_type_id || payload?.previousLeaveTypeId || 0)
+    if (prevLeaveTypeId > 0) {
+      const knownNames = {
+        1: 'Vacation Leave',
+        2: 'Sick Leave',
+        3: 'Mandatory / Forced Leave',
+        4: 'Special Privilege Leave(MC06)',
+        5: 'Wellness Leave',
+        6: 'CTO Leave',
+      }
+      const rawName = knownNames[prevLeaveTypeId] || `Leave Type #${prevLeaveTypeId}`
+      const formatted = formatApplicationLeaveTypeLabel(rawName) || rawName
+      const isMonetization = app?.is_monetization === true
+      return isMonetization ? `${formatted} (Monetization)` : formatted
+    }
+
+    const directType = app?.leaveType || app?.leave_type || app?.leaveTypeName || ''
+    const formatted = formatApplicationLeaveTypeLabel(directType) || 'N/A'
+    const isMonetization = app?.is_monetization === true
+    return isMonetization && formatted !== 'N/A' ? `${formatted} (Monetization)` : formatted
+  }
+
+  function getApplicationEditRequestRequestedLeaveType(app) {
+    if (!hasApplicationEditRequest(app)) return 'N/A'
+    const payload = getPendingUpdatePayload(app)
+    if (!payload || typeof payload !== 'object') return 'N/A'
+
+    const requestedName = String(
+      payload?.leave_type_name ||
+      payload?.leaveType ||
+      payload?.leave_type ||
+      '',
+    ).trim()
+
+    const fallbackId = payload?.leave_type_id ? Number(payload.leave_type_id) : null
+    const rawName = requestedName || (fallbackId && fallbackId > 0 ? `Leave Type #${fallbackId}` : '')
+    if (!rawName) return 'N/A'
+
+    const label = formatApplicationLeaveTypeLabel(rawName)
+    const isMonetization = payload?.is_monetization === true || app?.is_monetization === true
+    return isMonetization ? `${label} (Monetization)` : label
+  }
+
+  function getApplicationEditRequestRequestedLeaveDetails(app) {
+    if (!hasApplicationEditRequest(app)) return ''
+    const payload = getPendingUpdatePayload(app)
+    if (!payload || typeof payload !== 'object') return ''
+
+    const detailsCandidate =
+      payload?.details_of_leave ||
+      payload?.detailsOfLeave ||
+      payload?.details ||
+      payload
+    return formatLeaveDetailsSummary(detailsCandidate)
+  }
+
+  function getApplicationEditRequestCurrentLeaveDetails(app) {
+    if (!hasApplicationEditRequest(app)) return ''
+    const payload = getPendingUpdatePayload(app)
+    const prevDetails =
+      payload?.previous_details_of_leave ||
+      payload?.previousDetailsOfLeave ||
+      payload?.previous_details
+    if (prevDetails) {
+      const formatted = formatLeaveDetailsSummary(prevDetails)
+      if (formatted) return formatted
+    }
+    return formatLeaveDetailsSummary(app?.details_of_leave || app?.detailsOfLeave || app?.details)
+  }
+
+  function hasApplicationEditRequestLeaveTypeChanged(app) {
+    if (!hasApplicationEditRequest(app)) return false
+    const payload = getPendingUpdatePayload(app)
+    if (!payload || typeof payload !== 'object') return false
+
+    const currentType = getApplicationEditRequestCurrentLeaveType(app)
+    const requestedType = getApplicationEditRequestRequestedLeaveType(app)
+
+    if (
+      currentType &&
+      currentType !== 'N/A' &&
+      requestedType &&
+      requestedType !== 'N/A'
+    ) {
+      const curNorm = currentType.trim().toLowerCase()
+      const reqNorm = requestedType.trim().toLowerCase()
+      if (curNorm !== reqNorm) return true
+    }
+
+    const currentId = Number(payload?.previous_leave_type_id || payload?.previousLeaveTypeId || app?.leave_type_id || 0)
+    const requestedId = Number(payload?.leave_type_id || 0)
+    if (currentId > 0 && requestedId > 0 && currentId !== requestedId) {
+      return true
+    }
+
+    return false
+  }
+
+  function hasApplicationEditRequestDetailsChanged(app) {
+    if (!hasApplicationEditRequest(app)) return false
+    const currentDetails = getApplicationEditRequestCurrentLeaveDetails(app)
+    const requestedDetails = getApplicationEditRequestRequestedLeaveDetails(app)
+    if (!currentDetails && !requestedDetails) return false
+    return currentDetails.trim().toLowerCase() !== requestedDetails.trim().toLowerCase()
+  }
+
+  function hasApplicationEditRequestDateChanged(app) {
+    if (!hasApplicationEditRequest(app)) return false
+    const payload = getPendingUpdatePayload(app)
+
+    if (payload && typeof payload === 'object') {
+      const prevDates = payload.previous_selected_dates || payload.previousSelectedDates
+      const reqDates = payload.selected_dates || payload.selectedDates
+      if (Array.isArray(prevDates) && Array.isArray(reqDates) && prevDates.length > 0 && reqDates.length > 0) {
+        const sortedPrev = [...prevDates].map((d) => String(d).substring(0, 10)).sort().join(',')
+        const sortedReq = [...reqDates].map((d) => String(d).substring(0, 10)).sort().join(',')
+        if (sortedPrev !== sortedReq) return true
+      }
+
+      const prevStart = payload.previous_start_date || payload.previousStartDate
+      const reqStart = payload.start_date || payload.startDate
+      const prevEnd = payload.previous_end_date || payload.previousEndDate
+      const reqEnd = payload.end_date || payload.endDate
+      if (prevStart && reqStart && String(prevStart).substring(0, 10) !== String(reqStart).substring(0, 10)) {
+        return true
+      }
+      if (prevEnd && reqEnd && String(prevEnd).substring(0, 10) !== String(reqEnd).substring(0, 10)) {
+        return true
+      }
+
+      const prevDays = Number(payload.previous_total_days ?? payload.previousTotalDays)
+      const reqDays = Number(payload.total_days ?? payload.duration_value ?? payload.days)
+      if (Number.isFinite(prevDays) && prevDays > 0 && Number.isFinite(reqDays) && reqDays > 0) {
+        if (Math.abs(prevDays - reqDays) > 0.001) return true
+      }
+    }
+
+    const fromDates = String(getApplicationEditRequestFromDates(app) || '').trim()
+    const toDates = String(getApplicationEditRequestToDates(app) || '').trim()
+    if (fromDates && toDates && fromDates !== 'N/A' && toDates !== 'N/A') {
+      if (fromDates.toLowerCase() !== toDates.toLowerCase()) return true
+    }
+
+    const currentDur = getApplicationEditRequestCurrentDuration(app)
+    const requestedDur = getApplicationEditRequestRequestedDuration(app)
+    const numCurrent = parseFloat(String(currentDur).replace(/[^0-9.]/g, ''))
+    const numRequested = parseFloat(String(requestedDur).replace(/[^0-9.]/g, ''))
+    if (Number.isFinite(numCurrent) && Number.isFinite(numRequested) && numCurrent > 0 && numRequested > 0) {
+      if (Math.abs(numCurrent - numRequested) > 0.001) return true
+    }
+
+    return false
+  }
+
+  function shouldShowApplicationEditRequestLeaveTypeSection(app) {
+    if (!hasApplicationEditRequest(app)) return false
+    if (isApplicationEditCancellationRequest(app) || isApplicationEditRecallRequest(app)) {
+      return false
+    }
+    const leaveTypeChanged = hasApplicationEditRequestLeaveTypeChanged(app)
+    const detailsChanged = hasApplicationEditRequestDetailsChanged(app)
+
+    return leaveTypeChanged || detailsChanged
+  }
+
+  function shouldShowApplicationEditRequestDateSection(app) {
+    if (!hasApplicationEditRequest(app)) return false
+    if (isApplicationEditCancellationRequest(app) || isApplicationEditRecallRequest(app)) {
+      return false
+    }
+    return hasApplicationEditRequestDateChanged(app)
+  }
+
   function formatDateSetSummary(dateValues = []) {
     const normalizedDateSet = [
       ...new Set(
@@ -4162,22 +4415,31 @@ export function useAdminApplicationsPage() {
           'UPDATE_REQUEST_APPROVED',
           'CANCELLATION_REQUEST_APPROVED',
           'CANCEL_REQUEST_APPROVED',
+          'HR_APPLICATION_EDITED',
+          'HR_APPLICATION_EDIT_REQUEST_APPROVED',
         ].includes(actionToken) ||
         stageToken.includes('edit request approved') ||
         stageToken.includes('cancellation request approved') ||
-        stageToken.includes('cancel request approved')
+        stageToken.includes('cancel request approved') ||
+        stageToken.includes('hr edited application') ||
+        stageToken.includes('hr approved application edit') ||
+        remarksToken.includes('approved hr staff edit request') ||
+        (remarksToken.includes('approved') && (remarksToken.includes('edit') || remarksToken.includes('update')))
       const explicitRejectedSignal =
         [
           'EDIT_REQUEST_REJECTED',
           'UPDATE_REQUEST_REJECTED',
           'CANCELLATION_REQUEST_REJECTED',
           'CANCEL_REQUEST_REJECTED',
+          'HR_APPLICATION_EDIT_REQUEST_REJECTED',
         ].includes(actionToken) ||
         stageToken.includes('edit request rejected') ||
         stageToken.includes('edit request disapproved') ||
         stageToken.includes('cancellation request rejected') ||
         stageToken.includes('cancellation request disapproved') ||
-        stageToken.includes('cancel request rejected')
+        stageToken.includes('cancel request rejected') ||
+        stageToken.includes('hr rejected application edit') ||
+        ((remarksToken.includes('rejected') || remarksToken.includes('disapproved')) && (remarksToken.includes('edit') || remarksToken.includes('update')))
 
       if (targetDecision === 'APPROVED' && explicitApprovedSignal) return true
       if (targetDecision === 'REJECTED' && explicitRejectedSignal) return true
@@ -7003,12 +7265,20 @@ export function useAdminApplicationsPage() {
     hasApprovedEditRequest,
     getEditRequestBadgeColor,
     hasApplicationEditRequest,
+    isAdminEditUpdateRequest,
     getApplicationEditRequestStatusLabel,
     getApplicationEditRequestStatusFieldLabel,
     getApplicationEditRequestApprovedBadgeLabel,
     getApplicationEditRequestSectionTitle,
     getApplicationEditRequestChangeSummaryLabel,
     shouldShowApplicationEditRequestDateComparison,
+    shouldShowApplicationEditRequestLeaveTypeSection,
+    shouldShowApplicationEditRequestDateSection,
+    getApplicationEditRequestCurrentLeaveType,
+    getApplicationEditRequestRequestedLeaveType,
+    getApplicationEditRequestRequestedLeaveDetails,
+    hasApplicationEditRequestLeaveTypeChanged,
+    hasApplicationEditRequestDateChanged,
     isApplicationEditCancellationRequest,
     getApplicationEditRequestRequestedAt,
     getApplicationEditRequestRequestedBy,

@@ -464,6 +464,21 @@
     :should-show-application-edit-request-date-comparison="
       shouldShowApplicationEditRequestDateComparison
     "
+    :should-show-application-edit-request-leave-type-section="
+      shouldShowApplicationEditRequestLeaveTypeSection
+    "
+    :should-show-application-edit-request-date-section="
+      shouldShowApplicationEditRequestDateSection
+    "
+    :get-application-edit-request-current-leave-type="
+      getApplicationEditRequestCurrentLeaveType
+    "
+    :get-application-edit-request-requested-leave-type="
+      getApplicationEditRequestRequestedLeaveType
+    "
+    :get-application-edit-request-requested-leave-details="
+      getApplicationEditRequestRequestedLeaveDetails
+    "
     :get-application-edit-request-from-dates="getApplicationEditRequestFromDates"
     :get-application-edit-request-to-dates="getApplicationEditRequestToDates"
     :get-application-edit-request-current-duration="getApplicationEditRequestCurrentDuration"

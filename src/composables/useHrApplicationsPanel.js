@@ -1672,6 +1672,251 @@ function shouldShowApplicationEditRequestSection(app) {
   return true
 }
 
+function formatLeaveDetailsSummary(detailsSource) {
+  if (!detailsSource) return ''
+  let parsed = null
+  if (typeof detailsSource === 'string') {
+    const trimmed = detailsSource.trim()
+    if (!trimmed) return ''
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      return trimmed
+    }
+  } else if (typeof detailsSource === 'object') {
+    parsed = detailsSource
+  }
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const nested = parsed.details_of_leave || parsed.detailsOfLeave || parsed.details
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      parsed = { ...parsed, ...nested }
+    }
+    const parts = [
+      parsed.spl_detail || parsed.splDetail,
+      parsed.spl_specify || parsed.splSpecify,
+      parsed.vacation_detail || parsed.vacationDetail,
+      parsed.vacation_specify || parsed.vacationSpecify,
+      parsed.sick_detail || parsed.sickDetail,
+      parsed.sick_specify || parsed.sickSpecify,
+      parsed.women_specify || parsed.womenSpecify,
+      parsed.study_detail || parsed.studyDetail,
+      parsed.other_purpose || parsed.otherPurpose,
+    ].filter(Boolean)
+    if (parts.length > 0) {
+      return parts.join(' - ')
+    }
+    if (!parsed.leave_type_id && !parsed.start_date && !parsed.total_days && !parsed.status) {
+      const values = Object.values(parsed)
+        .filter((v) => typeof v === 'string' && v.trim() !== '')
+        .map((v) => v.trim())
+      if (values.length > 0) {
+        return values.join(' - ')
+      }
+    }
+  }
+  return typeof detailsSource === 'string' ? detailsSource.trim() : ''
+}
+
+function getApplicationEditRequestCurrentLeaveType(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+  const payload = getPendingUpdatePayload(app)
+  const prevLeaveType =
+    payload?.previous_leave_type_name ||
+    payload?.previous_leave_type ||
+    payload?.previousLeaveTypeName
+  if (prevLeaveType) {
+    let resolved = String(prevLeaveType).trim()
+    const resolvedKey = resolved.toLowerCase()
+    if (
+      resolvedKey === 'special privilege leave' ||
+      resolvedKey === 'mco6 leave' ||
+      resolvedKey === 'mc06 leave' ||
+      resolvedKey === 'mc06' ||
+      resolvedKey === 'mo6 leave'
+    ) {
+      resolved = 'Special Privilege Leave(MC06)'
+    }
+    const isMonetization = app?.is_monetization === true
+    return isMonetization ? `${resolved} (Monetization)` : resolved
+  }
+
+  const prevLeaveTypeId = Number(payload?.previous_leave_type_id || payload?.previousLeaveTypeId || 0)
+  if (prevLeaveTypeId > 0) {
+    const knownNames = {
+      1: 'Vacation Leave',
+      2: 'Sick Leave',
+      3: 'Mandatory / Forced Leave',
+      4: 'Special Privilege Leave(MC06)',
+      5: 'Wellness Leave',
+      6: 'CTO Leave',
+    }
+    const resolved = knownNames[prevLeaveTypeId] || `Leave Type #${prevLeaveTypeId}`
+    const isMonetization = app?.is_monetization === true
+    return isMonetization ? `${resolved} (Monetization)` : resolved
+  }
+
+  return getCurrentLeaveTypeLabel(app) || 'N/A'
+}
+
+function getApplicationEditRequestRequestedLeaveType(app) {
+  if (!hasApplicationEditRequest(app)) return 'N/A'
+  return getRequestedLeaveTypeLabel(app) || 'N/A'
+}
+
+function getApplicationEditRequestRequestedLeaveDetails(app) {
+  if (!hasApplicationEditRequest(app)) return ''
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || typeof payload !== 'object') return ''
+
+  const detailsCandidate =
+    payload?.details_of_leave ||
+    payload?.detailsOfLeave ||
+    payload?.details ||
+    payload
+  return formatLeaveDetailsSummary(detailsCandidate)
+}
+
+function getApplicationEditRequestCurrentLeaveDetails(app) {
+  if (!hasApplicationEditRequest(app)) return ''
+  const payload = getPendingUpdatePayload(app)
+  const prevDetails =
+    payload?.previous_details_of_leave ||
+    payload?.previousDetailsOfLeave ||
+    payload?.previous_details
+  if (prevDetails) {
+    const formatted = formatLeaveDetailsSummary(prevDetails)
+    if (formatted) return formatted
+  }
+  return formatLeaveDetailsSummary(app?.details_of_leave || app?.detailsOfLeave || app?.details)
+}
+
+function hasApplicationEditRequestLeaveTypeChanged(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  const payload = getPendingUpdatePayload(app)
+  if (!payload || typeof payload !== 'object') return false
+
+  const currentType = getApplicationEditRequestCurrentLeaveType(app)
+  const requestedType = getApplicationEditRequestRequestedLeaveType(app)
+
+  if (
+    currentType &&
+    currentType !== 'N/A' &&
+    requestedType &&
+    requestedType !== 'N/A'
+  ) {
+    const curNorm = currentType.trim().toLowerCase()
+    const reqNorm = requestedType.trim().toLowerCase()
+    if (curNorm !== reqNorm) return true
+  }
+
+  const currentId = Number(payload?.previous_leave_type_id || payload?.previousLeaveTypeId || app?.leave_type_id || 0)
+  const requestedId = Number(payload?.leave_type_id || 0)
+  if (currentId > 0 && requestedId > 0 && currentId !== requestedId) {
+    return true
+  }
+
+  return false
+}
+
+function hasApplicationEditRequestDetailsChanged(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  const currentDetails = getApplicationEditRequestCurrentLeaveDetails(app)
+  const requestedDetails = getApplicationEditRequestRequestedLeaveDetails(app)
+  if (!currentDetails && !requestedDetails) return false
+  return currentDetails.trim().toLowerCase() !== requestedDetails.trim().toLowerCase()
+}
+
+function hasApplicationEditRequestDateChanged(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  const payload = getPendingUpdatePayload(app)
+
+  if (payload && typeof payload === 'object') {
+    const prevDates =
+      payload.previous_selected_dates ||
+      payload.previousSelectedDates ||
+      app?.selected_dates ||
+      app?.selectedDates
+    const reqDates = payload.selected_dates || payload.selectedDates
+    if (Array.isArray(prevDates) && Array.isArray(reqDates) && prevDates.length > 0 && reqDates.length > 0) {
+      const sortedPrev = [...prevDates].map((d) => String(d).substring(0, 10)).sort().join(',')
+      const sortedReq = [...reqDates].map((d) => String(d).substring(0, 10)).sort().join(',')
+      if (sortedPrev !== sortedReq) return true
+    }
+
+    const prevStart =
+      payload.previous_start_date ||
+      payload.previousStartDate ||
+      app?.start_date ||
+      app?.startDate
+    const reqStart = payload.start_date || payload.startDate
+    const prevEnd =
+      payload.previous_end_date ||
+      payload.previousEndDate ||
+      app?.end_date ||
+      app?.endDate
+    const reqEnd = payload.end_date || payload.endDate
+    if (prevStart && reqStart && String(prevStart).substring(0, 10) !== String(reqStart).substring(0, 10)) {
+      return true
+    }
+    if (prevEnd && reqEnd && String(prevEnd).substring(0, 10) !== String(reqEnd || reqStart).substring(0, 10)) {
+      return true
+    }
+
+    const prevDays = Number(payload.previous_total_days ?? payload.previousTotalDays)
+    const reqDays = Number(payload.total_days ?? payload.duration_value ?? payload.days)
+    if (Number.isFinite(prevDays) && prevDays > 0 && Number.isFinite(reqDays) && reqDays > 0) {
+      if (Math.abs(prevDays - reqDays) > 0.001) return true
+    }
+  }
+
+  const currentLines = getApplicationInclusiveDateColumnLines(app)
+    .map((line) => String(line || '').trim())
+    .filter(Boolean)
+  const requestedLines = getPendingUpdateInclusiveDateLines(app)
+    .map((line) => String(line || '').trim())
+    .filter(Boolean)
+
+  if (currentLines.length && requestedLines.length) {
+    if (currentLines.length !== requestedLines.length) return true
+    if (requestedLines.some((line, index) => line !== currentLines[index])) return true
+  }
+
+  const fromDates = String(getApplicationEditRequestFromDates(app) || '').trim()
+  const toDates = String(getApplicationEditRequestToDates(app) || '').trim()
+  if (fromDates && toDates && fromDates !== 'N/A' && toDates !== 'N/A') {
+    if (fromDates.toLowerCase() !== toDates.toLowerCase()) return true
+  }
+
+  const currentDur = getApplicationEditRequestCurrentDuration(app)
+  const requestedDur = getApplicationEditRequestRequestedDuration(app)
+  const numCurrent = parseFloat(String(currentDur).replace(/[^0-9.]/g, ''))
+  const numRequested = parseFloat(String(requestedDur).replace(/[^0-9.]/g, ''))
+  if (Number.isFinite(numCurrent) && Number.isFinite(numRequested) && numCurrent > 0 && numRequested > 0) {
+    if (Math.abs(numCurrent - numRequested) > 0.001) return true
+  }
+
+  return false
+}
+
+function shouldShowApplicationEditRequestLeaveTypeSection(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  if (isApplicationEditCancellationRequest(app) || isRecallRequestAction(app)) {
+    return false
+  }
+  const leaveTypeChanged = hasApplicationEditRequestLeaveTypeChanged(app)
+  const detailsChanged = hasApplicationEditRequestDetailsChanged(app)
+
+  return leaveTypeChanged || detailsChanged
+}
+
+function shouldShowApplicationEditRequestDateSection(app) {
+  if (!hasApplicationEditRequest(app)) return false
+  if (isApplicationEditCancellationRequest(app) || isRecallRequestAction(app)) {
+    return false
+  }
+  return hasApplicationEditRequestDateChanged(app)
+}
+
 function getApplicationEditRequestFromDates(app) {
   if (!hasApplicationEditRequest(app)) return 'N/A'
 
@@ -2174,11 +2419,39 @@ function hasPendingDateUpdate(app) {
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
+  if (hasApplicationEditRequest(app)) {
+    return hasApplicationEditRequestDateChanged(app)
+  }
+
   const requestedIndicatorRows = getPendingUpdateDatePayStatusRows(app)
-  if (requestedIndicatorRows.length) return true
+  const currentIndicatorRows = getSelectedDatePayStatusRows(app)
+  if (requestedIndicatorRows.length || currentIndicatorRows.length) {
+    if (requestedIndicatorRows.length !== currentIndicatorRows.length) return true
+    const indicatorDiffers = requestedIndicatorRows.some((reqRow, idx) => {
+      const curRow = currentIndicatorRows[idx]
+      if (!curRow) return true
+      return (
+        reqRow.dateKey !== curRow.dateKey ||
+        reqRow.coverageLabel !== curRow.coverageLabel ||
+        reqRow.payStatusLabel !== curRow.payStatusLabel
+      )
+    })
+    if (indicatorDiffers) return true
+  }
 
   const requestedDateSet = resolveDateSetFromSource(payload)
-  return requestedDateSet.length > 0
+  if (!requestedDateSet.length) return false
+
+  const currentLines = getApplicationInclusiveDateColumnLines(app)
+    .map((line) => String(line || '').trim())
+    .filter(Boolean)
+  const requestedLines = getPendingUpdateInclusiveDateLines(app)
+    .map((line) => String(line || '').trim())
+    .filter(Boolean)
+
+  if (!currentLines.length && requestedLines.length > 0) return true
+  if (currentLines.length !== requestedLines.length) return true
+  return requestedLines.some((line, index) => line !== currentLines[index])
 }
 
 function resolveRequestedDurationSnapshot(app) {
@@ -2834,6 +3107,11 @@ const recallDialogApplication = computed(() => recallTargetApp.value || selected
 
 function canEditApplication(app) {
   if (!app || isCocApplication(app)) return false
+  if (isPendingUpdateWorkflowCycle(app)) return false
+  if (isCancellationRequestAction(app)) return false
+  if (isRecallRequestAction(app)) return false
+  if (getLatestUpdateRequestStatus(app) === 'PENDING') return false
+  if (isTruthyBackendFlag(app?.has_pending_update_request)) return false
 
   const editableStatuses = new Set(['PENDING_HR', 'APPROVED'])
   return editableStatuses.has(getApplicationRawStatusKey(app))
@@ -7284,6 +7562,13 @@ async function handleDialogMutationSuccess(payload = {}) {
     shouldShowCurrentLeaveBalance,
     shouldShowApplicationEditRequestSection,
     shouldShowApplicationEditRequestDateComparison,
+    shouldShowApplicationEditRequestLeaveTypeSection,
+    shouldShowApplicationEditRequestDateSection,
+    getApplicationEditRequestCurrentLeaveType,
+    getApplicationEditRequestRequestedLeaveType,
+    getApplicationEditRequestRequestedLeaveDetails,
+    hasApplicationEditRequestLeaveTypeChanged,
+    hasApplicationEditRequestDateChanged,
     getCurrentLeaveTypeId,
     getCurrentLeaveTypeLabel,
     getCocNatureOfOvertimeLines,

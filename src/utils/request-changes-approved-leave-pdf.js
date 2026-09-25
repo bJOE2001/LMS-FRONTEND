@@ -1,5 +1,9 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
+import {
+  enrichAppWithDepartmentHead,
+  getRecommendationSignatory,
+} from './department-head-signature'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
@@ -46,6 +50,83 @@ function normalizeText(value) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function normalizeMultilineText(value) {
+  return String(value ?? '')
+    .split('\n')
+    .map((line) => line.replace(/[^\S\r\n]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function formatLeaveTypeLabel(value) {
+  const label = String(value || '').trim()
+  if (!label) return ''
+
+  const normalized = label
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const lower = normalized.toLowerCase()
+  if (
+    lower === 'mandatory' ||
+    lower === 'forced' ||
+    lower === 'mandatory forced leave' ||
+    lower === 'mandatory / forced leave'
+  ) {
+    return 'Mandatory / Forced Leave'
+  }
+  if (
+    lower === 'mco6' ||
+    lower === 'mco6 leave' ||
+    lower === 'mc06' ||
+    lower === 'mo6 leave' ||
+    lower === 'special privilege leave'
+  ) {
+    return 'Special Privilege Leave(MC06)'
+  }
+  if (lower === 'cto' || lower === 'cto leave') return 'CTO Leave'
+  if (lower === 'vacation' || lower === 'vacation leave') return 'Vacation Leave'
+  if (lower === 'sick' || lower === 'sick leave') return 'Sick Leave'
+  if (lower === 'wellness' || lower === 'wellness leave') return 'Wellness Leave'
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function resolveLeaveTypeFromSource(source) {
+  if (!source) return ''
+  const raw =
+    source?.leave_type_name ||
+    source?.leaveTypeName ||
+    source?.leaveType ||
+    source?.leave_type ||
+    source?.leave_type?.name ||
+    source?.raw?.leave_type_name ||
+    source?.raw?.leaveTypeName ||
+    source?.raw?.leaveType ||
+    source?.raw?.leave_type ||
+    source?.raw?.leave_type?.name ||
+    ''
+
+  if (typeof raw === 'string' && raw.trim()) {
+    return formatLeaveTypeLabel(raw)
+  }
+  if (typeof raw === 'object' && raw?.name) {
+    return formatLeaveTypeLabel(raw.name)
+  }
+
+  const fallbackId = Number(
+    source?.leave_type_id || source?.leaveTypeId || source?.raw?.leave_type_id || 0,
+  )
+  if (fallbackId > 0) {
+    return `Leave Type #${fallbackId}`
+  }
+
+  return ''
 }
 
 function toBase64(url) {
@@ -181,58 +262,131 @@ function getPendingUpdatePayload(app) {
   return null
 }
 
-function resolveDepartmentHeadName(source) {
-  const directName = normalizeText(
-    source?.departmentHeadName ||
-      source?.department_head_name ||
-      source?.departmentHeadFullName ||
-      source?.department_head_full_name ||
-      source?.approved_by ||
-      source?.approvedBy ||
-      source?.approver_name ||
-      source?.approverName ||
-      source?.admin_action_by ||
-      source?.adminActionBy ||
-      source?.processed_by ||
-      source?.processedBy ||
-      source?.raw?.departmentHeadName ||
-      source?.raw?.department_head_name ||
-      source?.raw?.departmentHeadFullName ||
-      source?.raw?.department_head_full_name ||
-      source?.raw?.approved_by ||
-      source?.raw?.approvedBy ||
-      source?.raw?.approver_name ||
-      source?.raw?.approverName ||
-      source?.raw?.admin_action_by ||
-      source?.raw?.adminActionBy ||
-      source?.raw?.processed_by ||
-      source?.raw?.processedBy,
+function extractHeadNameFromObject(head) {
+  if (!head) return ''
+  if (typeof head === 'string') return normalizeText(head)
+  if (typeof head !== 'object') return ''
+
+  const direct = normalizeText(
+    head.full_name || head.fullName || head.name || head.employee_name || head.employeeName,
   )
-  if (directName) return directName
-
-  const departmentHead =
-    source?.departmentHead ||
-    source?.department_head ||
-    source?.raw?.departmentHead ||
-    source?.raw?.department_head ||
-    null
-
-  if (!departmentHead) return ''
-  if (typeof departmentHead === 'string') return normalizeText(departmentHead)
-  if (typeof departmentHead !== 'object') return ''
-
-  const departmentHeadObjectName = normalizeText(
-    departmentHead?.full_name || departmentHead?.fullName || departmentHead?.name,
-  )
-  if (departmentHeadObjectName) return departmentHeadObjectName
+  if (direct) return direct
 
   return [
-    normalizeText(departmentHead?.firstname),
-    normalizeText(departmentHead?.middlename),
-    normalizeText(departmentHead?.surname),
+    normalizeText(head.firstname || head.firstName),
+    normalizeText(head.middlename || head.middleName),
+    normalizeText(head.surname || head.lastName),
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+function resolveDepartmentHeadName(source, app = null) {
+  const primarySource = source || {}
+  const rawSource = primarySource?.raw && typeof primarySource.raw === 'object' ? primarySource.raw : {}
+  const appSource = app || {}
+  const appRaw = appSource?.raw && typeof appSource.raw === 'object' ? appSource.raw : {}
+
+  // 1. Direct explicit department head fields (strings)
+  const explicitHeadName = normalizeText(
+    primarySource.departmentHeadName ||
+      primarySource.department_head_name ||
+      primarySource.departmentHeadFullName ||
+      primarySource.department_head_full_name ||
+      primarySource.recommendationSignatoryName ||
+      primarySource.recommendation_signatory_name ||
+      rawSource.departmentHeadName ||
+      rawSource.department_head_name ||
+      rawSource.departmentHeadFullName ||
+      rawSource.department_head_full_name ||
+      rawSource.recommendationSignatoryName ||
+      rawSource.recommendation_signatory_name ||
+      appSource.departmentHeadName ||
+      appSource.department_head_name ||
+      appSource.departmentHeadFullName ||
+      appSource.department_head_full_name ||
+      appSource.recommendationSignatoryName ||
+      appSource.recommendation_signatory_name ||
+      appRaw.departmentHeadName ||
+      appRaw.department_head_name,
+  )
+  if (explicitHeadName) return explicitHeadName
+
+  // 2. Department Head object from app / source / raw
+  const headObjectCandidates = [
+    primarySource.departmentHead,
+    primarySource.department_head,
+    rawSource.departmentHead,
+    rawSource.department_head,
+    appSource.departmentHead,
+    appSource.department_head,
+    appRaw.departmentHead,
+    appRaw.department_head,
+  ]
+  for (const candidate of headObjectCandidates) {
+    const extracted = extractHeadNameFromObject(candidate)
+    if (extracted) return extracted
+  }
+
+  // 3. Department Admin / applicantAdmin object (the assigned department admin)
+  const adminCandidates = [
+    primarySource.applicantAdmin,
+    primarySource.departmentAdmin,
+    rawSource.applicantAdmin,
+    rawSource.departmentAdmin,
+    appSource.applicantAdmin,
+    appSource.departmentAdmin,
+    appRaw.applicantAdmin,
+    appRaw.departmentAdmin,
+  ]
+  for (const candidate of adminCandidates) {
+    const extracted = extractHeadNameFromObject(candidate)
+    if (extracted) return extracted
+  }
+
+  // 4. Department recommendation approval from workflow logs (ADMIN_APPROVED)
+  const logs = Array.isArray(primarySource.logs)
+    ? primarySource.logs
+    : Array.isArray(primarySource.status_history)
+      ? primarySource.status_history
+      : Array.isArray(rawSource.logs)
+        ? rawSource.logs
+        : Array.isArray(appSource.logs)
+          ? appSource.logs
+          : []
+
+  const adminApprovedLog = logs.find(
+    (log) => String(log?.action || '').toUpperCase() === 'ADMIN_APPROVED',
+  )
+  if (adminApprovedLog) {
+    const adminActor = normalizeText(
+      adminApprovedLog.actor_name ||
+        adminApprovedLog.action_by_name ||
+        adminApprovedLog.action_by,
+    )
+    if (adminActor) return adminActor
+  }
+
+  // 5. Admin action by field
+  const adminActionBy = normalizeText(
+    primarySource.admin_action_by ||
+      primarySource.adminActionBy ||
+      rawSource.admin_action_by ||
+      rawSource.adminActionBy ||
+      appSource.admin_action_by ||
+      appSource.adminActionBy,
+  )
+  if (adminActionBy) return adminActionBy
+
+  // 6. Recommendation signatory resolution (handles dept head vs city admin for dept head applicant)
+  try {
+    const recSig = getRecommendationSignatory(primarySource) || getRecommendationSignatory(appSource)
+    if (recSig?.fullName) return normalizeText(recSig.fullName)
+  } catch {
+    // Graceful fallback
+  }
+
+  return ''
 }
 
 function formatGroupedInclusiveDateLines(dateValues, expandConsecutiveDays = false) {
@@ -410,62 +564,6 @@ function resolveRequestFormData(app) {
     source?.filed_by ||
     'Employee'
 
-  // Extract fromValue (previous dates or original application dates)
-  let fromValue = ''
-  if (payload && typeof payload === 'object') {
-    const previousDates = payload.previous_selected_dates || payload.previousSelectedDates
-    if (Array.isArray(previousDates) && previousDates.length > 0) {
-      const formatted = formatGroupedInclusiveDateLines(previousDates)
-      if (formatted.length > 0) fromValue = formatted.join(', ')
-    } else if (payload.previous_start_date || payload.previousStartDate) {
-      const startDate = payload.previous_start_date || payload.previousStartDate
-      const endDate = payload.previous_end_date || payload.previousEndDate || startDate
-      const dates = enumerateInclusiveDateRange(startDate, endDate)
-      if (dates.length > 0) {
-        const formatted = formatGroupedInclusiveDateLines(dates)
-        if (formatted.length > 0) fromValue = formatted.join(', ')
-      }
-    }
-  }
-
-  if (!fromValue) {
-    const updateRequests = Array.isArray(app?.update_requests)
-      ? app.update_requests
-      : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
-    for (const req of updateRequests) {
-      const reqPayload = req?.requested_payload || req?.payload
-      if (reqPayload && typeof reqPayload === 'object') {
-        const pDates = reqPayload.previous_selected_dates || reqPayload.previousSelectedDates
-        if (Array.isArray(pDates) && pDates.length > 0) {
-          const formatted = formatGroupedInclusiveDateLines(pDates)
-          if (formatted.length > 0) {
-            fromValue = formatted.join(', ')
-            break
-          }
-        }
-      }
-    }
-  }
-
-  if (!fromValue) {
-    fromValue =
-      formatCoverageAwareInclusiveDateSummary(source) ||
-      resolveFromDateValue(source)
-  }
-
-  // Extract toValue (requested update dates or cancel)
-  let toValue = ''
-  if (payload && typeof payload === 'object') {
-    toValue = formatCoverageAwareInclusiveDateSummary(payload)
-  }
-
-  if (!toValue) {
-    const requestedDateSet = resolveDateSetFromSource(payload)
-    toValue = requestedDateSet.length
-      ? formatGroupedInclusiveDateLines(requestedDateSet).join(', ')
-      : formatCoverageAwareInclusiveDateSummary(payload)
-  }
-
   const reason = normalizeText(
     app?.latest_update_request_reason ||
       app?.latestUpdateRequestReason ||
@@ -514,8 +612,121 @@ function resolveRequestFormData(app) {
 
   if (!actionType) actionType = ACTION_TYPE_UPDATE
 
+  // Extract fromDateValue (previous dates or original application dates)
+  let fromDateValue = ''
+  if (payload && typeof payload === 'object') {
+    const previousDates = payload.previous_selected_dates || payload.previousSelectedDates
+    if (Array.isArray(previousDates) && previousDates.length > 0) {
+      const formatted = formatGroupedInclusiveDateLines(previousDates)
+      if (formatted.length > 0) fromDateValue = formatted.join(', ')
+    } else if (payload.previous_start_date || payload.previousStartDate) {
+      const startDate = payload.previous_start_date || payload.previousStartDate
+      const endDate = payload.previous_end_date || payload.previousEndDate || startDate
+      const dates = enumerateInclusiveDateRange(startDate, endDate)
+      if (dates.length > 0) {
+        const formatted = formatGroupedInclusiveDateLines(dates)
+        if (formatted.length > 0) fromDateValue = formatted.join(', ')
+      }
+    }
+  }
+
+  if (!fromDateValue) {
+    const updateRequests = Array.isArray(app?.update_requests)
+      ? app.update_requests
+      : (Array.isArray(app?.updateRequests) ? app.updateRequests : [])
+    for (const req of updateRequests) {
+      const reqPayload = req?.requested_payload || req?.payload
+      if (reqPayload && typeof reqPayload === 'object') {
+        const pDates = reqPayload.previous_selected_dates || reqPayload.previousSelectedDates
+        if (Array.isArray(pDates) && pDates.length > 0) {
+          const formatted = formatGroupedInclusiveDateLines(pDates)
+          if (formatted.length > 0) {
+            fromDateValue = formatted.join(', ')
+            break
+          }
+        }
+      }
+    }
+  }
+
+  if (!fromDateValue) {
+    fromDateValue =
+      formatCoverageAwareInclusiveDateSummary(source) ||
+      resolveFromDateValue(source)
+  }
+
+  // Extract toDateValue (requested update dates or cancel)
+  let toDateValue = ''
+  if (payload && typeof payload === 'object') {
+    toDateValue = formatCoverageAwareInclusiveDateSummary(payload)
+  }
+
+  if (!toDateValue) {
+    const requestedDateSet = resolveDateSetFromSource(payload)
+    toDateValue = requestedDateSet.length
+      ? formatGroupedInclusiveDateLines(requestedDateSet).join(', ')
+      : formatCoverageAwareInclusiveDateSummary(payload)
+  }
+
+  const currentLeaveType =
+    (payload?.previous_leave_type_name ? formatLeaveTypeLabel(payload.previous_leave_type_name) : '') ||
+    resolveLeaveTypeFromSource(source) ||
+    resolveLeaveTypeFromSource(app)
+
+  const requestedLeaveType =
+    (payload ? resolveLeaveTypeFromSource(payload) : '') ||
+    resolveLeaveTypeFromSource(app?.latest_update_request_payload)
+
+  const isLeaveTypeChanged = Boolean(
+    currentLeaveType &&
+    requestedLeaveType &&
+    currentLeaveType.toLowerCase().trim() !== requestedLeaveType.toLowerCase().trim(),
+  )
+
+  let areDatesChanged = false
+  if (payload && typeof payload === 'object') {
+    const prevDates = payload.previous_selected_dates || payload.previousSelectedDates
+    const reqDates = payload.selected_dates || payload.selectedDates
+    if (Array.isArray(prevDates) && Array.isArray(reqDates) && prevDates.length > 0 && reqDates.length > 0) {
+      const sortedPrev = [...prevDates].map((d) => String(d).substring(0, 10)).sort().join(',')
+      const sortedReq = [...reqDates].map((d) => String(d).substring(0, 10)).sort().join(',')
+      areDatesChanged = sortedPrev !== sortedReq
+    } else {
+      const prevStart = payload.previous_start_date || payload.previousStartDate
+      const reqStart = payload.start_date || payload.startDate
+      const prevEnd = payload.previous_end_date || payload.previousEndDate
+      const reqEnd = payload.end_date || payload.endDate
+      if (prevStart && reqStart) {
+        areDatesChanged =
+          String(prevStart).substring(0, 10) !== String(reqStart).substring(0, 10) ||
+          String(prevEnd || prevStart).substring(0, 10) !== String(reqEnd || reqStart).substring(0, 10)
+      }
+    }
+  }
+
+  if (!areDatesChanged && fromDateValue && toDateValue) {
+    areDatesChanged = fromDateValue.trim().toLowerCase() !== toDateValue.trim().toLowerCase()
+  }
+
+  let fromValue = ''
+  let toValue = ''
+
+  if (actionType === ACTION_TYPE_CANCEL) {
+    fromValue = fromDateValue || currentLeaveType
+    toValue = 'Cancel Leave'
+  } else if (isLeaveTypeChanged && areDatesChanged) {
+    fromValue = `${currentLeaveType}\n${fromDateValue}`
+    toValue = `${requestedLeaveType}\n${toDateValue}`
+  } else if (isLeaveTypeChanged) {
+    fromValue = currentLeaveType
+    toValue = requestedLeaveType
+  } else {
+    fromValue = fromDateValue
+    toValue = toDateValue
+  }
+
   const approvedBy = normalizeText(
-    resolveDepartmentHeadName(app) || resolveDepartmentHeadName(source),
+    resolveDepartmentHeadName(app, source) || resolveDepartmentHeadName(source, app),
   )
 
   return {
@@ -651,9 +862,9 @@ function buildHeader(logoBase64) {
 }
 
 function buildChangesSection(formData) {
-  const fromText = normalizeText(formData.fromValue) || ' '
+  const fromText = normalizeMultilineText(formData.fromValue) || ' '
   const toText =
-    normalizeText(
+    normalizeMultilineText(
       formData.actionType === ACTION_TYPE_CANCEL ? 'Cancel Leave' : formData.toValue,
     ) || ' '
 
@@ -682,7 +893,7 @@ function buildChangesSection(formData) {
                   {
                     text: fromText,
                     fontSize: 9.5,
-                    bold: Boolean(normalizeText(formData.fromValue)),
+                    bold: Boolean(normalizeMultilineText(formData.fromValue)),
                     margin: [4, 4, 4, 4],
                   },
                 ],
@@ -709,7 +920,7 @@ function buildChangesSection(formData) {
                   {
                     text: toText,
                     fontSize: 9.5,
-                    bold: Boolean(normalizeText(toText)),
+                    bold: Boolean(normalizeMultilineText(toText)),
                     margin: [4, 4, 4, 4],
                   },
                 ],
@@ -990,7 +1201,14 @@ export async function generateRequestAmendmentApprovedLeavePdf(app = {}, options
     logoBase64 = null
   }
 
-  const formData = resolveRequestFormData(app)
+  let enrichedApp = app
+  try {
+    enrichedApp = (await enrichAppWithDepartmentHead(app)) || app
+  } catch {
+    enrichedApp = app
+  }
+
+  const formData = resolveRequestFormData(enrichedApp)
 
   const docDefinition = {
     pageSize: 'A4',

@@ -86,8 +86,11 @@
                     <div v-if="entry.actor" class="application-timeline-actor">
                       Action by: {{ entry.actor }}
                     </div>
-                    <div v-else-if="entry.description" class="application-timeline-actor">
-                      {{ entry.description }}
+                    <div
+                      v-if="getTimelineEntryRemarks(entry)"
+                      class="application-timeline-actor text-grey-8"
+                    >
+                      <span class="text-weight-medium">Remarks:</span> {{ formatDisplayRemarks(getTimelineEntryRemarks(entry)) }}
                     </div>
                   </div>
                   <q-btn
@@ -170,6 +173,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { formatDisplayRemarks, getTimelineEntryRemarks } from 'src/utils/application-timeline'
 
 const REQUEST_ACTION_UPDATE = 'REQUEST_UPDATE'
 const REQUEST_ACTION_CANCEL = 'REQUEST_CANCEL'
@@ -454,6 +458,10 @@ const isCocApplicationType = computed(() => {
 
 const timelineEntries = computed(() => {
   const baseTimeline = getBaseTimelineEntries()
+
+  if (String(props.application?.status || '').toUpperCase() === 'CANCELLED') {
+    return baseTimeline
+  }
 
   const existingReceivedApplicationEntry = baseTimeline.find((entry) =>
     isEntryTitle(entry, 'Received Application'),
@@ -1571,6 +1579,7 @@ function formatDateTime(value) {
 }
 
 function getTimelineEntryTone(entry) {
+  if (entry?.tone) return entry.tone
   const title = String(entry?.title || '')
     .trim()
     .toLowerCase()
@@ -1581,13 +1590,15 @@ function getTimelineEntryTone(entry) {
     return 'recalled'
   }
   if (color.includes('negative') || icon.includes('cancel')) return 'negative'
-  if (color.includes('teal')) return 'received'
-  if (color.includes('warning') || icon.includes('pending')) return 'warning'
+  if (color.includes('teal') || color.includes('deep-purple') || color.includes('purple')) return 'received'
+  if (color.includes('warning') || icon.includes('pending') || color.includes('orange') || color.includes('amber')) return 'warning'
   if (color.includes('grey') || icon.includes('radio_button_unchecked')) return 'neutral'
   return 'positive'
 }
 
 function getTimelineEntryIcon(entry) {
+  if (entry?.icon) return entry.icon
+
   const title = String(entry?.title || '')
     .trim()
     .toLowerCase()

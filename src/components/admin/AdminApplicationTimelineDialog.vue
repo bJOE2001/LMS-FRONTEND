@@ -73,8 +73,11 @@
                 <div v-if="resolveEntryActor(entry)" class="application-timeline-actor">
                   Action by: {{ resolveEntryActor(entry) }}
                 </div>
-                <div v-else-if="entry.description" class="application-timeline-actor">
-                  {{ entry.description }}
+                <div
+                  v-if="getTimelineEntryRemarks(entry)"
+                  class="application-timeline-actor text-grey-8"
+                >
+                  <span class="text-weight-medium">Remarks:</span> {{ formatDisplayRemarks(getTimelineEntryRemarks(entry)) }}
                 </div>
               </div>
             </div>
@@ -86,6 +89,8 @@
 </template>
 
 <script setup>
+import { formatDisplayRemarks, getTimelineEntryRemarks } from 'src/utils/application-timeline'
+
 const props = defineProps({
   modelValue: {
     type: Boolean,
