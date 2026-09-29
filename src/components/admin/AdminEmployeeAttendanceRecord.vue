@@ -208,32 +208,116 @@
               <!-- Time In (Morning) -->
               <template #body-cell-time_in="props">
                 <q-td :props="props" class="text-left">
-                  <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
-                    {{ formatPunchTime(props.row.am_arrival) }}
-                  </span>
+                  <div class="row items-center no-wrap">
+                    <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
+                      {{ formatPunchTime(props.row.am_arrival) }}
+                    </span>
+                    <q-icon
+                      v-if="hasDeviceOrigin(props.row.am_arrival, props.row.am_arrival_device_sn)"
+                      name="pin_drop"
+                      size="14px"
+                      class="text-teal-7 q-ml-xs cursor-pointer"
+                    >
+                      <q-tooltip class="bg-grey-9 text-white shadow-4" anchor="top middle" self="bottom middle">
+                        <div class="text-weight-bold text-caption">
+                          {{ getDeviceInfo(props.row.am_arrival_device_sn).device_name }}
+                        </div>
+                        <div class="text-caption text-grey-3">
+                          Location: {{ getDeviceInfo(props.row.am_arrival_device_sn).location }}
+                        </div>
+                        <div class="text-caption text-grey-4 text-italic" style="font-size: 10px;">
+                          Device SN: {{ props.row.am_arrival_device_sn }}
+                        </div>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
                 </q-td>
               </template>
 
               <!-- Time Out (Lunch) -->
               <template #body-cell-time_out="props">
                 <q-td :props="props" class="text-left">
-                  {{ formatPunchTime(props.row.am_departure) }}
+                  <div class="row items-center no-wrap">
+                    <span class="text-dark">
+                      {{ formatPunchTime(props.row.am_departure) }}
+                    </span>
+                    <q-icon
+                      v-if="hasDeviceOrigin(props.row.am_departure, props.row.am_departure_device_sn)"
+                      name="pin_drop"
+                      size="14px"
+                      class="text-teal-7 q-ml-xs cursor-pointer"
+                    >
+                      <q-tooltip class="bg-grey-9 text-white shadow-4" anchor="top middle" self="bottom middle">
+                        <div class="text-weight-bold text-caption">
+                          {{ getDeviceInfo(props.row.am_departure_device_sn).device_name }}
+                        </div>
+                        <div class="text-caption text-grey-3">
+                          Location: {{ getDeviceInfo(props.row.am_departure_device_sn).location }}
+                        </div>
+                        <div class="text-caption text-grey-4 text-italic" style="font-size: 10px;">
+                          Device SN: {{ props.row.am_departure_device_sn }}
+                        </div>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
                 </q-td>
               </template>
 
               <!-- PM Time In (Afternoon) -->
               <template #body-cell-pm_time_in="props">
                 <q-td :props="props" class="text-left">
-                  {{ formatPunchTime(props.row.pm_arrival) }}
+                  <div class="row items-center no-wrap">
+                    <span class="text-dark">
+                      {{ formatPunchTime(props.row.pm_arrival) }}
+                    </span>
+                    <q-icon
+                      v-if="hasDeviceOrigin(props.row.pm_arrival, props.row.pm_arrival_device_sn)"
+                      name="pin_drop"
+                      size="14px"
+                      class="text-teal-7 q-ml-xs cursor-pointer"
+                    >
+                      <q-tooltip class="bg-grey-9 text-white shadow-4" anchor="top middle" self="bottom middle">
+                        <div class="text-weight-bold text-caption">
+                          {{ getDeviceInfo(props.row.pm_arrival_device_sn).device_name }}
+                        </div>
+                        <div class="text-caption text-grey-3">
+                          Location: {{ getDeviceInfo(props.row.pm_arrival_device_sn).location }}
+                        </div>
+                        <div class="text-caption text-grey-4 text-italic" style="font-size: 10px;">
+                          Device SN: {{ props.row.pm_arrival_device_sn }}
+                        </div>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
                 </q-td>
               </template>
 
               <!-- PM Time Out (Afternoon Out) -->
               <template #body-cell-pm_time_out="props">
                 <q-td :props="props" class="text-left">
-                  <span :class="isRowUndertime(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
-                    {{ formatPunchTime(props.row.pm_departure) }}
-                  </span>
+                  <div class="row items-center no-wrap">
+                    <span :class="isRowUndertime(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
+                      {{ formatPunchTime(props.row.pm_departure) }}
+                    </span>
+                    <q-icon
+                      v-if="hasDeviceOrigin(props.row.pm_departure, props.row.pm_departure_device_sn)"
+                      name="pin_drop"
+                      size="14px"
+                      class="text-teal-7 q-ml-xs cursor-pointer"
+                    >
+                      <q-tooltip class="bg-grey-9 text-white shadow-4" anchor="top middle" self="bottom middle">
+                        <div class="text-weight-bold text-caption">
+                          {{ getDeviceInfo(props.row.pm_departure_device_sn).device_name }}
+                        </div>
+                        <div class="text-caption text-grey-3">
+                          Location: {{ getDeviceInfo(props.row.pm_departure_device_sn).location }}
+                        </div>
+                        <div class="text-caption text-grey-4 text-italic" style="font-size: 10px;">
+                          Device SN: {{ props.row.pm_departure_device_sn }}
+                        </div>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
                 </q-td>
               </template>
 
@@ -290,14 +374,58 @@
               <!-- OT Time In -->
               <template #body-cell-ot_time_in="props">
                 <q-td :props="props" class="text-left">
-                  {{ formatPunchTime(props.row.ot_arrival) }}
+                  <div class="row items-center no-wrap">
+                    <span class="text-dark">
+                      {{ formatPunchTime(props.row.ot_arrival) }}
+                    </span>
+                    <q-icon
+                      v-if="hasDeviceOrigin(props.row.ot_arrival, props.row.ot_arrival_device_sn)"
+                      name="pin_drop"
+                      size="14px"
+                      class="text-teal-7 q-ml-xs cursor-pointer"
+                    >
+                      <q-tooltip class="bg-grey-9 text-white shadow-4" anchor="top middle" self="bottom middle">
+                        <div class="text-weight-bold text-caption">
+                          {{ getDeviceInfo(props.row.ot_arrival_device_sn).device_name }}
+                        </div>
+                        <div class="text-caption text-grey-3">
+                          Location: {{ getDeviceInfo(props.row.ot_arrival_device_sn).location }}
+                        </div>
+                        <div class="text-caption text-grey-4 text-italic" style="font-size: 10px;">
+                          Device SN: {{ props.row.ot_arrival_device_sn }}
+                        </div>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
                 </q-td>
               </template>
 
               <!-- OT Time Out -->
               <template #body-cell-ot_time_out="props">
                 <q-td :props="props" class="text-left">
-                  {{ formatPunchTime(props.row.ot_departure) }}
+                  <div class="row items-center no-wrap">
+                    <span class="text-dark">
+                      {{ formatPunchTime(props.row.ot_departure) }}
+                    </span>
+                    <q-icon
+                      v-if="hasDeviceOrigin(props.row.ot_departure, props.row.ot_departure_device_sn)"
+                      name="pin_drop"
+                      size="14px"
+                      class="text-teal-7 q-ml-xs cursor-pointer"
+                    >
+                      <q-tooltip class="bg-grey-9 text-white shadow-4" anchor="top middle" self="bottom middle">
+                        <div class="text-weight-bold text-caption">
+                          {{ getDeviceInfo(props.row.ot_departure_device_sn).device_name }}
+                        </div>
+                        <div class="text-caption text-grey-3">
+                          Location: {{ getDeviceInfo(props.row.ot_departure_device_sn).location }}
+                        </div>
+                        <div class="text-caption text-grey-4 text-italic" style="font-size: 10px;">
+                          Device SN: {{ props.row.ot_departure_device_sn }}
+                        </div>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
                 </q-td>
               </template>
 
@@ -525,6 +653,25 @@ function formatPunchTime(timeStr) {
     return `${h}:${m} ${ampm}`
   }
   return timeStr
+}
+
+function hasDeviceOrigin(timeStr, deviceSn) {
+  return !!(timeStr && timeStr !== '—' && timeStr !== '-' && deviceSn)
+}
+
+function getDeviceInfo(deviceSn) {
+  if (!deviceSn) {
+    return {
+      device_name: 'Biometric Device',
+      location: 'Office Terminal',
+      serial_number: '',
+    }
+  }
+  return dtrData.value?.devices?.[deviceSn] || {
+    device_name: 'Biometric Device',
+    location: 'Office Terminal',
+    serial_number: deviceSn,
+  }
 }
 
 function formatOtHours(row) {

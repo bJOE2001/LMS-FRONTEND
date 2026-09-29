@@ -25,6 +25,17 @@
           <q-tooltip>Refresh device status</q-tooltip>
         </q-btn>
         <q-btn
+          outline
+          no-caps
+          color="primary"
+          icon="cell_tower"
+          label="Broadcast Roster to All Devices"
+          :loading="broadcastingRoster"
+          @click="broadcastRosterToAll"
+        >
+          <q-tooltip>Sync and queue all biometrically registered personnel across all active biometric terminals</q-tooltip>
+        </q-btn>
+        <q-btn
           unelevated
           no-caps
           color="primary"
@@ -340,6 +351,18 @@
                 round
                 dense
                 size="sm"
+                color="teal-8"
+                icon="cloud_download"
+                :loading="pullingDeviceSn === props.row.serial_number"
+                @click="pullTemplatesFromDevice(props.row)"
+              >
+                <q-tooltip>Pull stored fingerprint and face templates from this terminal</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
                 color="primary"
                 icon="edit"
                 @click="openEditDeviceDialog(props.row)"
@@ -472,8 +495,20 @@
                 </q-toggle>
               </div>
 
-              <!-- Edit & Delete Buttons -->
+              <!-- Pull Templates, Edit & Delete Buttons -->
               <div class="row q-gutter-x-xs">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="teal-8"
+                  icon="cloud_download"
+                  :loading="pullingDeviceSn === dev.serial_number"
+                  @click="pullTemplatesFromDevice(dev)"
+                >
+                  <q-tooltip>Pull stored fingerprint and face templates from this terminal</q-tooltip>
+                </q-btn>
                 <q-btn
                   flat
                   round
@@ -1208,6 +1243,94 @@ async function submitDeleteDevice() {
   } finally {
     submittingDevice.value = false
   }
+}
+
+const broadcastingRoster = ref(false)
+
+function broadcastRosterToAll() {
+  $q.dialog({
+    title: 'Broadcast Roster to All Devices',
+    message: 'This will push all biometrically registered personnel to every active biometric terminal across the city, allowing employees to punch at any office terminal. Proceed?',
+    persistent: true,
+    ok: {
+      label: 'Broadcast to All',
+      color: 'primary',
+      unelevated: true,
+      noCaps: true,
+    },
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      noCaps: true,
+    },
+  }).onOk(async () => {
+    broadcastingRoster.value = true
+    try {
+      const response = await api.post('/hr/biometric-registration/broadcast-all')
+      $q.notify({
+        type: 'positive',
+        message: response.data.message || 'Roster queued for broadcast across all devices.',
+        position: 'top',
+        timeout: 4000,
+      })
+      await fetchDevices()
+    } catch (err) {
+      console.error('Failed to broadcast roster:', err)
+      $q.notify({
+        type: 'negative',
+        message: err.response?.data?.message || 'Failed to broadcast roster to all devices.',
+        position: 'top',
+      })
+    } finally {
+      broadcastingRoster.value = false
+    }
+  })
+}
+
+const pullingDeviceSn = ref(null)
+
+function pullTemplatesFromDevice(dev) {
+  $q.dialog({
+    title: 'Pull Templates from Terminal',
+    message: `Send command to ${dev.device_name || 'Terminal'} (${dev.serial_number}) to upload all its stored fingerprint and face templates into the server?`,
+    persistent: true,
+    ok: {
+      label: 'Pull Templates',
+      color: 'primary',
+      unelevated: true,
+      noCaps: true,
+    },
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      noCaps: true,
+    },
+  }).onOk(async () => {
+    pullingDeviceSn.value = dev.serial_number
+    try {
+      const response = await api.post('/hr/biometric-registration/pull-device-templates', {
+        device_serial_number: dev.serial_number,
+      })
+      $q.notify({
+        type: 'positive',
+        message: response.data.message || 'Template pull commands queued.',
+        position: 'top',
+        timeout: 4000,
+      })
+      await fetchDevices()
+    } catch (err) {
+      console.error('Failed to pull templates from device:', err)
+      $q.notify({
+        type: 'negative',
+        message: err.response?.data?.message || 'Failed to request template pull from terminal.',
+        position: 'top',
+      })
+    } finally {
+      pullingDeviceSn.value = null
+    }
+  })
 }
 
 let pollTimer = null

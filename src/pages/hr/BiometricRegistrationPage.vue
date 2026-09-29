@@ -11,6 +11,27 @@
 
       <div class="row q-gutter-sm items-center q-mt-sm q-mt-md-none">
         <q-btn
+          outline
+          no-caps
+          color="primary"
+          icon="download"
+          label="Pull Templates from Terminal"
+          @click="openPullTemplatesDialog"
+        >
+          <q-tooltip>Query and retrieve stored fingerprint/face templates from a physical terminal</q-tooltip>
+        </q-btn>
+        <q-btn
+          outline
+          no-caps
+          color="primary"
+          icon="cell_tower"
+          label="Broadcast Roster to All Devices"
+          :loading="broadcastingAll"
+          @click="broadcastRosterToAll"
+        >
+          <q-tooltip>Queue all biometrically registered employees and their templates to all active office biometric devices across the city</q-tooltip>
+        </q-btn>
+        <q-btn
           unelevated
           no-caps
           color="positive"
@@ -187,13 +208,48 @@
         <!-- Status Column -->
         <template #body-cell-biometric_status="props">
           <q-td :props="props" class="text-center">
-            <q-badge
-              rounded
-              class="text-weight-bold text-caption q-px-sm"
-              :color="getStatusColor(props.row.biometric_status)"
-              :text-color="getStatusTextColor(props.row.biometric_status)"
-              :label="formatStatus(props.row.biometric_status)"
-            />
+            <div class="column items-center justify-center q-gutter-y-xs">
+              <q-badge
+                rounded
+                class="text-weight-bold text-caption q-px-sm"
+                :color="getStatusColor(props.row.biometric_status)"
+                :text-color="getStatusTextColor(props.row.biometric_status)"
+                :label="formatStatus(props.row.biometric_status)"
+              />
+              <!-- Biometric Template Indicators -->
+              <div v-if="props.row.biometric_status === 'REGISTERED'" class="row items-center justify-center q-gutter-x-xs no-wrap">
+                <q-badge
+                  v-if="props.row.fp_count > 0"
+                  color="green-1"
+                  text-color="green-9"
+                  class="text-weight-bold text-caption q-px-xs"
+                >
+                  <q-icon name="fingerprint" size="12px" class="q-mr-xs" />
+                  {{ props.row.fp_count }} Finger{{ props.row.fp_count > 1 ? 's' : '' }}
+                  <q-tooltip>{{ props.row.fp_count }} fingerprint template(s) saved and cloned across devices</q-tooltip>
+                </q-badge>
+                <q-badge
+                  v-if="props.row.face_count > 0"
+                  color="blue-1"
+                  text-color="blue-9"
+                  class="text-weight-bold text-caption q-px-xs"
+                >
+                  <q-icon name="face" size="12px" class="q-mr-xs" />
+                  Face
+                  <q-tooltip>Face biometric template active</q-tooltip>
+                </q-badge>
+                <q-badge
+                  v-if="!props.row.has_templates"
+                  color="amber-1"
+                  text-color="amber-9"
+                  class="text-weight-medium text-caption q-px-xs"
+                >
+                  <q-icon name="pin" size="12px" class="q-mr-xs" />
+                  PIN Only
+                  <q-tooltip>Registered on terminal via PIN; click "Pull Templates from Terminal" to clone fingerprints</q-tooltip>
+                </q-badge>
+              </div>
+            </div>
           </q-td>
         </template>
 
@@ -323,6 +379,62 @@
             color="primary"
             :loading="submitting"
             @click="submitRegister"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Pull Templates Dialog -->
+    <q-dialog v-model="showPullDialog" persistent>
+      <q-card style="width: 520px; max-width: 95vw;" class="rounded-borders">
+        <q-card-section class="row items-center q-pb-none bg-primary text-white">
+          <div class="text-h6 text-weight-bold flex items-center q-gutter-x-sm">
+            <q-icon name="download" size="22px" />
+            <span>Pull Templates from Terminal</span>
+          </div>
+          <q-space />
+          <q-btn icon="close" flat round dense text-color="white" @click="showPullDialog = false" />
+        </q-card-section>
+
+        <q-card-section class="q-pt-md">
+          <div class="text-caption text-grey-7 q-mb-md">
+            Query a physical biometric terminal to upload all stored fingerprint and face templates into the server for city-wide cloning.
+          </div>
+
+          <div class="q-gutter-y-md">
+            <q-select
+              v-model="selectedPullDeviceSn"
+              :options="deviceOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              label="Select Source Biometric Terminal *"
+              :rules="[val => !!val || 'Select a terminal']"
+            />
+
+            <q-banner rounded class="bg-blue-1 text-blue-9 text-caption">
+              <div class="row items-center q-gutter-x-xs text-weight-bold">
+                <q-icon name="info" size="18px" />
+                <span>How This Works:</span>
+              </div>
+              <div class="q-mt-xs">
+                A <code>QUERY FP</code> and <code>QUERY BIODATA</code> command will be queued for the selected terminal. On its next ADMS heartbeat, the device will upload its enrolled fingerprint and face templates directly to the server.
+              </div>
+            </q-banner>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md bg-grey-1">
+          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showPullDialog = false" />
+          <q-btn
+            unelevated
+            no-caps
+            label="Request Template Pull"
+            color="primary"
+            icon="cloud_download"
+            :loading="pullingTemplates"
+            @click="submitPullTemplates"
           />
         </q-card-actions>
       </q-card>
@@ -577,6 +689,97 @@ async function syncFromLogs() {
     })
   } finally {
     syncingLogs.value = false
+  }
+}
+
+const broadcastingAll = ref(false)
+
+function broadcastRosterToAll() {
+  $q.dialog({
+    title: 'Broadcast Roster to All Devices',
+    message: 'This will push all biometrically registered personnel to every active biometric terminal across the city, allowing employees to punch at any office terminal. Proceed?',
+    persistent: true,
+    ok: {
+      label: 'Broadcast to All',
+      color: 'primary',
+      unelevated: true,
+      noCaps: true,
+    },
+    cancel: {
+      label: 'Cancel',
+      flat: true,
+      color: 'grey-7',
+      noCaps: true,
+    },
+  }).onOk(async () => {
+    broadcastingAll.value = true
+    try {
+      const response = await api.post('/hr/biometric-registration/broadcast-all')
+      $q.notify({
+        type: 'positive',
+        message: response.data.message || 'Roster queued for broadcast across all devices.',
+        position: 'top',
+        timeout: 4000,
+      })
+      await fetchEmployees()
+    } catch (err) {
+      console.error('Failed to broadcast roster:', err)
+      $q.notify({
+        type: 'negative',
+        message: err.response?.data?.message || 'Failed to broadcast roster to all devices.',
+        position: 'top',
+      })
+    } finally {
+      broadcastingAll.value = false
+    }
+  })
+}
+
+const showPullDialog = ref(false)
+const selectedPullDeviceSn = ref(null)
+const pullingTemplates = ref(false)
+
+function openPullTemplatesDialog() {
+  if (deviceOptions.value.length > 0 && !selectedPullDeviceSn.value) {
+    selectedPullDeviceSn.value = deviceOptions.value[0].value
+  }
+  showPullDialog.value = true
+}
+
+async function submitPullTemplates() {
+  if (!selectedPullDeviceSn.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please select a source biometric terminal.',
+      position: 'top',
+    })
+    return
+  }
+
+  pullingTemplates.value = true
+  try {
+    const response = await api.post('/hr/biometric-registration/pull-device-templates', {
+      device_serial_number: selectedPullDeviceSn.value,
+    })
+
+    $q.notify({
+      type: 'positive',
+      message: response.data.message || 'Template pull commands queued successfully.',
+      position: 'top',
+      timeout: 4000,
+    })
+
+    showPullDialog.value = false
+    await fetchEmployees()
+  } catch (err) {
+    console.error('Failed to pull templates from device:', err)
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to request template pull from terminal.',
+      position: 'top',
+    })
+  } finally {
+    pullingTemplates.value = false
   }
 }
 
