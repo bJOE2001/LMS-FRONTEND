@@ -3679,19 +3679,47 @@ export function useAdminApplicationsPage() {
 
     const remarksSignal = normalizeSearchText(app?.remarks || '')
     if (
-      remarksSignal.includes('edit request') ||
-      remarksSignal.includes('request update') ||
-      remarksSignal.includes('recall request') ||
-      remarksSignal.includes('cancel request') ||
-      remarksSignal.includes('cancellation request')
+      !remarksSignal.includes('hr staff edit') &&
+      !remarksSignal.includes('hr application override') &&
+      !remarksSignal.includes('hr updated requested dates') &&
+      (
+        remarksSignal.includes('edit request') ||
+        remarksSignal.includes('request update') ||
+        remarksSignal.includes('recall request') ||
+        remarksSignal.includes('cancel request') ||
+        remarksSignal.includes('cancellation request')
+      )
     ) {
       return true
     }
 
     return getStatusHistoryEntries(app).some((entry) => {
       const actionToken = normalizeAdminStatusHistoryActionToken(entry?.action)
+      if (
+        actionToken.includes('HR_APPLICATION_EDIT') ||
+        actionToken.includes('HR_EDIT')
+      ) {
+        return false
+      }
+
       const stageToken = normalizeAdminStatusHistoryToken(entry?.stage)
+      if (
+        stageToken.includes('hr edited application') ||
+        stageToken.includes('hr requested application edit') ||
+        stageToken.includes('hr approved application edit') ||
+        stageToken.includes('hr rejected application edit')
+      ) {
+        return false
+      }
+
       const historyRemarksToken = normalizeAdminStatusHistoryToken(entry?.remarks)
+      if (
+        historyRemarksToken.includes('hr staff edit request') ||
+        historyRemarksToken.includes('hr application override') ||
+        historyRemarksToken.includes('hr updated requested dates')
+      ) {
+        return false
+      }
 
       return (
         actionToken.includes('EDIT') ||
