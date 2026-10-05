@@ -267,6 +267,13 @@ function resolveLeaveRequestActionType(application = null) {
   if (payloadType) return payloadType
 
   const remarksToken = String(application?.remarks || '').toLowerCase()
+  if (
+    remarksToken.includes('hr staff edit') ||
+    remarksToken.includes('hr application override') ||
+    remarksToken.includes('hr updated requested dates')
+  ) {
+    return ''
+  }
   if (remarksToken.includes('recall request')) {
     return REQUEST_ACTION_RECALL
   }
@@ -754,6 +761,37 @@ function resolveStatusHistoryActor(entry) {
   return String(entry?.actor_name || '').trim()
 }
 
+function isHrApplicationEditWorkflowEntry(entry = {}) {
+  const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+  if (
+    actionToken.includes('HR_APPLICATION_EDIT') ||
+    actionToken.includes('HR_EDIT')
+  ) {
+    return true
+  }
+
+  const stageToken = normalizeStatusHistoryToken(entry?.stage)
+  if (
+    stageToken.includes('hr edited application') ||
+    stageToken.includes('hr requested application edit') ||
+    stageToken.includes('hr approved application edit') ||
+    stageToken.includes('hr rejected application edit')
+  ) {
+    return true
+  }
+
+  const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
+  if (
+    remarksToken.includes('hr staff edit request') ||
+    remarksToken.includes('hr application override') ||
+    remarksToken.includes('hr updated requested dates')
+  ) {
+    return true
+  }
+
+  return false
+}
+
 function resolveCurrentUpdateRequestCycleStartAt(application) {
   if (!application || typeof application !== 'object') return null
 
@@ -761,9 +799,12 @@ function resolveCurrentUpdateRequestCycleStartAt(application) {
   if (explicitValue) return explicitValue
 
   const requestActionType = resolveLeaveRequestActionType(application)
+  if (!requestActionType) return null
+
   const entries = getStatusHistoryEntries(application)
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index] || {}
+    if (isHrApplicationEditWorkflowEntry(entry)) continue
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)

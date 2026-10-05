@@ -751,9 +751,41 @@ function resolveLeaveRequestActionTypeFromPayload(payload) {
   return ''
 }
 
+function isHrApplicationEditWorkflowEntry(entry = {}) {
+  const actionToken = normalizeStatusHistoryActionToken(entry?.action)
+  if (
+    actionToken.includes('HR_APPLICATION_EDIT') ||
+    actionToken.includes('HR_EDIT')
+  ) {
+    return true
+  }
+
+  const stageToken = normalizeStatusHistoryToken(entry?.stage)
+  if (
+    stageToken.includes('hr edited application') ||
+    stageToken.includes('hr requested application edit') ||
+    stageToken.includes('hr approved application edit') ||
+    stageToken.includes('hr rejected application edit')
+  ) {
+    return true
+  }
+
+  const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
+  if (
+    remarksToken.includes('hr staff edit request') ||
+    remarksToken.includes('hr application override') ||
+    remarksToken.includes('hr updated requested dates')
+  ) {
+    return true
+  }
+
+  return false
+}
+
 function resolveLeaveRequestActionTypeFromStatusHistory(app) {
   return getStatusHistoryEntries(app).reduce((resolved, entry = {}) => {
     if (resolved) return resolved
+    if (isHrApplicationEditWorkflowEntry(entry)) return ''
 
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
@@ -3700,19 +3732,24 @@ function hasEditRequestSignal(app) {
 
   const remarksSignal = normalizeStatusHistoryToken(app?.remarks || '')
   if (
-    remarksSignal.includes('edit request') ||
-    remarksSignal.includes('request update') ||
-    remarksSignal.includes('recall request') ||
-    remarksSignal.includes('cancel request') ||
-    remarksSignal.includes('cancellation request')
+    !remarksSignal.includes('hr staff edit') &&
+    !remarksSignal.includes('hr application override') &&
+    !remarksSignal.includes('hr updated requested dates') &&
+    (
+      remarksSignal.includes('edit request') ||
+      remarksSignal.includes('request update') ||
+      remarksSignal.includes('recall request') ||
+      remarksSignal.includes('cancel request') ||
+      remarksSignal.includes('cancellation request')
+    )
   ) {
     return true
   }
 
   return getStatusHistoryEntries(app).some((entry) => {
+    if (isHrApplicationEditWorkflowEntry(entry)) return false
+
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
-    if (actionToken.includes('HR_APPLICATION_EDIT')) return false
-    
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const historyRemarksToken = normalizeStatusHistoryToken(entry?.remarks)
 
@@ -3741,6 +3778,8 @@ function resolveEditRequestSubmittedHistoryEntry(app) {
   const requestActionType = getLeaveRequestActionType(app)
 
   return findLatestStatusHistoryEntry(app, (entry) => {
+    if (isHrApplicationEditWorkflowEntry(entry)) return false
+
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
@@ -3832,6 +3871,8 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
   const requestActionType = getLeaveRequestActionType(app)
 
   return findLatestStatusHistoryEntry(app, (entry) => {
+    if (isHrApplicationEditWorkflowEntry(entry)) return false
+
     const actionToken = normalizeStatusHistoryActionToken(entry?.action)
     const stageToken = normalizeStatusHistoryToken(entry?.stage)
     const remarksToken = normalizeStatusHistoryToken(entry?.remarks)
