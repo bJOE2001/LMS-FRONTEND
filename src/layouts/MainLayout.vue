@@ -183,7 +183,7 @@
             <q-item-section avatar>
               <q-icon name="co_present" />
             </q-item-section>
-            <q-item-section>Attendance Management</q-item-section>
+            <q-item-section>Attendance Mgt</q-item-section>
           </q-item>
 
           <!-- ADMINISTRATION -->

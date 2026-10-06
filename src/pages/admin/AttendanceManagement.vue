@@ -1,140 +1,185 @@
 <template>
   <q-page class="q-pa-md attendance-overview-page">
-    <!-- 4 Summary Stat Cards matching Screenshot 1 -->
-    <div class="row q-col-gutter-md q-mb-lg">
-      <!-- Total Employee -->
-      <div class="col-12 col-sm-6 col-md-3">
-        <div class="stat-box">
-          <div class="row items-center justify-between no-wrap">
-            <span class="stat-box-title">Total Employee</span>
-            <q-icon name="groups" size="22px" class="stat-icon-green" />
-          </div>
-          <div class="stat-box-number">
-            {{ stats.total }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Present Today -->
-      <div class="col-12 col-sm-6 col-md-3">
-        <div class="stat-box">
-          <div class="row items-center justify-between no-wrap">
-            <span class="stat-box-title">Present Today</span>
-            <q-icon name="check_circle" size="20px" class="stat-icon-green" />
-          </div>
-          <div class="stat-box-number">
-            {{ stats.present }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Late Today -->
-      <div class="col-12 col-sm-6 col-md-3">
-        <div class="stat-box">
-          <div class="row items-center justify-between no-wrap">
-            <span class="stat-box-title">Late Today</span>
-            <q-icon name="schedule" size="20px" class="stat-icon-yellow" />
-          </div>
-          <div class="stat-box-number">
-            {{ stats.late }}
-          </div>
-        </div>
-      </div>
-
-      <!-- On Leave -->
-      <div class="col-12 col-sm-6 col-md-3">
-        <div class="stat-box">
-          <div class="row items-center justify-between no-wrap">
-            <span class="stat-box-title">On Leave</span>
-            <q-icon name="event" size="20px" class="stat-icon-blue" />
-          </div>
-          <div class="stat-box-number">
-            {{ stats.on_leave }}
-          </div>
-        </div>
+    <!-- Header -->
+    <div class="row items-center justify-between q-mb-md">
+      <div>
+        <h1 class="text-h4 text-weight-bold q-my-none">Attendance Management</h1>
       </div>
     </div>
 
-    <!-- Attendance Records Main Container matching Screenshot 1 -->
-    <div class="records-container bg-white q-pa-md rounded-borders">
-      <div class="row items-center justify-between q-mb-md">
-        <div class="text-h6 text-weight-bold text-dark">
-          Attendance Records
-        </div>
-
-        <!-- Subtle Date Selector (default today, allow picking another day) -->
-        <div class="row items-center q-gutter-x-xs">
-          <q-btn
-            flat
-            dense
-            round
-            icon="chevron_left"
-            size="sm"
-            color="grey-7"
-            @click="changeDate(-1)"
-          >
-            <q-tooltip>Previous Day</q-tooltip>
-          </q-btn>
-          <q-input
-            v-model="selectedDate"
-            dense
-            outlined
-            mask="####-##-##"
-            style="width: 140px;"
-            class="compact-date-input"
-            @update:model-value="fetchAttendanceOverview"
-          >
-            <template #append>
-              <q-icon name="event" size="18px" class="cursor-pointer text-grey-7">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date
-                    v-model="selectedDate"
-                    mask="YYYY-MM-DD"
-                    @update:model-value="fetchAttendanceOverview"
-                  >
-                    <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Close" color="primary" flat />
-                    </div>
-                  </q-date>
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
-          <q-btn
-            flat
-            dense
-            round
-            icon="chevron_right"
-            size="sm"
-            color="grey-7"
-            @click="changeDate(1)"
-          >
-            <q-tooltip>Next Day</q-tooltip>
-          </q-btn>
-          <q-btn
-            v-if="selectedDate !== todayStr"
-            flat
-            no-caps
-            dense
-            color="primary"
-            label="Today"
-            size="sm"
-            @click="setToday"
-          />
-        </div>
+    <!-- Summary Stat Cards (Clean 4-Card Grid) -->
+    <div class="row q-col-gutter-sm q-mb-md">
+      <!-- Total Employees -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered class="rounded-borders bg-white stat-card">
+          <q-card-section class="q-py-md">
+            <div class="row items-center no-wrap">
+              <q-avatar size="40px" color="blue-1" text-color="blue-9" class="q-mr-md">
+                <q-icon name="groups" size="22px" />
+              </q-avatar>
+              <div>
+                <div class="text-caption text-grey-7">Total Employees</div>
+                <div class="text-h5 text-weight-bold text-dark">{{ stats.total }}</div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
       </div>
 
-      <!-- Search Input -->
-      <div class="q-mb-md">
-        <q-input
-          v-model="searchTerm"
-          outlined
-          dense
-          placeholder="Search Employee"
-          class="search-employee-input"
-          @update:model-value="onSearchInput"
-        />
+      <!-- Present Today -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered class="rounded-borders bg-white stat-card">
+          <q-card-section class="q-py-md">
+            <div class="row items-center no-wrap">
+              <q-avatar size="40px" color="green-1" text-color="positive" class="q-mr-md">
+                <q-icon name="check_circle" size="22px" />
+              </q-avatar>
+              <div>
+                <div class="text-caption text-grey-7">Present Today</div>
+                <div class="text-h5 text-weight-bold text-positive">{{ stats.present }}</div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
       </div>
+
+      <!-- Late Today -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered class="rounded-borders bg-white stat-card">
+          <q-card-section class="q-py-md">
+            <div class="row items-center no-wrap">
+              <q-avatar size="40px" color="amber-1" text-color="amber-9" class="q-mr-md">
+                <q-icon name="schedule" size="22px" />
+              </q-avatar>
+              <div>
+                <div class="text-caption text-grey-7">Late Today</div>
+                <div class="text-h5 text-weight-bold text-amber-9">{{ stats.late }}</div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <!-- On Leave -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered class="rounded-borders bg-white stat-card">
+          <q-card-section class="q-py-md">
+            <div class="row items-center no-wrap">
+              <q-avatar size="40px" color="indigo-1" text-color="indigo-9" class="q-mr-md">
+                <q-icon name="event" size="22px" />
+              </q-avatar>
+              <div>
+                <div class="text-caption text-grey-7">On Leave</div>
+                <div class="text-h5 text-weight-bold text-indigo-9">{{ stats.on_leave }}</div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+    </div>
+
+    <!-- Attendance Records Main Card -->
+    <q-card flat bordered class="rounded-borders bg-white">
+      <q-card-section class="q-pb-sm">
+        <div class="row items-center justify-between q-col-gutter-sm">
+          <div>
+            <div class="text-h6 text-weight-bold text-dark">Attendance Records</div>
+            <div class="text-caption text-grey-6">Daily logs and attendance status overview</div>
+          </div>
+
+          <div class="row items-center q-gutter-sm">
+            <!-- Search Input -->
+            <q-input
+              v-model="searchTerm"
+              outlined
+              dense
+              placeholder="Search employee or ID..."
+              class="search-employee-input"
+              clearable
+              @update:model-value="onSearchInput"
+            >
+              <template #prepend>
+                <q-icon name="search" size="18px" color="grey-6" />
+              </template>
+            </q-input>
+
+            <!-- Date Selector -->
+            <div class="row items-center bg-grey-1 rounded-borders q-px-xs border-light">
+              <q-btn
+                flat
+                dense
+                round
+                icon="chevron_left"
+                size="sm"
+                color="grey-7"
+                @click="changeDate(-1)"
+              >
+                <q-tooltip>Previous Day</q-tooltip>
+              </q-btn>
+              <q-input
+                v-model="selectedDate"
+                dense
+                borderless
+                mask="####-##-##"
+                style="width: 100px;"
+                class="compact-date-input text-caption text-center"
+                @update:model-value="fetchAttendanceOverview"
+              >
+                <template #append>
+                  <q-icon name="event" size="16px" class="cursor-pointer text-grey-7">
+                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                      <q-date
+                        v-model="selectedDate"
+                        mask="YYYY-MM-DD"
+                        @update:model-value="fetchAttendanceOverview"
+                      >
+                        <div class="row items-center justify-end">
+                          <q-btn v-close-popup label="Close" color="primary" flat />
+                        </div>
+                      </q-date>
+                    </q-popup-proxy>
+                  </q-icon>
+                </template>
+              </q-input>
+              <q-btn
+                flat
+                dense
+                round
+                icon="chevron_right"
+                size="sm"
+                color="grey-7"
+                @click="changeDate(1)"
+              >
+                <q-tooltip>Next Day</q-tooltip>
+              </q-btn>
+            </div>
+
+            <q-btn
+              v-if="selectedDate !== todayStr"
+              outline
+              no-caps
+              dense
+              color="primary"
+              label="Today"
+              size="sm"
+              class="q-px-sm"
+              @click="setToday"
+            />
+
+            <q-btn
+              flat
+              round
+              dense
+              icon="refresh"
+              color="grey-7"
+              :loading="loading"
+              @click="fetchAttendanceOverview"
+            >
+              <q-tooltip>Refresh</q-tooltip>
+            </q-btn>
+          </div>
+        </div>
+      </q-card-section>
 
       <!-- 4-Column Table -->
       <q-table
@@ -143,18 +188,25 @@
         row-key="control_no"
         flat
         :loading="loading"
-        :rows-per-page-options="[5, 10, 20, 50]"
+        :rows-per-page-options="[10, 20, 50, 100]"
         v-model:pagination="pagination"
         class="attendance-table"
       >
-        <!-- Employee Column: Bold name on top, control number in grey below -->
+        <!-- Employee Column: Initials avatar + name + control number -->
         <template #body-cell-employee="props">
           <q-td :props="props" class="text-left">
-            <div class="text-weight-bold text-dark employee-name-text">
-              {{ props.row.employee_name }}
-            </div>
-            <div class="text-caption text-grey-6 font-mono">
-              {{ props.row.control_no }}
+            <div class="row items-center no-wrap">
+              <q-avatar size="34px" color="blue-1" text-color="primary" class="q-mr-sm text-weight-bold text-caption">
+                {{ getInitials(props.row.employee_name) }}
+              </q-avatar>
+              <div>
+                <div class="text-weight-bold text-dark employee-name-text">
+                  {{ props.row.employee_name }}
+                </div>
+                <div class="text-caption text-grey-6 font-mono">
+                  ID: {{ props.row.control_no }}
+                </div>
+              </div>
             </div>
           </q-td>
         </template>
@@ -162,32 +214,36 @@
         <!-- Position Column: Designation -->
         <template #body-cell-position="props">
           <q-td :props="props" class="text-left">
-            <div class="text-dark position-text">
+            <div class="text-grey-8 position-text">
               {{ props.row.designation || 'Staff' }}
             </div>
           </q-td>
         </template>
 
-        <!-- Attendance Status Column: Solid pill badge -->
+        <!-- Attendance Status Column: Soft rounded badge -->
         <template #body-cell-attendance_status="props">
-          <q-td :props="props" class="text-left">
-            <span class="status-pill" :class="getStatusClass(props.row.attendance_status)">
-              {{ props.row.attendance_status || 'Absent' }}
-            </span>
+          <q-td :props="props" class="text-center">
+            <q-badge
+              rounded
+              class="text-weight-bold text-caption q-px-sm"
+              :color="getStatusBadgeColor(props.row.attendance_status)"
+              :text-color="getStatusBadgeTextColor(props.row.attendance_status)"
+              :label="props.row.attendance_status || 'Absent'"
+            />
           </q-td>
         </template>
 
-        <!-- Action Column: Green Eye icon and Green Clock-with-pen icon -->
+        <!-- Action Column: Details & Override Time -->
         <template #body-cell-action="props">
-          <q-td :props="props" class="text-left">
-            <div class="row items-center no-wrap q-gutter-x-sm">
+          <q-td :props="props" class="text-center">
+            <div class="row items-center justify-center no-wrap q-gutter-x-xs">
               <!-- View Employee Details (Eye) -->
               <q-btn
                 flat
                 round
                 dense
                 size="sm"
-                class="action-btn-green"
+                color="primary"
                 icon="visibility"
                 @click="openEmployeeRecord(props.row)"
               >
@@ -200,7 +256,7 @@
                 round
                 dense
                 size="sm"
-                class="action-btn-green"
+                color="grey-7"
                 icon="edit_calendar"
                 @click="openOverrideDialog(props.row)"
               >
@@ -218,9 +274,9 @@
           </div>
         </template>
       </q-table>
-    </div>
+    </q-card>
 
-    <!-- Override Time Dialog (Screenshot 3) -->
+    <!-- Override Time Dialog -->
     <DtrOverrideDialog
       v-model="showOverrideDialog"
       :control-no="activeOverrideEmployee?.control_no"
@@ -259,7 +315,7 @@ const employeeRows = ref([])
 
 const pagination = ref({
   page: 1,
-  rowsPerPage: 5, // Records per page: 5 matching Screenshot 1
+  rowsPerPage: 10,
   sortBy: 'employee_name',
   descending: false,
 })
@@ -267,23 +323,41 @@ const pagination = ref({
 const columns = [
   { name: 'employee', label: 'Employee', field: 'employee_name', align: 'left', sortable: true },
   { name: 'position', label: 'Position', field: 'designation', align: 'left', sortable: true },
-  { name: 'attendance_status', label: 'Attendance Status', field: 'attendance_status', align: 'left', sortable: true },
-  { name: 'action', label: 'Action', align: 'left' },
+  { name: 'attendance_status', label: 'Attendance Status', field: 'attendance_status', align: 'center', sortable: true },
+  { name: 'action', label: 'Action', align: 'center' },
 ]
 
 // Override Dialog State
 const showOverrideDialog = ref(false)
 const activeOverrideEmployee = ref(null)
 
-function getStatusClass(status) {
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function getStatusBadgeColor(status) {
   const norm = String(status || '').toLowerCase().trim()
-  if (norm === 'on time') return 'status-on-time'
-  if (norm === 'late') return 'status-late'
-  if (norm === 'on leave') return 'status-on-leave'
-  if (norm === 'half day') return 'status-half-day'
-  if (norm === 'rest day') return 'status-rest-day'
-  if (norm === 'absent') return 'status-absent'
-  return 'status-absent'
+  if (norm === 'on time' || norm === 'present') return 'green-1'
+  if (norm === 'late') return 'amber-1'
+  if (norm === 'absent') return 'red-1'
+  if (norm === 'on leave') return 'blue-1'
+  if (norm === 'half day') return 'orange-1'
+  if (norm === 'rest day') return 'grey-2'
+  return 'red-1'
+}
+
+function getStatusBadgeTextColor(status) {
+  const norm = String(status || '').toLowerCase().trim()
+  if (norm === 'on time' || norm === 'present') return 'green-9'
+  if (norm === 'late') return 'amber-9'
+  if (norm === 'absent') return 'red-9'
+  if (norm === 'on leave') return 'blue-9'
+  if (norm === 'half day') return 'orange-9'
+  if (norm === 'rest day') return 'grey-8'
+  return 'red-9'
 }
 
 function changeDate(deltaDays) {
@@ -341,7 +415,7 @@ async function fetchAttendanceOverview() {
 }
 
 /**
- * Open Employee Details View (Screenshot 2)
+ * Open Employee Details View
  */
 function openEmployeeRecord(employee) {
   router.push({
@@ -351,7 +425,7 @@ function openEmployeeRecord(employee) {
 }
 
 /**
- * Open Override Dialog (Screenshot 3)
+ * Open Override Dialog
  */
 function openOverrideDialog(employee) {
   activeOverrideEmployee.value = employee
@@ -373,71 +447,32 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-/* 4 Summary Stat Boxes matching Screenshot 1 */
-.stat-box {
-  background: #ffffff;
+.stat-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.border-light {
   border: 1px solid #e2e8f0;
+}
+
+.search-employee-input {
+  min-width: 240px;
+}
+
+.search-employee-input :deep(.q-field__control) {
+  height: 36px;
   border-radius: 6px;
-  padding: 14px 18px;
-  min-height: 86px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.stat-box-title {
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: #475569;
-}
-
-.stat-box-number {
-  font-size: 1.85rem;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.2;
-  margin-top: 4px;
-}
-
-.stat-icon-green {
-  color: #2e7d32 !important;
-}
-
-.stat-icon-yellow {
-  color: #fbc02d !important;
-}
-
-.stat-icon-blue {
-  color: #1976d2 !important;
-}
-
-/* Records Container */
-.records-container {
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .compact-date-input :deep(.q-field__control) {
   height: 32px;
-  font-size: 0.82rem;
-}
-
-.search-employee-input {
-  max-width: 360px;
-}
-
-.search-employee-input :deep(.q-field__control) {
-  height: 38px;
-  border-radius: 4px;
-}
-
-/* 4-Column Table */
-.attendance-table {
-  background: #ffffff;
+  font-size: 0.85rem;
 }
 
 .attendance-table :deep(th) {
   font-weight: 700;
   color: #0f172a;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   border-bottom: 1.5px solid #e2e8f0;
   padding-top: 12px;
   padding-bottom: 12px;
@@ -452,7 +487,8 @@ onMounted(() => {
 }
 
 .employee-name-text {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  line-height: 1.25;
 }
 
 .position-text {
@@ -462,52 +498,5 @@ onMounted(() => {
 .font-mono {
   font-family: monospace;
   font-size: 0.78rem;
-}
-
-/* Pill Badges */
-.status-pill {
-  display: inline-block;
-  padding: 3px 12px;
-  border-radius: 6px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  text-align: center;
-  text-transform: capitalize;
-  letter-spacing: 0.2px;
-}
-
-.status-on-time {
-  background-color: #388e3c;
-  color: #ffffff;
-}
-
-.status-late {
-  background-color: #f57c00;
-  color: #ffffff;
-}
-
-.status-absent {
-  background-color: #d32f2f;
-  color: #ffffff;
-}
-
-.status-on-leave {
-  background-color: #1976d2;
-  color: #ffffff;
-}
-
-.status-half-day {
-  background-color: #ff9800;
-  color: #ffffff;
-}
-
-.status-rest-day {
-  background-color: #757575;
-  color: #ffffff;
-}
-
-/* Action Buttons */
-.action-btn-green {
-  color: #2e7d32 !important;
 }
 </style>

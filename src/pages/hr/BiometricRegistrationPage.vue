@@ -4,44 +4,6 @@
     <div class="row items-center justify-between q-mb-md">
       <div>
         <h1 class="text-h4 text-weight-bold q-my-none">Biometric Registration</h1>
-        <div class="text-subtitle2 text-grey-7 q-mt-xs">
-          Register new employee profiles onto the HR Biometric Terminal for face and fingerprint enrollment.
-        </div>
-      </div>
-
-      <div class="row q-gutter-sm items-center q-mt-sm q-mt-md-none">
-        <q-btn
-          outline
-          no-caps
-          color="primary"
-          icon="download"
-          label="Pull Templates from Terminal"
-          @click="openPullTemplatesDialog"
-        >
-          <q-tooltip>Query and retrieve stored fingerprint/face templates from a physical terminal</q-tooltip>
-        </q-btn>
-        <q-btn
-          outline
-          no-caps
-          color="primary"
-          icon="cell_tower"
-          label="Broadcast Roster to All Devices"
-          :loading="broadcastingAll"
-          @click="broadcastRosterToAll"
-        >
-          <q-tooltip>Queue all biometrically registered employees and their templates to all active office biometric devices across the city</q-tooltip>
-        </q-btn>
-        <q-btn
-          unelevated
-          no-caps
-          color="positive"
-          icon="sync"
-          label="Sync from Device Logs"
-          :loading="syncingLogs"
-          @click="syncFromLogs"
-        >
-          <q-tooltip>Scan device punch logs and automatically mark all existing enrolled personnel as Registered</q-tooltip>
-        </q-btn>
       </div>
     </div>
 
@@ -51,15 +13,14 @@
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
-              <q-avatar size="42px" color="blue-1" text-color="blue-9" class="q-mr-md">
-                <q-icon name="people" size="24px" />
+              <q-avatar size="40px" color="blue-1" text-color="blue-9" class="q-mr-md">
+                <q-icon name="people" size="22px" />
               </q-avatar>
               <div>
-                <div class="text-caption text-grey-7 text-weight-medium">HRIS Employees</div>
+                <div class="text-caption text-grey-7">HRIS Employees</div>
                 <div class="text-h5 text-weight-bold text-dark">{{ stats.total_employees }}</div>
               </div>
             </div>
-            <div class="text-caption text-grey-6 q-mt-xs">Active personnel directory</div>
           </q-card-section>
         </q-card>
       </div>
@@ -68,15 +29,14 @@
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
-              <q-avatar size="42px" color="green-1" text-color="green-9" class="q-mr-md">
-                <q-icon name="verified_user" size="24px" />
+              <q-avatar size="40px" color="green-1" text-color="green-9" class="q-mr-md">
+                <q-icon name="verified_user" size="22px" />
               </q-avatar>
               <div>
-                <div class="text-caption text-grey-7 text-weight-medium">Biometric Registered</div>
+                <div class="text-caption text-grey-7">Registered</div>
                 <div class="text-h5 text-weight-bold text-positive">{{ stats.registered }}</div>
               </div>
             </div>
-            <div class="text-caption text-grey-6 q-mt-xs">Ready for office pulling</div>
           </q-card-section>
         </q-card>
       </div>
@@ -85,15 +45,14 @@
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
-              <q-avatar size="42px" color="amber-1" text-color="amber-9" class="q-mr-md">
-                <q-icon name="hourglass_top" size="24px" />
+              <q-avatar size="40px" color="amber-1" text-color="amber-9" class="q-mr-md">
+                <q-icon name="hourglass_top" size="22px" />
               </q-avatar>
               <div>
-                <div class="text-caption text-grey-7 text-weight-medium">Pending Scan</div>
+                <div class="text-caption text-grey-7">Pending Scan</div>
                 <div class="text-h5 text-weight-bold text-amber-9">{{ stats.pending }}</div>
               </div>
             </div>
-            <div class="text-caption text-grey-6 q-mt-xs">Queued to terminal</div>
           </q-card-section>
         </q-card>
       </div>
@@ -102,15 +61,14 @@
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
-              <q-avatar size="42px" color="grey-2" text-color="grey-8" class="q-mr-md">
-                <q-icon name="person_add" size="24px" />
+              <q-avatar size="40px" color="grey-2" text-color="grey-8" class="q-mr-md">
+                <q-icon name="person_add" size="22px" />
               </q-avatar>
               <div>
-                <div class="text-caption text-grey-7 text-weight-medium">Not Registered</div>
+                <div class="text-caption text-grey-7">Not Registered</div>
                 <div class="text-h5 text-weight-bold text-grey-8">{{ stats.not_registered }}</div>
               </div>
             </div>
-            <div class="text-caption text-grey-6 q-mt-xs">Awaiting HR biometric push</div>
           </q-card-section>
         </q-card>
       </div>
@@ -188,19 +146,18 @@
         <!-- Office Column -->
         <template #body-cell-office="props">
           <q-td :props="props">
-            <div>{{ props.value }}</div>
-            <q-tooltip v-if="props.row.hris_office || props.row.office">
-              {{ props.row.hris_office || props.row.office }}
-            </q-tooltip>
-          </q-td>
-        </template>
-
-        <!-- Assigned Office Column -->
-        <template #body-cell-assigned_office="props">
-          <q-td :props="props">
-            <div :class="props.value === '-' ? 'text-grey-5' : 'text-weight-medium'">{{ props.value }}</div>
-            <q-tooltip v-if="props.row.assigned_department_name && props.row.assigned_department_name !== props.value">
-              {{ props.row.assigned_department_name }}
+            <div class="row items-center no-wrap">
+              <span class="text-dark">{{ props.value }}</span>
+              <q-badge
+                v-if="props.row.is_department_reassigned"
+                color="blue-1"
+                text-color="primary"
+                label="Reassigned"
+                class="q-ml-xs text-caption"
+              />
+            </div>
+            <q-tooltip v-if="props.row.assigned_department_name || props.row.hris_office || props.row.office">
+              {{ props.row.assigned_department_name ? `Assigned: ${props.row.assigned_department_name} (Plantilla: ${props.row.office})` : props.row.office }}
             </q-tooltip>
           </q-td>
         </template>
@@ -208,55 +165,16 @@
         <!-- Status Column -->
         <template #body-cell-biometric_status="props">
           <q-td :props="props" class="text-center">
-            <div class="column items-center justify-center q-gutter-y-xs">
-              <q-badge
-                rounded
-                class="text-weight-bold text-caption q-px-sm"
-                :color="getStatusColor(props.row.biometric_status)"
-                :text-color="getStatusTextColor(props.row.biometric_status)"
-                :label="formatStatus(props.row.biometric_status)"
-              />
-              <!-- Biometric Template Indicators -->
-              <div v-if="props.row.biometric_status === 'REGISTERED'" class="row items-center justify-center q-gutter-x-xs no-wrap">
-                <q-badge
-                  v-if="props.row.fp_count > 0"
-                  color="green-1"
-                  text-color="green-9"
-                  class="text-weight-bold text-caption q-px-xs"
-                >
-                  <q-icon name="fingerprint" size="12px" class="q-mr-xs" />
-                  {{ props.row.fp_count }} Finger{{ props.row.fp_count > 1 ? 's' : '' }}
-                  <q-tooltip>{{ props.row.fp_count }} fingerprint template(s) saved and cloned across devices</q-tooltip>
-                </q-badge>
-                <q-badge
-                  v-if="props.row.face_count > 0"
-                  color="blue-1"
-                  text-color="blue-9"
-                  class="text-weight-bold text-caption q-px-xs"
-                >
-                  <q-icon name="face" size="12px" class="q-mr-xs" />
-                  Face
-                  <q-tooltip>Face biometric template active</q-tooltip>
-                </q-badge>
-                <q-badge
-                  v-if="!props.row.has_templates"
-                  color="amber-1"
-                  text-color="amber-9"
-                  class="text-weight-medium text-caption q-px-xs"
-                >
-                  <q-icon name="pin" size="12px" class="q-mr-xs" />
-                  PIN Only
-                  <q-tooltip>Registered on terminal via PIN; click "Pull Templates from Terminal" to clone fingerprints</q-tooltip>
-                </q-badge>
-              </div>
+            <q-badge
+              rounded
+              class="text-weight-bold text-caption q-px-sm"
+              :color="getStatusColor(props.row.biometric_status)"
+              :text-color="getStatusTextColor(props.row.biometric_status)"
+              :label="formatStatus(props.row.biometric_status)"
+            />
+            <div v-if="props.row.enrolled_at" class="text-caption text-grey-6 q-mt-xs">
+              {{ formatTimestamp(props.row.enrolled_at) }}
             </div>
-          </q-td>
-        </template>
-
-        <!-- Enrolled At Column -->
-        <template #body-cell-enrolled_at="props">
-          <q-td :props="props" class="text-center text-caption text-grey-7">
-            {{ formatTimestamp(props.row.enrolled_at) }}
           </q-td>
         </template>
 
@@ -266,16 +184,9 @@
             <div class="row inline no-wrap items-center justify-center q-gutter-x-xs">
               <!-- When Already Registered -->
               <template v-if="props.row.biometric_status === 'REGISTERED'">
-                <q-chip
-                  dense
-                  color="green-1"
-                  text-color="positive"
-                  icon="check_circle"
-                  class="text-weight-bold text-caption q-my-none"
-                >
-                  Enrolled
-                  <q-tooltip>Employee biometrics are fully enrolled and active</q-tooltip>
-                </q-chip>
+                <q-icon name="check_circle" color="positive" size="22px">
+                  <q-tooltip>Enrolled & Active</q-tooltip>
+                </q-icon>
               </template>
 
               <!-- When Awaiting Scan / Pending -->
@@ -283,14 +194,15 @@
                 <q-btn
                   outline
                   no-caps
+                  dense
                   size="sm"
                   color="amber-9"
-                  icon="hourglass_top"
-                  label="Awaiting Scan"
-                  class="text-weight-bold"
+                  icon="refresh"
+                  label="Re-queue"
+                  class="q-px-sm"
                   @click="openRegisterDialog(props.row)"
                 >
-                  <q-tooltip>Profile queued on HR device. Click to re-send or change device.</q-tooltip>
+                  <q-tooltip>Queued on device. Click to re-send or change device.</q-tooltip>
                 </q-btn>
               </template>
 
@@ -299,13 +211,15 @@
                 <q-btn
                   unelevated
                   no-caps
+                  dense
                   size="sm"
                   color="primary"
                   icon="fingerprint"
                   label="Push to Bio"
+                  class="q-px-sm"
                   @click="openRegisterDialog(props.row)"
                 >
-                  <q-tooltip>Push employee profile to HR enrollment MB360 device</q-tooltip>
+                  <q-tooltip>Push profile to HR biometric terminal</q-tooltip>
                 </q-btn>
               </template>
             </div>
@@ -384,61 +298,6 @@
       </q-card>
     </q-dialog>
 
-    <!-- Pull Templates Dialog -->
-    <q-dialog v-model="showPullDialog" persistent>
-      <q-card style="width: 520px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none bg-primary text-white">
-          <div class="text-h6 text-weight-bold flex items-center q-gutter-x-sm">
-            <q-icon name="download" size="22px" />
-            <span>Pull Templates from Terminal</span>
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense text-color="white" @click="showPullDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-md">
-          <div class="text-caption text-grey-7 q-mb-md">
-            Query a physical biometric terminal to upload all stored fingerprint and face templates into the server for city-wide cloning.
-          </div>
-
-          <div class="q-gutter-y-md">
-            <q-select
-              v-model="selectedPullDeviceSn"
-              :options="deviceOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              label="Select Source Biometric Terminal *"
-              :rules="[val => !!val || 'Select a terminal']"
-            />
-
-            <q-banner rounded class="bg-blue-1 text-blue-9 text-caption">
-              <div class="row items-center q-gutter-x-xs text-weight-bold">
-                <q-icon name="info" size="18px" />
-                <span>How This Works:</span>
-              </div>
-              <div class="q-mt-xs">
-                A <code>QUERY FP</code> and <code>QUERY BIODATA</code> command will be queued for the selected terminal. On its next ADMS heartbeat, the device will upload its enrolled fingerprint and face templates directly to the server.
-              </div>
-            </q-banner>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md bg-grey-1">
-          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showPullDialog = false" />
-          <q-btn
-            unelevated
-            no-caps
-            label="Request Template Pull"
-            color="primary"
-            icon="cloud_download"
-            :loading="pullingTemplates"
-            @click="submitPullTemplates"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
 
   </q-page>
 </template>
@@ -503,6 +362,14 @@ function resolveAssignedOfficeAcronymLabel(row) {
   return '-'
 }
 
+function resolveDisplayOffice(row) {
+  const assigned = resolveAssignedOfficeAcronymLabel(row)
+  if (assigned && assigned !== '-') {
+    return assigned
+  }
+  return resolveOfficeAcronymLabel(row) || row.hris_office || row.office || '-'
+}
+
 const columns = [
   { name: 'control_no', label: 'Control No', field: 'control_no', align: 'center', sortable: true },
   { name: 'employee', label: 'Employee', field: 'full_name', align: 'left', sortable: true },
@@ -510,19 +377,11 @@ const columns = [
     name: 'office',
     label: 'Office',
     align: 'left',
-    field: (row) => resolveOfficeAcronymLabel(row) || row.hris_office || row.office || '-',
+    field: (row) => resolveDisplayOffice(row),
     sortable: true,
   },
-  {
-    name: 'assigned_office',
-    label: 'Assigned Office',
-    align: 'left',
-    field: (row) => resolveAssignedOfficeAcronymLabel(row),
-    sortable: true,
-  },
-  { name: 'biometric_status', label: 'Biometric Status', field: 'biometric_status', align: 'center', sortable: true },
-  { name: 'enrolled_at', label: 'Enrolled At', field: 'enrolled_at', align: 'center' },
-  { name: 'actions', label: 'Actions', align: 'center' },
+  { name: 'biometric_status', label: 'Status', field: 'biometric_status', align: 'center', sortable: true },
+  { name: 'actions', label: 'Action', align: 'center' },
 ]
 
 const deviceOptions = computed(() => {
@@ -665,121 +524,6 @@ async function submitRegister() {
     })
   } finally {
     submitting.value = false
-  }
-}
-
-const syncingLogs = ref(false)
-
-async function syncFromLogs() {
-  syncingLogs.value = true
-  try {
-    const response = await api.post('/hr/biometric-registration/sync-from-logs')
-    $q.notify({
-      type: 'positive',
-      message: response.data.message || 'Biometric registry synchronized successfully.',
-      position: 'top',
-    })
-    await fetchEmployees()
-  } catch (err) {
-    console.error('Failed to sync from logs:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to sync personnel from logs.',
-      position: 'top',
-    })
-  } finally {
-    syncingLogs.value = false
-  }
-}
-
-const broadcastingAll = ref(false)
-
-function broadcastRosterToAll() {
-  $q.dialog({
-    title: 'Broadcast Roster to All Devices',
-    message: 'This will push all biometrically registered personnel to every active biometric terminal across the city, allowing employees to punch at any office terminal. Proceed?',
-    persistent: true,
-    ok: {
-      label: 'Broadcast to All',
-      color: 'primary',
-      unelevated: true,
-      noCaps: true,
-    },
-    cancel: {
-      label: 'Cancel',
-      flat: true,
-      color: 'grey-7',
-      noCaps: true,
-    },
-  }).onOk(async () => {
-    broadcastingAll.value = true
-    try {
-      const response = await api.post('/hr/biometric-registration/broadcast-all')
-      $q.notify({
-        type: 'positive',
-        message: response.data.message || 'Roster queued for broadcast across all devices.',
-        position: 'top',
-        timeout: 4000,
-      })
-      await fetchEmployees()
-    } catch (err) {
-      console.error('Failed to broadcast roster:', err)
-      $q.notify({
-        type: 'negative',
-        message: err.response?.data?.message || 'Failed to broadcast roster to all devices.',
-        position: 'top',
-      })
-    } finally {
-      broadcastingAll.value = false
-    }
-  })
-}
-
-const showPullDialog = ref(false)
-const selectedPullDeviceSn = ref(null)
-const pullingTemplates = ref(false)
-
-function openPullTemplatesDialog() {
-  if (deviceOptions.value.length > 0 && !selectedPullDeviceSn.value) {
-    selectedPullDeviceSn.value = deviceOptions.value[0].value
-  }
-  showPullDialog.value = true
-}
-
-async function submitPullTemplates() {
-  if (!selectedPullDeviceSn.value) {
-    $q.notify({
-      type: 'warning',
-      message: 'Please select a source biometric terminal.',
-      position: 'top',
-    })
-    return
-  }
-
-  pullingTemplates.value = true
-  try {
-    const response = await api.post('/hr/biometric-registration/pull-device-templates', {
-      device_serial_number: selectedPullDeviceSn.value,
-    })
-
-    $q.notify({
-      type: 'positive',
-      message: response.data.message || 'Template pull commands queued successfully.',
-      position: 'top',
-      timeout: 4000,
-    })
-
-    showPullDialog.value = false
-    await fetchEmployees()
-  } catch (err) {
-    console.error('Failed to pull templates from device:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to request template pull from terminal.',
-      position: 'top',
-    })
-  } finally {
-    pullingTemplates.value = false
   }
 }
 
