@@ -8,63 +8,12 @@
           <h1 class="text-h4 text-weight-bold q-my-none">Biometric Devices</h1>
         </div>
       </div>
-
-      <div class="row q-gutter-sm items-center q-mt-sm q-mt-md-none">
-        <q-btn
-          flat
-          round
-          dense
-          icon="refresh"
-          color="grey-8"
-          :loading="loading"
-          @click="fetchDevices"
-        >
-          <q-tooltip>Refresh device status</q-tooltip>
-        </q-btn>
-        <q-btn
-          unelevated
-          no-caps
-          color="primary"
-          icon="add_circle"
-          label="Authorize New Device"
-          @click="openAddDeviceDialog"
-        />
-      </div>
     </div>
 
-    <!-- Auto-Detected Devices Alert (Simple & Compact) -->
-    <q-banner
-      v-if="pendingDevices.length > 0"
-      dense
-      rounded
-      class="bg-amber-1 text-amber-10 q-mb-md border-amber"
-    >
-      <template #avatar>
-        <q-icon name="sensors" color="amber-9" size="20px" />
-      </template>
-      <div class="row items-center justify-between no-wrap full-width text-body2">
-        <div>
-          <span class="text-weight-bold">{{ pendingDevices.length }} new terminal{{ pendingDevices.length > 1 ? 's' : '' }} auto-detected.</span>
-          <span class="text-grey-8 q-ml-xs">Awaiting authorization to sync attendance logs.</span>
-        </div>
-        <q-btn
-          unelevated
-          dense
-          no-caps
-          color="amber-9"
-          text-color="white"
-          icon="verified_user"
-          label="Authorize First"
-          class="q-px-sm"
-          @click="openAuthorizeDialog(pendingDevices[0])"
-        />
-      </div>
-    </q-banner>
-
-    <!-- Summary Stat Cards (Clean 4-Card Grid) -->
+    <!-- Summary Stat Cards (Clean 3-Card Grid) -->
     <div class="row q-col-gutter-sm q-mb-md">
       <!-- Total Devices -->
-      <div class="col-6 col-sm-3">
+      <div class="col-12 col-sm-4">
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
@@ -81,7 +30,7 @@
       </div>
 
       <!-- Online -->
-      <div class="col-6 col-sm-3">
+      <div class="col-12 col-sm-4">
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
@@ -98,7 +47,7 @@
       </div>
 
       <!-- Offline -->
-      <div class="col-6 col-sm-3">
+      <div class="col-12 col-sm-4">
         <q-card flat bordered class="rounded-borders bg-white stat-card">
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
@@ -108,44 +57,6 @@
               <div>
                 <div class="text-caption text-grey-7">Offline</div>
                 <div class="text-h5 text-weight-bold text-grey-8">{{ stats.offline }}</div>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <!-- 4th Card: Awaiting Approval (if pending) OR Authorized -->
-      <div class="col-6 col-sm-3">
-        <q-card
-          flat
-          bordered
-          class="rounded-borders stat-card"
-          :class="stats.pending > 0 ? 'bg-amber-1 border-amber cursor-pointer' : 'bg-white'"
-          @click="stats.pending > 0 ? (statusFilter = 'pending') : null"
-        >
-          <q-card-section class="q-py-md">
-            <div class="row items-center no-wrap">
-              <q-avatar
-                size="40px"
-                :color="stats.pending > 0 ? 'amber-2' : 'teal-1'"
-                :text-color="stats.pending > 0 ? 'amber-10' : 'teal-9'"
-                class="q-mr-md"
-              >
-                <q-icon :name="stats.pending > 0 ? 'hourglass_top' : 'verified_user'" size="22px" />
-              </q-avatar>
-              <div>
-                <div
-                  class="text-caption"
-                  :class="stats.pending > 0 ? 'text-amber-10 text-weight-bold' : 'text-grey-7'"
-                >
-                  {{ stats.pending > 0 ? 'Awaiting Approval' : 'Authorized' }}
-                </div>
-                <div
-                  class="text-h5 text-weight-bold"
-                  :class="stats.pending > 0 ? 'text-amber-10' : 'text-teal-9'"
-                >
-                  {{ stats.pending > 0 ? stats.pending : stats.authorized }}
-                </div>
               </div>
             </div>
           </q-card-section>
@@ -225,7 +136,7 @@
         {{ searchTerm || statusFilter !== 'all' ? 'No matching biometric devices' : 'No biometric devices found' }}
       </div>
       <div class="text-caption text-grey-6 q-mb-md">
-        {{ searchTerm || statusFilter !== 'all' ? 'Try adjusting your search query or status filter.' : 'Pre-authorize your first ZKTeco biometric device to enable ADMS synchronization.' }}
+        {{ searchTerm || statusFilter !== 'all' ? 'Try adjusting your search query or status filter.' : 'Biometric devices will automatically appear here once connected to the network.' }}
       </div>
       <q-btn
         v-if="searchTerm || statusFilter !== 'all'"
@@ -235,15 +146,6 @@
         icon="filter_alt_off"
         label="Reset Filters"
         @click="resetFilters"
-      />
-      <q-btn
-        v-else
-        unelevated
-        no-caps
-        color="primary"
-        icon="add_circle"
-        label="Authorize First Device"
-        @click="openAddDeviceDialog"
       />
     </div>
 
@@ -323,19 +225,7 @@
         <!-- Status Column -->
         <template #body-cell-status="props">
           <q-td :props="props" class="text-center">
-            <q-badge
-              v-if="props.row.status === 'PENDING_APPROVAL'"
-              color="amber-8"
-              text-color="white"
-              class="text-caption text-weight-bold q-px-sm q-py-xs"
-            >
-              <q-icon name="hourglass_top" size="12px" class="q-mr-xs" />
-              Pending Approval
-            </q-badge>
-            <span
-              v-else
-              :class="['status-indicator', isDeviceOnline(props.row) ? 'online' : 'offline']"
-            >
+            <span :class="['status-indicator', isDeviceOnline(props.row) ? 'online' : 'offline']">
               <span :class="isDeviceOnline(props.row) ? 'pulse-dot' : 'offline-dot'"></span>
               <span class="status-text text-weight-bold">
                 {{ isDeviceOnline(props.row) ? 'Online' : 'Offline' }}
@@ -348,63 +238,28 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-right">
             <div class="row inline no-wrap items-center q-gutter-x-sm">
-              <template v-if="props.row.status === 'PENDING_APPROVAL'">
-                <q-btn
-                  unelevated
-                  no-caps
-                  dense
-                  size="sm"
-                  color="primary"
-                  icon="verified_user"
-                  label="Authorize"
-                  class="q-px-sm"
-                  @click="openAuthorizeDialog(props.row)"
-                />
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="negative"
-                  icon="delete_outline"
-                  @click="confirmDeleteDevice(props.row)"
-                >
-                  <q-tooltip>Dismiss</q-tooltip>
-                </q-btn>
-              </template>
-              <template v-else>
-                <q-toggle
-                  :model-value="props.row.is_active"
-                  dense
-                  color="positive"
-                  :loading="togglingDeviceId === props.row.id"
-                  @update:model-value="toggleDevice(props.row)"
-                >
-                  <q-tooltip>{{ props.row.is_active ? 'Click to disable' : 'Click to enable' }}</q-tooltip>
-                </q-toggle>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="primary"
-                  icon="edit"
-                  @click="openEditDeviceDialog(props.row)"
-                >
-                  <q-tooltip>Edit</q-tooltip>
-                </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="negative"
-                  icon="delete_outline"
-                  @click="confirmDeleteDevice(props.row)"
-                >
-                  <q-tooltip>Delete</q-tooltip>
-                </q-btn>
-              </template>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="primary"
+                icon="edit"
+                @click="openEditDeviceDialog(props.row)"
+              >
+                <q-tooltip>Edit details</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="negative"
+                icon="delete_outline"
+                @click="confirmDeleteDevice(props.row)"
+              >
+                <q-tooltip>Delete device</q-tooltip>
+              </q-btn>
             </div>
           </q-td>
         </template>
@@ -434,16 +289,6 @@
 
               <div class="column items-end q-gutter-y-xs">
                 <q-badge
-                  v-if="dev.status === 'PENDING_APPROVAL'"
-                  rounded
-                  color="amber-8"
-                  label="Pending Approval"
-                  class="text-weight-bold q-px-sm q-py-xs"
-                >
-                  <q-icon name="hourglass_top" size="12px" class="q-mr-xs" />
-                </q-badge>
-                <q-badge
-                  v-else
                   rounded
                   :color="isDeviceOnline(dev) ? 'positive' : 'grey-5'"
                   :label="isDeviceOnline(dev) ? 'Online' : 'Offline'"
@@ -514,39 +359,15 @@
           <div>
             <q-separator />
             <div class="row items-center justify-between q-pa-sm bg-grey-1">
-              <!-- Authorization Status / Action -->
-              <div v-if="dev.status === 'PENDING_APPROVAL'">
-                <q-btn
-                  unelevated
-                  dense
-                  no-caps
-                  size="sm"
-                  color="positive"
-                  icon="verified_user"
-                  label="Authorize Now"
-                  class="q-px-sm"
-                  @click="openAuthorizeDialog(dev)"
-                />
-              </div>
-              <div v-else class="row items-center q-gutter-x-xs">
-                <q-toggle
-                  :model-value="dev.is_active"
-                  dense
-                  color="positive"
-                  :label="dev.is_active ? 'Authorized' : 'Blocked'"
-                  :loading="togglingDeviceId === dev.id"
-                  class="text-caption text-weight-bold"
-                  :class="dev.is_active ? 'text-positive' : 'text-negative'"
-                  @update:model-value="toggleDevice(dev)"
-                >
-                  <q-tooltip>{{ dev.is_active ? 'Click to disable and block this device' : 'Click to authorize this device' }}</q-tooltip>
-                </q-toggle>
+              <div class="text-caption">
+                <span :class="isDeviceOnline(dev) ? 'text-positive text-weight-bold' : 'text-grey-6'">
+                  ● {{ isDeviceOnline(dev) ? 'Online' : 'Offline' }}
+                </span>
               </div>
 
               <!-- Edit & Delete Buttons -->
               <div class="row q-gutter-x-xs">
                 <q-btn
-                  v-if="dev.status !== 'PENDING_APPROVAL'"
                   flat
                   round
                   dense
@@ -566,7 +387,7 @@
                   icon="delete_outline"
                   @click="confirmDeleteDevice(dev)"
                 >
-                  <q-tooltip>{{ dev.status === 'PENDING_APPROVAL' ? 'Dismiss auto-detected terminal' : 'Delete device' }}</q-tooltip>
+                  <q-tooltip>Delete device</q-tooltip>
                 </q-btn>
               </div>
             </div>
@@ -574,160 +395,6 @@
         </q-card>
       </div>
     </div>
-
-    <!-- Authorize Biometric Device Dialog (New or Auto-Detected) -->
-    <q-dialog v-model="showAddDeviceDialog" persistent>
-      <q-card style="width: 540px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section
-          class="row items-center q-pb-none text-white"
-          :class="isAuthorizingDetected ? 'bg-positive' : 'bg-primary'"
-        >
-          <div class="text-h6 text-weight-bold flex items-center q-gutter-x-sm">
-            <q-icon :name="isAuthorizingDetected ? 'sensors' : 'security'" size="22px" />
-            <span>{{ isAuthorizingDetected ? 'Authorize Auto-Detected Terminal' : 'Authorize Biometric Device' }}</span>
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense text-color="white" @click="showAddDeviceDialog = false" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-md">
-          <q-banner
-            v-if="isAuthorizingDetected"
-            rounded
-            class="bg-amber-1 text-amber-10 text-caption q-mb-md border-amber"
-          >
-            <div class="row items-center q-gutter-x-xs text-weight-bold">
-              <q-icon name="wifi_tethering" size="18px" />
-              <span>Auto-Detected Terminal via ADMS Heartbeat</span>
-            </div>
-            <div class="q-mt-xs">
-              This terminal connected to the server from IP <strong>{{ deviceForm.ip_address || 'Local Network' }}</strong>.
-              Assign a friendly label and assigned office to authorize and activate it.
-            </div>
-          </q-banner>
-          <div v-else class="text-caption text-grey-7 q-mb-md">
-            Whitelisting a device serial number permits it to connect to ADMS and push punches. Unlisted devices are rejected with <code>403 Forbidden</code>.
-          </div>
-
-          <div class="q-gutter-y-md">
-            <q-input
-              v-model="deviceForm.serial_number"
-              outlined
-              dense
-              :readonly="isAuthorizingDetected"
-              label="Device Serial Number (SN) *"
-              :hint="isAuthorizingDetected ? 'Auto-detected hardware serial number' : ''"
-              placeholder="e.g. KMY2252000112"
-              :rules="[val => !!val || 'Serial Number is required']"
-            >
-              <template #prepend>
-                <q-icon name="fingerprint" />
-              </template>
-            </q-input>
-
-            <q-input
-              v-model="deviceForm.device_name"
-              outlined
-              dense
-              label="Device Label / Friendly Name *"
-              placeholder="e.g. MB360 - Mayor's Office Entrance"
-              :rules="[val => !!val || 'Device name is required']"
-            >
-              <template #prepend>
-                <q-icon name="badge" />
-              </template>
-            </q-input>
-
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-input
-                  v-model="deviceForm.model_name"
-                  outlined
-                  dense
-                  label="Model"
-                  placeholder="MB360"
-                />
-              </div>
-              <div class="col-6">
-                <q-input
-                  v-model="deviceForm.comm_key"
-                  outlined
-                  dense
-                  label="Comm Key"
-                  placeholder="0 (Default)"
-                />
-              </div>
-            </div>
-
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-select
-                  v-model="deviceForm.department_name"
-                  :options="filteredOfficeOptions"
-                  emit-value
-                  map-options
-                  use-input
-                  input-debounce="0"
-                  outlined
-                  dense
-                  label="Assigned Office *"
-                  placeholder="Select office from library..."
-                  :loading="loadingOffices"
-                  :rules="[val => !!val || 'Assigned office is required']"
-                  @filter="filterOffices"
-                  @update:model-value="onOfficeSelectedForAdd"
-                >
-                  <template #prepend>
-                    <q-icon name="apartment" />
-                  </template>
-                  <template #no-option>
-                    <q-item>
-                      <q-item-section class="text-grey-6">
-                        No matching office found in library
-                      </q-item-section>
-                    </q-item>
-                  </template>
-                </q-select>
-              </div>
-              <div class="col-6">
-                <q-input
-                  v-model="deviceForm.ip_address"
-                  outlined
-                  dense
-                  label="IP Address"
-                  placeholder="e.g. 192.168.8.230"
-                />
-              </div>
-            </div>
-
-            <!-- ADMS Device Config Guide Banner -->
-            <q-banner rounded class="bg-blue-1 text-blue-9 text-caption">
-              <div class="row items-center q-gutter-x-xs text-weight-bold">
-                <q-icon name="info" size="18px" />
-                <span>ZKTeco MB360 ADMS Setup Instructions:</span>
-              </div>
-              <div class="q-mt-xs">
-                On the physical machine, go to <strong>Menu &gt; Comm. &gt; Cloud Server Setting</strong>.<br>
-                Enter your Server IP / Domain and Port. Set <strong>Enable Domain Name</strong> accordingly.
-              </div>
-            </q-banner>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md bg-grey-1">
-          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showAddDeviceDialog = false" />
-          <q-btn
-            unelevated
-            no-caps
-            :label="isAuthorizingDetected ? 'Approve & Activate' : 'Authorize Device'"
-            :color="isAuthorizingDetected ? 'positive' : 'primary'"
-            :icon="isAuthorizingDetected ? 'check_circle' : 'verified_user'"
-            :loading="submittingDevice"
-            @click="submitAddDevice"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
 
     <!-- Edit Biometric Device Dialog -->
     <q-dialog v-model="showEditDeviceDialog" persistent>
@@ -830,13 +497,13 @@
       </q-card>
     </q-dialog>
 
-    <!-- Delete / Dismiss Confirmation Dialog -->
+    <!-- Delete Confirmation Dialog -->
     <q-dialog v-model="showDeleteDialog" persistent>
       <q-card style="width: 440px; max-width: 95vw;" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none bg-negative text-white">
           <div class="text-h6 text-weight-bold flex items-center q-gutter-x-sm">
             <q-icon name="warning" size="22px" />
-            <span>{{ activeDeleteDevice?.status === 'PENDING_APPROVAL' ? 'Dismiss Detected Terminal?' : 'Delete Biometric Device?' }}</span>
+            <span>Delete Biometric Device?</span>
           </div>
           <q-space />
           <q-btn icon="close" flat round dense text-color="white" @click="showDeleteDialog = false" />
@@ -847,12 +514,7 @@
             Are you sure you want to remove <strong>{{ activeDeleteDevice?.device_name }}</strong> (SN: {{ activeDeleteDevice?.serial_number }})?
           </div>
           <div class="text-caption text-grey-7 q-mt-sm">
-            <span v-if="activeDeleteDevice?.status === 'PENDING_APPROVAL'">
-              This detected terminal will be dismissed. If it continues sending heartbeats, it will re-appear as pending approval until authorized or disconnected.
-            </span>
-            <span v-else>
-              The device will immediately be blocked from connecting to ADMS. You can re-authorize it anytime.
-            </span>
+            The device record will be deleted from the system. If the physical terminal continues sending heartbeats, it will reconnect automatically.
           </div>
         </q-card-section>
 
@@ -861,7 +523,7 @@
           <q-btn
             unelevated
             no-caps
-            :label="activeDeleteDevice?.status === 'PENDING_APPROVAL' ? 'Dismiss Terminal' : 'Delete Device'"
+            label="Delete Device"
             color="negative"
             icon="delete"
             :loading="submittingDevice"
@@ -882,38 +544,26 @@ const $q = useQuasar()
 
 const loading = ref(false)
 const submittingDevice = ref(false)
-const togglingDeviceId = ref(null)
-const isAuthorizingDetected = ref(false)
 
 const searchTerm = ref('')
 const statusFilter = ref('all')
 
 const statusOptions = [
   { label: 'All Devices', value: 'all' },
-  { label: 'Pending Approval', value: 'pending' },
   { label: 'Online Only', value: 'online' },
   { label: 'Offline Only', value: 'offline' },
-  { label: 'Authorized Only', value: 'authorized' },
-  { label: 'Blocked Only', value: 'blocked' },
 ]
 
 const devicesList = ref([])
-
-const pendingDevices = computed(() => {
-  return devicesList.value.filter(d => d.status === 'PENDING_APPROVAL')
-})
 
 const stats = reactive({
   total: 0,
   online: 0,
   offline: 0,
-  authorized: 0,
-  blocked: 0,
-  pending: 0,
 })
 
 function isDeviceOnline(dev) {
-  if (!dev || !dev.is_active || dev.status === 'PENDING_APPROVAL') return false
+  if (!dev || !dev.is_active) return false
   const lastTime = dev.last_heartbeat_at || dev.last_activity_at || dev.last_sync_at
   if (!lastTime) return false
   const diffSec = (Date.now() - new Date(lastTime).getTime()) / 1000
@@ -937,34 +587,22 @@ function formatDeviceTime(val) {
 
 function formatDeviceName(dev) {
   if (!dev) return 'Biometric Device'
-  if (dev.status === 'PENDING_APPROVAL' && dev.device_name?.startsWith('New Biometric Device')) {
-    return 'New Biometric Device'
-  }
-  return dev.device_name || 'Biometric Device'
+  return dev.device_name || `Terminal ${dev.serial_number}` || 'Biometric Device'
 }
 
 function calculateStats() {
   stats.total = devicesList.value.length
-  stats.pending = devicesList.value.filter(d => d.status === 'PENDING_APPROVAL').length
   stats.online = devicesList.value.filter(d => isDeviceOnline(d)).length
-  stats.offline = devicesList.value.filter(d => !isDeviceOnline(d) && d.is_active && d.status !== 'PENDING_APPROVAL').length
-  stats.authorized = devicesList.value.filter(d => d.is_active && d.status !== 'PENDING_APPROVAL').length
-  stats.blocked = devicesList.value.filter(d => !d.is_active && d.status !== 'PENDING_APPROVAL').length
+  stats.offline = devicesList.value.filter(d => !isDeviceOnline(d)).length
 }
 
 const filteredDevices = computed(() => {
   let list = devicesList.value
 
-  if (statusFilter.value === 'pending') {
-    list = list.filter(d => d.status === 'PENDING_APPROVAL')
-  } else if (statusFilter.value === 'online') {
+  if (statusFilter.value === 'online') {
     list = list.filter(d => isDeviceOnline(d))
   } else if (statusFilter.value === 'offline') {
-    list = list.filter(d => !isDeviceOnline(d) && d.status !== 'PENDING_APPROVAL')
-  } else if (statusFilter.value === 'authorized') {
-    list = list.filter(d => d.is_active && d.status !== 'PENDING_APPROVAL')
-  } else if (statusFilter.value === 'blocked') {
-    list = list.filter(d => !d.is_active && d.status !== 'PENDING_APPROVAL')
+    list = list.filter(d => !isDeviceOnline(d))
   }
 
   if (searchTerm.value && searchTerm.value.trim() !== '') {
@@ -1076,7 +714,6 @@ function copySerialNumber(sn) {
 // Office Library (Assigned Office Dropdown)
 const loadingOffices = ref(false)
 const officesList = ref([])
-const filteredOfficeOptions = ref([])
 const filteredEditOfficeOptions = ref([])
 
 async function fetchOffices() {
@@ -1090,31 +727,12 @@ async function fetchOffices() {
       value: d.name,
       id: d.id,
     }))
-    filteredOfficeOptions.value = options
     filteredEditOfficeOptions.value = options
   } catch (err) {
     console.error('Failed to load offices from library:', err)
   } finally {
     loadingOffices.value = false
   }
-}
-
-function filterOffices(val, update) {
-  update(() => {
-    const needle = (val || '').toLowerCase().trim()
-    const options = officesList.value.map(d => ({
-      label: d.name,
-      value: d.name,
-      id: d.id,
-    }))
-    if (!needle) {
-      filteredOfficeOptions.value = options
-    } else {
-      filteredOfficeOptions.value = options.filter(opt =>
-        opt.label.toLowerCase().includes(needle)
-      )
-    }
-  })
 }
 
 function filterEditOffices(val, update) {
@@ -1135,95 +753,11 @@ function filterEditOffices(val, update) {
   })
 }
 
-function onOfficeSelectedForAdd(val) {
-  const match = officesList.value.find(d => d.name === val || d.id === val)
-  if (match) {
-    deviceForm.department_id = match.id
-    deviceForm.department_name = match.name
-  }
-}
-
 function onOfficeSelectedForEdit(val) {
   const match = officesList.value.find(d => d.name === val || d.id === val)
   if (match) {
     editDeviceForm.department_id = match.id
     editDeviceForm.department_name = match.name
-  }
-}
-
-// Add or Authorize Detected Device
-const showAddDeviceDialog = ref(false)
-const deviceForm = reactive({
-  id: null,
-  serial_number: '',
-  device_name: '',
-  model_name: 'MB360',
-  department_id: null,
-  department_name: null,
-  comm_key: '0',
-  ip_address: '',
-})
-
-function openAddDeviceDialog() {
-  isAuthorizingDetected.value = false
-  deviceForm.id = null
-  deviceForm.serial_number = ''
-  deviceForm.device_name = ''
-  deviceForm.model_name = 'MB360'
-  deviceForm.department_id = null
-  deviceForm.department_name = null
-  deviceForm.comm_key = '0'
-  deviceForm.ip_address = ''
-  showAddDeviceDialog.value = true
-}
-
-function openAuthorizeDialog(dev) {
-  isAuthorizingDetected.value = true
-  deviceForm.id = dev.id
-  deviceForm.serial_number = dev.serial_number
-  deviceForm.device_name = dev.device_name && dev.device_name !== dev.serial_number ? dev.device_name : `Biometric Terminal - ${dev.serial_number}`
-  deviceForm.model_name = dev.model || dev.model_name || 'MB360'
-  deviceForm.department_id = dev.department_id || null
-  deviceForm.department_name = dev.department_name || null
-  deviceForm.comm_key = dev.comm_key || '0'
-  deviceForm.ip_address = dev.ip_address || ''
-  showAddDeviceDialog.value = true
-}
-
-async function submitAddDevice() {
-  if (!deviceForm.serial_number || !deviceForm.device_name || !deviceForm.department_name) {
-    $q.notify({
-      type: 'warning',
-      message: 'Please provide Device Serial Number, Name, and Assigned Office.',
-      position: 'top',
-    })
-    return
-  }
-
-  submittingDevice.value = true
-  try {
-    let response
-    if (isAuthorizingDetected.value && deviceForm.id) {
-      response = await api.post(`/attendance/devices/${deviceForm.id}/authorize`, deviceForm)
-    } else {
-      response = await api.post('/attendance/devices', deviceForm)
-    }
-    $q.notify({
-      type: 'positive',
-      message: response.data.message || 'Biometric device authorized successfully.',
-      position: 'top',
-    })
-    showAddDeviceDialog.value = false
-    await fetchDevices()
-  } catch (err) {
-    console.error('Failed to authorize device:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to authorize device.',
-      position: 'top',
-    })
-  } finally {
-    submittingDevice.value = false
   }
 }
 
@@ -1279,29 +813,6 @@ async function submitEditDevice() {
     })
   } finally {
     submittingDevice.value = false
-  }
-}
-
-// Toggle Device Authorization
-async function toggleDevice(dev) {
-  togglingDeviceId.value = dev.id
-  try {
-    const response = await api.post(`/attendance/devices/${dev.id}/toggle`)
-    $q.notify({
-      type: 'positive',
-      message: response.data.message || 'Device authorization status updated.',
-      position: 'top',
-    })
-    await fetchDevices()
-  } catch (err) {
-    console.error('Failed to toggle device authorization:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to update device authorization.',
-      position: 'top',
-    })
-  } finally {
-    togglingDeviceId.value = null
   }
 }
 
