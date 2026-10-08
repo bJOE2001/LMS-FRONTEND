@@ -8,6 +8,14 @@
           <h1 class="text-h4 text-weight-bold q-my-none">Biometric Devices</h1>
         </div>
       </div>
+      <q-btn
+        color="primary"
+        icon="add"
+        label="Add Device"
+        unelevated
+        no-caps
+        @click="openAddDeviceDialog"
+      />
     </div>
 
     <!-- Summary Stat Cards (Clean 3-Card Grid) -->
@@ -203,15 +211,48 @@
         <!-- Assigned Office Column -->
         <template #body-cell-assigned_office="props">
           <q-td :props="props">
-            <span v-if="props.row.status === 'PENDING_APPROVAL' && !props.row.department_name" class="text-grey-5 text-italic text-caption">
+            <span v-if="props.row.status === 'PENDING_APPROVAL' && !props.row.department_id" class="text-grey-5 text-italic text-caption">
+              Awaiting Office Assignment
+            </span>
+            <div v-else-if="props.row.department_id" class="row items-center no-wrap">
+              <q-chip
+                dense
+                color="primary"
+                text-color="white"
+                class="text-weight-bold font-mono q-mr-xs"
+                size="sm"
+              >
+                {{ props.row.office_acronym || 'OFFICE' }}
+              </q-chip>
+              <span class="text-dark ellipsis" style="max-width: 220px;">
+                {{ props.row.department_name }}
+                <q-tooltip>{{ props.row.department_name }}</q-tooltip>
+              </span>
+              <q-badge v-if="props.row.is_primary" color="amber-9" class="q-ml-xs text-white" rounded>
+                Primary
+              </q-badge>
+            </div>
+            <span v-else class="text-grey-5 text-italic text-caption">
               Unassigned
             </span>
-            <div v-else class="row items-center no-wrap">
-              <q-icon name="apartment" size="16px" color="grey-7" class="q-mr-xs" />
-              <span class="text-dark ellipsis" style="max-width: 200px;">
-                {{ props.row.department_name || props.row.location || 'Tagum City Hall' }}
-              </span>
-            </div>
+          </q-td>
+        </template>
+
+        <!-- ZKBio Area Column -->
+        <template #body-cell-zkbio_area="props">
+          <q-td :props="props">
+            <q-badge
+              v-if="props.row.zkbio_area_id"
+              color="blue-grey-1"
+              text-color="blue-grey-9"
+              class="q-pa-xs text-weight-medium font-mono"
+            >
+              <q-icon name="hub" size="14px" class="q-mr-xs text-primary" />
+              {{ props.row.zkbio_area_name || `Area ${props.row.zkbio_area_id}` }}
+            </q-badge>
+            <span v-else class="text-grey-5 text-caption text-italic">
+              No Area
+            </span>
           </q-td>
         </template>
 
@@ -320,10 +361,32 @@
               </q-chip>
             </div>
 
-            <!-- Location -->
+            <!-- Office -->
             <div class="row items-center q-gutter-x-xs text-caption text-grey-8 q-mb-xs">
-              <q-icon name="place" size="16px" color="grey-6" />
-              <span>{{ dev.location || dev.department_name || 'Tagum City Hall' }}</span>
+              <q-icon name="apartment" size="16px" color="primary" />
+              <q-chip
+                v-if="dev.office_acronym"
+                dense
+                color="primary"
+                text-color="white"
+                class="text-weight-bold font-mono q-mr-xs"
+                size="sm"
+              >
+                {{ dev.office_acronym }}
+              </q-chip>
+              <span class="ellipsis" style="max-width: 220px;">
+                {{ dev.department_name || 'Unassigned' }}
+                <q-tooltip>{{ dev.department_name }}</q-tooltip>
+              </span>
+              <q-badge v-if="dev.is_primary" color="amber-9" class="q-ml-xs text-white" rounded>
+                Primary
+              </q-badge>
+            </div>
+
+            <!-- ZKBio Area -->
+            <div class="row items-center q-gutter-x-xs text-caption text-grey-7 q-mb-xs">
+              <q-icon name="hub" size="16px" color="blue-grey-6" />
+              <span>ZKBio Area: <strong>{{ dev.zkbio_area_name || (dev.zkbio_area_id ? `Area ${dev.zkbio_area_id}` : 'None') }}</strong></span>
             </div>
 
             <!-- IP Address & Comm Key -->
@@ -396,44 +459,136 @@
       </div>
     </div>
 
-    <!-- Edit Biometric Device Dialog -->
-    <q-dialog v-model="showEditDeviceDialog" persistent>
-      <q-card style="width: 540px; max-width: 95vw;" class="rounded-borders">
+    <!-- Add / Edit Biometric Device Dialog -->
+    <q-dialog v-model="showDeviceDialog" persistent>
+      <q-card style="width: 580px; max-width: 95vw;" class="rounded-borders">
         <q-card-section class="row items-center q-pb-none bg-primary text-white">
           <div class="text-h6 text-weight-bold flex items-center q-gutter-x-sm">
-            <q-icon name="edit" size="22px" />
-            <span>Edit Biometric Device</span>
+            <q-icon :name="isCreatingDevice ? 'add_to_queue' : 'edit'" size="22px" />
+            <span>{{ isCreatingDevice ? 'Add Biometric Device' : 'Edit Biometric Device' }}</span>
           </div>
           <q-space />
-          <q-btn icon="close" flat round dense text-color="white" @click="showEditDeviceDialog = false" />
+          <q-btn icon="close" flat round dense text-color="white" @click="showDeviceDialog = false" />
         </q-card-section>
 
         <q-card-section class="q-pt-md">
           <div class="text-caption text-grey-7 q-mb-md">
-            Update device label, network IP, or assigned location for <strong>{{ activeEditDevice?.serial_number }}</strong>.
+            {{ isCreatingDevice ? 'Register a new physical ZKTeco terminal and map it to an office.' : `Update device configuration for terminal ${deviceForm.serial_number}.` }}
           </div>
 
           <div class="q-gutter-y-md">
-            <q-input
-              v-model="editDeviceForm.device_name"
-              outlined
-              dense
-              label="Device Label / Friendly Name *"
-              :rules="[val => !!val || 'Device name is required']"
-            />
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-input
+                  v-model="deviceForm.device_name"
+                  outlined
+                  dense
+                  label="Device Label / Friendly Name *"
+                  placeholder="e.g. CHRMO, CICTMO"
+                  :rules="[val => !!val || 'Device name is required']"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-input
+                  v-model="deviceForm.serial_number"
+                  outlined
+                  dense
+                  label="Serial Number *"
+                  placeholder="e.g. KMY2252000112"
+                  :disable="!isCreatingDevice"
+                  :rules="[val => !!val || 'Serial number is required']"
+                />
+              </div>
+            </div>
+
+            <!-- Assigned Office Selection -->
+            <div>
+              <q-select
+                v-model="deviceForm.department_id"
+                :options="filteredOfficeOptions"
+                emit-value
+                map-options
+                use-input
+                input-debounce="0"
+                outlined
+                dense
+                label="Assigned Office *"
+                placeholder="Search office from library..."
+                :loading="loadingOffices"
+                :rules="[val => !!val || 'Assigned office is required']"
+                @filter="filterOffices"
+                @update:model-value="onOfficeSelected"
+              >
+                <template #prepend>
+                  <q-icon name="apartment" color="primary" />
+                </template>
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey-6">
+                      No matching office found in library
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+            </div>
+
+            <!-- ZKBio Time Area Selection -->
+            <div>
+              <q-select
+                v-model="deviceForm.zkbio_area_id"
+                :options="zkBioAreaOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                label="ZKBio Time Area *"
+                :rules="[
+                  val => !!val || 'ZKBio Area is required',
+                  val => Number(val) !== 1 || 'Area 1 is prohibited (Default non-sync area)'
+                ]"
+              >
+                <template #prepend>
+                  <q-icon name="hub" color="primary" />
+                </template>
+                <template #option="scope">
+                  <q-item v-bind="scope.itemProps" :disable="scope.opt.disable">
+                    <q-item-section>
+                      <q-item-label :class="{ 'text-grey-5': scope.opt.disable }">
+                        {{ scope.opt.label }}
+                      </q-item-label>
+                      <q-item-label v-if="scope.opt.disable" caption class="text-negative">
+                        Default non-synchronizing area — data will not transfer
+                      </q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+              <div class="text-caption text-grey-6 q-mt-xs">
+                * Note: Area 1 is prohibited because ZKBio Time disables cross-terminal sync for the default area.
+              </div>
+            </div>
 
             <div class="row q-col-gutter-sm">
-              <div class="col-6">
+              <div class="col-12 col-sm-6">
                 <q-input
-                  v-model="editDeviceForm.model_name"
+                  v-model="deviceForm.ip_address"
+                  outlined
+                  dense
+                  label="IP Address"
+                  placeholder="e.g. 192.168.8.230"
+                />
+              </div>
+              <div class="col-12 col-sm-3">
+                <q-input
+                  v-model="deviceForm.model_name"
                   outlined
                   dense
                   label="Model"
                 />
               </div>
-              <div class="col-6">
+              <div class="col-12 col-sm-3">
                 <q-input
-                  v-model="editDeviceForm.comm_key"
+                  v-model="deviceForm.comm_key"
                   outlined
                   dense
                   label="Comm Key"
@@ -441,57 +596,23 @@
               </div>
             </div>
 
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-select
-                  v-model="editDeviceForm.department_name"
-                  :options="filteredEditOfficeOptions"
-                  emit-value
-                  map-options
-                  use-input
-                  input-debounce="0"
-                  outlined
-                  dense
-                  label="Assigned Office *"
-                  placeholder="Select office from library..."
-                  :loading="loadingOffices"
-                  :rules="[val => !!val || 'Assigned office is required']"
-                  @filter="filterEditOffices"
-                  @update:model-value="onOfficeSelectedForEdit"
-                >
-                  <template #prepend>
-                    <q-icon name="apartment" />
-                  </template>
-                  <template #no-option>
-                    <q-item>
-                      <q-item-section class="text-grey-6">
-                        No matching office found in library
-                      </q-item-section>
-                    </q-item>
-                  </template>
-                </q-select>
-              </div>
-              <div class="col-6">
-                <q-input
-                  v-model="editDeviceForm.ip_address"
-                  outlined
-                  dense
-                  label="IP Address"
-                />
-              </div>
-            </div>
+            <q-toggle
+              v-model="deviceForm.is_primary"
+              label="Primary Terminal for this Office"
+              color="primary"
+            />
           </div>
         </q-card-section>
 
         <q-card-actions align="right" class="q-pa-md bg-grey-1">
-          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showEditDeviceDialog = false" />
+          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showDeviceDialog = false" />
           <q-btn
             unelevated
             no-caps
-            label="Save Changes"
+            :label="isCreatingDevice ? 'Authorize Device' : 'Save Changes'"
             color="primary"
             :loading="submittingDevice"
-            @click="submitEditDevice"
+            @click="submitDeviceForm"
           />
         </q-card-actions>
       </q-card>
@@ -645,9 +766,16 @@ const columns = [
   },
   {
     name: 'assigned_office',
-    label: 'Assigned Office',
+    label: 'Office',
     align: 'left',
-    field: row => row.department_name || row.location || '',
+    field: row => row.office_acronym || row.department_name || '',
+    sortable: true,
+  },
+  {
+    name: 'zkbio_area',
+    label: 'ZKBio Area',
+    align: 'left',
+    field: row => row.zkbio_area_id || 0,
     sortable: true,
   },
   {
@@ -714,7 +842,7 @@ function copySerialNumber(sn) {
 // Office Library (Assigned Office Dropdown)
 const loadingOffices = ref(false)
 const officesList = ref([])
-const filteredEditOfficeOptions = ref([])
+const filteredOfficeOptions = ref([])
 
 async function fetchOffices() {
   loadingOffices.value = true
@@ -722,12 +850,12 @@ async function fetchOffices() {
     const { data } = await api.get('/departments')
     const list = Array.isArray(data?.departments) ? data.departments : []
     officesList.value = list
-    const options = list.map(d => ({
-      label: d.name,
-      value: d.name,
-      id: d.id,
+    filteredOfficeOptions.value = list.map(d => ({
+      label: d.acronym ? `[${d.acronym}] ${d.name}` : d.name,
+      value: d.id,
+      acronym: d.acronym,
+      name: d.name,
     }))
-    filteredEditOfficeOptions.value = options
   } catch (err) {
     console.error('Failed to load offices from library:', err)
   } finally {
@@ -735,60 +863,112 @@ async function fetchOffices() {
   }
 }
 
-function filterEditOffices(val, update) {
+function filterOffices(val, update) {
   update(() => {
     const needle = (val || '').toLowerCase().trim()
     const options = officesList.value.map(d => ({
-      label: d.name,
-      value: d.name,
-      id: d.id,
+      label: d.acronym ? `[${d.acronym}] ${d.name}` : d.name,
+      value: d.id,
+      acronym: d.acronym,
+      name: d.name,
     }))
     if (!needle) {
-      filteredEditOfficeOptions.value = options
+      filteredOfficeOptions.value = options
     } else {
-      filteredEditOfficeOptions.value = options.filter(opt =>
+      filteredOfficeOptions.value = options.filter(opt =>
         opt.label.toLowerCase().includes(needle)
       )
     }
   })
 }
 
-function onOfficeSelectedForEdit(val) {
-  const match = officesList.value.find(d => d.name === val || d.id === val)
+function onOfficeSelected(val) {
+  const match = officesList.value.find(d => d.id === val)
   if (match) {
-    editDeviceForm.department_id = match.id
-    editDeviceForm.department_name = match.name
+    deviceForm.department_id = match.id
+    if (!deviceForm.device_name && match.acronym) {
+      deviceForm.device_name = match.acronym
+    }
   }
 }
 
-// Edit Device
-const showEditDeviceDialog = ref(false)
-const activeEditDevice = ref(null)
-const editDeviceForm = reactive({
+// ZKBio Time Areas
+const zkBioAreasList = ref([])
+const zkBioAreaOptions = computed(() => {
+  return zkBioAreasList.value.map(a => ({
+    label: a.label || `Area ${a.id} (${a.area_name})`,
+    value: a.id,
+    disable: a.is_prohibited === true || a.id === 1,
+  }))
+})
+
+async function fetchZkBioAreas() {
+  try {
+    const { data } = await api.get('/attendance/zkbio-areas')
+    zkBioAreasList.value = data?.areas || []
+  } catch (err) {
+    console.error('Failed to load ZKBio Time areas:', err)
+  }
+}
+
+// Add / Edit Device Dialog
+const showDeviceDialog = ref(false)
+const isCreatingDevice = ref(false)
+const activeDevice = ref(null)
+
+const deviceForm = reactive({
   device_name: '',
+  serial_number: '',
   model_name: 'MB360',
   department_id: null,
-  department_name: null,
+  zkbio_area_id: null,
+  is_primary: true,
   comm_key: '0',
   ip_address: '',
 })
 
-function openEditDeviceDialog(dev) {
-  activeEditDevice.value = dev
-  editDeviceForm.device_name = dev.device_name || ''
-  editDeviceForm.model_name = dev.model || dev.model_name || 'MB360'
-  editDeviceForm.department_id = dev.department_id || null
-  editDeviceForm.department_name = dev.department_name || dev.location || null
-  editDeviceForm.comm_key = dev.comm_key || '0'
-  editDeviceForm.ip_address = dev.ip_address || ''
-  showEditDeviceDialog.value = true
+function openAddDeviceDialog() {
+  isCreatingDevice.value = true
+  activeDevice.value = null
+  deviceForm.device_name = ''
+  deviceForm.serial_number = ''
+  deviceForm.model_name = 'MB360'
+  deviceForm.department_id = null
+  deviceForm.zkbio_area_id = null
+  deviceForm.is_primary = true
+  deviceForm.comm_key = '0'
+  deviceForm.ip_address = ''
+  showDeviceDialog.value = true
 }
 
-async function submitEditDevice() {
-  if (!editDeviceForm.device_name || !editDeviceForm.department_name) {
+function openEditDeviceDialog(dev) {
+  isCreatingDevice.value = false
+  activeDevice.value = dev
+  deviceForm.device_name = dev.device_name || ''
+  deviceForm.serial_number = dev.serial_number || ''
+  deviceForm.model_name = dev.model || dev.model_name || 'MB360'
+  deviceForm.department_id = dev.department_id ? Number(dev.department_id) : null
+  deviceForm.zkbio_area_id = dev.zkbio_area_id ? Number(dev.zkbio_area_id) : null
+  deviceForm.is_primary = dev.is_primary !== undefined ? Boolean(dev.is_primary) : true
+  deviceForm.comm_key = dev.comm_key || '0'
+  deviceForm.ip_address = dev.ip_address || ''
+  showDeviceDialog.value = true
+}
+
+async function submitDeviceForm() {
+  if (!deviceForm.device_name || !deviceForm.serial_number || !deviceForm.department_id || !deviceForm.zkbio_area_id) {
     $q.notify({
       type: 'warning',
-      message: 'Device name and Assigned Office are required.',
+      message: 'Device name, serial number, assigned office, and ZKBio Area are required.',
+      position: 'top',
+    })
+    return
+  }
+
+  if (Number(deviceForm.zkbio_area_id) === 1) {
+    $q.notify({
+      type: 'negative',
+      message: 'Area 1 is prohibited as it is the default non-synchronizing area in ZKBio Time.',
       position: 'top',
     })
     return
@@ -796,19 +976,25 @@ async function submitEditDevice() {
 
   submittingDevice.value = true
   try {
-    const response = await api.post(`/attendance/devices/${activeEditDevice.value.id}/update`, editDeviceForm)
+    let response
+    if (isCreatingDevice.value || !activeDevice.value?.id) {
+      response = await api.post('/attendance/devices', deviceForm)
+    } else {
+      response = await api.post(`/attendance/devices/${activeDevice.value.id}/update`, deviceForm)
+    }
+
     $q.notify({
       type: 'positive',
-      message: response.data.message || 'Device updated successfully.',
+      message: response.data.message || (isCreatingDevice.value ? 'Device registered successfully.' : 'Device updated successfully.'),
       position: 'top',
     })
-    showEditDeviceDialog.value = false
+    showDeviceDialog.value = false
     await fetchDevices()
   } catch (err) {
-    console.error('Failed to update device:', err)
+    console.error('Failed to save device:', err)
     $q.notify({
       type: 'negative',
-      message: err.response?.data?.message || 'Failed to update device.',
+      message: err.response?.data?.message || 'Failed to save device.',
       position: 'top',
     })
   } finally {
@@ -849,12 +1035,12 @@ async function submitDeleteDevice() {
   }
 }
 
-
 let pollTimer = null
 
 onMounted(() => {
   fetchDevices()
   fetchOffices()
+  fetchZkBioAreas()
   pollTimer = setInterval(() => {
     fetchDevices(true)
   }, 10000) // Auto-refresh device status every 10 seconds

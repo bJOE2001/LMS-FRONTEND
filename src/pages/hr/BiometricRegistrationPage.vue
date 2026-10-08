@@ -5,6 +5,19 @@
       <div>
         <h1 class="text-h4 text-weight-bold q-my-none">Biometric Registration</h1>
       </div>
+      <div>
+        <q-btn
+          outline
+          no-caps
+          color="primary"
+          icon="sync"
+          label="Sync Device Status"
+          :loading="reconciling"
+          @click="reconcileAll"
+        >
+          <q-tooltip>Check ZKBio Time & terminals for newly completed fingerprint enrollments</q-tooltip>
+        </q-btn>
+      </div>
     </div>
 
     <!-- Summary Stat Cards -->
@@ -172,6 +185,17 @@
               :text-color="getStatusTextColor(props.row.biometric_status)"
               :label="formatStatus(props.row.biometric_status)"
             />
+            <div v-if="props.row.synced_devices && props.row.synced_devices.length > 0" class="q-mt-xs">
+              <q-badge
+                v-for="dev in props.row.synced_devices"
+                :key="dev"
+                color="blue-1"
+                text-color="blue-9"
+                class="text-caption font-mono q-mr-xs"
+              >
+                {{ dev }}
+              </q-badge>
+            </div>
             <div v-if="props.row.enrolled_at" class="text-caption text-grey-6 q-mt-xs">
               {{ formatTimestamp(props.row.enrolled_at) }}
             </div>
@@ -334,8 +358,9 @@ const pagination = ref({
 
 const statusFilterOptions = [
   { label: 'All Employees', value: 'all' },
-  { label: 'Biometric Registered', value: 'REGISTERED' },
-  { label: 'Pending Enrollment', value: 'PENDING_ENROLLMENT' },
+  { label: 'Registered & Synced', value: 'REGISTERED' },
+  { label: 'Enrolled (Pending Sync)', value: 'FINGERPRINT_ENROLLED' },
+  { label: 'Pending Scan', value: 'PENDING_ENROLLMENT' },
   { label: 'Not Registered', value: 'NOT_REGISTERED' },
 ]
 
@@ -395,6 +420,29 @@ const deviceOptions = computed(() => {
 const showRegisterDialog = ref(false)
 const activeEmployee = ref(null)
 const selectedDeviceSn = ref(null)
+const reconciling = ref(false)
+
+async function reconcileAll() {
+  reconciling.value = true
+  try {
+    const response = await api.post('/hr/biometric-registration/reconcile')
+    $q.notify({
+      type: 'positive',
+      message: response.data.message || 'Biometric statuses reconciled with ZKBio Time.',
+      position: 'top',
+    })
+    await fetchEmployees()
+  } catch (err) {
+    console.error('Failed to reconcile biometric statuses:', err)
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to reconcile biometric statuses.',
+      position: 'top',
+    })
+  } finally {
+    reconciling.value = false
+  }
+}
 
 function getInitials(name) {
   if (!name) return 'EM'
@@ -405,18 +453,21 @@ function getInitials(name) {
 
 function getStatusColor(status) {
   if (status === 'REGISTERED') return 'green-1'
+  if (status === 'FINGERPRINT_ENROLLED') return 'blue-1'
   if (status === 'PENDING_ENROLLMENT') return 'amber-1'
   return 'grey-2'
 }
 
 function getStatusTextColor(status) {
   if (status === 'REGISTERED') return 'green-9'
+  if (status === 'FINGERPRINT_ENROLLED') return 'blue-9'
   if (status === 'PENDING_ENROLLMENT') return 'amber-9'
   return 'grey-8'
 }
 
 function formatStatus(status) {
-  if (status === 'REGISTERED') return 'REGISTERED'
+  if (status === 'REGISTERED') return 'REGISTERED & SYNCED'
+  if (status === 'FINGERPRINT_ENROLLED') return 'ENROLLED'
   if (status === 'PENDING_ENROLLMENT') return 'PENDING SCAN'
   return 'NOT ENROLLED'
 }
