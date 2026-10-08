@@ -517,13 +517,17 @@ const normalizedRows = computed(() => {
       ? formatDecimalHours(entry.earned_hours, entry.earned_minutes)
       : ''
 
-    const usedTimeWp = entry.used_hours != null && entry.used_hours > 0
-      ? ('-' + formatDecimalHours(entry.used_hours, entry.used_minutes))
-      : ''
+    const usedTimeWp = (entry.is_superseded || entry.used_hours === '—')
+      ? '—'
+      : (entry.used_hours != null && entry.used_hours > 0
+          ? ('-' + formatDecimalHours(entry.used_hours, entry.used_minutes))
+          : '')
 
-    const balanceTime = entry.balance_hours != null
-      ? formatDecimalHours(entry.balance_hours, entry.balance_minutes)
-      : ''
+    const balanceTime = (entry.is_superseded || entry.balance_hours === '—')
+      ? '—'
+      : (entry.balance_hours != null
+          ? formatDecimalHours(entry.balance_hours, entry.balance_minutes)
+          : '')
 
     const usedTimeWop = entry.used_hours_wop != null && entry.used_hours_wop > 0
       ? formatDecimalHours(entry.used_hours_wop, entry.used_minutes_wop)

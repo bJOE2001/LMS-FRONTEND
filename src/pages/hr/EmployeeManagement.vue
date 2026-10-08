@@ -4575,6 +4575,7 @@ function normalizeLedgerRow(entry, index) {
     inclusive_start_date: entry?.inclusive_start_date || entry?.inclusiveStartDate || entry?.start_date || entry?.startDate || null,
     inclusive_end_date: entry?.inclusive_end_date || entry?.inclusiveEndDate || entry?.end_date || entry?.endDate || null,
     isLateDeduction: isLateDeductionEntry(entry),
+    is_superseded: Boolean(entry?.is_superseded || entry?.isSuperseded),
     rawEntry: entry,
   }
 }
