@@ -5,19 +5,6 @@
       <div>
         <h1 class="text-h4 text-weight-bold q-my-none">Biometric Registration</h1>
       </div>
-      <div>
-        <q-btn
-          outline
-          no-caps
-          color="primary"
-          icon="sync"
-          label="Sync Device Status"
-          :loading="reconciling"
-          @click="reconcileAll"
-        >
-          <q-tooltip>Check ZKBio Time & terminals for newly completed fingerprint enrollments</q-tooltip>
-        </q-btn>
-      </div>
     </div>
 
     <!-- Summary Stat Cards -->
@@ -30,7 +17,7 @@
                 <q-icon name="people" size="22px" />
               </q-avatar>
               <div>
-                <div class="text-caption text-grey-7">HRIS Employees</div>
+                <div class="text-caption text-grey-7">Employees</div>
                 <div class="text-h5 text-weight-bold text-dark">{{ stats.total_employees }}</div>
               </div>
             </div>
@@ -62,7 +49,7 @@
                 <q-icon name="hourglass_top" size="22px" />
               </q-avatar>
               <div>
-                <div class="text-caption text-grey-7">Pending Scan</div>
+                <div class="text-caption text-grey-7">Pending</div>
                 <div class="text-h5 text-weight-bold text-amber-9">{{ stats.pending }}</div>
               </div>
             </div>
@@ -101,7 +88,7 @@
               dense
               label="Biometric Status"
               style="min-width: 200px"
-              @update:model-value="fetchEmployees"
+              @update:model-value="onFilterChange"
             />
           </div>
 
@@ -130,6 +117,7 @@
         :loading="loading"
         :rows-per-page-options="[15, 30, 50, 100]"
         v-model:pagination="pagination"
+        @request="onRequest"
         class="biometric-table"
       >
         <!-- Control No Column -->
@@ -184,21 +172,16 @@
               :color="getStatusColor(props.row.biometric_status)"
               :text-color="getStatusTextColor(props.row.biometric_status)"
               :label="formatStatus(props.row.biometric_status)"
-            />
-            <div v-if="props.row.synced_devices && props.row.synced_devices.length > 0" class="q-mt-xs">
-              <q-badge
-                v-for="dev in props.row.synced_devices"
-                :key="dev"
-                color="blue-1"
-                text-color="blue-9"
-                class="text-caption font-mono q-mr-xs"
-              >
-                {{ dev }}
-              </q-badge>
-            </div>
-            <div v-if="props.row.enrolled_at" class="text-caption text-grey-6 q-mt-xs">
-              {{ formatTimestamp(props.row.enrolled_at) }}
-            </div>
+            >
+              <q-tooltip v-if="getDeviceOfficeLabel(props.row) || props.row.enrolled_at">
+                <div v-if="getDeviceOfficeLabel(props.row)">
+                  Device Office: {{ getDeviceOfficeLabel(props.row) }}
+                </div>
+                <div v-if="props.row.enrolled_at">
+                  Registered: {{ formatTimestamp(props.row.enrolled_at) }}
+                </div>
+              </q-tooltip>
+            </q-badge>
           </q-td>
         </template>
 
@@ -207,23 +190,20 @@
           <q-td :props="props" class="text-center">
             <div class="row inline no-wrap items-center justify-center q-gutter-x-xs">
               <!-- When Already Registered -->
-              <template v-if="props.row.biometric_status === 'REGISTERED'">
+              <template v-if="props.row.biometric_status === 'REGISTERED' || props.row.biometric_status === 'FINGERPRINT_ENROLLED'">
                 <q-icon name="check_circle" color="positive" size="22px">
-                  <q-tooltip>Enrolled & Active</q-tooltip>
+                  <q-tooltip>REGISTERED</q-tooltip>
                 </q-icon>
               </template>
 
               <!-- When Awaiting Scan / Pending -->
               <template v-else-if="props.row.biometric_status === 'PENDING_ENROLLMENT'">
                 <q-btn
-                  outline
-                  no-caps
+                  flat
+                  round
                   dense
-                  size="sm"
                   color="amber-9"
                   icon="refresh"
-                  label="Re-queue"
-                  class="q-px-sm"
                   @click="openRegisterDialog(props.row)"
                 >
                   <q-tooltip>Queued on device. Click to re-send or change device.</q-tooltip>
@@ -233,17 +213,14 @@
               <!-- When Not Registered -->
               <template v-else>
                 <q-btn
-                  unelevated
-                  no-caps
+                  flat
+                  round
                   dense
-                  size="sm"
                   color="primary"
                   icon="fingerprint"
-                  label="Push to Bio"
-                  class="q-px-sm"
                   @click="openRegisterDialog(props.row)"
                 >
-                  <q-tooltip>Push profile to HR biometric terminal</q-tooltip>
+                  <q-tooltip>Push to biometric device</q-tooltip>
                 </q-btn>
               </template>
             </div>
@@ -265,7 +242,7 @@
         <q-card-section class="row items-center q-pb-none bg-primary text-white">
           <div class="text-h6 text-weight-bold flex items-center q-gutter-x-sm">
             <q-icon name="fingerprint" size="22px" />
-            <span>Push to HR Biometric Device</span>
+            <span>Push to Biometric Device</span>
           </div>
           <q-space />
           <q-btn icon="close" flat round dense text-color="white" @click="showRegisterDialog = false" />
@@ -291,18 +268,17 @@
               map-options
               outlined
               dense
-              label="Select HR Enrollment Terminal *"
+              label="Select Enrollment Device *"
               :rules="[val => !!val || 'Select an enrollment terminal']"
             />
 
             <q-banner rounded class="bg-blue-1 text-blue-9 text-caption">
               <div class="row items-center q-gutter-x-xs text-weight-bold">
                 <q-icon name="info" size="18px" />
-                <span>Automated ADMS Device Command:</span>
+                <span>Enrollment Instructions:</span>
               </div>
               <div class="q-mt-xs">
-                The terminal will receive <code>DATA USER PIN={{ activeEmployee?.control_no }}</code>.
-                Once pushed, have the employee step up to the terminal to scan their face or fingerprint.
+                The employee profile (Control No: <strong>{{ activeEmployee?.control_no }}</strong>) will be synced to the selected device. Once sent, ask the employee to step up to the device to scan their fingerprint or face.
               </div>
             </q-banner>
           </div>
@@ -354,13 +330,13 @@ const pagination = ref({
   rowsPerPage: 30,
   sortBy: 'full_name',
   descending: false,
+  rowsNumber: 0,
 })
 
 const statusFilterOptions = [
   { label: 'All Employees', value: 'all' },
-  { label: 'Registered & Synced', value: 'REGISTERED' },
-  { label: 'Enrolled (Pending Sync)', value: 'FINGERPRINT_ENROLLED' },
-  { label: 'Pending Scan', value: 'PENDING_ENROLLMENT' },
+  { label: 'Registered', value: 'REGISTERED' },
+  { label: 'Pending', value: 'PENDING_ENROLLMENT' },
   { label: 'Not Registered', value: 'NOT_REGISTERED' },
 ]
 
@@ -420,29 +396,6 @@ const deviceOptions = computed(() => {
 const showRegisterDialog = ref(false)
 const activeEmployee = ref(null)
 const selectedDeviceSn = ref(null)
-const reconciling = ref(false)
-
-async function reconcileAll() {
-  reconciling.value = true
-  try {
-    const response = await api.post('/hr/biometric-registration/reconcile')
-    $q.notify({
-      type: 'positive',
-      message: response.data.message || 'Biometric statuses reconciled with ZKBio Time.',
-      position: 'top',
-    })
-    await fetchEmployees()
-  } catch (err) {
-    console.error('Failed to reconcile biometric statuses:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to reconcile biometric statuses.',
-      position: 'top',
-    })
-  } finally {
-    reconciling.value = false
-  }
-}
 
 function getInitials(name) {
   if (!name) return 'EM'
@@ -452,24 +405,21 @@ function getInitials(name) {
 }
 
 function getStatusColor(status) {
-  if (status === 'REGISTERED') return 'green-1'
-  if (status === 'FINGERPRINT_ENROLLED') return 'blue-1'
+  if (status === 'REGISTERED' || status === 'FINGERPRINT_ENROLLED') return 'green-1'
   if (status === 'PENDING_ENROLLMENT') return 'amber-1'
   return 'grey-2'
 }
 
 function getStatusTextColor(status) {
-  if (status === 'REGISTERED') return 'green-9'
-  if (status === 'FINGERPRINT_ENROLLED') return 'blue-9'
+  if (status === 'REGISTERED' || status === 'FINGERPRINT_ENROLLED') return 'green-9'
   if (status === 'PENDING_ENROLLMENT') return 'amber-9'
   return 'grey-8'
 }
 
 function formatStatus(status) {
-  if (status === 'REGISTERED') return 'REGISTERED & SYNCED'
-  if (status === 'FINGERPRINT_ENROLLED') return 'ENROLLED'
+  if (status === 'REGISTERED' || status === 'FINGERPRINT_ENROLLED') return 'REGISTERED'
   if (status === 'PENDING_ENROLLMENT') return 'PENDING SCAN'
-  return 'NOT ENROLLED'
+  return 'NOT REGISTERED'
 }
 
 function formatTimestamp(dtStr) {
@@ -486,12 +436,42 @@ function formatTimestamp(dtStr) {
   }
 }
 
+function getDeviceOfficeLabel(row) {
+  if (!row) return ''
+  if (Array.isArray(row.device_offices) && row.device_offices.length > 0) {
+    return row.device_offices.join(', ')
+  }
+  const sns = (Array.isArray(row.synced_devices) && row.synced_devices.length > 0)
+    ? row.synced_devices
+    : (row.enrollment_device_sn ? [row.enrollment_device_sn] : [])
+  if (!sns.length) return ''
+  const names = sns.map(sn => {
+    const dev = devicesList.value.find(d => d.serial_number === sn)
+    return dev ? (dev.device_name || dev.department_name || sn) : sn
+  })
+  return names.filter(Boolean).join(', ')
+}
+
+function onFilterChange() {
+  pagination.value.page = 1
+  fetchEmployees()
+}
+
 let searchTimer = null
 function onSearchInput() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
+    pagination.value.page = 1
     fetchEmployees()
   }, 350)
+}
+
+function onRequest(props) {
+  pagination.value.page = props.pagination.page
+  pagination.value.rowsPerPage = props.pagination.rowsPerPage
+  pagination.value.sortBy = props.pagination.sortBy
+  pagination.value.descending = props.pagination.descending
+  fetchEmployees()
 }
 
 async function fetchEmployees() {
@@ -501,10 +481,13 @@ async function fetchEmployees() {
       params: {
         search: searchTerm.value,
         status: statusFilter.value,
+        page: pagination.value.page,
+        per_page: pagination.value.rowsPerPage,
       },
     })
 
     employeeRows.value = response.data.employees || []
+    pagination.value.rowsNumber = response.data.total ?? response.data.employees?.length ?? 0
     stats.total_employees = response.data.stats?.total_employees || 0
     stats.registered = response.data.stats?.registered || 0
     stats.pending = response.data.stats?.pending || 0

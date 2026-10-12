@@ -1,169 +1,361 @@
 <template>
   <div class="attendance-record-shell">
-    <!-- Top Navigation Header -->
-    <div class="row items-center justify-between q-mb-md no-print">
-      <div>
-        <div class="row items-center q-gutter-x-sm q-mb-xs">
-          <q-btn
-            outline
-            dense
-            no-caps
-            color="green-9"
-            icon="arrow_back"
-            label="Back"
-            class="back-btn q-px-sm"
-            @click="goBack"
-          />
-        </div>
+    <!-- Top Executive Header -->
+    <q-card flat bordered class="header-card q-mb-md no-print bg-white rounded-borders">
+      <q-card-section class="q-pa-md">
+        <div class="row items-center justify-between q-col-gutter-md">
+          <!-- Left: Back Button + Employee Profile Info -->
+          <div class="col-12 col-md-auto">
+            <div class="row items-center no-wrap q-gutter-x-md">
+              <q-btn
+                flat
+                round
+                dense
+                color="green-9"
+                icon="arrow_back"
+                class="back-circle-btn"
+                @click="goBack"
+              >
+                <q-tooltip class="bg-dark">Back to Attendance List</q-tooltip>
+              </q-btn>
 
-        <div class="text-h5 text-weight-bold text-dark q-mt-xs">
-          Attendance Details of <span class="text-green-9 text-weight-bolder">{{ employeeName }}</span>
-        </div>
-        <div class="text-caption text-grey-7 text-uppercase text-weight-medium q-mt-none">
-          {{ employeeDesignation }}
-        </div>
+              <template v-if="loading && !dtrData">
+                <q-skeleton type="QAvatar" size="52px" animation="wave" />
+                <div class="q-ml-sm">
+                  <div class="row items-center q-gutter-x-sm no-wrap">
+                    <q-skeleton type="text" width="180px" height="24px" animation="wave" />
+                    <q-skeleton type="rect" width="75px" height="20px" class="rounded-borders" animation="wave" />
+                  </div>
+                  <div class="row items-center q-gutter-x-sm q-mt-xs">
+                    <q-skeleton type="text" width="120px" height="16px" animation="wave" />
+                    <q-skeleton type="rect" width="150px" height="18px" class="rounded-borders" animation="wave" />
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <q-avatar size="52px" font-size="20px" color="green-1" text-color="green-9" class="text-weight-bold employee-avatar">
+                  {{ getInitials(employeeName) }}
+                </q-avatar>
 
-        <div class="q-mt-xs">
-          <span class="shift-pill">
-            Regular Shift (8:00 AM - 5:00 PM)
+                <div>
+                  <div class="row items-center q-gutter-x-sm no-wrap">
+                    <h1 class="text-h6 text-weight-bolder text-dark q-my-none ellipsis employee-name-title">
+                      {{ employeeName }}
+                    </h1>
+                    <q-chip
+                      dense
+                      size="sm"
+                      color="grey-2"
+                      text-color="grey-9"
+                      class="font-mono text-weight-medium q-my-none"
+                    >
+                      ID: {{ employeeControlNo }}
+                    </q-chip>
+                  </div>
+
+                  <div class="row items-center q-gutter-x-sm q-mt-xs text-caption text-grey-7">
+                    <span class="text-weight-medium text-dark text-uppercase">{{ employeeDesignation }}</span>
+                    <span class="text-grey-4">•</span>
+                    <q-badge color="green-1" text-color="green-9" class="q-px-sm q-py-xs text-weight-bold">
+                      <q-icon name="schedule" size="13px" class="q-mr-xs" />
+                      Regular Shift (8:00 AM – 5:00 PM)
+                    </q-badge>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Right: Period Selector & Action Buttons -->
+          <div class="col-12 col-md-auto">
+            <div class="row items-center justify-end q-gutter-sm">
+              <!-- Month & Year Selector Group -->
+              <div class="row items-center q-gutter-x-xs bg-grey-1 q-pa-xs rounded-borders selector-pill-box">
+                <q-select
+                  v-model="selectedMonth"
+                  :options="monthOptions"
+                  emit-value
+                  map-options
+                  outlined
+                  dense
+                  class="dense-selector"
+                  style="width: 130px"
+                  @update:model-value="fetchMonthlyDtr"
+                >
+                  <template #prepend>
+                    <q-icon name="calendar_month" size="16px" color="grey-6" />
+                  </template>
+                </q-select>
+
+                <q-select
+                  v-model="selectedYear"
+                  :options="yearOptions"
+                  outlined
+                  dense
+                  class="dense-selector"
+                  style="width: 95px"
+                  @update:model-value="fetchMonthlyDtr"
+                />
+              </div>
+
+              <!-- Action Buttons -->
+              <q-btn
+                unelevated
+                no-caps
+                color="green-9"
+                icon="visibility"
+                label="DTR Preview"
+                class="action-btn text-weight-bold"
+                @click="showPreviewDialog = true"
+              >
+                <q-tooltip>Preview Civil Service Form No. 48</q-tooltip>
+              </q-btn>
+
+              <q-btn
+                outline
+                no-caps
+                color="grey-8"
+                icon="print"
+                label="Print"
+                class="action-btn text-weight-bold"
+                @click="triggerPrint"
+              >
+                <q-tooltip>Print Daily Time Record</q-tooltip>
+              </q-btn>
+
+              <q-btn
+                outline
+                no-caps
+                color="green-9"
+                icon="file_download"
+                label="Export CSV"
+                class="action-btn text-weight-bold"
+                @click="exportDtrCsv"
+              >
+                <q-tooltip>Download DTR data as spreadsheet (CSV)</q-tooltip>
+              </q-btn>
+            </div>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <q-linear-progress
+      v-if="loading && dtrData"
+      indeterminate
+      color="green-9"
+      size="3px"
+      class="q-mb-md rounded-borders no-print top-reload-bar"
+    />
+
+    <!-- Initial Loading State: Realistic Skeleton Screen Suite -->
+    <div v-if="loading && !dtrData" class="skeleton-suite no-print">
+      <!-- Status Notice Pill -->
+      <div class="row items-center justify-between q-mb-md bg-green-1 text-green-9 q-pa-sm rounded-borders border-green-subtle">
+        <div class="row items-center q-gutter-x-sm">
+          <q-spinner-dots color="green-9" size="20px" />
+          <span class="text-caption text-weight-bold">
+            Loading attendance records for {{ getMonthName(selectedMonth) }} {{ selectedYear }}...
           </span>
         </div>
+        <q-skeleton type="rect" width="90px" height="20px" class="rounded-borders" animation="wave" />
       </div>
 
-      <!-- Action Buttons & Month Selector -->
-      <div class="row items-center q-gutter-sm q-mt-sm q-mt-md-none">
-        <q-select
-          v-model="selectedMonth"
-          :options="monthOptions"
-          emit-value
-          map-options
-          outlined
-          dense
-          label="Month"
-          style="width: 130px"
-          @update:model-value="fetchMonthlyDtr"
-        />
-        <q-select
-          v-model="selectedYear"
-          :options="yearOptions"
-          outlined
-          dense
-          label="Year"
-          style="width: 95px"
-          @update:model-value="fetchMonthlyDtr"
-        />
-
-        <q-btn
-          unelevated
-          no-caps
-          class="green-action-btn"
-          icon="visibility"
-          label="DTR Preview"
-          @click="showPreviewDialog = true"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          class="green-action-btn"
-          icon="print"
-          label="Print DTR"
-          @click="triggerPrint"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          class="green-action-btn"
-          icon="file_download"
-          label="Export DTR"
-          @click="exportDtrCsv"
-        />
+      <!-- 5 Skeleton KPI Stat Cards -->
+      <div class="row q-col-gutter-md q-mb-md">
+        <div v-for="i in 5" :key="'sk-kpi-' + i" class="col-12 col-sm-6 col-md">
+          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center justify-between no-wrap q-mb-xs">
+                <q-skeleton type="text" width="75px" height="16px" animation="wave" />
+                <q-skeleton type="QAvatar" size="32px" animation="wave" />
+              </div>
+              <div class="row items-baseline q-gutter-x-xs q-my-xs">
+                <q-skeleton type="text" width="55px" height="34px" animation="wave" />
+                <q-skeleton type="text" width="28px" height="16px" animation="wave" />
+              </div>
+              <q-skeleton type="text" width="120px" height="14px" animation="wave" />
+            </q-card-section>
+          </q-card>
+        </div>
       </div>
-    </div>
 
-    <!-- Loading State -->
-    <div v-if="loading && !dtrData" class="row justify-center q-py-xl">
-      <q-spinner-dots color="green-9" size="48px" />
-      <div class="full-width text-center text-grey-6 q-mt-md">Loading Daily Time Record...</div>
+      <!-- Skeleton Tab Navigation Bar -->
+      <div class="q-mb-md">
+        <q-card flat bordered class="bg-white rounded-borders q-pa-xs shadow-1">
+          <div class="row items-center q-gutter-x-md q-px-sm q-py-xs">
+            <q-skeleton type="rect" width="190px" height="36px" class="rounded-borders" animation="wave" />
+            <q-skeleton type="rect" width="150px" height="36px" class="rounded-borders" animation="wave" />
+          </div>
+        </q-card>
+      </div>
+
+      <!-- Skeleton Table Card -->
+      <q-card flat bordered class="rounded-borders bg-white table-card">
+        <q-card-section class="q-pa-md row items-center justify-between border-bottom">
+          <div>
+            <q-skeleton type="text" width="180px" height="24px" animation="wave" />
+            <q-skeleton type="text" width="240px" height="14px" class="q-mt-xs" animation="wave" />
+          </div>
+          <q-skeleton type="text" width="130px" height="16px" animation="wave" />
+        </q-card-section>
+
+        <!-- Skeleton Table Body -->
+        <div class="q-pa-md">
+          <!-- Table Columns Header Placeholder -->
+          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
+            <div class="col-1"><q-skeleton type="text" width="55%" height="16px" animation="wave" /></div>
+            <div class="col-1 text-right"><q-skeleton type="text" width="70%" height="16px" class="q-ml-auto" animation="wave" /></div>
+          </div>
+
+          <!-- 8 Realistic Skeleton Rows -->
+          <div
+            v-for="r in 8"
+            :key="'sk-row-' + r"
+            class="row items-center q-py-md border-bottom q-col-gutter-sm"
+            :class="{ 'bg-grey-1': r % 2 === 0 }"
+          >
+            <div class="col-2">
+              <div class="row items-center no-wrap q-gutter-x-sm">
+                <q-skeleton type="rect" width="34px" height="22px" class="rounded-borders" animation="wave" />
+                <q-skeleton type="text" width="60px" height="18px" animation="wave" />
+              </div>
+            </div>
+            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
+            <div class="col-1"><q-skeleton type="rect" width="50px" height="22px" class="rounded-borders" animation="wave" /></div>
+            <div class="col-1 text-right"><q-skeleton type="QAvatar" size="26px" class="q-ml-auto" animation="wave" /></div>
+          </div>
+        </div>
+
+        <!-- Skeleton Pagination Bar -->
+        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
+          <q-skeleton type="text" width="110px" height="16px" animation="wave" />
+          <q-skeleton type="rect" width="140px" height="30px" class="rounded-borders" animation="wave" />
+        </div>
+      </q-card>
     </div>
 
     <!-- Error State -->
-    <q-banner v-else-if="errorMessage" class="bg-red-1 text-negative rounded-borders q-my-md">
-      <div class="row items-center q-gutter-x-sm">
-        <q-icon name="error" size="24px" />
-        <span>{{ errorMessage }}</span>
-      </div>
+    <q-banner v-else-if="errorMessage" class="bg-red-1 text-negative rounded-borders q-my-md shadow-1">
+      <template #avatar>
+        <q-icon name="error_outline" color="negative" size="28px" />
+      </template>
+      <div class="text-weight-bold">Unable to load attendance records</div>
+      <div class="text-caption">{{ errorMessage }}</div>
+      <template #action>
+        <q-btn flat no-caps color="negative" label="Retry" @click="fetchMonthlyDtr" />
+      </template>
     </q-banner>
 
-    <template v-else>
-      <!-- 5 Summary Stat Cards -->
-      <div class="row q-col-gutter-sm q-mb-md no-print">
+    <div v-else :class="{ 'content-reloading': loading && dtrData }">
+      <!-- 5 Summary KPI Stat Cards -->
+      <div class="row q-col-gutter-md q-mb-md no-print">
         <!-- Present Days -->
         <div class="col-12 col-sm-6 col-md">
-          <div class="detail-stat-card">
-            <div class="row items-center justify-between no-wrap">
-              <span class="stat-card-label">Present Days</span>
-              <q-icon name="check_circle" size="20px" class="text-green-8" />
-            </div>
-            <div class="stat-card-value text-dark q-mt-xs">
-              {{ summaryMetrics.present_days }}
-            </div>
-          </div>
+          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center justify-between no-wrap q-mb-xs">
+                <span class="stat-kpi-label">Present Days</span>
+                <div class="stat-icon-wrap bg-green-1 text-green-9">
+                  <q-icon name="check_circle" size="20px" />
+                </div>
+              </div>
+              <div class="row items-baseline q-gutter-x-xs">
+                <span class="stat-kpi-value text-dark">{{ summaryMetrics.present_days }}</span>
+                <span class="stat-kpi-unit text-grey-6">days</span>
+              </div>
+              <div class="text-caption text-grey-5 q-mt-xs">Standard attendance</div>
+            </q-card-section>
+          </q-card>
         </div>
 
         <!-- Absent Days -->
         <div class="col-12 col-sm-6 col-md">
-          <div class="detail-stat-card">
-            <div class="row items-center justify-between no-wrap">
-              <span class="stat-card-label">Absent Days</span>
-              <q-icon name="directions_walk" size="20px" class="text-deep-orange-7" />
-            </div>
-            <div class="stat-card-value text-dark q-mt-xs">
-              {{ summaryMetrics.absent_days }}
-            </div>
-          </div>
+          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center justify-between no-wrap q-mb-xs">
+                <span class="stat-kpi-label">Absent Days</span>
+                <div class="stat-icon-wrap bg-red-1 text-red-9">
+                  <q-icon name="event_busy" size="20px" />
+                </div>
+              </div>
+              <div class="row items-baseline q-gutter-x-xs">
+                <span class="stat-kpi-value text-dark">{{ summaryMetrics.absent_days }}</span>
+                <span class="stat-kpi-unit text-grey-6">days</span>
+              </div>
+              <div class="text-caption text-grey-5 q-mt-xs">Unexcused work days</div>
+            </q-card-section>
+          </q-card>
         </div>
 
-        <!-- Late -->
+        <!-- Late Incidents -->
         <div class="col-12 col-sm-6 col-md">
-          <div class="detail-stat-card">
-            <div class="row items-center justify-between no-wrap">
-              <span class="stat-card-label">Late</span>
-              <q-icon name="warning" size="20px" class="text-amber-8" />
-            </div>
-            <div class="stat-card-value text-dark q-mt-xs">
-              {{ summaryMetrics.late_days }}
-            </div>
-          </div>
+          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center justify-between no-wrap q-mb-xs">
+                <span class="stat-kpi-label">Late Records</span>
+                <div class="stat-icon-wrap bg-amber-1 text-amber-9">
+                  <q-icon name="history_toggle_off" size="20px" />
+                </div>
+              </div>
+              <div class="row items-baseline q-gutter-x-xs">
+                <span class="stat-kpi-value text-dark">{{ summaryMetrics.late_days }}</span>
+                <span class="stat-kpi-unit text-grey-6">days</span>
+              </div>
+              <div class="text-caption text-grey-5 q-mt-xs">Morning or lunch delay</div>
+            </q-card-section>
+          </q-card>
         </div>
 
-        <!-- Over Time -->
+        <!-- Overtime Days -->
         <div class="col-12 col-sm-6 col-md">
-          <div class="detail-stat-card">
-            <div class="row items-center justify-between no-wrap">
-              <span class="stat-card-label">Over Time</span>
-              <q-icon name="alarm" size="20px" class="text-orange-9" />
-            </div>
-            <div class="stat-card-value text-dark q-mt-xs">
-              {{ summaryMetrics.overtime_days }}
-            </div>
-          </div>
+          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center justify-between no-wrap q-mb-xs">
+                <span class="stat-kpi-label">Overtime Days</span>
+                <div class="stat-icon-wrap bg-indigo-1 text-indigo-9">
+                  <q-icon name="more_time" size="20px" />
+                </div>
+              </div>
+              <div class="row items-baseline q-gutter-x-xs">
+                <span class="stat-kpi-value text-dark">{{ summaryMetrics.overtime_days }}</span>
+                <span class="stat-kpi-unit text-grey-6">days</span>
+              </div>
+              <div class="text-caption text-grey-5 q-mt-xs">Authorized extensions</div>
+            </q-card-section>
+          </q-card>
         </div>
 
         <!-- Total Worked Hours -->
         <div class="col-12 col-sm-6 col-md">
-          <div class="detail-stat-card">
-            <div class="row items-center justify-between no-wrap">
-              <span class="stat-card-label">Total Worked Hours</span>
-              <q-icon name="verified" size="20px" class="text-light-blue-8" />
-            </div>
-            <div class="stat-card-value text-dark q-mt-xs">
-              {{ summaryMetrics.total_worked_hours }}
-            </div>
-          </div>
+          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center justify-between no-wrap q-mb-xs">
+                <span class="stat-kpi-label">Worked Hours</span>
+                <div class="stat-icon-wrap bg-teal-1 text-teal-9">
+                  <q-icon name="schedule" size="20px" />
+                </div>
+              </div>
+              <div class="row items-baseline q-gutter-x-xs">
+                <span class="stat-kpi-value text-dark">{{ summaryMetrics.total_worked_hours }}</span>
+                <span class="stat-kpi-unit text-grey-6">hrs</span>
+              </div>
+              <div class="text-caption text-grey-5 q-mt-xs">Total rendered time</div>
+            </q-card-section>
+          </q-card>
         </div>
       </div>
 
-      <!-- Tabs (DTR vs Overtime) -->
+      <!-- Navigation Tabs (DTR vs Overtime) -->
       <div class="q-mb-md no-print">
         <q-tabs
           v-model="activeTab"
@@ -172,10 +364,36 @@
           align="left"
           indicator-color="green-9"
           active-color="green-9"
-          class="text-grey-7 attendance-tabs"
+          class="text-grey-7 attendance-nav-tabs bg-white rounded-borders shadow-1"
         >
-          <q-tab name="dtr" icon="event" label="Daily Time Record (DTR)" class="q-px-md" />
-          <q-tab name="overtime" icon="schedule" label="Overtime Records" class="q-px-md" />
+          <q-tab name="dtr" class="q-px-lg">
+            <template #default>
+              <div class="row items-center q-gutter-x-sm">
+                <q-icon name="event_note" size="18px" />
+                <span class="text-weight-bold">Daily Time Record (DTR)</span>
+                <q-badge color="grey-3" text-color="dark" rounded class="font-mono q-ml-xs">
+                  {{ monthDayRows.length }}
+                </q-badge>
+              </div>
+            </template>
+          </q-tab>
+
+          <q-tab name="overtime" class="q-px-lg">
+            <template #default>
+              <div class="row items-center q-gutter-x-sm">
+                <q-icon name="alarm_on" size="18px" />
+                <span class="text-weight-bold">Overtime Records</span>
+                <q-badge
+                  :color="overtimeRows.length > 0 ? 'indigo-1' : 'grey-3'"
+                  :text-color="overtimeRows.length > 0 ? 'indigo-9' : 'grey-7'"
+                  rounded
+                  class="font-mono q-ml-xs"
+                >
+                  {{ overtimeRows.length }}
+                </q-badge>
+              </div>
+            </template>
+          </q-tab>
         </q-tabs>
       </div>
 
@@ -183,9 +401,20 @@
       <q-tab-panels v-model="activeTab" animated class="bg-transparent no-print">
         <!-- Panel 1: Daily Time Record (DTR) -->
         <q-tab-panel name="dtr" class="q-pa-none">
-          <q-card flat bordered class="rounded-borders bg-white">
-            <q-card-section class="q-pb-sm">
-              <div class="text-h6 text-weight-bold text-dark">Attendance Record</div>
+          <q-card flat bordered class="rounded-borders bg-white table-card">
+            <q-card-section class="q-pa-md row items-center justify-between border-bottom">
+              <div>
+                <div class="text-subtitle1 text-weight-bolder text-dark">
+                  Attendance Record Log
+                </div>
+                <div class="text-caption text-grey-6">
+                  Official CSC Form 48 monthly log for {{ getMonthName(selectedMonth) }} {{ selectedYear }}
+                </div>
+              </div>
+
+              <div class="text-caption text-grey-7">
+                Showing <strong>{{ monthDayRows.length }}</strong> days in cutoff
+              </div>
             </q-card-section>
 
             <q-table
@@ -194,73 +423,165 @@
               row-key="record_date"
               flat
               :loading="loading"
-              :rows-per-page-options="[5, 10, 15, 31]"
+              :rows-per-page-options="[10, 15, 31]"
               v-model:pagination="pagination"
-              class="attendance-detail-table"
+              class="attendance-pro-table"
             >
               <!-- Date Column -->
               <template #body-cell-date="props">
-                <q-td :props="props" class="text-left text-weight-medium">
-                  {{ formatDateLong(props.row.record_date) }}
+                <q-td :props="props" class="text-left">
+                  <div class="row items-center no-wrap q-gutter-x-sm">
+                    <span
+                      class="day-pill"
+                      :class="isWeekendDay(props.row) ? 'weekend-day-pill' : 'weekday-pill'"
+                    >
+                      {{ getDayShort(props.row.record_date) }}
+                    </span>
+                    <div>
+                      <div class="text-weight-bold text-dark font-mono">
+                        {{ formatDateNumeric(props.row.record_date) }}
+                      </div>
+                      <div class="text-caption text-grey-6" style="font-size: 0.75rem;">
+                        {{ formatDateMonthDay(props.row.record_date) }}
+                      </div>
+                    </div>
+                  </div>
                 </q-td>
               </template>
 
-              <!-- Time In (Morning) -->
+              <!-- AM Time In (Morning Arrival) -->
               <template #body-cell-time_in="props">
-                <q-td :props="props" class="text-left">
-                  <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
-                    {{ formatPunchTime(props.row.am_arrival) }}
-                  </span>
+                <q-td :props="props" class="text-left font-mono">
+                  <div v-if="props.row.am_arrival" class="row items-center no-wrap q-gutter-x-xs">
+                    <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
+                      {{ formatPunchTime(props.row.am_arrival) }}
+                    </span>
+                    <q-badge
+                      v-if="isRowLate(props.row)"
+                      color="red-1"
+                      text-color="negative"
+                      class="q-pa-none q-px-xs text-weight-bold font-mono"
+                      size="xs"
+                    >
+                      +{{ props.row.late_minutes }}m
+                      <q-tooltip>Tardy: {{ props.row.late_minutes }} minute(s) late</q-tooltip>
+                    </q-badge>
+                  </div>
+                  <span v-else class="text-grey-4">—</span>
                 </q-td>
               </template>
 
-              <!-- Time Out (Lunch) -->
+              <!-- AM Time Out (Lunch Out) -->
               <template #body-cell-time_out="props">
-                <q-td :props="props" class="text-left">
-                  <span class="text-dark">
+                <q-td :props="props" class="text-left font-mono">
+                  <span v-if="props.row.am_departure" class="text-dark text-weight-medium">
                     {{ formatPunchTime(props.row.am_departure) }}
                   </span>
+                  <span v-else class="text-grey-4">—</span>
                 </q-td>
               </template>
 
-              <!-- PM Time In (Afternoon) -->
+              <!-- PM Time In (Lunch In) -->
               <template #body-cell-pm_time_in="props">
-                <q-td :props="props" class="text-left">
-                  <span class="text-dark">
+                <q-td :props="props" class="text-left font-mono">
+                  <span v-if="props.row.pm_arrival" class="text-dark text-weight-medium">
                     {{ formatPunchTime(props.row.pm_arrival) }}
                   </span>
+                  <span v-else class="text-grey-4">—</span>
                 </q-td>
               </template>
 
-              <!-- PM Time Out (Afternoon Out) -->
+              <!-- PM Time Out (Afternoon Departure) -->
               <template #body-cell-pm_time_out="props">
-                <q-td :props="props" class="text-left">
-                  <span :class="isRowUndertime(props.row) ? 'text-negative text-weight-bold' : 'text-dark'">
-                    {{ formatPunchTime(props.row.pm_departure) }}
+                <q-td :props="props" class="text-left font-mono">
+                  <div v-if="props.row.pm_departure" class="row items-center no-wrap q-gutter-x-xs">
+                    <span :class="isRowUndertime(props.row) ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
+                      {{ formatPunchTime(props.row.pm_departure) }}
+                    </span>
+                    <q-badge
+                      v-if="isRowUndertime(props.row)"
+                      color="orange-1"
+                      text-color="deep-orange-9"
+                      class="q-pa-none q-px-xs text-weight-bold font-mono"
+                      size="xs"
+                    >
+                      -{{ props.row.undertime_minutes }}m
+                      <q-tooltip>Undertime: {{ props.row.undertime_minutes }} minute(s)</q-tooltip>
+                    </q-badge>
+                  </div>
+                  <span v-else class="text-grey-4">—</span>
+                </q-td>
+              </template>
+
+              <!-- Rendered Hours -->
+              <template #body-cell-rendered_hours="props">
+                <q-td :props="props" class="text-center font-mono">
+                  <span
+                    v-if="Number(props.row.rendered_hours || 0) > 0"
+                    class="text-weight-bold text-dark"
+                  >
+                    {{ Number(props.row.rendered_hours).toFixed(1) }} <span class="text-caption text-grey-6">hrs</span>
                   </span>
+                  <span v-else class="text-grey-4">—</span>
+                </q-td>
+              </template>
+
+              <!-- Status & Remarks Column -->
+              <template #body-cell-status="props">
+                <q-td :props="props" class="text-center">
+                  <div class="row inline items-center q-gutter-x-xs no-wrap">
+                    <q-chip
+                      dense
+                      size="sm"
+                      :color="getStatusColor(props.row).bg"
+                      :text-color="getStatusColor(props.row).text"
+                      class="text-weight-bold q-my-none"
+                    >
+                      <q-icon :name="getStatusColor(props.row).icon" size="12px" class="q-mr-xs" />
+                      {{ getStatusLabel(props.row) }}
+                    </q-chip>
+
+                    <!-- Adjusted Indicator Chip -->
+                    <q-badge
+                      v-if="props.row.is_adjusted"
+                      color="purple-1"
+                      text-color="purple-9"
+                      class="q-px-xs text-weight-bold cursor-pointer"
+                      rounded
+                    >
+                      <q-icon name="edit_calendar" size="11px" class="q-mr-xs" />
+                      Adjusted
+                      <q-tooltip class="bg-dark text-white">
+                        Reason: {{ props.row.adjustment_reason || 'Manual override recorded' }}
+                      </q-tooltip>
+                    </q-badge>
+                  </div>
                 </q-td>
               </template>
 
               <!-- Action Column (Clock with Pen) -->
               <template #body-cell-action="props">
-                <q-td :props="props" class="text-left">
+                <q-td :props="props" class="text-right">
                   <q-btn
                     flat
                     round
                     dense
                     size="sm"
-                    class="action-override-btn"
+                    color="primary"
                     icon="edit_calendar"
+                    class="action-override-btn"
                     @click="openOverrideDialog(props.row)"
                   >
-                    <q-tooltip>Override Time</q-tooltip>
+                    <q-tooltip class="bg-dark">Override / Adjust Time</q-tooltip>
                   </q-btn>
                 </q-td>
               </template>
 
               <template #no-data>
-                <div class="full-width text-center q-pa-lg text-grey-6">
-                  No attendance records found for this cutoff.
+                <div class="full-width text-center q-py-xl text-grey-6">
+                  <q-icon name="event_busy" size="48px" color="grey-4" />
+                  <div class="text-subtitle1 text-weight-bold q-mt-sm">No Attendance Records Found</div>
+                  <div class="text-caption">There are no attendance punches recorded for this period.</div>
                 </div>
               </template>
             </q-table>
@@ -269,9 +590,20 @@
 
         <!-- Panel 2: Overtime Records -->
         <q-tab-panel name="overtime" class="q-pa-none">
-          <q-card flat bordered class="rounded-borders bg-white">
-            <q-card-section class="q-pb-sm">
-              <div class="text-h6 text-weight-bold text-dark">Overtime Records</div>
+          <q-card flat bordered class="rounded-borders bg-white table-card">
+            <q-card-section class="q-pa-md row items-center justify-between border-bottom">
+              <div>
+                <div class="text-subtitle1 text-weight-bolder text-dark">
+                  Authorized Overtime Records
+                </div>
+                <div class="text-caption text-grey-6">
+                  Overtime entries logged beyond regular shift for {{ getMonthName(selectedMonth) }} {{ selectedYear }}
+                </div>
+              </div>
+
+              <div class="text-caption text-grey-7">
+                Total Overtime Entries: <strong>{{ overtimeRows.length }}</strong>
+              </div>
             </q-card-section>
 
             <q-table
@@ -280,71 +612,91 @@
               row-key="record_date"
               flat
               :loading="loading"
-              :rows-per-page-options="[5, 10, 15]"
+              :rows-per-page-options="[10, 15, 31]"
               v-model:pagination="overtimePagination"
-              class="attendance-detail-table"
+              class="attendance-pro-table"
             >
               <!-- Date Column -->
               <template #body-cell-date="props">
-                <q-td :props="props" class="text-left text-weight-medium">
-                  {{ formatDateLong(props.row.record_date) }}
+                <q-td :props="props" class="text-left">
+                  <div class="row items-center no-wrap q-gutter-x-sm">
+                    <span class="day-pill weekday-pill">
+                      {{ getDayShort(props.row.record_date) }}
+                    </span>
+                    <div>
+                      <div class="text-weight-bold text-dark font-mono">
+                        {{ formatDateNumeric(props.row.record_date) }}
+                      </div>
+                      <div class="text-caption text-grey-6" style="font-size: 0.75rem;">
+                        {{ formatDateMonthDay(props.row.record_date) }}
+                      </div>
+                    </div>
+                  </div>
                 </q-td>
               </template>
 
               <!-- OT Time In -->
               <template #body-cell-ot_time_in="props">
-                <q-td :props="props" class="text-left">
-                  <span class="text-dark">
+                <q-td :props="props" class="text-left font-mono">
+                  <span v-if="props.row.ot_arrival" class="text-dark text-weight-bold">
                     {{ formatPunchTime(props.row.ot_arrival) }}
                   </span>
+                  <span v-else class="text-grey-4">—</span>
                 </q-td>
               </template>
 
               <!-- OT Time Out -->
               <template #body-cell-ot_time_out="props">
-                <q-td :props="props" class="text-left">
-                  <span class="text-dark">
+                <q-td :props="props" class="text-left font-mono">
+                  <span v-if="props.row.ot_departure" class="text-dark text-weight-bold">
                     {{ formatPunchTime(props.row.ot_departure) }}
                   </span>
+                  <span v-else class="text-grey-4">—</span>
                 </q-td>
               </template>
 
               <!-- Overtime Hours -->
               <template #body-cell-ot_hours="props">
                 <q-td :props="props" class="text-left font-mono">
-                  {{ formatOtHours(props.row) }}
+                  <q-badge color="indigo-1" text-color="indigo-9" class="q-px-sm q-py-xs text-weight-bold">
+                    <q-icon name="timer" size="13px" class="q-mr-xs" />
+                    {{ formatOtHours(props.row) }}
+                  </q-badge>
                 </q-td>
               </template>
 
               <!-- Action Column -->
               <template #body-cell-action="props">
-                <q-td :props="props" class="text-left">
+                <q-td :props="props" class="text-right">
                   <q-btn
                     flat
                     round
                     dense
                     size="sm"
-                    class="action-override-btn"
+                    color="primary"
                     icon="edit_calendar"
+                    class="action-override-btn"
                     @click="openOverrideDialog(props.row)"
                   >
-                    <q-tooltip>Override Overtime</q-tooltip>
+                    <q-tooltip class="bg-dark">Override Overtime</q-tooltip>
                   </q-btn>
                 </q-td>
               </template>
 
               <template #no-data>
-                <div class="full-width text-center q-pa-lg text-grey-6">
-                  No overtime entries recorded for this cutoff.
+                <div class="full-width text-center q-py-xl text-grey-6">
+                  <q-icon name="alarm_off" size="48px" color="grey-4" />
+                  <div class="text-subtitle1 text-weight-bold q-mt-sm">No Overtime Entries</div>
+                  <div class="text-caption">No overtime hours rendered for this period.</div>
                 </div>
               </template>
             </q-table>
           </q-card>
         </q-tab-panel>
       </q-tab-panels>
-    </template>
+    </div>
 
-    <!-- Override Time Dialog (Screenshot 3) -->
+    <!-- Override Time Dialog -->
     <DtrOverrideDialog
       v-model="showOverrideDialog"
       :control-no="employeeControlNo"
@@ -355,16 +707,36 @@
     />
 
     <!-- CSC Form 48 Preview Dialog -->
-    <q-dialog v-model="showPreviewDialog" maximized transition-show="slide-up" transition-hide="slide-down">
-      <q-card class="bg-grey-2">
-        <q-bar class="bg-green-9 text-white">
-          <div class="text-weight-bold">Civil Service Form 48 — {{ employeeName }} ({{ dtrData?.period?.month_name }} {{ dtrData?.period?.year }})</div>
+    <q-dialog
+      v-model="showPreviewDialog"
+      :maximized="isDialogMaximized"
+      transition-show="scale"
+      transition-hide="scale"
+    >
+      <q-card
+        :style="isDialogMaximized ? 'width: 100vw; height: 100vh;' : 'width: 1080px; max-width: 96vw; max-height: 92vh;'"
+        class="bg-grey-2 column no-wrap rounded-borders"
+      >
+        <q-bar class="bg-green-9 text-white q-py-sm no-print">
+          <q-icon name="description" class="q-mr-xs" />
+          <div class="text-weight-bold ellipsis" style="max-width: 650px;">
+            Civil Service Form No. 48 & Accomplishment Report — {{ employeeName }} ({{ getMonthName(selectedMonth) }} {{ selectedYear }})
+          </div>
           <q-space />
-          <q-btn dense flat icon="print" label="Print" class="q-mr-sm" @click="triggerPrint" />
+          <q-btn dense flat icon="print" label="Print" class="q-mr-xs" @click="triggerPrint" />
+          <q-btn
+            dense
+            flat
+            :icon="isDialogMaximized ? 'fullscreen_exit' : 'fullscreen'"
+            class="q-mr-xs"
+            @click="isDialogMaximized = !isDialogMaximized"
+          >
+            <q-tooltip>{{ isDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen' }}</q-tooltip>
+          </q-btn>
           <q-btn dense flat icon="close" v-close-popup />
         </q-bar>
-        <q-card-section class="q-pa-md flex flex-center">
-          <div style="width: 100%; max-width: 900px;" class="bg-white q-pa-md rounded-borders shadow-2">
+        <q-card-section class="col scroll q-pa-md flex flex-center">
+          <div style="width: 100%; max-width: 1000px;" class="bg-white q-pa-md rounded-borders shadow-2">
             <DailyTimeRecordTable
               v-if="dtrData"
               :records="dtrData.records"
@@ -418,6 +790,7 @@ const dtrData = ref(null)
 
 const activeTab = ref('dtr')
 const showPreviewDialog = ref(false)
+const isDialogMaximized = ref(false)
 const showOverrideDialog = ref(false)
 const activeOverrideDate = ref('')
 const activeOverrideDtr = ref(null)
@@ -428,12 +801,12 @@ const selectedYear = ref(currentDate.getFullYear())
 
 const pagination = ref({
   page: 1,
-  rowsPerPage: 5, // Exact 5 rows per page as in Screenshot 2
+  rowsPerPage: 15,
 })
 
 const overtimePagination = ref({
   page: 1,
-  rowsPerPage: 5,
+  rowsPerPage: 10,
 })
 
 const monthOptions = [
@@ -457,20 +830,22 @@ const yearOptions = computed(() => {
 })
 
 const dtrColumns = [
-  { name: 'date', label: 'Date', field: 'record_date', align: 'left' },
+  { name: 'date', label: 'Date', field: 'record_date', align: 'left', sortable: true },
   { name: 'time_in', label: 'Time In', field: 'am_arrival', align: 'left' },
-  { name: 'time_out', label: 'Time Out', field: 'am_departure', align: 'left' },
-  { name: 'pm_time_in', label: 'PM Time In', field: 'pm_arrival', align: 'left' },
-  { name: 'pm_time_out', label: 'PM Time Out', field: 'pm_departure', align: 'left' },
-  { name: 'action', label: 'Action', field: 'action', align: 'left' },
+  { name: 'time_out', label: 'Time Out (AM)', field: 'am_departure', align: 'left' },
+  { name: 'pm_time_in', label: 'Time In (PM)', field: 'pm_arrival', align: 'left' },
+  { name: 'pm_time_out', label: 'Time Out', field: 'pm_departure', align: 'left' },
+  { name: 'rendered_hours', label: 'Rendered Hours', field: 'rendered_hours', align: 'center' },
+  { name: 'status', label: 'Status / Remarks', field: 'status', align: 'center' },
+  { name: 'action', label: 'Action', field: 'action', align: 'right' },
 ]
 
 const overtimeColumns = [
-  { name: 'date', label: 'Date', field: 'record_date', align: 'left' },
+  { name: 'date', label: 'Date', field: 'record_date', align: 'left', sortable: true },
   { name: 'ot_time_in', label: 'Overtime In', field: 'ot_arrival', align: 'left' },
   { name: 'ot_time_out', label: 'Overtime Out', field: 'ot_departure', align: 'left' },
   { name: 'ot_hours', label: 'Rendered Overtime', field: 'overtime_minutes', align: 'left' },
-  { name: 'action', label: 'Action', field: 'action', align: 'left' },
+  { name: 'action', label: 'Action', field: 'action', align: 'right' },
 ]
 
 const employeeName = computed(() => {
@@ -478,7 +853,7 @@ const employeeName = computed(() => {
 })
 
 const employeeDesignation = computed(() => {
-  return dtrData.value?.employee?.designation || 'Staff'
+  return dtrData.value?.employee?.designation || 'Staff Member'
 })
 
 const employeeControlNo = computed(() => {
@@ -508,13 +883,87 @@ const overtimeRows = computed(() => {
   return dtrData.value.records.filter(r => (r.overtime_minutes && r.overtime_minutes > 0) || r.ot_arrival || r.ot_departure)
 })
 
-function formatDateLong(dateStr) {
+function getInitials(name) {
+  if (!name) return 'EM'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function getMonthName(monthNumber) {
+  const m = monthOptions.find(o => o.value === monthNumber)
+  return m ? m.label : ''
+}
+
+function getDayShort(dateStr) {
   if (!dateStr) return ''
   try {
     const d = new Date(dateStr + 'T00:00:00')
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return d.toLocaleDateString('en-US', { weekday: 'short' })
+  } catch {
+    return ''
+  }
+}
+
+function formatDateNumeric(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr + 'T00:00:00')
+    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
   } catch {
     return dateStr
+  }
+}
+
+function formatDateMonthDay(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr + 'T00:00:00')
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  } catch {
+    return dateStr
+  }
+}
+
+function isWeekendDay(row) {
+  if (!row?.record_date) return false
+  try {
+    const d = new Date(row.record_date + 'T00:00:00')
+    const day = d.getDay()
+    return day === 0 || day === 6
+  } catch {
+    return false
+  }
+}
+
+function getStatusLabel(row) {
+  if (row.status === 'ON_LEAVE') return 'On Leave'
+  if (row.status === 'PRESENT') return 'Present'
+  if (row.status === 'ABSENT') return 'Absent'
+  if (row.status === 'WEEKEND') return 'Weekend'
+  if (row.status === 'HOLIDAY') return 'Holiday'
+  if (row.status === 'REST_DAY') return 'Rest Day'
+  if (isWeekendDay(row)) return 'Weekend'
+  if (row.am_arrival || row.pm_departure) return 'Present'
+  return row.status || 'Pending'
+}
+
+function getStatusColor(row) {
+  const label = getStatusLabel(row)
+  switch (label) {
+    case 'Present':
+      return { bg: 'green-1', text: 'green-9', icon: 'check_circle' }
+    case 'Absent':
+      return { bg: 'red-1', text: 'red-9', icon: 'cancel' }
+    case 'On Leave':
+      return { bg: 'blue-1', text: 'blue-9', icon: 'event_note' }
+    case 'Weekend':
+    case 'Rest Day':
+      return { bg: 'grey-2', text: 'grey-7', icon: 'weekend' }
+    case 'Holiday':
+      return { bg: 'purple-1', text: 'purple-9', icon: 'celebration' }
+    default:
+      return { bg: 'grey-2', text: 'grey-8', icon: 'help_outline' }
   }
 }
 
@@ -534,7 +983,6 @@ function formatPunchTime(timeStr) {
   }
   return timeStr
 }
-
 
 function formatOtHours(row) {
   const mins = row.overtime_minutes || 0
@@ -630,80 +1078,198 @@ onMounted(() => {
 
 <style scoped>
 .attendance-record-shell {
-  max-width: 1200px;
+  max-width: 1350px;
   margin: 0 auto;
 }
 
-.back-btn {
-  border: 1.5px solid #2e7d32 !important;
-  color: #2e7d32 !important;
-  font-weight: 700 !important;
-  border-radius: 4px;
-}
-
-.shift-pill {
-  display: inline-block;
-  background-color: #2e7d32;
-  color: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 3px 12px;
-  border-radius: 4px;
-}
-
-.green-action-btn {
-  background-color: #2e7d32 !important;
-  color: #ffffff !important;
-  font-weight: 600 !important;
-  font-size: 0.88rem;
-  border-radius: 4px;
-  padding: 6px 14px;
-}
-
-.detail-stat-card {
-  background-color: #ffffff;
+.header-card {
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 12px 14px;
-  min-height: 75px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
-.stat-card-label {
-  font-size: 0.82rem;
-  color: #475569;
-  font-weight: 500;
+.back-circle-btn {
+  background-color: #f1f5f9;
+  transition: all 0.2s ease;
 }
 
-.stat-card-value {
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.1;
+.back-circle-btn:hover {
+  background-color: #e2e8f0;
+  transform: translateX(-2px);
 }
 
-.attendance-tabs :deep(.q-tab__label) {
-  font-weight: 600;
-  font-size: 0.92rem;
+.employee-avatar {
+  border: 2px solid #bbf7d0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
-.attendance-detail-table {
+.employee-name-title {
+  max-width: 420px;
+  letter-spacing: -0.01em;
+}
+
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.selector-pill-box {
+  border: 1px solid #e2e8f0;
+}
+
+.dense-selector :deep(.q-field__control) {
   background-color: #ffffff;
+  border-radius: 6px;
+  height: 38px;
 }
 
-.attendance-detail-table :deep(th) {
-  font-weight: 700;
-  color: #1e293b;
-  font-size: 0.88rem;
-  border-bottom: 1.5px solid #e2e8f0;
+.action-btn {
+  height: 38px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 0 14px;
+  transition: all 0.2s ease;
 }
 
-.attendance-detail-table :deep(td) {
-  font-size: 0.88rem;
-  color: #334155;
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* KPI Stat Cards */
+.stat-kpi-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-kpi-label {
+  font-size: 0.8rem;
+  color: #475569;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.stat-icon-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-kpi-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat-kpi-unit {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Nav Tabs */
+.attendance-nav-tabs {
+  border: 1px solid #e2e8f0;
+}
+
+.attendance-nav-tabs :deep(.q-tab__indicator) {
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+}
+
+/* Table Card */
+.table-card {
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.border-bottom {
   border-bottom: 1px solid #f1f5f9;
 }
 
+.attendance-pro-table :deep(thead tr th) {
+  background-color: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+.attendance-pro-table :deep(tbody tr td) {
+  font-size: 0.88rem;
+  color: #1e293b;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.attendance-pro-table :deep(tbody tr:hover td) {
+  background-color: #f8fafc;
+}
+
+.day-pill {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  min-width: 36px;
+  text-align: center;
+}
+
+.weekday-pill {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.weekend-day-pill {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
 .action-override-btn {
-  color: #2e7d32 !important;
+  background-color: #f1f5f9;
+  transition: all 0.2s ease;
+}
+
+.action-override-btn:hover {
+  background-color: #e2e8f0;
+  transform: scale(1.08);
+}
+
+.top-reload-bar {
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.3);
+}
+
+.border-green-subtle {
+  border: 1px solid #c8e6c9;
+}
+
+.content-reloading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media print {

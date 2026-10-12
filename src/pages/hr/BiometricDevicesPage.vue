@@ -4,18 +4,9 @@
     <div class="row items-center justify-between q-mb-md">
       <div>
         <div class="row items-center q-gutter-x-sm">
-          <q-icon name="devices" size="32px" color="primary" />
           <h1 class="text-h4 text-weight-bold q-my-none">Biometric Devices</h1>
         </div>
       </div>
-      <q-btn
-        color="primary"
-        icon="add"
-        label="Add Device"
-        unelevated
-        no-caps
-        @click="openAddDeviceDialog"
-      />
     </div>
 
     <!-- Summary Stat Cards (Clean 3-Card Grid) -->
@@ -684,11 +675,18 @@ const stats = reactive({
 })
 
 function isDeviceOnline(dev) {
-  if (!dev || !dev.is_active) return false
+  if (!dev) return false
+  if (dev.is_active === false) return false
+  if (typeof dev.is_online === 'boolean') {
+    return dev.is_online
+  }
+  if (dev.status === 'ONLINE') return true
+  if (dev.status === 'OFFLINE' || dev.status === 'BLOCKED') return false
+
   const lastTime = dev.last_heartbeat_at || dev.last_activity_at || dev.last_sync_at
   if (!lastTime) return false
   const diffSec = (Date.now() - new Date(lastTime).getTime()) / 1000
-  return diffSec <= 180
+  return diffSec <= 300
 }
 
 function formatDeviceTime(val) {
@@ -926,20 +924,6 @@ const deviceForm = reactive({
   comm_key: '0',
   ip_address: '',
 })
-
-function openAddDeviceDialog() {
-  isCreatingDevice.value = true
-  activeDevice.value = null
-  deviceForm.device_name = ''
-  deviceForm.serial_number = ''
-  deviceForm.model_name = 'MB360'
-  deviceForm.department_id = null
-  deviceForm.zkbio_area_id = null
-  deviceForm.is_primary = true
-  deviceForm.comm_key = '0'
-  deviceForm.ip_address = ''
-  showDeviceDialog.value = true
-}
 
 function openEditDeviceDialog(dev) {
   isCreatingDevice.value = false
