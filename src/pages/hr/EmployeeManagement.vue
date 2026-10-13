@@ -3431,7 +3431,8 @@ function parseLedgerDateParts(value) {
 function buildLedgerInclusiveDateLabel(parts) {
   if (!parts) return ''
   const monthLabel = parts.date.toLocaleDateString('en-US', { month: 'short' })
-  return `${monthLabel} ${parts.day}, ${parts.year}`
+  const portionSuffix = parts.portion ? ` (${parts.portion})` : ''
+  return `${monthLabel} ${parts.day}, ${parts.year}${portionSuffix}`
 }
 
 function sortAndNormalizeLedgerDatePartsList(partsList) {
@@ -3443,6 +3444,11 @@ function sortAndNormalizeLedgerDatePartsList(partsList) {
     const iso = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
     if (!byIsoDate.has(iso)) {
       byIsoDate.set(iso, parts)
+    } else {
+      const existing = byIsoDate.get(iso)
+      if (!existing.portion && parts.portion) {
+        existing.portion = parts.portion
+      }
     }
   }
 
@@ -3462,48 +3468,66 @@ function buildLedgerInclusiveDatesListLabel(partsList) {
       groups.set(groupKey, {
         monthLabel: parts.date.toLocaleDateString('en-US', { month: 'short' }),
         year: parts.year,
-        days: [],
+        items: [],
       })
     }
 
-    groups.get(groupKey).days.push(parts.day)
+    groups.get(groupKey).items.push({
+      day: parts.day,
+      portion: parts.portion || null,
+    })
   }
 
   return [...groups.values()]
     .map((group) => {
-      const uniqueDays = [...new Set(group.days)].sort((left, right) => left - right)
-      if (uniqueDays.length === 0) return ''
+      const dayMap = new Map()
+      for (const item of group.items) {
+        if (!dayMap.has(item.day)) {
+          dayMap.set(item.day, item.portion)
+        } else if (!dayMap.get(item.day) && item.portion) {
+          dayMap.set(item.day, item.portion)
+        }
+      }
 
-      const dayRanges = []
-      let rangeStart = uniqueDays[0]
-      let rangeEnd = uniqueDays[0]
+      const sortedDays = [...dayMap.keys()].sort((left, right) => left - right)
+      if (sortedDays.length === 0) return ''
 
-      for (let index = 1; index < uniqueDays.length; index += 1) {
-        const currentDay = uniqueDays[index]
-        if (currentDay === rangeEnd + 1) {
+      const ranges = []
+      let rangeStart = sortedDays[0]
+      let rangeEnd = sortedDays[0]
+      let currentPortion = dayMap.get(sortedDays[0]) || null
+
+      for (let index = 1; index < sortedDays.length; index += 1) {
+        const currentDay = sortedDays[index]
+        const portion = dayMap.get(currentDay) || null
+
+        if (currentDay === rangeEnd + 1 && portion === null && currentPortion === null) {
           rangeEnd = currentDay
           continue
         }
 
-        dayRanges.push([rangeStart, rangeEnd])
+        ranges.push({ startDay: rangeStart, endDay: rangeEnd, portion: currentPortion })
         rangeStart = currentDay
         rangeEnd = currentDay
+        currentPortion = portion
       }
 
-      dayRanges.push([rangeStart, rangeEnd])
+      ranges.push({ startDay: rangeStart, endDay: rangeEnd, portion: currentPortion })
 
-      const rangeLabels = dayRanges.map(([startDay, endDay]) => {
+      const rangeLabels = ranges.map(({ startDay, endDay, portion }) => {
         let dayLabel = String(startDay)
         if (endDay > startDay) {
           dayLabel = endDay === startDay + 1 ? `${startDay}, ${endDay}` : `${startDay}-${endDay}`
         }
 
-        return `${group.monthLabel} ${dayLabel}`
+        const portionSuffix = portion ? ` (${portion})` : ''
+        return `${group.monthLabel} ${dayLabel}${portionSuffix}`
       })
 
-      const hasSingleDayOnly = dayRanges.length === 1 && dayRanges[0][0] === dayRanges[0][1]
+      const hasSingleDayOnly = ranges.length === 1 && ranges[0].startDay === ranges[0].endDay
       if (hasSingleDayOnly) {
-        return `${group.monthLabel} ${dayRanges[0][0]}, ${group.year}`
+        const portionSuffix = ranges[0].portion ? ` (${ranges[0].portion})` : ''
+        return `${group.monthLabel} ${ranges[0].startDay}, ${group.year}${portionSuffix}`
       }
 
       return `${rangeLabels.join(', ')} ${group.year}`
@@ -3624,6 +3648,32 @@ function buildLedgerInclusiveRangeText(entry) {
     }
   }
 
+  const rawHalfDayPortions = pickFirstDefined(entry, [
+    'selected_date_half_day_portion',
+    'selectedDateHalfDayPortion',
+    'half_day_portion_by_date',
+    'halfDayPortionByDate',
+  ])
+  let halfDayPortionMap = {}
+  if (rawHalfDayPortions && typeof rawHalfDayPortions === 'object' && !Array.isArray(rawHalfDayPortions)) {
+    halfDayPortionMap = rawHalfDayPortions
+  } else if (typeof rawHalfDayPortions === 'string' && rawHalfDayPortions.trim() !== '') {
+    try {
+      const parsed = JSON.parse(rawHalfDayPortions)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        halfDayPortionMap = parsed
+      }
+    } catch {
+      // ignore json parse error
+    }
+  }
+
+  const resolvePortionForIso = (iso) => {
+    if (!iso || !halfDayPortionMap) return null
+    const val = String(halfDayPortionMap[iso] || '').toUpperCase().trim()
+    return val === 'AM' || val === 'PM' ? val : null
+  }
+
   const explicitDatesValue = pickFirstDefined(entry, [
     'inclusive_dates',
     'inclusiveDates',
@@ -3632,7 +3682,13 @@ function buildLedgerInclusiveRangeText(entry) {
   ])
   if (Array.isArray(explicitDatesValue) && explicitDatesValue.length > 0) {
     const explicitParts = explicitDatesValue
-      .map((value) => parseLedgerDateParts(value))
+      .map((value) => {
+        const parts = parseLedgerDateParts(value)
+        if (!parts) return null
+        const iso = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+        parts.portion = resolvePortionForIso(iso)
+        return parts
+      })
       .filter(Boolean)
     const explicitLabel = buildLedgerInclusiveDatesListLabel(explicitParts)
     if (explicitLabel) return explicitLabel
@@ -3661,11 +3717,22 @@ function buildLedgerInclusiveRangeText(entry) {
 
   if (inclusiveStart && inclusiveEnd) {
     const fullRangeParts = buildLedgerDatePartsRange(inclusiveStart, inclusiveEnd)
+    fullRangeParts.forEach((parts) => {
+      const iso = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+      parts.portion = resolvePortionForIso(iso)
+    })
     const fullRangeLabel = buildLedgerInclusiveDatesListLabel(fullRangeParts)
     if (fullRangeLabel) return fullRangeLabel
   }
 
-  return buildLedgerInclusiveDateLabel(inclusiveStart || inclusiveEnd)
+  const singleFallback = inclusiveStart || inclusiveEnd
+  if (singleFallback) {
+    const iso = `${String(singleFallback.year).padStart(4, '0')}-${String(singleFallback.month).padStart(2, '0')}-${String(singleFallback.day).padStart(2, '0')}`
+    singleFallback.portion = resolvePortionForIso(iso)
+    return buildLedgerInclusiveDateLabel(singleFallback)
+  }
+
+  return ''
 }
 
 function resolveLeaveHistoryInclusiveDateParts(entry) {
@@ -4572,6 +4639,7 @@ function normalizeLedgerRow(entry, index) {
     minutes_late: entry?.minutes_late !== undefined ? entry.minutes_late : (entry?.minutesLate ?? null),
     deducted_days: entry?.deducted_days !== undefined ? entry.deducted_days : (entry?.deductedDays ?? entry?.amount ?? null),
     selected_dates: entry?.selected_dates || entry?.selectedDates || entry?.inclusive_dates || entry?.inclusiveDates || null,
+    selected_date_half_day_portion: entry?.selected_date_half_day_portion || entry?.selectedDateHalfDayPortion || null,
     inclusive_start_date: entry?.inclusive_start_date || entry?.inclusiveStartDate || entry?.start_date || entry?.startDate || null,
     inclusive_end_date: entry?.inclusive_end_date || entry?.inclusiveEndDate || entry?.end_date || entry?.endDate || null,
     isLateDeduction: isLateDeductionEntry(entry),
