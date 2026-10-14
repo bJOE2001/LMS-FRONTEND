@@ -18,7 +18,106 @@
         />
       </div>
     </div>
-    <div class="row q-col-gutter-sm q-mb-md status-cards-row">
+
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <q-linear-progress
+      v-if="loading && (employees.length > 0 || fullEmployeeRows.length > 0)"
+      indeterminate
+      color="green-9"
+      size="3px"
+      class="q-mb-md rounded-borders top-reload-bar"
+    />
+
+    <!-- ========================================================= -->
+    <!-- SKELETON LOADING STATE (Initial Page Load)               -->
+    <!-- ========================================================= -->
+    <div v-if="loading && employees.length === 0 && fullEmployeeRows.length === 0" class="skeleton-suite">
+      <!-- 5 Skeleton KPI Status Cards -->
+      <div class="row q-col-gutter-sm q-mb-md status-cards-row">
+        <div v-for="i in 5" :key="'sk-card-' + i" class="col-6 col-sm-6 col-md status-cards-row__item">
+          <q-card flat bordered class="rounded-borders bg-white stat-card">
+            <q-card-section class="q-py-md status-card__section">
+              <div class="row items-center no-wrap status-card__content">
+                <q-skeleton type="QAvatar" size="44px" class="q-mr-md" animation="wave" />
+                <q-skeleton type="text" width="70px" height="16px" animation="wave" />
+                <q-skeleton type="text" width="36px" height="26px" class="q-ml-auto" animation="wave" />
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
+      <!-- Skeleton Employee Records Table Card -->
+      <q-card flat bordered class="rounded-borders employee-records-card">
+        <q-card-section class="employee-records-card__section">
+          <div class="row justify-between items-center employee-records-toolbar">
+            <div class="row items-center q-gutter-sm">
+              <div class="text-h6">Employee Records</div>
+            </div>
+            <q-skeleton type="rect" width="220px" height="36px" class="rounded-borders" animation="wave" />
+          </div>
+        </q-card-section>
+
+        <div class="q-pa-md">
+          <!-- Columns Header Placeholder -->
+          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-5"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
+            <div class="col-3 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
+          </div>
+
+          <!-- 8 Skeleton Rows -->
+          <div
+            v-for="r in 8"
+            :key="'sk-row-' + r"
+            class="row items-center q-py-md border-bottom q-col-gutter-sm"
+            :class="{ 'bg-grey-1': r % 2 === 0 }"
+          >
+            <!-- Control No -->
+            <div class="col-2">
+              <q-skeleton type="text" width="70px" height="16px" animation="wave" />
+            </div>
+
+            <!-- Employee Avatar + Name + Designation -->
+            <div class="col-5">
+              <div class="row items-center no-wrap q-gutter-x-sm">
+                <q-skeleton type="QAvatar" size="32px" animation="wave" />
+                <div>
+                  <q-skeleton type="text" width="140px" height="18px" animation="wave" />
+                  <q-skeleton type="text" width="90px" height="14px" class="q-mt-xs" animation="wave" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Badge -->
+            <div class="col-3 text-center">
+              <q-skeleton type="rect" width="75px" height="22px" class="rounded-borders q-mx-auto" animation="wave" />
+            </div>
+
+            <!-- Actions -->
+            <div class="col-2 text-right">
+              <div class="row items-center justify-end q-gutter-xs">
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skeleton Table Footer -->
+        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
+          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
+          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
+        </div>
+      </q-card>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- REAL CONTENT SUITE                                        -->
+    <!-- ========================================================= -->
+    <div v-else :class="{ 'content-reloading': loading && (employees.length > 0 || fullEmployeeRows.length > 0) }">
+      <div class="row q-col-gutter-sm q-mb-md status-cards-row">
       <div
         v-for="card in statusCards"
         :key="card.key"
@@ -61,8 +160,7 @@
                 class="text-h6 text-weight-bold status-card__value q-ml-auto"
                 :style="{ color: card.hex }"
               >
-                <q-spinner v-if="loading" size="28px" :color="card.color" />
-                <template v-else>{{ card.value }}</template>
+                {{ card.value }}
               </div>
             </div>
             <q-tooltip>{{ getStatusCardTooltip(card) }}</q-tooltip>
@@ -234,6 +332,7 @@
         </template>
       </q-table>
     </q-card>
+  </div>
 
     <q-dialog
       v-model="showApplyLeaveDialog"
@@ -2694,5 +2793,32 @@ watch(
     min-height: 52px;
     padding: 0 8px 0 10px;
   }
+}
+
+.top-reload-bar {
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+}
+
+.content-reloading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: fadeIn 0.2s ease-in;
+}
+
+.border-bottom {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.border-top {
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

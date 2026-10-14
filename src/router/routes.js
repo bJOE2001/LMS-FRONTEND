@@ -14,7 +14,14 @@ const routes = [
       { path: 'admin/reports', name: 'admin-reports', component: () => import('pages/admin/AdminReports.vue') },
       { path: 'admin/print-logs', name: 'admin-print-logs', component: () => import('pages/admin/AdminPrintLogs.vue') },
       { path: 'admin/attendance', name: 'admin-attendance', component: () => import('pages/admin/AttendanceManagement.vue') },
-      { path: 'admin/attendance/:employeeId', name: 'admin-attendance-record', component: () => import('pages/admin/AdminEmployeeAttendanceRecordPage.vue') },
+      {
+        path: 'admin/attendance/:employeeId',
+        name: 'admin-attendance-record',
+        redirect: (to) => ({
+          name: 'admin-attendance',
+          query: { employeeId: to.params.employeeId },
+        }),
+      },
 
       // HR
       { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },

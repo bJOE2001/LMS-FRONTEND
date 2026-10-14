@@ -3,11 +3,8 @@
     <!-- Top Executive Header -->
     <div class="q-mb-md executive-header">
       <div class="row items-center q-gutter-x-sm">
-        <q-avatar size="36px" color="green-1" text-color="green-9" class="header-icon-avatar">
-          <q-icon name="co_present" size="22px" />
-        </q-avatar>
         <div>
-          <h1 class="text-h5 text-weight-bolder text-dark q-my-none page-title">
+          <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none page-title">
             Attendance Management
           </h1>
         </div>
@@ -289,6 +286,21 @@
                 <q-tooltip class="bg-dark">Next Day</q-tooltip>
               </q-btn>
             </div>
+
+            <!-- Batch DTR Print Button -->
+            <q-btn
+              unelevated
+              dense
+              color="green-9"
+              icon="print"
+              label="Batch Print DTR"
+              no-caps
+              class="text-weight-bold q-px-sm"
+              style="height: 34px; border-radius: 6px;"
+              @click="openBatchPrintSetup"
+            >
+              <q-tooltip class="bg-dark">Select personnel & print Civil Service Form 48 in batch</q-tooltip>
+            </q-btn>
           </div>
         </q-card-section>
 
@@ -301,7 +313,10 @@
           :loading="loading"
           :rows-per-page-options="[10, 20, 50, 100]"
           v-model:pagination="pagination"
+          v-model:selected="selectedEmployees"
+          selection="multiple"
           class="attendance-pro-table"
+          @row-click="handleEmployeeRowClick"
         >
           <!-- Employee Column: Avatar initials + Full Name + Control No -->
           <template #body-cell-employee="props">
@@ -432,7 +447,7 @@
           <template #body-cell-action="props">
             <q-td :props="props" class="text-right">
               <div class="row items-center justify-end no-wrap">
-                <!-- View Monthly DTR Details -->
+                <!-- View Monthly DTR Details & Override -->
                 <q-btn
                   flat
                   round
@@ -441,9 +456,9 @@
                   color="green-9"
                   icon="visibility"
                   class="action-icon-btn"
-                  @click="openEmployeeRecord(props.row)"
+                  @click.stop="openEmployeeDtr(props.row)"
                 >
-                  <q-tooltip class="bg-dark">View Attendance Details</q-tooltip>
+                  <q-tooltip class="bg-dark">View DTR & Override</q-tooltip>
                 </q-btn>
               </div>
             </q-td>
@@ -462,15 +477,268 @@
         </q-table>
       </q-card>
     </div>
+
+    <!-- Civil Service Form No. 48 (DTR) Preview & Override Modal Dialog -->
+    <q-dialog
+      v-model="showDtrModal"
+      :maximized="isDialogMaximized"
+      transition-show="scale"
+      transition-hide="scale"
+      @hide="onDtrModalClose"
+    >
+      <q-card
+        :style="isDialogMaximized ? 'width: 100vw; height: 100vh;' : 'width: 1080px; max-width: 96vw; max-height: 92vh;'"
+        class="bg-grey-2 column no-wrap rounded-borders"
+      >
+        <q-bar class="bg-green-9 text-white q-py-sm no-print">
+          <q-icon name="description" class="q-mr-xs" />
+          <div class="text-weight-bold ellipsis" style="max-width: 650px;">
+            Civil Service Form No. 48 & Accomplishment Report — {{ dtrModalEmployeeName }} ({{ dtrCustomRangeLabel }})
+          </div>
+          <q-space />
+          <q-btn
+            dense
+            flat
+            :icon="isDialogMaximized ? 'fullscreen_exit' : 'fullscreen'"
+            class="q-mr-xs"
+            @click="isDialogMaximized = !isDialogMaximized"
+          >
+            <q-tooltip>{{ isDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen' }}</q-tooltip>
+          </q-btn>
+          <q-btn dense flat icon="close" v-close-popup />
+        </q-bar>
+
+        <q-card-section class="col scroll q-pa-md flex flex-center">
+          <div style="width: 100%; max-width: 1000px;" class="bg-white q-pa-md rounded-borders shadow-2">
+            <DailyTimeRecordTable
+              v-if="dtrData"
+              ref="previewDtrRef"
+              v-model:custom-date-range="dtrCustomRange"
+              :records="dtrData.records"
+              :employee="dtrData.employee"
+              :period="dtrData.period"
+              :summary="dtrData.summary"
+              :department-heads="dtrData.department_heads"
+              :loading="dtrLoading"
+              @adjust-saved="onDtrOverrideSaved"
+            />
+            <div v-else-if="dtrLoading" class="q-pa-xl text-center">
+              <q-spinner-dots color="green-9" size="48px" />
+              <div class="text-subtitle2 text-grey-7 q-mt-md">Loading Daily Time Record...</div>
+            </div>
+            <div v-else-if="dtrErrorMessage" class="q-pa-xl text-center text-negative">
+              <q-icon name="error_outline" size="48px" />
+              <div class="text-subtitle1 text-weight-bold q-mt-sm">Unable to Load DTR</div>
+              <div class="text-caption text-grey-7">{{ dtrErrorMessage }}</div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- Floating Bottom Bulk Action Bar for Batch DTR Printing -->
+    <transition
+      appear
+      enter-active-class="animated fadeInUp"
+      leave-active-class="animated fadeOutDown"
+    >
+      <div
+        v-if="selectedEmployees.length > 0"
+        class="bulk-action-bar fixed-bottom row items-center justify-between q-pa-sm q-px-md shadow-10 no-print"
+      >
+        <div class="row items-center q-gutter-x-md">
+          <q-badge color="white" text-color="green-9" class="text-weight-bold text-subtitle2 q-px-sm q-py-xs shadow-1">
+            <q-icon name="checklist" size="18px" class="q-mr-xs" />
+            {{ selectedEmployees.length }} {{ selectedEmployees.length === 1 ? 'personnel' : 'personnel' }} selected
+          </q-badge>
+
+          <!-- Cutoff Range Quick Presets -->
+          <div class="row items-center q-gutter-x-xs cutoff-preset-group">
+            <span class="text-caption text-white text-weight-medium q-mr-xs">Print Period:</span>
+            <q-btn
+              dense
+              unelevated
+              size="sm"
+              :color="selectedCutoffPreset === '1st' ? 'white' : 'green-8'"
+              :text-color="selectedCutoffPreset === '1st' ? 'green-10' : 'white'"
+              label="1st Cutoff (1–15)"
+              class="text-weight-bold q-px-sm"
+              @click="applyCutoffPreset('1st')"
+            />
+            <q-btn
+              dense
+              unelevated
+              size="sm"
+              :color="selectedCutoffPreset === '2nd' ? 'white' : 'green-8'"
+              :text-color="selectedCutoffPreset === '2nd' ? 'green-10' : 'white'"
+              label="2nd Cutoff (16–End)"
+              class="text-weight-bold q-px-sm"
+              @click="applyCutoffPreset('2nd')"
+            />
+            <q-btn
+              dense
+              unelevated
+              size="sm"
+              :color="selectedCutoffPreset === 'month' ? 'white' : 'green-8'"
+              :text-color="selectedCutoffPreset === 'month' ? 'green-10' : 'white'"
+              label="Full Month"
+              class="text-weight-bold q-px-sm"
+              @click="applyCutoffPreset('month')"
+            />
+          </div>
+
+          <!-- Date Range Trigger -->
+          <div class="bulk-date-trigger row items-center no-wrap bg-white text-dark q-px-sm rounded-borders cursor-pointer">
+            <q-icon name="date_range" size="16px" color="green-9" class="q-mr-xs" />
+            <span class="text-caption text-weight-bold font-mono">{{ batchRangeDisplayLabel }}</span>
+            <q-icon name="arrow_drop_down" size="18px" color="grey-7" />
+
+            <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+              <q-date
+                v-model="batchDatePickerModel"
+                range
+                mask="YYYY-MM-DD"
+                color="green-9"
+                minimal
+                @update:model-value="selectedCutoffPreset = 'custom'"
+              >
+                <div class="row items-center justify-end">
+                  <q-btn v-close-popup label="Apply" color="green-9" flat />
+                </div>
+              </q-date>
+            </q-popup-proxy>
+          </div>
+        </div>
+
+        <!-- Action Buttons: Print Batch & Clear -->
+        <div class="row items-center q-gutter-x-sm">
+          <q-btn
+            flat
+            dense
+            color="white"
+            label="Clear Selection"
+            icon="close"
+            no-caps
+            size="sm"
+            @click="selectedEmployees = []"
+          />
+          <q-btn
+            unelevated
+            color="white"
+            text-color="green-10"
+            icon="print"
+            :label="`Print DTR (${selectedEmployees.length})`"
+            no-caps
+            class="text-weight-bolder q-px-md"
+            :loading="batchLoading"
+            @click="openBatchPrintModal"
+          >
+            <q-tooltip>Print CSC Form No. 48 for selected personnel</q-tooltip>
+          </q-btn>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Batch Civil Service Form No. 48 Print Preview Modal Dialog -->
+    <q-dialog
+      v-model="showBatchDtrModal"
+      :maximized="isBatchDialogMaximized"
+      transition-show="scale"
+      transition-hide="scale"
+    >
+      <q-card
+        :style="isBatchDialogMaximized ? 'width: 100vw; height: 100vh;' : 'width: 1100px; max-width: 98vw; max-height: 94vh;'"
+        class="bg-grey-2 column no-wrap rounded-borders"
+      >
+        <q-bar class="bg-green-9 text-white q-py-sm no-print">
+          <q-icon name="print" class="q-mr-xs" />
+          <div class="text-weight-bold ellipsis" style="max-width: 650px;">
+            Batch CSC Form No. 48 Preview — {{ batchEmployeesDtr.length }} Personnel ({{ batchRangeDisplayLabel }})
+          </div>
+          <q-space />
+          <q-btn
+            dense
+            unelevated
+            color="white"
+            text-color="green-10"
+            icon="print"
+            :label="`Print All (${batchEmployeesDtr.length} Copies)`"
+            class="q-mr-sm text-weight-bolder"
+            no-caps
+            size="sm"
+            @click="executeBatchPrint"
+          />
+          <q-btn
+            dense
+            flat
+            :icon="isBatchDialogMaximized ? 'fullscreen_exit' : 'fullscreen'"
+            class="q-mr-xs"
+            @click="isBatchDialogMaximized = !isBatchDialogMaximized"
+          >
+            <q-tooltip>{{ isBatchDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen' }}</q-tooltip>
+          </q-btn>
+          <q-btn dense flat icon="close" v-close-popup />
+        </q-bar>
+
+        <q-card-section class="col scroll q-pa-md">
+          <div v-if="batchLoading" class="full-width q-pa-xl text-center">
+            <q-spinner-dots color="green-9" size="48px" />
+            <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-md">
+              Generating CSC Form No. 48 for {{ selectedEmployees.length }} Personnel...
+            </div>
+            <div class="text-caption text-grey-6">Calculating punches, rendered hours, and accomplishments</div>
+          </div>
+
+          <div v-else-if="batchEmployeesDtr.length === 0" class="full-width q-pa-xl text-center text-grey-7">
+            <q-icon name="error_outline" size="48px" color="grey-5" />
+            <div class="text-subtitle1 text-weight-bold q-mt-md">No Records Found</div>
+            <div class="text-caption">No attendance logs found for the selected personnel and date range.</div>
+          </div>
+
+          <!-- Printable Container with All Sheets -->
+          <div v-else id="batch-print-container" ref="batchPrintContainerRef" class="batch-sheets-list">
+            <div
+              v-for="(item, idx) in batchEmployeesDtr"
+              :key="item.employee?.control_no || idx"
+              class="batch-employee-sheet-wrapper q-mb-lg"
+            >
+              <!-- Screen sheet header badge -->
+              <div class="no-print row items-center justify-between q-px-sm q-py-xs q-mb-xs bg-grey-3 rounded-borders text-caption text-weight-bold text-dark">
+                <span>
+                  <q-badge color="green-9" text-color="white" class="q-mr-xs">#{{ idx + 1 }}</q-badge>
+                  {{ item.employee?.name }} (ID: {{ item.employee?.control_no }})
+                </span>
+                <span>{{ item.employee?.office || item.employee?.designation }}</span>
+              </div>
+
+              <div style="background: #ffffff; padding: 12px; border-radius: 6px;" class="shadow-1">
+                <DailyTimeRecordTable
+                  :records="item.records"
+                  :employee="item.employee"
+                  :period="batchPeriod"
+                  :summary="item.summary"
+                  :department-heads="batchDepartmentHeads"
+                  :custom-date-range="normalizedBatchCustomRange"
+                  :hide-toolbar="true"
+                />
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
+import { printBatchCscForm48 } from 'src/utils/csc-form-48-print'
 
+const route = useRoute()
 const router = useRouter()
 const $q = useQuasar()
 
@@ -672,18 +940,356 @@ async function fetchAttendanceOverview() {
   }
 }
 
+// =========================================================
+// DTR MODAL & TIME OVERRIDE STATE & LOGIC
+// =========================================================
+const showDtrModal = ref(false)
+const isDialogMaximized = ref(false)
+const selectedDtrEmployee = ref(null)
+const dtrLoading = ref(false)
+const dtrErrorMessage = ref('')
+const dtrData = ref(null)
+const previewDtrRef = ref(null)
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+function getMonthName(monthNumber) {
+  return MONTH_NAMES[(Number(monthNumber) || 1) - 1] || 'January'
+}
+
+function buildMonthRangeForDate(dateStr) {
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date()
+  const year = d.getFullYear()
+  const month = d.getMonth() + 1
+  const m = String(month).padStart(2, '0')
+  const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0')
+  return {
+    from: `${year}-${m}-01`,
+    to: `${year}-${m}-${lastDay}`,
+  }
+}
+
+const dtrCustomRange = ref(buildMonthRangeForDate(todayStr))
+
+const normalizedDtrCustomRange = computed(() => {
+  const val = dtrCustomRange.value || buildMonthRangeForDate(todayStr)
+  if (typeof val === 'string') {
+    return { from: val, to: val }
+  }
+  const from = val?.from || buildMonthRangeForDate(todayStr).from
+  const to = val?.to || from
+  return from <= to ? { from, to } : { from: to, to: from }
+})
+
+const dtrModalEmployeeName = computed(() => {
+  return dtrData.value?.employee?.name || selectedDtrEmployee.value?.employee_name || 'Employee'
+})
+
+const dtrCustomRangeLabel = computed(() => {
+  const { from, to } = normalizedDtrCustomRange.value
+  try {
+    const d1 = new Date(`${from}T00:00:00`)
+    const d2 = new Date(`${to}T00:00:00`)
+    const sameYear = d1.getFullYear() === d2.getFullYear()
+    const f1 = d1.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(sameYear ? {} : { year: 'numeric' }),
+    })
+    const f2 = d2.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    return from === to ? f2 : `${f1} – ${f2}`
+  } catch {
+    return `${from} – ${to}`
+  }
+})
+
+watch(
+  () => [normalizedDtrCustomRange.value.from, normalizedDtrCustomRange.value.to],
+  () => {
+    if (showDtrModal.value && selectedDtrEmployee.value?.control_no) {
+      fetchEmployeeDtr(selectedDtrEmployee.value.control_no)
+    }
+  }
+)
+
 /**
- * Open Employee Details View
+ * Fetch Employee Monthly DTR Record
  */
-function openEmployeeRecord(employee) {
-  router.push({
-    name: 'admin-attendance-record',
-    params: { employeeId: employee.control_no },
+async function fetchEmployeeDtr(controlNo) {
+  if (!controlNo) return
+  dtrLoading.value = true
+  dtrErrorMessage.value = ''
+
+  try {
+    const { from, to } = normalizedDtrCustomRange.value
+    const [fromY, fromM] = from.split('-').map(Number)
+    const [toY, toM] = to.split('-').map(Number)
+
+    const year = fromY || new Date().getFullYear()
+    const month = fromM || new Date().getMonth() + 1
+
+    const params = {
+      month,
+      year,
+    }
+
+    if (fromY && fromM && toY && toM) {
+      const startPadM = String(fromM).padStart(2, '0')
+      const endPadM = String(toM).padStart(2, '0')
+      const endMaxDay = String(new Date(toY, toM, 0).getDate()).padStart(2, '0')
+      params.start_date = `${fromY}-${startPadM}-01`
+      params.end_date = `${toY}-${endPadM}-${endMaxDay}`
+    }
+
+    const res = await api.get(`/attendance/dtr/employee/${controlNo}`, { params })
+
+    if (res.data?.period) {
+      res.data.period.year = year
+      res.data.period.month = month
+      res.data.period.month_name = getMonthName(month)
+      res.data.period.days_in_month = new Date(year, month, 0).getDate()
+    }
+
+    dtrData.value = res.data
+  } catch (err) {
+    console.error('Failed to fetch employee DTR:', err)
+    dtrErrorMessage.value = err.response?.data?.message || 'Failed to load employee Daily Time Record.'
+    $q.notify({
+      type: 'negative',
+      message: dtrErrorMessage.value,
+      position: 'top',
+    })
+  } finally {
+    dtrLoading.value = false
+  }
+}
+
+/**
+ * Open Employee DTR Preview Modal
+ */
+function openEmployeeDtr(employee) {
+  if (!employee || !employee.control_no) return
+  selectedDtrEmployee.value = employee
+  dtrCustomRange.value = buildMonthRangeForDate(selectedDate.value)
+  dtrData.value = null
+  showDtrModal.value = true
+  fetchEmployeeDtr(employee.control_no)
+}
+
+/**
+ * Handle Employee Row Click in Attendance Table
+ */
+function handleEmployeeRowClick(evt, row) {
+  if (
+    evt?.target?.closest('.q-btn') ||
+    evt?.target?.closest('.q-menu') ||
+    evt?.target?.closest('.q-checkbox') ||
+    evt?.target?.closest('.q-table__select')
+  ) {
+    return
+  }
+  openEmployeeDtr(row)
+}
+
+/**
+ * Callback when DTR Override is Saved
+ */
+function onDtrOverrideSaved() {
+  $q.notify({
+    type: 'positive',
+    message: 'Attendance time override saved successfully.',
+    position: 'top',
+  })
+  if (selectedDtrEmployee.value?.control_no) {
+    fetchEmployeeDtr(selectedDtrEmployee.value.control_no)
+  }
+  fetchAttendanceOverview()
+}
+
+/**
+ * Close DTR Modal & Clean Query Params
+ */
+function onDtrModalClose() {
+  showDtrModal.value = false
+  if (route.query.employeeId) {
+    router.replace({ name: 'admin-attendance' })
+  }
+}
+
+// =========================================================
+// BATCH DTR PRINTING STATE & LOGIC
+// =========================================================
+const selectedEmployees = ref([])
+const showBatchDtrModal = ref(false)
+const isBatchDialogMaximized = ref(false)
+const batchLoading = ref(false)
+const batchEmployeesDtr = ref([])
+const batchPeriod = ref({})
+const batchDepartmentHeads = ref([])
+const batchPrintContainerRef = ref(null)
+
+const selectedCutoffPreset = ref('month') // '1st', '2nd', 'month', 'custom'
+
+function getCutoffRange(preset, baseDateStr) {
+  const d = baseDateStr ? new Date(baseDateStr + 'T00:00:00') : new Date()
+  const y = d.getFullYear()
+  const m = d.getMonth() + 1
+  const mStr = String(m).padStart(2, '0')
+  const lastDay = new Date(y, m, 0).getDate()
+  const lastDayStr = String(lastDay).padStart(2, '0')
+
+  if (preset === '1st') {
+    return { from: `${y}-${mStr}-01`, to: `${y}-${mStr}-15` }
+  }
+  if (preset === '2nd') {
+    return { from: `${y}-${mStr}-16`, to: `${y}-${mStr}-${lastDayStr}` }
+  }
+  return { from: `${y}-${mStr}-01`, to: `${y}-${mStr}-${lastDayStr}` }
+}
+
+const batchDateRange = ref(getCutoffRange('month', todayStr))
+
+const batchDatePickerModel = computed({
+  get() {
+    return batchDateRange.value || getCutoffRange('month', selectedDate.value)
+  },
+  set(val) {
+    if (!val) return
+    batchDateRange.value = typeof val === 'string' ? { from: val, to: val } : val
+    selectedCutoffPreset.value = 'custom'
+  },
+})
+
+function applyCutoffPreset(preset) {
+  selectedCutoffPreset.value = preset
+  batchDateRange.value = getCutoffRange(preset, selectedDate.value)
+}
+
+const normalizedBatchCustomRange = computed(() => {
+  const val = batchDateRange.value || getCutoffRange('month', selectedDate.value)
+  if (typeof val === 'string') {
+    return { from: val, to: val }
+  }
+  const from = val?.from || getCutoffRange('month', selectedDate.value).from
+  const to = val?.to || from
+  return from <= to ? { from, to } : { from: to, to: from }
+})
+
+const batchRangeDisplayLabel = computed(() => {
+  const { from, to } = normalizedBatchCustomRange.value
+  try {
+    const d1 = new Date(`${from}T00:00:00`)
+    const d2 = new Date(`${to}T00:00:00`)
+    const sameYear = d1.getFullYear() === d2.getFullYear()
+    const f1 = d1.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(sameYear ? {} : { year: 'numeric' }),
+    })
+    const f2 = d2.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    return from === to ? f2 : `${f1} – ${f2}`
+  } catch {
+    return `${from} – ${to}`
+  }
+})
+
+function openBatchPrintSetup() {
+  if (selectedEmployees.value.length === 0) {
+    selectedEmployees.value = [...filteredEmployeeRows.value]
+    $q.notify({
+      type: 'info',
+      message: `Selected all ${selectedEmployees.value.length} personnel for batch DTR printing.`,
+      position: 'top',
+    })
+  }
+  openBatchPrintModal()
+}
+
+async function openBatchPrintModal() {
+  if (selectedEmployees.value.length === 0) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please select at least one employee to print DTR.',
+      position: 'top',
+    })
+    return
+  }
+
+  showBatchDtrModal.value = true
+  batchLoading.value = true
+  batchEmployeesDtr.value = []
+
+  try {
+    const { from, to } = normalizedBatchCustomRange.value
+    const [fromY, fromM] = from.split('-').map(Number)
+
+    const payload = {
+      control_nos: selectedEmployees.value.map((e) => e.control_no),
+      start_date: from,
+      end_date: to,
+      year: fromY,
+      month: fromM,
+    }
+
+    const res = await api.post('/attendance/dtr/bulk-print', payload)
+    batchPeriod.value = res.data?.period || {}
+    batchDepartmentHeads.value = res.data?.department_heads || []
+    batchEmployeesDtr.value = res.data?.employees_dtr || []
+  } catch (err) {
+    console.error('Failed to load batch DTR records:', err)
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to generate batch DTR records.',
+      position: 'top',
+    })
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+function executeBatchPrint() {
+  if (!batchPrintContainerRef.value) return
+  const sheets = batchPrintContainerRef.value.querySelectorAll('.csc-sheet-wrapper')
+  if (sheets.length === 0) {
+    $q.notify({
+      type: 'warning',
+      message: 'No printable DTR sheets available to print.',
+      position: 'top',
+    })
+    return
+  }
+  printBatchCscForm48({
+    elements: Array.from(sheets),
+    title: `CSC Form 48 Batch (${batchEmployeesDtr.value.length} Personnel)`,
   })
 }
 
 onMounted(() => {
   fetchAttendanceOverview()
+  if (route.query.employeeId) {
+    openEmployeeDtr({ control_no: String(route.query.employeeId) })
+  }
 })
 </script>
 
@@ -827,8 +1433,13 @@ onMounted(() => {
   border-bottom: 1px solid #f1f5f9;
 }
 
+.attendance-pro-table :deep(tbody tr) {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
 .attendance-pro-table :deep(tbody tr:hover td) {
-  background-color: #f8fafc;
+  background-color: #f0fdf4 !important;
 }
 
 .employee-row-avatar {
@@ -856,5 +1467,27 @@ onMounted(() => {
 .action-icon-btn:hover {
   background-color: #e2e8f0;
   transform: scale(1.08);
+}
+
+/* Floating Bottom Bulk Action Bar */
+.bulk-action-bar {
+  background: #1b5e20;
+  color: #ffffff;
+  border-top: 1px solid #2e7d32;
+  z-index: 2000;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+  height: 52px;
+}
+
+.cutoff-preset-group {
+  background: rgba(0, 0, 0, 0.16);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.bulk-date-trigger {
+  height: 28px;
+  user-select: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 </style>

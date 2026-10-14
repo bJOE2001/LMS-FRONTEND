@@ -2,7 +2,7 @@
   <q-page class="q-pa-md">
     <div class="row items-center justify-between q-col-gutter-sm q-mb-lg">
       <div class="col-auto">
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Admin Dashboard</h1>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
       </div>
       <div class="col-12 col-sm-auto">
         <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
@@ -36,147 +36,260 @@
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
-      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-        <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-          flat
-          elevation="1"
-          role="button"
-          tabindex="0"
-          :style="{ '--stat-card-hover-bg': '#eef4ff' }"
-          @click="openApplicationsView()"
-          @keyup.enter="openApplicationsView()"
-          @keyup.space.prevent="openApplicationsView()"
-        >
-          <q-card-section class="stat-card-content dashboard-kpi-content">
-            <div class="stat-card-main dashboard-kpi-main">
-              <div class="stat-card-left dashboard-kpi-left">
-                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                  <q-icon name="description" size="28px" color="grey" />
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <q-linear-progress
+      v-if="loading && hasLoadedOnce"
+      indeterminate
+      color="green-9"
+      size="3px"
+      class="q-mb-md rounded-borders top-reload-bar"
+    />
+
+    <!-- ========================================================= -->
+    <!-- SKELETON LOADING STATE (Initial Page Load)               -->
+    <!-- ========================================================= -->
+    <div v-if="loading && !hasLoadedOnce" class="skeleton-suite">
+      <!-- 4 Skeleton KPI Cards -->
+      <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
+        <!-- Card 1 (Applications with breakdown) -->
+        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+          <q-card flat bordered class="stat-card bg-white rounded-borders dashboard-kpi-card">
+            <q-card-section class="stat-card-content dashboard-kpi-content">
+              <div class="stat-card-main dashboard-kpi-main">
+                <div class="stat-card-left dashboard-kpi-left">
+                  <q-skeleton type="QAvatar" size="28px" animation="wave" />
+                  <q-skeleton type="text" width="70px" height="14px" class="q-mt-sm" animation="wave" />
                 </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                  Applications
+                <q-skeleton type="text" width="40px" height="32px" class="q-ml-auto" animation="wave" />
+              </div>
+              <div class="stat-breakdown dashboard-kpi-breakdown">
+                <div v-for="i in 4" :key="'sk-dash-mini-' + i" class="stat-mini-card">
+                  <q-skeleton type="text" width="30px" height="10px" animation="wave" />
+                  <q-skeleton type="text" width="20px" height="14px" class="q-mt-xs" animation="wave" />
                 </div>
               </div>
-              <div class="stat-value text-primary dashboard-kpi-value">
-                <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ kpiCardMetrics.total_count }}</template>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- Cards 2, 3, 4 -->
+        <div v-for="i in 3" :key="'sk-dash-kpi-' + i" class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+          <q-card flat bordered class="stat-card bg-white rounded-borders dashboard-kpi-card">
+            <q-card-section class="stat-card-content dashboard-kpi-content">
+              <div class="stat-card-main dashboard-kpi-main">
+                <div class="stat-card-left dashboard-kpi-left">
+                  <q-skeleton type="QAvatar" size="28px" animation="wave" />
+                  <q-skeleton type="text" width="85px" height="14px" class="q-mt-sm" animation="wave" />
+                </div>
+                <q-skeleton type="text" width="40px" height="32px" class="q-ml-auto" animation="wave" />
               </div>
-            </div>
-            <div class="stat-breakdown dashboard-kpi-breakdown">
-              <div
-                v-for="card in totalApplicationBreakdownCards"
-                :key="card.key"
-                class="stat-mini-card"
-              >
-                <span class="stat-mini-label">{{ card.label }}</span>
-                <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
+            </q-card-section>
+          </q-card>
+        </div>
       </div>
 
-      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-        <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-          flat
-          elevation="1"
-          role="button"
-          tabindex="0"
-          :style="{ '--stat-card-hover-bg': '#fff5e0' }"
-          @click="openApplicationsView('pending')"
-          @keyup.enter="openApplicationsView('pending')"
-          @keyup.space.prevent="openApplicationsView('pending')"
-        >
-          <q-card-section class="stat-card-content dashboard-kpi-content">
-            <div class="stat-card-main dashboard-kpi-main">
-              <div class="stat-card-left dashboard-kpi-left">
-                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                  <q-icon name="schedule" size="28px" color="warning" />
-                  <q-icon
-                    v-if="kpiCardMetrics.pending_count > 5"
-                    name="warning"
-                    size="18px"
-                    color="warning"
-                  />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                  Pending Applications
-                </div>
-              </div>
-              <div class="stat-value text-warning dashboard-kpi-value">
-                <q-spinner v-if="loading" size="32px" color="warning" />
-                <template v-else>{{ kpiCardMetrics.pending_count }}</template>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
+      <!-- Skeleton Analytics Charts or Applications Table -->
+      <q-card v-if="!props.applicationsOnly" flat bordered class="rounded-borders q-pa-md">
+        <div class="row items-center justify-between q-mb-md">
+          <q-skeleton type="text" width="160px" height="20px" animation="wave" />
+          <q-skeleton type="rect" width="120px" height="32px" class="rounded-borders" animation="wave" />
+        </div>
+        <q-skeleton type="rect" height="320px" class="rounded-borders" animation="wave" />
+      </q-card>
 
-      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-        <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-          flat
-          elevation="1"
-          role="button"
-          tabindex="0"
-          :style="{ '--stat-card-hover-bg': '#edf8ef' }"
-          @click="openApplicationsView('approved')"
-          @keyup.enter="openApplicationsView('approved')"
-          @keyup.space.prevent="openApplicationsView('approved')"
-        >
-          <q-card-section class="stat-card-content dashboard-kpi-content">
-            <div class="stat-card-main dashboard-kpi-main">
-              <div class="stat-card-left dashboard-kpi-left">
-                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                  <q-icon name="check_circle" size="28px" color="primary" />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                  Total Approved
-                </div>
-              </div>
-              <div class="stat-value text-primary dashboard-kpi-value">
-                <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ kpiCardMetrics.total_approved }}</template>
-              </div>
+      <q-card v-else flat bordered class="rounded-borders">
+        <q-card-section>
+          <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
+            <div class="col application-toolbar__search">
+              <q-skeleton type="rect" height="36px" class="rounded-borders" animation="wave" />
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
+            <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
+              <q-skeleton type="rect" width="140px" height="32px" class="rounded-borders" animation="wave" />
+            </div>
+          </div>
+        </q-card-section>
 
-      <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-        <q-card
-          class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-          flat
-          elevation="1"
-          role="button"
-          tabindex="0"
-          :style="{ '--stat-card-hover-bg': '#ffebee' }"
-          @click="openApplicationsView('rejected')"
-          @keyup.enter="openApplicationsView('rejected')"
-          @keyup.space.prevent="openApplicationsView('rejected')"
-        >
-          <q-card-section class="stat-card-content dashboard-kpi-content">
-            <div class="stat-card-main dashboard-kpi-main">
-              <div class="stat-card-left dashboard-kpi-left">
-                <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                  <q-icon name="cancel" size="28px" color="negative" />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                  Total Disapproved
-                </div>
-              </div>
-              <div class="stat-value text-negative dashboard-kpi-value">
-                <q-spinner v-if="loading" size="32px" color="negative" />
-                <template v-else>{{ kpiCardMetrics.rejected_count }}</template>
+        <div class="q-pa-md">
+          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+            <div class="col-3"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-3"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="60%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="60%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
+          </div>
+
+          <div
+            v-for="r in 6"
+            :key="'sk-row-' + r"
+            class="row items-center q-py-md border-bottom q-col-gutter-sm"
+            :class="{ 'bg-grey-1': r % 2 === 0 }"
+          >
+            <div class="col-3">
+              <q-skeleton type="text" width="140px" height="18px" animation="wave" />
+              <q-skeleton type="text" width="85px" height="13px" class="q-mt-xs" animation="wave" />
+            </div>
+            <div class="col-3"><q-skeleton type="text" width="120px" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="rect" width="90px" height="22px" class="rounded-borders" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="35px" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="rect" width="65px" height="20px" class="rounded-borders q-mx-auto" animation="wave" /></div>
+            <div class="col-2 text-right">
+              <div class="row items-center justify-end q-gutter-xs">
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
               </div>
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
+          </div>
+        </div>
+
+        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
+          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
+          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
+        </div>
+      </q-card>
     </div>
+
+    <!-- ========================================================= -->
+    <!-- REAL CONTENT SUITE                                        -->
+    <!-- ========================================================= -->
+    <div v-else :class="{ 'content-reloading': loading && hasLoadedOnce }">
+      <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
+        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+          <q-card
+            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
+            flat
+            elevation="1"
+            role="button"
+            tabindex="0"
+            :style="{ '--stat-card-hover-bg': '#eef4ff' }"
+            @click="openApplicationsView()"
+            @keyup.enter="openApplicationsView()"
+            @keyup.space.prevent="openApplicationsView()"
+          >
+            <q-card-section class="stat-card-content dashboard-kpi-content">
+              <div class="stat-card-main dashboard-kpi-main">
+                <div class="stat-card-left dashboard-kpi-left">
+                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
+                    <q-icon name="description" size="28px" color="grey" />
+                  </div>
+                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                    Applications
+                  </div>
+                </div>
+                <div class="stat-value text-primary dashboard-kpi-value">
+                  {{ kpiCardMetrics.total_count }}
+                </div>
+              </div>
+              <div class="stat-breakdown dashboard-kpi-breakdown">
+                <div
+                  v-for="card in totalApplicationBreakdownCards"
+                  :key="card.key"
+                  class="stat-mini-card"
+                >
+                  <span class="stat-mini-label">{{ card.label }}</span>
+                  <span class="stat-mini-value">{{ card.value }}</span>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+          <q-card
+            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
+            flat
+            elevation="1"
+            role="button"
+            tabindex="0"
+            :style="{ '--stat-card-hover-bg': '#fff5e0' }"
+            @click="openApplicationsView('pending')"
+            @keyup.enter="openApplicationsView('pending')"
+            @keyup.space.prevent="openApplicationsView('pending')"
+          >
+            <q-card-section class="stat-card-content dashboard-kpi-content">
+              <div class="stat-card-main dashboard-kpi-main">
+                <div class="stat-card-left dashboard-kpi-left">
+                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
+                    <q-icon name="schedule" size="28px" color="warning" />
+                    <q-icon
+                      v-if="kpiCardMetrics.pending_count > 5"
+                      name="warning"
+                      size="18px"
+                      color="warning"
+                    />
+                  </div>
+                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                    Pending Applications
+                  </div>
+                </div>
+                <div class="stat-value text-warning dashboard-kpi-value">
+                  {{ kpiCardMetrics.pending_count }}
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+          <q-card
+            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
+            flat
+            elevation="1"
+            role="button"
+            tabindex="0"
+            :style="{ '--stat-card-hover-bg': '#edf8ef' }"
+            @click="openApplicationsView('approved')"
+            @keyup.enter="openApplicationsView('approved')"
+            @keyup.space.prevent="openApplicationsView('approved')"
+          >
+            <q-card-section class="stat-card-content dashboard-kpi-content">
+              <div class="stat-card-main dashboard-kpi-main">
+                <div class="stat-card-left dashboard-kpi-left">
+                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
+                    <q-icon name="check_circle" size="28px" color="primary" />
+                  </div>
+                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                    Total Approved
+                  </div>
+                </div>
+                <div class="stat-value text-primary dashboard-kpi-value">
+                  {{ kpiCardMetrics.total_approved }}
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
+          <q-card
+            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
+            flat
+            elevation="1"
+            role="button"
+            tabindex="0"
+            :style="{ '--stat-card-hover-bg': '#ffebee' }"
+            @click="openApplicationsView('rejected')"
+            @keyup.enter="openApplicationsView('rejected')"
+            @keyup.space.prevent="openApplicationsView('rejected')"
+          >
+            <q-card-section class="stat-card-content dashboard-kpi-content">
+              <div class="stat-card-main dashboard-kpi-main">
+                <div class="stat-card-left dashboard-kpi-left">
+                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
+                    <q-icon name="cancel" size="28px" color="negative" />
+                  </div>
+                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
+                    Total Disapproved
+                  </div>
+                </div>
+                <div class="stat-value text-negative dashboard-kpi-value">
+                  {{ kpiCardMetrics.rejected_count }}
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
 
     <AdminAnalyticsCharts
       v-if="!props.applicationsOnly"
@@ -432,6 +545,7 @@
         </template>
       </q-table>
     </q-card>
+  </div>
 
     <!-- View dialog -->
     <AdminPrintApplicationsDialog
@@ -1044,6 +1158,7 @@ const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
 ]
 
 const loading = ref(true)
+const hasLoadedOnce = ref(false)
 const actionLoading = ref(false)
 const applicationRows = ref([])
 const statusSearch = ref('')
@@ -1388,6 +1503,7 @@ async function fetchDashboard() {
     applicationRows.value = []
   } finally {
     loading.value = false
+    hasLoadedOnce.value = true
   }
 }
 
@@ -4231,5 +4347,32 @@ async function confirmDisapprove() {
   .dashboard-kpi-breakdown .stat-mini-value {
     font-size: 0.6rem;
   }
+}
+
+.top-reload-bar {
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+}
+
+.content-reloading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: fadeIn 0.2s ease-in;
+}
+
+.border-bottom {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.border-top {
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

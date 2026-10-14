@@ -9,13 +9,83 @@
       </div>
 
       <div class="header-actions row q-gutter-sm">
-        <q-btn outline color="primary" icon="refresh" label="Refresh" no-caps />
+        <q-btn outline color="primary" icon="refresh" label="Refresh" no-caps @click="refreshReport" :loading="loading" />
         <q-btn outline color="primary" icon="print" label="Print" no-caps />
         <q-btn color="primary" icon="file_download" label="Export" no-caps />
       </div>
     </div>
 
-    <q-card flat bordered class="filter-card q-mb-md">
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <q-linear-progress
+      v-if="loading && rows.length > 0"
+      indeterminate
+      color="green-9"
+      size="3px"
+      class="q-mb-md rounded-borders top-reload-bar"
+    />
+
+    <!-- ========================================================= -->
+    <!-- SKELETON LOADING STATE (Initial Page Load)               -->
+    <!-- ========================================================= -->
+    <div v-if="loading && rows.length === 0" class="skeleton-suite">
+      <!-- 4 Skeleton Summary Cards -->
+      <div class="row q-col-gutter-md q-mb-md">
+        <div v-for="i in 4" :key="'sk-rep-card-' + i" class="col-12 col-sm-6 col-lg-3">
+          <q-card flat bordered class="summary-card">
+            <q-card-section class="row items-center justify-between">
+              <div>
+                <q-skeleton type="text" width="110px" height="14px" animation="wave" />
+                <q-skeleton type="text" width="45px" height="28px" class="q-mt-xs" animation="wave" />
+              </div>
+              <q-skeleton type="QAvatar" size="48px" animation="wave" />
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
+      <!-- Skeleton Report Table -->
+      <q-card flat bordered class="rounded-borders">
+        <q-card-section class="row items-center justify-between q-pb-sm">
+          <div>
+            <q-skeleton type="text" width="180px" height="20px" animation="wave" />
+            <q-skeleton type="text" width="130px" height="14px" class="q-mt-xs" animation="wave" />
+          </div>
+          <q-skeleton type="rect" width="100px" height="36px" class="rounded-borders" animation="wave" />
+        </q-card-section>
+        <q-separator />
+        <div class="q-pa-md">
+          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
+          </div>
+          <div
+            v-for="r in 6"
+            :key="'sk-rep-row-' + r"
+            class="row items-center q-py-md border-bottom q-col-gutter-sm"
+            :class="{ 'bg-grey-1': r % 2 === 0 }"
+          >
+            <div class="col-2"><q-skeleton type="text" width="120px" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="70px" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="100px" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="85px" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="85px" height="16px" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="40px" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="rect" width="65px" height="20px" class="rounded-borders q-mx-auto" animation="wave" /></div>
+          </div>
+        </div>
+      </q-card>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- REAL CONTENT SUITE                                        -->
+    <!-- ========================================================= -->
+    <div v-else :class="{ 'content-reloading': loading && rows.length > 0 }">
+      <q-card flat bordered class="filter-card q-mb-md">
       <q-banner rounded class="bg-blue-1 text-primary q-mb-md">
         <q-icon name="apartment" class="q-mr-sm" />
         This report page is for office admin monitoring only. HR review and HR actions are not shown here.
@@ -182,11 +252,21 @@
         </template>
       </q-table>
     </q-card>
+  </div>
   </q-page>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+
+const loading = ref(false)
+
+const refreshReport = () => {
+  loading.value = true
+  setTimeout(() => {
+    loading.value = false
+  }, 400)
+}
 
 const filters = ref({
   office: null,
@@ -353,5 +433,32 @@ function statusColor(status) {
     width: 100%;
     justify-content: flex-start;
   }
+}
+
+.top-reload-bar {
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+}
+
+.content-reloading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: fadeIn 0.2s ease-in;
+}
+
+.border-bottom {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.border-top {
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

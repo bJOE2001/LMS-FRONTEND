@@ -24,6 +24,15 @@
       </div>
     </div>
 
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <q-linear-progress
+      v-if="loading && leaveApplicationRows.length > 0"
+      indeterminate
+      color="green-9"
+      size="3px"
+      class="q-mb-md rounded-borders top-reload-bar"
+    />
+
     <AdminApplyLeaveDialog
       v-model="showApplyLeaveDialog"
       :existing-applications="leaveApplicationRows"
@@ -38,7 +47,90 @@
       @submitted="handleApplyLeaveSubmitted"
     />
 
-    <q-card flat bordered class="rounded-borders">
+    <!-- ========================================================= -->
+    <!-- SKELETON LOADING STATE (Initial Page Load)               -->
+    <!-- ========================================================= -->
+    <div v-if="loading && leaveApplicationRows.length === 0" class="skeleton-suite">
+      <q-card flat bordered class="rounded-borders">
+        <q-card-section>
+          <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
+            <div class="col application-toolbar__search">
+              <q-skeleton type="rect" height="36px" class="rounded-borders" animation="wave" />
+            </div>
+            <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
+              <q-skeleton type="rect" width="140px" height="32px" class="rounded-borders" animation="wave" />
+            </div>
+          </div>
+        </q-card-section>
+
+        <div class="q-pa-md">
+          <!-- Columns Header Placeholder -->
+          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+            <div class="col-3"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-3"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
+            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="60%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="60%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
+          </div>
+
+          <!-- 8 Skeleton Rows -->
+          <div
+            v-for="r in 8"
+            :key="'sk-row-' + r"
+            class="row items-center q-py-md border-bottom q-col-gutter-sm"
+            :class="{ 'bg-grey-1': r % 2 === 0 }"
+          >
+            <!-- Employee Name & Control No -->
+            <div class="col-3">
+              <q-skeleton type="text" width="140px" height="18px" animation="wave" />
+              <q-skeleton type="text" width="85px" height="13px" class="q-mt-xs" animation="wave" />
+            </div>
+
+            <!-- Inclusive Dates -->
+            <div class="col-3">
+              <q-skeleton type="text" width="120px" height="16px" animation="wave" />
+            </div>
+
+            <!-- Leave Type -->
+            <div class="col-2">
+              <q-skeleton type="rect" width="90px" height="22px" class="rounded-borders" animation="wave" />
+            </div>
+
+            <!-- Days -->
+            <div class="col-1 text-center">
+              <q-skeleton type="text" width="35px" height="16px" class="q-mx-auto" animation="wave" />
+            </div>
+
+            <!-- Status -->
+            <div class="col-1 text-center">
+              <q-skeleton type="rect" width="65px" height="20px" class="rounded-borders q-mx-auto" animation="wave" />
+            </div>
+
+            <!-- Actions -->
+            <div class="col-2 text-right">
+              <div class="row items-center justify-end q-gutter-xs">
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
+                <q-skeleton type="QAvatar" size="28px" animation="wave" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skeleton Table Footer -->
+        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
+          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
+          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
+        </div>
+      </q-card>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- REAL CONTENT SUITE                                        -->
+    <!-- ========================================================= -->
+    <div v-else :class="{ 'content-reloading': loading && leaveApplicationRows.length > 0 }">
+      <q-card flat bordered class="rounded-borders">
       <q-card-section>
         <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
           <div class="col application-toolbar__search">
@@ -288,6 +380,7 @@
         </template>
       </q-table>
     </q-card>
+  </div>
 
     <AdminApplicationTimelineDialog
       v-model="showTimelineDialog"
@@ -1786,6 +1879,33 @@ onMounted(async () => {
   font-size: 0.72rem;
   color: #64748b;
   margin-top: 1px;
+}
+
+.top-reload-bar {
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+}
+
+.content-reloading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: fadeIn 0.2s ease-in;
+}
+
+.border-bottom {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.border-top {
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>
 

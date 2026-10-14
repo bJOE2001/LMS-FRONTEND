@@ -7,7 +7,75 @@
       <q-space />
     </div>
 
-    <q-card flat bordered class="rounded-borders">
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <q-linear-progress
+      v-if="loading && logs.length > 0"
+      indeterminate
+      color="green-9"
+      size="3px"
+      class="q-mb-md rounded-borders top-reload-bar"
+    />
+
+    <!-- ========================================================= -->
+    <!-- SKELETON LOADING STATE (Initial Page Load)               -->
+    <!-- ========================================================= -->
+    <div v-if="loading && logs.length === 0" class="skeleton-suite">
+      <q-card flat bordered class="rounded-borders">
+        <q-card-section>
+          <div class="row justify-between items-center q-mb-md">
+            <div class="text-h6">Print History</div>
+            <q-skeleton type="rect" width="220px" height="36px" class="rounded-borders" animation="wave" />
+          </div>
+
+          <div class="q-pa-sm">
+            <!-- Columns Header Placeholder -->
+            <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+              <div class="col-1"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+              <div class="col-1"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
+            </div>
+
+            <!-- 8 Skeleton Rows -->
+            <div
+              v-for="r in 8"
+              :key="'sk-row-' + r"
+              class="row items-center q-py-md border-bottom q-col-gutter-sm"
+              :class="{ 'bg-grey-1': r % 2 === 0 }"
+            >
+              <div class="col-1"><q-skeleton type="text" width="40px" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="130px" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="rect" width="100px" height="22px" class="rounded-borders" animation="wave" /></div>
+              <div class="col-1"><q-skeleton type="text" width="75px" height="16px" animation="wave" /></div>
+              <div class="col-2"><q-skeleton type="text" width="120px" height="16px" animation="wave" /></div>
+              <div class="col-2">
+                <q-skeleton type="text" width="90px" height="16px" animation="wave" />
+                <q-skeleton type="rect" width="55px" height="18px" class="rounded-borders q-mt-xs" animation="wave" />
+              </div>
+              <div class="col-2">
+                <q-skeleton type="text" width="85px" height="16px" animation="wave" />
+                <q-skeleton type="text" width="50px" height="12px" class="q-mt-xs" animation="wave" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Skeleton Table Footer -->
+          <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
+            <q-skeleton type="text" width="120px" height="16px" animation="wave" />
+            <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
+          </div>
+        </q-card-section>
+      </q-card>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- REAL CONTENT SUITE                                        -->
+    <!-- ========================================================= -->
+    <div v-else :class="{ 'content-reloading': loading && logs.length > 0 }">
+      <q-card flat bordered class="rounded-borders">
       <q-card-section>
         <div class="row justify-between items-center q-mb-md">
           <div class="text-h6">Print History</div>
@@ -102,6 +170,7 @@
         </q-table>
       </q-card-section>
     </q-card>
+  </div>
   </q-page>
 </template>
 
@@ -291,4 +360,30 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.top-reload-bar {
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+}
+
+.content-reloading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: fadeIn 0.2s ease-in;
+}
+
+.border-bottom {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.border-top {
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 </style>

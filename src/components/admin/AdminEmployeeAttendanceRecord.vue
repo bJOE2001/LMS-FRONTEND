@@ -24,7 +24,6 @@
                 <div class="q-ml-sm">
                   <div class="row items-center q-gutter-x-sm no-wrap">
                     <q-skeleton type="text" width="180px" height="24px" animation="wave" />
-                    <q-skeleton type="rect" width="75px" height="20px" class="rounded-borders" animation="wave" />
                   </div>
                   <div class="row items-center q-gutter-x-sm q-mt-xs">
                     <q-skeleton type="text" width="120px" height="16px" animation="wave" />
@@ -42,15 +41,6 @@
                     <h1 class="text-h6 text-weight-bolder text-dark q-my-none ellipsis employee-name-title">
                       {{ employeeName }}
                     </h1>
-                    <q-chip
-                      dense
-                      size="sm"
-                      color="grey-2"
-                      text-color="grey-9"
-                      class="font-mono text-weight-medium q-my-none"
-                    >
-                      ID: {{ employeeControlNo }}
-                    </q-chip>
                   </div>
 
                   <div class="row items-center q-gutter-x-sm q-mt-xs text-caption text-grey-7">
@@ -66,74 +56,59 @@
             </div>
           </div>
 
-          <!-- Right: Period Selector & Action Buttons -->
+          <!-- Right: Date Range Picker & Action Buttons -->
           <div class="col-12 col-md-auto">
             <div class="row items-center justify-end q-gutter-sm">
-              <!-- Month & Year Selector Group -->
-              <div class="row items-center q-gutter-x-xs bg-grey-1 q-pa-xs rounded-borders selector-pill-box">
-                <q-select
-                  v-model="selectedMonth"
-                  :options="monthOptions"
-                  emit-value
-                  map-options
-                  outlined
-                  dense
-                  class="dense-selector"
-                  style="width: 130px"
-                  @update:model-value="fetchMonthlyDtr"
+              <template v-if="loading && !dtrData">
+                <q-skeleton type="rect" width="165px" height="38px" class="rounded-borders" animation="wave" />
+                <q-skeleton type="rect" width="125px" height="38px" class="rounded-borders" animation="wave" />
+              </template>
+              <template v-else>
+                <!-- Single Calendar Date Range Picker -->
+                <div
+                  class="header-date-range-trigger row items-center no-wrap q-px-md cursor-pointer rounded-borders"
                 >
-                  <template #prepend>
-                    <q-icon name="calendar_month" size="16px" color="grey-6" />
-                  </template>
-                </q-select>
+                  <q-icon name="date_range" size="18px" color="green-9" class="q-mr-sm" />
+                  <span class="text-body2 text-weight-bold text-dark">{{ customRangeDisplayLabel }}</span>
+                  <q-icon name="arrow_drop_down" size="20px" color="grey-7" class="q-ml-xs" />
 
-                <q-select
-                  v-model="selectedYear"
-                  :options="yearOptions"
-                  outlined
-                  dense
-                  class="dense-selector"
-                  style="width: 95px"
-                  @update:model-value="fetchMonthlyDtr"
-                />
-              </div>
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-date
+                      v-model="datePickerModel"
+                      range
+                      mask="YYYY-MM-DD"
+                      color="green-9"
+                      minimal
+                    >
+                      <div class="row items-center justify-between q-gutter-x-sm">
+                        <span class="text-caption text-grey-7">{{ customRangeDisplayLabel }}</span>
+                        <q-btn
+                          v-close-popup
+                          label="Apply"
+                          color="green-9"
+                          flat
+                          dense
+                          no-caps
+                          class="text-weight-bold"
+                        />
+                      </div>
+                    </q-date>
+                  </q-popup-proxy>
+                </div>
 
-              <!-- Action Buttons -->
-              <q-btn
-                unelevated
-                no-caps
-                color="green-9"
-                icon="visibility"
-                label="DTR Preview"
-                class="action-btn text-weight-bold"
-                @click="showPreviewDialog = true"
-              >
-                <q-tooltip>Preview Civil Service Form No. 48</q-tooltip>
-              </q-btn>
-
-              <q-btn
-                outline
-                no-caps
-                color="grey-8"
-                icon="print"
-                label="Print"
-                class="action-btn text-weight-bold"
-                @click="triggerPrint"
-              >
-                <q-tooltip>Print Daily Time Record</q-tooltip>
-              </q-btn>
-
-              <q-btn
-                outline
-                no-caps
-                color="green-9"
-                icon="file_download"
-                label="Export CSV"
-                class="action-btn text-weight-bold"
-                @click="exportDtrCsv"
-              >
-                <q-tooltip>Download DTR data as spreadsheet (CSV)</q-tooltip>
-              </q-btn>
+                <!-- Action Button -->
+                <q-btn
+                  unelevated
+                  no-caps
+                  color="green-9"
+                  icon="visibility"
+                  label="DTR Preview"
+                  class="action-btn text-weight-bold"
+                  @click="showPreviewDialog = true"
+                >
+                  <q-tooltip>Preview Civil Service Form No. 48</q-tooltip>
+                </q-btn>
+              </template>
             </div>
           </div>
         </div>
@@ -151,17 +126,6 @@
 
     <!-- Initial Loading State: Realistic Skeleton Screen Suite -->
     <div v-if="loading && !dtrData" class="skeleton-suite no-print">
-      <!-- Status Notice Pill -->
-      <div class="row items-center justify-between q-mb-md bg-green-1 text-green-9 q-pa-sm rounded-borders border-green-subtle">
-        <div class="row items-center q-gutter-x-sm">
-          <q-spinner-dots color="green-9" size="20px" />
-          <span class="text-caption text-weight-bold">
-            Loading attendance records for {{ getMonthName(selectedMonth) }} {{ selectedYear }}...
-          </span>
-        </div>
-        <q-skeleton type="rect" width="90px" height="20px" class="rounded-borders" animation="wave" />
-      </div>
-
       <!-- 5 Skeleton KPI Stat Cards -->
       <div class="row q-col-gutter-md q-mb-md">
         <div v-for="i in 5" :key="'sk-kpi-' + i" class="col-12 col-sm-6 col-md">
@@ -402,18 +366,20 @@
         <!-- Panel 1: Daily Time Record (DTR) -->
         <q-tab-panel name="dtr" class="q-pa-none">
           <q-card flat bordered class="rounded-borders bg-white table-card">
-            <q-card-section class="q-pa-md row items-center justify-between border-bottom">
-              <div>
+            <q-card-section class="q-pa-md row items-center justify-between q-col-gutter-sm border-bottom">
+              <div class="col-12 col-md-auto">
                 <div class="text-subtitle1 text-weight-bolder text-dark">
                   Attendance Record Log
                 </div>
                 <div class="text-caption text-grey-6">
-                  Official CSC Form 48 monthly log for {{ getMonthName(selectedMonth) }} {{ selectedYear }}
+                  Official CSC Form 48 log for {{ customRangeDisplayLabel }}
                 </div>
               </div>
 
-              <div class="text-caption text-grey-7">
-                Showing <strong>{{ monthDayRows.length }}</strong> days in cutoff
+              <div class="col-12 col-md-auto">
+                <div class="text-caption text-grey-7">
+                  Showing <strong>{{ monthDayRows.length }}</strong> days
+                </div>
               </div>
             </q-card-section>
 
@@ -597,7 +563,7 @@
                   Authorized Overtime Records
                 </div>
                 <div class="text-caption text-grey-6">
-                  Overtime entries logged beyond regular shift for {{ getMonthName(selectedMonth) }} {{ selectedYear }}
+                  Overtime entries logged beyond regular shift for {{ customRangeDisplayLabel }}
                 </div>
               </div>
 
@@ -720,10 +686,9 @@
         <q-bar class="bg-green-9 text-white q-py-sm no-print">
           <q-icon name="description" class="q-mr-xs" />
           <div class="text-weight-bold ellipsis" style="max-width: 650px;">
-            Civil Service Form No. 48 & Accomplishment Report — {{ employeeName }} ({{ getMonthName(selectedMonth) }} {{ selectedYear }})
+            Civil Service Form No. 48 & Accomplishment Report — {{ employeeName }} ({{ customRangeDisplayLabel }})
           </div>
           <q-space />
-          <q-btn dense flat icon="print" label="Print" class="q-mr-xs" @click="triggerPrint" />
           <q-btn
             dense
             flat
@@ -739,10 +704,13 @@
           <div style="width: 100%; max-width: 1000px;" class="bg-white q-pa-md rounded-borders shadow-2">
             <DailyTimeRecordTable
               v-if="dtrData"
+              ref="previewDtrRef"
+              v-model:custom-date-range="customDateRange"
               :records="dtrData.records"
               :employee="dtrData.employee"
               :period="dtrData.period"
               :summary="dtrData.summary"
+              :department-heads="dtrData.department_heads"
               :loading="loading"
               @adjust="openOverrideDialog"
             />
@@ -750,25 +718,12 @@
         </q-card-section>
       </q-card>
     </q-dialog>
-
-    <!-- Hidden Printable Area for Direct Printing -->
-    <div id="print-form-48-hidden" class="print-only">
-      <DailyTimeRecordTable
-        v-if="dtrData"
-        :records="dtrData.records"
-        :employee="dtrData.employee"
-        :period="dtrData.period"
-        :summary="dtrData.summary"
-        :loading="loading"
-      />
-    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
 import DtrOverrideDialog from 'src/components/admin/DtrOverrideDialog.vue'
@@ -782,7 +737,6 @@ const props = defineProps({
 
 const emit = defineEmits(['back'])
 const router = useRouter()
-const $q = useQuasar()
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -794,10 +748,85 @@ const isDialogMaximized = ref(false)
 const showOverrideDialog = ref(false)
 const activeOverrideDate = ref('')
 const activeOverrideDtr = ref(null)
+const previewDtrRef = ref(null)
 
-const currentDate = new Date()
-const selectedMonth = ref(currentDate.getMonth() + 1)
-const selectedYear = ref(currentDate.getFullYear())
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+function buildDefaultFullMonthRange() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const m = String(month).padStart(2, '0')
+  const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0')
+  return {
+    from: `${year}-${m}-01`,
+    to: `${year}-${m}-${lastDay}`,
+  }
+}
+
+const customDateRange = ref(buildDefaultFullMonthRange())
+
+const datePickerModel = computed({
+  get() {
+    return customDateRange.value || buildDefaultFullMonthRange()
+  },
+  set(val) {
+    if (!val) return
+    customDateRange.value = typeof val === 'string' ? { from: val, to: val } : val
+  },
+})
+
+const normalizedCustomRange = computed(() => {
+  const val = customDateRange.value || buildDefaultFullMonthRange()
+  if (typeof val === 'string') {
+    return { from: val, to: val }
+  }
+  const from = val?.from || buildDefaultFullMonthRange().from
+  const to = val?.to || from
+  return from <= to ? { from, to } : { from: to, to: from }
+})
+
+const customRangeDisplayLabel = computed(() => {
+  const { from, to } = normalizedCustomRange.value
+  try {
+    const d1 = new Date(`${from}T00:00:00`)
+    const d2 = new Date(`${to}T00:00:00`)
+    const sameYear = d1.getFullYear() === d2.getFullYear()
+    const f1 = d1.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(sameYear ? {} : { year: 'numeric' }),
+    })
+    const f2 = d2.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    return from === to ? f2 : `${f1} – ${f2}`
+  } catch {
+    return `${from} – ${to}`
+  }
+})
+
+watch(
+  () => [normalizedCustomRange.value.from, normalizedCustomRange.value.to],
+  () => {
+    fetchMonthlyDtr()
+  }
+)
 
 const pagination = ref({
   page: 1,
@@ -807,26 +836,6 @@ const pagination = ref({
 const overtimePagination = ref({
   page: 1,
   rowsPerPage: 10,
-})
-
-const monthOptions = [
-  { label: 'January', value: 1 },
-  { label: 'February', value: 2 },
-  { label: 'March', value: 3 },
-  { label: 'April', value: 4 },
-  { label: 'May', value: 5 },
-  { label: 'June', value: 6 },
-  { label: 'July', value: 7 },
-  { label: 'August', value: 8 },
-  { label: 'September', value: 9 },
-  { label: 'October', value: 10 },
-  { label: 'November', value: 11 },
-  { label: 'December', value: 12 },
-]
-
-const yearOptions = computed(() => {
-  const current = new Date().getFullYear()
-  return [current - 2, current - 1, current, current + 1]
 })
 
 const dtrColumns = [
@@ -860,27 +869,39 @@ const employeeControlNo = computed(() => {
   return dtrData.value?.employee?.control_no || props.employeeId || ''
 })
 
+// Filtered rows in the active date range
+const monthDayRows = computed(() => {
+  if (!dtrData.value?.records) return []
+  const { from, to } = normalizedCustomRange.value
+  return dtrData.value.records.filter((r) => r.record_date >= from && r.record_date <= to)
+})
+
 const summaryMetrics = computed(() => {
-  const s = dtrData.value?.summary || {}
+  const rows = monthDayRows.value
+  const presentDays = rows.filter((r) => r.status === 'PRESENT').length
+  const absentDays = rows.filter((r) => r.status === 'ABSENT').length
+  const lateDays = rows.filter((r) => Number(r.late_minutes || 0) > 0).length
+  const overtimeDays = rows.filter(
+    (r) => (r.overtime_minutes && r.overtime_minutes > 0) || r.ot_arrival || r.ot_departure
+  ).length
+  const totalWorkedHours = rows
+    .reduce((sum, r) => sum + Number(r.rendered_hours || 0), 0)
+    .toFixed(1)
+
   return {
-    present_days: s.present_days ?? s.days_present ?? 0,
-    absent_days: s.absent_days ?? s.days_absent ?? 0,
-    late_days: s.late_days ?? (s.total_late_minutes > 0 ? 1 : 0),
-    overtime_days: s.overtime_days ?? 0,
-    total_worked_hours: s.total_worked_hours ?? Number(s.total_rendered_hours || 0).toFixed(1),
+    present_days: presentDays,
+    absent_days: absentDays,
+    late_days: lateDays,
+    overtime_days: overtimeDays,
+    total_worked_hours: totalWorkedHours,
   }
 })
 
-// Build full calendar day rows for the selected month
-const monthDayRows = computed(() => {
-  if (!dtrData.value?.records) return []
-  return dtrData.value.records
-})
-
-// Overtime rows
+// Overtime rows within active date range
 const overtimeRows = computed(() => {
-  if (!dtrData.value?.records) return []
-  return dtrData.value.records.filter(r => (r.overtime_minutes && r.overtime_minutes > 0) || r.ot_arrival || r.ot_departure)
+  return monthDayRows.value.filter(
+    (r) => (r.overtime_minutes && r.overtime_minutes > 0) || r.ot_arrival || r.ot_departure
+  )
 })
 
 function getInitials(name) {
@@ -891,8 +912,7 @@ function getInitials(name) {
 }
 
 function getMonthName(monthNumber) {
-  const m = monthOptions.find(o => o.value === monthNumber)
-  return m ? m.label : ''
+  return MONTH_NAMES[monthNumber - 1] || ''
 }
 
 function getDayShort(dateStr) {
@@ -1005,49 +1025,13 @@ function goBack() {
 }
 
 function openOverrideDialog(row) {
-  activeOverrideDate.value = row?.record_date || `${selectedYear.value}-${String(selectedMonth.value).padStart(2, '0')}-01`
+  activeOverrideDate.value = row?.record_date || normalizedCustomRange.value.from
   activeOverrideDtr.value = row?.dtr || row
   showOverrideDialog.value = true
 }
 
 function onOverrideSaved() {
   fetchMonthlyDtr()
-}
-
-function triggerPrint() {
-  window.print()
-}
-
-function exportDtrCsv() {
-  if (!dtrData.value?.records?.length) {
-    $q.notify({ type: 'warning', message: 'No attendance records available to export.' })
-    return
-  }
-
-  const headers = ['Date', 'Day', 'Time In (AM)', 'Time Out (AM)', 'Time In (PM)', 'Time Out (PM)', 'Overtime In', 'Overtime Out', 'Late (Mins)', 'Undertime (Mins)', 'Rendered Hours', 'Status']
-  const rows = dtrData.value.records.map(r => [
-    r.record_date,
-    r.day_of_week,
-    r.am_arrival || '',
-    r.am_departure || '',
-    r.pm_arrival || '',
-    r.pm_departure || '',
-    r.ot_arrival || '',
-    r.ot_departure || '',
-    r.late_minutes || 0,
-    r.undertime_minutes || 0,
-    r.rendered_hours || '0.00',
-    r.status || '',
-  ])
-
-  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
-  const encodedUri = encodeURI(csvContent)
-  const link = document.createElement('a')
-  link.setAttribute('href', encodedUri)
-  link.setAttribute('download', `DTR_${employeeControlNo.value}_${selectedMonth.value}_${selectedYear.value}.csv`)
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
 }
 
 async function fetchMonthlyDtr() {
@@ -1057,12 +1041,37 @@ async function fetchMonthlyDtr() {
   errorMessage.value = ''
 
   try {
+    const { from, to } = normalizedCustomRange.value
+    const [fromY, fromM] = from.split('-').map(Number)
+    const [toY, toM] = to.split('-').map(Number)
+
+    const year = fromY || new Date().getFullYear()
+    const month = fromM || new Date().getMonth() + 1
+
+    const params = {
+      month,
+      year,
+    }
+
+    if (fromY && fromM && toY && toM) {
+      const startPadM = String(fromM).padStart(2, '0')
+      const endPadM = String(toM).padStart(2, '0')
+      const endMaxDay = String(new Date(toY, toM, 0).getDate()).padStart(2, '0')
+      params.start_date = `${fromY}-${startPadM}-01`
+      params.end_date = `${toY}-${endPadM}-${endMaxDay}`
+    }
+
     const res = await api.get(`/attendance/dtr/employee/${props.employeeId}`, {
-      params: {
-        month: selectedMonth.value,
-        year: selectedYear.value,
-      },
+      params,
     })
+
+    if (res.data?.period) {
+      res.data.period.year = year
+      res.data.period.month = month
+      res.data.period.month_name = getMonthName(month)
+      res.data.period.days_in_month = new Date(year, month, 0).getDate()
+    }
+
     dtrData.value = res.data
   } catch (err) {
     errorMessage.value = err.response?.data?.message || 'Failed to load employee Daily Time Record.'
@@ -1080,6 +1089,19 @@ onMounted(() => {
 .attendance-record-shell {
   max-width: 1350px;
   margin: 0 auto;
+}
+
+.header-date-range-trigger {
+  height: 38px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.header-date-range-trigger:hover {
+  background: #f1f5f9;
+  border-color: #2e7d32;
 }
 
 .header-card {
@@ -1109,16 +1131,6 @@ onMounted(() => {
 
 .font-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.selector-pill-box {
-  border: 1px solid #e2e8f0;
-}
-
-.dense-selector :deep(.q-field__control) {
-  background-color: #ffffff;
-  border-radius: 6px;
-  height: 38px;
 }
 
 .action-btn {
