@@ -1148,6 +1148,45 @@ function normalizeLeaveBalanceKey(name = '') {
     .replace(/[^a-z0-9]+/g, '')
 }
 
+function areLeaveBalanceKeysMatching(key1 = '', key2 = '') {
+  const norm1 = normalizeLeaveBalanceKey(key1)
+  const norm2 = normalizeLeaveBalanceKey(key2)
+  if (!norm1 || !norm2) return false
+  if (norm1 === norm2) return true
+
+  const isSpl1 = norm1.includes('specialprivilege') || norm1.includes('mc06') || norm1.includes('mco6') || norm1.includes('mo6') || norm1 === 'spl'
+  const isSpl2 = norm2.includes('specialprivilege') || norm2.includes('mc06') || norm2.includes('mco6') || norm2.includes('mo6') || norm2 === 'spl'
+  if (isSpl1 && isSpl2) return true
+
+  const isCalamity1 = norm1.includes('calamity') || norm1.includes('emergency')
+  const isCalamity2 = norm2.includes('calamity') || norm2.includes('emergency')
+  if (isCalamity1 && isCalamity2) return true
+
+  const isWellness1 = norm1.includes('wellness')
+  const isWellness2 = norm2.includes('wellness')
+  if (isWellness1 && isWellness2) return true
+
+  const isSolo1 = norm1.includes('soloparent')
+  const isSolo2 = norm2.includes('soloparent')
+  if (isSolo1 && isSolo2) return true
+
+  return false
+}
+
+function isVacationLeaveTopUpEligible(normKey = '') {
+  return (
+    normKey.includes('wellness') ||
+    normKey.includes('soloparent') ||
+    normKey.includes('calamity') ||
+    normKey.includes('emergency') ||
+    normKey.includes('specialprivilege') ||
+    normKey.includes('mc06') ||
+    normKey.includes('mco6') ||
+    normKey.includes('mo6') ||
+    normKey === 'spl'
+  )
+}
+
 function getBalanceFromApp(app, leaveTypeLabel) {
   const targetKey = normalizeLeaveBalanceKey(leaveTypeLabel)
   if (!targetKey || !app) return null
@@ -1182,7 +1221,7 @@ function getBalanceFromApp(app, leaveTypeLabel) {
     const itemKey = normalizeLeaveBalanceKey(
       item?.leave_type_name || item?.leaveTypeName || item?.name || item?.leave_type?.name || item?.label,
     )
-    if (itemKey === targetKey) {
+    if (itemKey === targetKey || areLeaveBalanceKeysMatching(itemKey, targetKey)) {
       const val = Number(
         item?.available_balance ??
           item?.available_balance_days ??
@@ -1269,6 +1308,24 @@ function resolveSlVlCrossDeductionContext(app) {
       primaryAvailableBalance,
       alternateAvailableBalance,
       alternateLeaveTypeLabel: 'Sick Leave',
+    }
+  }
+
+  if (isVacationLeaveTopUpEligible(normKey)) {
+    const rawAlternateBalance = getBalanceFromApp(app, 'Vacation Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+    const currentAlternateDeduction = isApproved
+      ? Number(app?.linked_vacation_leave_deducted_days ?? 0)
+      : 0
+    const alternateAvailableBalance = Math.max(
+      rawAlternateBalance +
+        (Number.isFinite(currentAlternateDeduction) && currentAlternateDeduction > 0 ? currentAlternateDeduction : 0),
+      0,
+    )
+    return {
+      primaryAvailableBalance,
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Vacation Leave',
     }
   }
 
