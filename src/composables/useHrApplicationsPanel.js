@@ -5885,6 +5885,31 @@ function resolvePayStatusOverrideSlVlCrossDeductionContext(app) {
     }
   }
 
+  const isVlTopUpType =
+    leaveTypeKey.includes('wellness') ||
+    leaveTypeKey.includes('soloparent') ||
+    leaveTypeKey.includes('calamity') ||
+    leaveTypeKey.includes('emergency') ||
+    leaveTypeKey.includes('specialprivilege') ||
+    leaveTypeKey.includes('mc06') ||
+    leaveTypeKey.includes('mco6') ||
+    leaveTypeKey.includes('mo6') ||
+    leaveTypeKey === 'spl'
+
+  if (isVlTopUpType) {
+    const rawAlternateBalance = getLeaveBalanceValueByTypeLabel(app, 'Vacation Leave')
+    if (!Number.isFinite(rawAlternateBalance)) return null
+
+    const primaryAvailableBalance = Math.max(rawPrimaryAvailableBalance + currentPrimaryDeduction, 0)
+    const alternateAvailableBalance = Math.max(rawAlternateBalance + currentLinkedVacationDeduction, 0)
+
+    return {
+      alternateAvailableBalance,
+      alternateLeaveTypeLabel: 'Vacation Leave',
+      primaryAvailableBalance,
+    }
+  }
+
   return null
 }
 
