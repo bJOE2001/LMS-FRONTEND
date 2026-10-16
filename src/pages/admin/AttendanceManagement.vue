@@ -286,21 +286,6 @@
                 <q-tooltip class="bg-dark">Next Day</q-tooltip>
               </q-btn>
             </div>
-
-            <!-- Batch DTR Print Button -->
-            <q-btn
-              unelevated
-              dense
-              color="green-9"
-              icon="print"
-              label="Batch Print DTR"
-              no-caps
-              class="text-weight-bold q-px-sm"
-              style="height: 34px; border-radius: 6px;"
-              @click="openBatchPrintSetup"
-            >
-              <q-tooltip class="bg-dark">Select personnel & print Civil Service Form 48 in batch</q-tooltip>
-            </q-btn>
           </div>
         </q-card-section>
 
@@ -318,34 +303,27 @@
           class="attendance-pro-table"
           @row-click="handleEmployeeRowClick"
         >
-          <!-- Employee Column: Avatar initials + Full Name + Control No -->
+          <!-- Employee Column: Full Name + Position -->
           <template #body-cell-employee="props">
             <q-td :props="props" class="text-left">
-              <div class="row items-center no-wrap">
-                <q-avatar size="38px" color="green-1" text-color="green-9" class="q-mr-sm text-weight-bold employee-row-avatar">
-                  {{ getInitials(props.row.employee_name) }}
-                </q-avatar>
-                <div>
-                  <div class="text-weight-bold text-dark employee-name-text">
-                    {{ props.row.employee_name }}
-                  </div>
-                  <div class="text-caption text-grey-6 font-mono q-mt-xs">
-                    ID: {{ props.row.control_no }}
-                  </div>
+              <div>
+                <div class="text-weight-bold text-dark employee-name-text">
+                  {{ props.row.employee_name }}
+                </div>
+                <div class="text-caption text-grey-7 ellipsis" style="max-width: 220px;">
+                  {{ props.row.designation || 'Staff Member' }}
+                  <q-tooltip v-if="props.row.designation" class="bg-dark text-caption">
+                    {{ props.row.designation }}
+                  </q-tooltip>
                 </div>
               </div>
             </q-td>
           </template>
 
-          <!-- Designation / Position Column -->
-          <template #body-cell-designation="props">
-            <q-td :props="props" class="text-left">
-              <div class="text-weight-medium text-dark position-text ellipsis cursor-pointer" style="max-width: 180px;">
-                {{ props.row.designation || 'Staff Member' }}
-                <q-tooltip class="bg-dark text-caption" anchor="top middle" self="bottom middle" :offset="[0, 6]">
-                  {{ props.row.designation || 'Staff Member' }}
-                </q-tooltip>
-              </div>
+          <!-- ControlNo(ID) Column -->
+          <template #body-cell-control_no="props">
+            <q-td :props="props" class="text-left font-mono">
+              <span class="text-weight-bold text-grey-9">{{ props.row.control_no }}</span>
             </q-td>
           </template>
 
@@ -409,7 +387,7 @@
                 text-color="teal-9"
                 class="q-px-sm q-py-xs text-weight-bold"
               >
-                {{ Number(props.row.dtr.rendered_hours).toFixed(1) }} hrs
+                {{ Number(props.row.dtr.rendered_hours).toFixed(1) }}
               </q-badge>
               <span v-else class="text-grey-4">—</span>
             </q-td>
@@ -418,51 +396,22 @@
           <!-- Attendance Status Badge -->
           <template #body-cell-status="props">
             <q-td :props="props" class="text-center">
-              <div class="row items-center justify-center no-wrap q-gutter-x-xs">
+              <div class="row items-center justify-center no-wrap">
                 <q-chip
                   dense
-                  class="text-weight-bold text-caption q-my-none status-badge"
+                  class="text-weight-bold text-caption q-my-none status-badge text-uppercase"
                   :color="getStatusBadgeColor(props.row.attendance_status)"
                   :text-color="getStatusBadgeTextColor(props.row.attendance_status)"
                 >
-                  <q-icon :name="getStatusIcon(props.row.attendance_status)" size="14px" class="q-mr-xs" />
-                  {{ props.row.attendance_status || 'Absent' }}
+                  {{ formatStatusText(props.row.attendance_status) }}
+                  <q-tooltip v-if="props.row.dtr?.leave_type_code" class="bg-dark text-white">
+                    Leave Type: {{ props.row.dtr.leave_type_code }}
+                  </q-tooltip>
                 </q-chip>
-
-                <!-- Adjusted indicator -->
-                <q-badge
-                  v-if="props.row.dtr?.is_adjusted"
-                  color="purple-1"
-                  text-color="purple-9"
-                  class="q-ml-xs text-caption font-mono"
-                  label="Adj"
-                >
-                  <q-tooltip class="bg-dark">Adjusted: {{ props.row.dtr.adjustment_reason || 'Manual override' }}</q-tooltip>
-                </q-badge>
               </div>
             </q-td>
           </template>
 
-          <!-- Action Column -->
-          <template #body-cell-action="props">
-            <q-td :props="props" class="text-right">
-              <div class="row items-center justify-end no-wrap">
-                <!-- View Monthly DTR Details & Override -->
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  color="green-9"
-                  icon="visibility"
-                  class="action-icon-btn"
-                  @click.stop="openEmployeeDtr(props.row)"
-                >
-                  <q-tooltip class="bg-dark">View DTR & Override</q-tooltip>
-                </q-btn>
-              </div>
-            </q-td>
-          </template>
 
           <!-- Empty State -->
           <template #no-data>
@@ -477,6 +426,104 @@
         </q-table>
       </q-card>
     </div>
+
+    <!-- Step 1: Quick Date Setup Dialog for Individual Employee DTR -->
+    <q-dialog
+      v-model="showSingleDtrSetupDialog"
+      transition-show="scale"
+      transition-hide="scale"
+    >
+      <q-card style="width: 440px; max-width: 95vw;" class="column no-wrap rounded-borders shadow-10 bg-white">
+        <!-- Dialog Header Toolbar -->
+        <q-toolbar class="bg-green-9 text-white q-py-xs shadow-1" style="height: 52px; min-height: 52px;">
+          <q-avatar size="32px" color="white" text-color="green-10" icon="date_range" class="q-mr-sm" />
+          <div class="text-subtitle1 text-weight-bold">Civil Service Form No. 48</div>
+          <q-space />
+          <q-btn icon="close" flat round dense text-color="white" v-close-popup>
+            <q-tooltip class="bg-dark">Close</q-tooltip>
+          </q-btn>
+        </q-toolbar>
+
+        <!-- Dialog Body -->
+        <q-card-section class="q-pa-md bg-grey-1 column q-gutter-y-sm">
+          <!-- Personnel Summary Chip/Card -->
+          <div class="bg-white q-pa-sm rounded-borders shadow-1 row items-center justify-between" style="border: 1px solid #e0e0e0;">
+            <div class="column">
+              <span class="text-weight-bold text-dark text-body2">
+                {{ singleDtrEmployee?.employee_name || 'Selected Personnel' }}
+              </span>
+              <span class="text-caption text-grey-7">
+                {{ singleDtrEmployee?.designation || 'Staff Member' }}
+              </span>
+            </div>
+            <div class="text-right font-mono">
+              <span class="text-caption text-grey-6 block">Control No</span>
+              <span class="text-weight-bold text-green-9 text-caption">{{ singleDtrEmployee?.control_no || '—' }}</span>
+            </div>
+          </div>
+
+          <!-- Date Range Selector -->
+          <div class="bg-white q-pa-sm rounded-borders shadow-1" style="border: 1px solid #e0e0e0;">
+            <div class="row items-center justify-between q-mb-xs q-px-xs">
+              <div class="row items-center text-weight-bold text-caption text-grey-9">
+                <q-icon name="event" color="green-9" size="18px" class="q-mr-xs" />
+                Coverage Date Range
+              </div>
+              <div class="row items-center q-gutter-x-xs">
+                <q-badge
+                  :color="normalizedSingleDtrCustomRange ? 'green-9' : 'grey-6'"
+                  text-color="white"
+                  class="font-mono text-caption text-weight-bold q-px-xs q-py-xs"
+                >
+                  {{ singleDtrRangeDisplayLabel }}
+                </q-badge>
+                <q-btn
+                  v-if="singleDtrDateRange"
+                  flat
+                  dense
+                  round
+                  icon="close"
+                  size="xs"
+                  color="grey-6"
+                  @click="singleDtrDateRange = null"
+                >
+                  <q-tooltip class="bg-dark">Clear date range</q-tooltip>
+                </q-btn>
+              </div>
+            </div>
+
+            <q-date
+              v-model="singleDtrDatePickerModel"
+              range
+              mask="YYYY-MM-DD"
+              color="green-9"
+              minimal
+              class="full-width no-shadow bg-white rounded-borders"
+              style="border: 1px solid #e8f5e9;"
+            />
+          </div>
+        </q-card-section>
+
+        <!-- Dialog Footer Actions -->
+        <q-card-actions align="right" class="bg-white q-pa-md" style="border-top: 1px solid #e0e0e0;">
+          <q-btn
+            unelevated
+            color="green-9"
+            text-color="white"
+            icon="description"
+            label="Generate & View DTR"
+            no-caps
+            class="text-weight-bolder q-px-md"
+            :disable="!normalizedSingleDtrCustomRange"
+            @click="confirmSingleDtrSetup"
+          >
+            <q-tooltip class="bg-dark">
+              {{ !normalizedSingleDtrCustomRange ? 'Please select a coverage date range first' : 'Generate and preview Civil Service Form No. 48' }}
+            </q-tooltip>
+          </q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Civil Service Form No. 48 (DTR) Preview & Override Modal Dialog -->
     <q-dialog
@@ -493,7 +540,7 @@
         <q-bar class="bg-green-9 text-white q-py-sm no-print">
           <q-icon name="description" class="q-mr-xs" />
           <div class="text-weight-bold ellipsis" style="max-width: 650px;">
-            Civil Service Form No. 48 & Accomplishment Report — {{ dtrModalEmployeeName }} ({{ dtrCustomRangeLabel }})
+            {{ dtrModalHeaderTitle }}
           </div>
           <q-space />
           <q-btn
@@ -536,106 +583,210 @@
       </q-card>
     </q-dialog>
 
-    <!-- Floating Bottom Bulk Action Bar for Batch DTR Printing -->
-    <transition
-      appear
-      enter-active-class="animated fadeInUp"
-      leave-active-class="animated fadeOutDown"
+    <!-- Centered Two-Column Modal Dialog for Batch DTR Printing -->
+    <q-dialog
+      v-model="showBulkDialog"
+      transition-show="scale"
+      transition-hide="scale"
     >
-      <div
-        v-if="selectedEmployees.length > 0"
-        class="bulk-action-bar fixed-bottom row items-center justify-between q-pa-sm q-px-md shadow-10 no-print"
-      >
-        <div class="row items-center q-gutter-x-md">
-          <q-badge color="white" text-color="green-9" class="text-weight-bold text-subtitle2 q-px-sm q-py-xs shadow-1">
-            <q-icon name="checklist" size="18px" class="q-mr-xs" />
-            {{ selectedEmployees.length }} {{ selectedEmployees.length === 1 ? 'personnel' : 'personnel' }} selected
-          </q-badge>
+      <q-card style="width: 780px; max-width: 96vw; max-height: 92vh;" class="column no-wrap rounded-borders shadow-10 bg-white">
+        <!-- Dialog Header Toolbar with balanced margins and vertical centering -->
+        <q-toolbar class="bg-green-9 text-white q-py-xs shadow-1" style="height: 52px; min-height: 52px;">
+          <q-avatar size="32px" color="white" text-color="green-10" icon="print" class="q-mr-sm" />
+          <div class="text-subtitle1 text-weight-bold">Batch Print DTR — Civil Service Form No. 48</div>
+          <q-space />
+          <q-btn icon="close" flat round dense text-color="white" v-close-popup>
+            <q-tooltip class="bg-dark">Close</q-tooltip>
+          </q-btn>
+        </q-toolbar>
 
-          <!-- Cutoff Range Quick Presets -->
-          <div class="row items-center q-gutter-x-xs cutoff-preset-group">
-            <span class="text-caption text-white text-weight-medium q-mr-xs">Print Period:</span>
-            <q-btn
-              dense
-              unelevated
-              size="sm"
-              :color="selectedCutoffPreset === '1st' ? 'white' : 'green-8'"
-              :text-color="selectedCutoffPreset === '1st' ? 'green-10' : 'white'"
-              label="1st Cutoff (1–15)"
-              class="text-weight-bold q-px-sm"
-              @click="applyCutoffPreset('1st')"
-            />
-            <q-btn
-              dense
-              unelevated
-              size="sm"
-              :color="selectedCutoffPreset === '2nd' ? 'white' : 'green-8'"
-              :text-color="selectedCutoffPreset === '2nd' ? 'green-10' : 'white'"
-              label="2nd Cutoff (16–End)"
-              class="text-weight-bold q-px-sm"
-              @click="applyCutoffPreset('2nd')"
-            />
-            <q-btn
-              dense
-              unelevated
-              size="sm"
-              :color="selectedCutoffPreset === 'month' ? 'white' : 'green-8'"
-              :text-color="selectedCutoffPreset === 'month' ? 'green-10' : 'white'"
-              label="Full Month"
-              class="text-weight-bold q-px-sm"
-              @click="applyCutoffPreset('month')"
-            />
-          </div>
-
-          <!-- Date Range Trigger -->
-          <div class="bulk-date-trigger row items-center no-wrap bg-white text-dark q-px-sm rounded-borders cursor-pointer">
-            <q-icon name="date_range" size="16px" color="green-9" class="q-mr-xs" />
-            <span class="text-caption text-weight-bold font-mono">{{ batchRangeDisplayLabel }}</span>
-            <q-icon name="arrow_drop_down" size="18px" color="grey-7" />
-
-            <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-              <q-date
-                v-model="batchDatePickerModel"
-                range
-                mask="YYYY-MM-DD"
-                color="green-9"
-                minimal
-                @update:model-value="selectedCutoffPreset = 'custom'"
-              >
-                <div class="row items-center justify-end">
-                  <q-btn v-close-popup label="Apply" color="green-9" flat />
+        <!-- Dialog Body: Two-Column Layout -->
+        <q-card-section class="col scroll q-pa-md bg-grey-1">
+          <div class="row q-col-gutter-md">
+            <!-- Left Column: Coverage Date Range -->
+            <div class="col-12 col-sm-6">
+              <div class="bg-white q-pa-sm rounded-borders shadow-1" style="border: 1px solid #e0e0e0;">
+                <div class="row items-center justify-between q-mb-xs q-px-xs">
+                  <div class="row items-center text-weight-bold text-caption text-grey-9">
+                    <q-icon name="date_range" color="green-9" size="18px" class="q-mr-xs" />
+                    Coverage Date Range
+                  </div>
+                  <div class="row items-center q-gutter-x-xs">
+                    <q-badge
+                      :color="normalizedBatchCustomRange ? 'green-9' : 'grey-6'"
+                      text-color="white"
+                      class="font-mono text-caption text-weight-bold q-px-xs q-py-xs"
+                    >
+                      {{ batchRangeDisplayLabel }}
+                    </q-badge>
+                    <q-btn
+                      v-if="batchDateRange"
+                      flat
+                      dense
+                      round
+                      icon="close"
+                      size="xs"
+                      color="grey-6"
+                      @click="batchDateRange = null"
+                    >
+                      <q-tooltip class="bg-dark">Clear date range</q-tooltip>
+                    </q-btn>
+                  </div>
                 </div>
-              </q-date>
-            </q-popup-proxy>
-          </div>
-        </div>
 
-        <!-- Action Buttons: Print Batch & Clear -->
-        <div class="row items-center q-gutter-x-sm">
-          <q-btn
-            flat
-            dense
-            color="white"
-            label="Clear Selection"
-            icon="close"
-            no-caps
-            size="sm"
-            @click="selectedEmployees = []"
-          />
+                <q-date
+                  v-model="batchDatePickerModel"
+                  range
+                  mask="YYYY-MM-DD"
+                  color="green-9"
+                  minimal
+                  class="full-width no-shadow bg-white rounded-borders"
+                  style="border: 1px solid #e8f5e9;"
+                />
+              </div>
+            </div>
+
+            <!-- Right Column: Selected Personnel -->
+            <div class="col-12 col-sm-6 column">
+              <div class="bg-white q-pa-sm rounded-borders shadow-1 column full-height" style="border: 1px solid #e0e0e0; min-height: 350px;">
+                <div class="row items-center justify-between q-mb-xs q-px-xs">
+                  <div class="row items-center text-weight-bold text-caption text-grey-9">
+                    <q-icon name="people" color="green-9" size="18px" class="q-mr-xs" />
+                    Selected Personnel
+                    <q-badge color="green-1" text-color="green-9" class="q-ml-xs text-weight-bold">
+                      {{ selectedEmployees.length }}
+                    </q-badge>
+                  </div>
+                  <div class="row items-center q-gutter-x-xs">
+                    <q-btn
+                      v-if="selectedEmployees.length < filteredEmployeeRows.length"
+                      flat
+                      dense
+                      no-caps
+                      size="xs"
+                      color="green-9"
+                      label="Select All"
+                      @click="selectAllFilteredEmployees"
+                    />
+                    <q-btn
+                      v-if="selectedEmployees.length > 0"
+                      flat
+                      dense
+                      no-caps
+                      size="xs"
+                      color="negative"
+                      label="Clear"
+                      @click="selectedEmployees = []"
+                    />
+                  </div>
+                </div>
+
+                <!-- Empty State -->
+                <div
+                  v-if="selectedEmployees.length === 0"
+                  class="col column items-center justify-center text-center q-pa-lg text-grey-6"
+                >
+                  <q-icon name="touch_app" size="36px" color="grey-4" class="q-mb-sm" />
+                  <div class="text-subtitle2 text-weight-bold text-grey-8">No Personnel Selected</div>
+                  <div class="text-caption text-grey-6 q-mb-md">Check personnel in the table to include them.</div>
+                  <q-btn
+                    outline
+                    dense
+                    color="green-9"
+                    label="Select All Filtered"
+                    no-caps
+                    size="sm"
+                    class="q-px-sm"
+                    @click="selectAllFilteredEmployees"
+                  />
+                </div>
+
+                <!-- List of Selected Employees -->
+                <q-list v-else separator dense class="col scroll rounded-borders" style="max-height: 310px;">
+                  <q-item
+                    v-for="emp in selectedEmployees"
+                    :key="emp.control_no"
+                    class="q-py-xs q-px-xs items-center"
+                  >
+                    <q-item-section avatar style="min-width: 32px;">
+                      <q-avatar size="26px" color="green-8" text-color="white" class="text-caption text-weight-bold">
+                        {{ getInitials(emp.employee_name) }}
+                      </q-avatar>
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label class="text-caption text-weight-bold ellipsis" style="max-width: 200px;">
+                        {{ emp.employee_name }}
+                      </q-item-label>
+                      <q-item-label caption class="ellipsis text-grey-6" style="max-width: 200px;">
+                        {{ emp.designation || `ID: ${emp.control_no}` }}
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="close"
+                        size="xs"
+                        color="grey-6"
+                        @click.stop="removeEmployeeFromBatch(emp)"
+                      >
+                        <q-tooltip class="bg-dark">Remove from batch</q-tooltip>
+                      </q-btn>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+
+        <!-- Dialog Footer Actions -->
+        <q-card-actions align="right" class="bg-white q-pa-md no-print" style="border-top: 1px solid #e0e0e0;">
           <q-btn
             unelevated
-            color="white"
-            text-color="green-10"
+            color="green-9"
+            text-color="white"
             icon="print"
-            :label="`Print DTR (${selectedEmployees.length})`"
+            :label="`Generate & Preview (${selectedEmployees.length})`"
             no-caps
             class="text-weight-bolder q-px-md"
             :loading="batchLoading"
+            :disable="selectedEmployees.length === 0 || !normalizedBatchCustomRange"
             @click="openBatchPrintModal"
           >
-            <q-tooltip>Print CSC Form No. 48 for selected personnel</q-tooltip>
+            <q-tooltip class="bg-dark">
+              {{ !normalizedBatchCustomRange ? 'Please select a coverage date range first' : 'Generate and preview CSC Form No. 48 for selected personnel' }}
+            </q-tooltip>
           </q-btn>
-        </div>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Floating Re-open Button when Dialog is closed but personnel are selected -->
+    <transition
+      appear
+      enter-active-class="animated fadeInRight"
+      leave-active-class="animated fadeOutRight"
+    >
+      <div
+        v-if="!showBulkDialog && selectedEmployees.length > 0"
+        class="fixed-bottom-right q-ma-lg no-print"
+        style="z-index: 1999;"
+      >
+        <q-btn
+          elevated
+          rounded
+          color="green-9"
+          text-color="white"
+          icon="print"
+          :label="`Print Selected DTR (${selectedEmployees.length})`"
+          class="text-weight-bold shadow-6 q-px-md q-py-sm"
+          no-caps
+          @click="showBulkDialog = true"
+        >
+          <q-tooltip class="bg-dark">Open batch print configuration</q-tooltip>
+        </q-btn>
       </div>
     </transition>
 
@@ -652,8 +803,18 @@
       >
         <q-bar class="bg-green-9 text-white q-py-sm no-print">
           <q-icon name="print" class="q-mr-xs" />
-          <div class="text-weight-bold ellipsis" style="max-width: 650px;">
-            Batch CSC Form No. 48 Preview — {{ batchEmployeesDtr.length }} Personnel ({{ batchRangeDisplayLabel }})
+          <div class="row items-center no-wrap text-weight-bold ellipsis" style="max-width: 650px;">
+            <q-spinner-dots v-if="batchLoading" size="16px" class="q-mr-xs" />
+            <span>
+              Batch CSC Form No. 48 Preview —
+              <template v-if="batchLoading">
+                Preparing {{ selectedEmployees.length }} Personnel...
+              </template>
+              <template v-else>
+                {{ batchEmployeesDtr.length }} Personnel
+              </template>
+              ({{ batchRangeDisplayLabel }})
+            </span>
           </div>
           <q-space />
           <q-btn
@@ -662,12 +823,19 @@
             color="white"
             text-color="green-10"
             icon="print"
-            :label="`Print All (${batchEmployeesDtr.length} Copies)`"
+            :loading="batchLoading"
+            :disable="batchLoading || batchEmployeesDtr.length === 0"
+            :label="batchLoading ? 'Preparing...' : `Print All (${batchEmployeesDtr.length} Copies)`"
             class="q-mr-sm text-weight-bolder"
             no-caps
             size="sm"
             @click="executeBatchPrint"
-          />
+          >
+            <template #loading>
+              <q-spinner-dots size="16px" />
+              <span class="q-ml-xs">Generating...</span>
+            </template>
+          </q-btn>
           <q-btn
             dense
             flat
@@ -774,15 +942,14 @@ const pagination = ref({
 })
 
 const columns = [
+  { name: 'control_no', label: 'Control No', field: 'control_no', align: 'left', sortable: true },
   { name: 'employee', label: 'Employee', field: 'employee_name', align: 'left', sortable: true },
-  { name: 'designation', label: 'Position', field: 'designation', align: 'left', sortable: true },
   { name: 'am_in', label: 'AM In', align: 'center' },
   { name: 'am_out', label: 'AM Out', align: 'center' },
   { name: 'pm_in', label: 'PM In', align: 'center' },
   { name: 'pm_out', label: 'PM Out', align: 'center' },
   { name: 'hours', label: 'Hours', align: 'center' },
   { name: 'status', label: 'Status', field: 'attendance_status', align: 'center', sortable: true },
-  { name: 'action', label: 'Actions', align: 'right' },
 ]
 
 const filterOptions = computed(() => [
@@ -811,7 +978,12 @@ const filteredEmployeeRows = computed(() => {
       return status === 'absent'
     }
     if (activeFilter.value === 'ON_LEAVE') {
-      return status === 'on leave' || status === 'half day'
+      return (
+        status === 'on leave' ||
+        status.startsWith('on leave') ||
+        status.startsWith('on_leave') ||
+        status === 'half day'
+      )
     }
     return true
   })
@@ -853,12 +1025,20 @@ function isRowLate(row) {
   return Number(row.dtr?.late_minutes || 0) > 0
 }
 
+function formatStatusText(status) {
+  const norm = String(status || 'ABSENT').trim().toUpperCase()
+  if (norm === 'ON TIME') return 'PRESENT'
+  if (norm === 'ON_LEAVE_AM' || norm === 'ON LEAVE (AM)' || norm === 'ON LEAVE AM') return 'ON LEAVE (AM)'
+  if (norm === 'ON_LEAVE_PM' || norm === 'ON LEAVE (PM)' || norm === 'ON LEAVE PM') return 'ON LEAVE (PM)'
+  return norm
+}
+
 function getStatusBadgeColor(status) {
   const norm = String(status || '').toLowerCase().trim()
   if (norm === 'on time' || norm === 'present') return 'green-1'
   if (norm === 'late') return 'amber-1'
   if (norm === 'absent') return 'red-1'
-  if (norm === 'on leave') return 'blue-1'
+  if (norm.startsWith('on leave') || norm.startsWith('on_leave')) return 'blue-1'
   if (norm === 'half day') return 'orange-1'
   if (norm === 'rest day') return 'grey-2'
   return 'red-1'
@@ -869,20 +1049,10 @@ function getStatusBadgeTextColor(status) {
   if (norm === 'on time' || norm === 'present') return 'green-9'
   if (norm === 'late') return 'amber-9'
   if (norm === 'absent') return 'red-9'
-  if (norm === 'on leave') return 'blue-9'
+  if (norm.startsWith('on leave') || norm.startsWith('on_leave')) return 'blue-9'
   if (norm === 'half day') return 'orange-9'
   if (norm === 'rest day') return 'grey-8'
   return 'red-9'
-}
-
-function getStatusIcon(status) {
-  const norm = String(status || '').toLowerCase().trim()
-  if (norm === 'on time' || norm === 'present') return 'check_circle'
-  if (norm === 'late') return 'schedule'
-  if (norm === 'absent') return 'cancel'
-  if (norm === 'on leave') return 'beach_access'
-  if (norm === 'half day') return 'timelapse'
-  return 'help_outline'
 }
 
 function changeDate(deltaDays) {
@@ -943,6 +1113,59 @@ async function fetchAttendanceOverview() {
 // =========================================================
 // DTR MODAL & TIME OVERRIDE STATE & LOGIC
 // =========================================================
+const showSingleDtrSetupDialog = ref(false)
+const singleDtrEmployee = ref(null)
+const singleDtrDateRange = ref(null)
+
+const singleDtrDatePickerModel = computed({
+  get() {
+    return singleDtrDateRange.value
+  },
+  set(val) {
+    if (!val) {
+      singleDtrDateRange.value = null
+      return
+    }
+    singleDtrDateRange.value = typeof val === 'string' ? { from: val, to: val } : val
+  },
+})
+
+const normalizedSingleDtrCustomRange = computed(() => {
+  const val = singleDtrDateRange.value
+  if (!val) return null
+  if (typeof val === 'string') {
+    return { from: val, to: val }
+  }
+  const from = val?.from
+  const to = val?.to || from
+  if (!from) return null
+  return from <= to ? { from, to } : { from: to, to: from }
+})
+
+const singleDtrRangeDisplayLabel = computed(() => {
+  const range = normalizedSingleDtrCustomRange.value
+  if (!range) return 'Select Date Range'
+  const { from, to } = range
+  try {
+    const d1 = new Date(`${from}T00:00:00`)
+    const d2 = new Date(`${to}T00:00:00`)
+    const sameYear = d1.getFullYear() === d2.getFullYear()
+    const f1 = d1.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      ...(sameYear ? {} : { year: 'numeric' }),
+    })
+    const f2 = d2.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    return from === to ? f2 : `${f1} – ${f2}`
+  } catch {
+    return `${from} – ${to}`
+  }
+})
+
 const showDtrModal = ref(false)
 const isDialogMaximized = ref(false)
 const selectedDtrEmployee = ref(null)
@@ -1020,6 +1243,23 @@ const dtrCustomRangeLabel = computed(() => {
   }
 })
 
+const isDtrEmployeeContractual = computed(() => {
+  const emp = dtrData.value?.employee || selectedDtrEmployee.value
+  if (!emp) return false
+  if (emp.is_contractual !== undefined) {
+    return Boolean(emp.is_contractual)
+  }
+  const status = String(emp.employment_status || emp.status || '').toUpperCase().trim()
+  return status === 'CONTRACTUAL'
+})
+
+const dtrModalHeaderTitle = computed(() => {
+  const formTitle = isDtrEmployeeContractual.value
+    ? 'Civil Service Form No. 48 & Accomplishment Report'
+    : 'Civil Service Form No. 48 (Daily Time Record)'
+  return `${formTitle} — ${dtrModalEmployeeName.value} (${dtrCustomRangeLabel.value})`
+})
+
 watch(
   () => [normalizedDtrCustomRange.value.from, normalizedDtrCustomRange.value.to],
   () => {
@@ -1082,15 +1322,27 @@ async function fetchEmployeeDtr(controlNo) {
 }
 
 /**
- * Open Employee DTR Preview Modal
+ * Open Employee DTR Setup Dialog (Step 1: Choose Date Range)
  */
 function openEmployeeDtr(employee) {
   if (!employee || !employee.control_no) return
-  selectedDtrEmployee.value = employee
-  dtrCustomRange.value = buildMonthRangeForDate(selectedDate.value)
+  singleDtrEmployee.value = employee
+  singleDtrDateRange.value = null
+  showSingleDtrSetupDialog.value = true
+}
+
+/**
+ * Confirm Single DTR Date Range & Open Preview Modal (Step 2: Generate DTR)
+ */
+function confirmSingleDtrSetup() {
+  if (!singleDtrEmployee.value || !normalizedSingleDtrCustomRange.value) return
+  const range = normalizedSingleDtrCustomRange.value
+  selectedDtrEmployee.value = singleDtrEmployee.value
+  dtrCustomRange.value = { from: range.from, to: range.to }
   dtrData.value = null
+  showSingleDtrSetupDialog.value = false
   showDtrModal.value = true
-  fetchEmployeeDtr(employee.control_no)
+  fetchEmployeeDtr(singleDtrEmployee.value.control_no)
 }
 
 /**
@@ -1137,6 +1389,7 @@ function onDtrModalClose() {
 // BATCH DTR PRINTING STATE & LOGIC
 // =========================================================
 const selectedEmployees = ref([])
+const showBulkDialog = ref(false)
 const showBatchDtrModal = ref(false)
 const isBatchDialogMaximized = ref(false)
 const batchLoading = ref(false)
@@ -1145,55 +1398,47 @@ const batchPeriod = ref({})
 const batchDepartmentHeads = ref([])
 const batchPrintContainerRef = ref(null)
 
-const selectedCutoffPreset = ref('month') // '1st', '2nd', 'month', 'custom'
-
-function getCutoffRange(preset, baseDateStr) {
-  const d = baseDateStr ? new Date(baseDateStr + 'T00:00:00') : new Date()
-  const y = d.getFullYear()
-  const m = d.getMonth() + 1
-  const mStr = String(m).padStart(2, '0')
-  const lastDay = new Date(y, m, 0).getDate()
-  const lastDayStr = String(lastDay).padStart(2, '0')
-
-  if (preset === '1st') {
-    return { from: `${y}-${mStr}-01`, to: `${y}-${mStr}-15` }
+// Close bulk dialog if selection is cleared
+watch(
+  () => selectedEmployees.value.length,
+  (newLen) => {
+    if (newLen === 0) {
+      showBulkDialog.value = false
+    }
   }
-  if (preset === '2nd') {
-    return { from: `${y}-${mStr}-16`, to: `${y}-${mStr}-${lastDayStr}` }
-  }
-  return { from: `${y}-${mStr}-01`, to: `${y}-${mStr}-${lastDayStr}` }
-}
+)
 
-const batchDateRange = ref(getCutoffRange('month', todayStr))
+const batchDateRange = ref(null)
 
 const batchDatePickerModel = computed({
   get() {
-    return batchDateRange.value || getCutoffRange('month', selectedDate.value)
+    return batchDateRange.value
   },
   set(val) {
-    if (!val) return
+    if (!val) {
+      batchDateRange.value = null
+      return
+    }
     batchDateRange.value = typeof val === 'string' ? { from: val, to: val } : val
-    selectedCutoffPreset.value = 'custom'
   },
 })
 
-function applyCutoffPreset(preset) {
-  selectedCutoffPreset.value = preset
-  batchDateRange.value = getCutoffRange(preset, selectedDate.value)
-}
-
 const normalizedBatchCustomRange = computed(() => {
-  const val = batchDateRange.value || getCutoffRange('month', selectedDate.value)
+  const val = batchDateRange.value
+  if (!val) return null
   if (typeof val === 'string') {
     return { from: val, to: val }
   }
-  const from = val?.from || getCutoffRange('month', selectedDate.value).from
+  const from = val?.from
   const to = val?.to || from
+  if (!from) return null
   return from <= to ? { from, to } : { from: to, to: from }
 })
 
 const batchRangeDisplayLabel = computed(() => {
-  const { from, to } = normalizedBatchCustomRange.value
+  const range = normalizedBatchCustomRange.value
+  if (!range) return 'Select Date Range'
+  const { from, to } = range
   try {
     const d1 = new Date(`${from}T00:00:00`)
     const d2 = new Date(`${to}T00:00:00`)
@@ -1214,23 +1459,31 @@ const batchRangeDisplayLabel = computed(() => {
   }
 })
 
-function openBatchPrintSetup() {
-  if (selectedEmployees.value.length === 0) {
-    selectedEmployees.value = [...filteredEmployeeRows.value]
-    $q.notify({
-      type: 'info',
-      message: `Selected all ${selectedEmployees.value.length} personnel for batch DTR printing.`,
-      position: 'top',
-    })
-  }
-  openBatchPrintModal()
+function selectAllFilteredEmployees() {
+  selectedEmployees.value = [...filteredEmployeeRows.value]
 }
+
+function removeEmployeeFromBatch(emp) {
+  selectedEmployees.value = selectedEmployees.value.filter(
+    (e) => e.control_no !== emp.control_no
+  )
+}
+
 
 async function openBatchPrintModal() {
   if (selectedEmployees.value.length === 0) {
     $q.notify({
       type: 'warning',
       message: 'Please select at least one employee to print DTR.',
+      position: 'top',
+    })
+    return
+  }
+
+  if (!normalizedBatchCustomRange.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please select a coverage date range first.',
       position: 'top',
     })
     return
@@ -1469,25 +1722,4 @@ onMounted(() => {
   transform: scale(1.08);
 }
 
-/* Floating Bottom Bulk Action Bar */
-.bulk-action-bar {
-  background: #1b5e20;
-  color: #ffffff;
-  border-top: 1px solid #2e7d32;
-  z-index: 2000;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
-  height: 52px;
-}
-
-.cutoff-preset-group {
-  background: rgba(0, 0, 0, 0.16);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.bulk-date-trigger {
-  height: 28px;
-  user-select: none;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-}
 </style>

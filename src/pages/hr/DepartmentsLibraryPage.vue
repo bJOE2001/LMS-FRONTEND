@@ -1,6 +1,6 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-mb-lg">
+  <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'departments-library-panel' : 'q-pa-md'">
+    <div v-if="!embedded" class="q-mb-lg">
       <div class="row items-center justify-between q-gutter-sm">
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Office Library</h1>
@@ -8,54 +8,61 @@
         <q-btn
           unelevated
           no-caps
-          color="primary"
-          icon="add_business"
-          label="Create Office"
+          color="green-9"
+          icon="add"
+          label="Add Office"
+          class="text-weight-bold q-px-md"
           @click="openCreateDialog"
         />
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg">
-      <div class="col-12 col-sm-6 col-md-4">
-        <q-card flat bordered class="rounded-borders">
-          <q-card-section>
-            <div class="row items-center no-wrap">
-              <q-icon name="business" size="md" color="primary" class="q-mr-sm" />
-              <div>
-                <div class="text-caption text-weight-medium">Total Offices</div>
-                <div class="text-h4 text-primary">{{ totalDepartments }}</div>
-              </div>
+    <!-- Unified Toolbar -->
+    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
+      <q-card-section class="q-pa-sm">
+        <div class="row items-center justify-between q-col-gutter-sm">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="search"
+              outlined
+              dense
+              clearable
+              debounce="250"
+              placeholder="Search offices..."
+              style="min-width: 260px;"
+            >
+              <template #prepend>
+                <q-icon name="search" color="grey-6" />
+              </template>
+            </q-input>
+          </div>
+          <div class="col-12 col-md-auto">
+            <div class="row items-center q-gutter-x-sm">
+              <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
+                {{ totalDepartments }} Total Offices
+              </q-badge>
+              <q-btn
+                unelevated
+                no-caps
+                color="green-9"
+                icon="add"
+                label="Add Office"
+                class="text-weight-bold q-px-md"
+                @click="openCreateDialog"
+              />
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
-
-    <q-card flat bordered class="rounded-borders q-mb-md">
-      <q-card-section>
-        <q-input
-          v-model="search"
-          outlined
-          dense
-          clearable
-          debounce="250"
-          label="Search offices"
-          placeholder="Type office name..."
-        >
-          <template #prepend>
-            <q-icon name="search" color="grey-6" />
-          </template>
-        </q-input>
+          </div>
+        </div>
       </q-card-section>
     </q-card>
 
-    <q-card flat bordered class="rounded-borders">
+    <q-card flat bordered class="rounded-borders bg-white">
       <q-table
         :rows="filteredRows"
         :columns="columns"
         row-key="id"
         flat
+        dense
         :loading="loading"
         :rows-per-page-options="[10, 20, 50]"
       >
@@ -78,10 +85,10 @@
               dense
               round
               icon="edit"
-              color="primary"
+              color="green-9"
               @click="openEditDialog(props.row)"
             >
-              <q-tooltip>Edit Office</q-tooltip>
+              <q-tooltip class="bg-dark text-white">Edit Office</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -93,7 +100,7 @@
               :loading="deletingId === props.row.id"
               @click="confirmDelete(props.row)"
             >
-              <q-tooltip>Mark Office Inactive</q-tooltip>
+              <q-tooltip class="bg-dark text-white">Mark Office Inactive</q-tooltip>
             </q-btn>
           </q-td>
         </template>
@@ -101,11 +108,11 @@
         <template #no-data>
           <div class="full-width text-center q-pa-lg">
             <template v-if="loading">
-              <q-spinner color="primary" size="40px" />
+              <q-spinner color="green-9" size="40px" />
               <div class="text-grey-6 q-mt-sm">Loading offices...</div>
             </template>
             <template v-else>
-              <q-icon name="business" size="48px" color="grey-5" />
+              <q-icon name="apartment" size="48px" color="grey-5" />
               <div class="text-grey-6 q-mt-sm">No offices found.</div>
             </template>
           </div>
@@ -115,14 +122,14 @@
 
     <q-dialog v-model="showDialog" persistent>
       <q-card style="width: 95vw; max-width: 520px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">{{ dialogTitle }}</div>
+        <q-card-section class="row items-center bg-green-9 text-white q-py-sm">
+          <div class="text-subtitle1 text-weight-bold">{{ dialogTitle }}</div>
           <q-space />
-          <q-btn icon="close" flat round dense :disable="saving" v-close-popup />
+          <q-btn icon="close" flat round dense text-color="white" :disable="saving" v-close-popup />
         </q-card-section>
 
         <q-form ref="formRef" @submit.prevent="saveDepartment">
-          <q-card-section class="q-pt-sm">
+          <q-card-section class="q-pt-md">
             <q-input
               v-model="form.name"
               outlined
@@ -134,12 +141,13 @@
             />
           </q-card-section>
 
-          <q-card-actions align="right" class="q-pa-md">
+          <q-card-actions align="right" class="q-px-md q-pb-md">
             <q-btn flat no-caps label="Cancel" color="grey-7" :disable="saving" v-close-popup />
             <q-btn
               unelevated
               no-caps
-              color="primary"
+              color="green-9"
+              class="text-weight-bold q-px-md"
               :label="dialogMode === 'edit' ? 'Update Office' : 'Create Office'"
               :loading="saving"
               type="submit"
@@ -148,13 +156,20 @@
         </q-form>
       </q-card>
     </q-dialog>
-  </q-page>
+  </component>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const $q = useQuasar()
 

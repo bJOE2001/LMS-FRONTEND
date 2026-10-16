@@ -100,6 +100,24 @@ export const CSC_FORM_48_PRINT_STYLES = `
     width: 100%;
     max-width: 920px;
   }
+  .csc-sheet-wrapper.single-centered-sheet {
+    max-width: 920px !important;
+    margin: 0 auto !important;
+  }
+  .single-left-layout .csc-header-band,
+  .single-left-layout .csc-footer-band {
+    display: flex !important;
+    width: 100% !important;
+  }
+  .single-left-layout .csc-panel-col {
+    width: 48% !important;
+    flex: 0 0 48% !important;
+  }
+  .single-left-layout .csc-master-table {
+    width: 48% !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
   .csc-sheet-wrapper.has-page-break {
     page-break-after: always;
     break-after: page;
@@ -230,6 +248,12 @@ export const CSC_FORM_48_PRINT_STYLES = `
   }
   .col-punch {
     width: 10.8%;
+  }
+  .col-single-date {
+    width: 10%;
+  }
+  .col-single-punch {
+    width: 22.5%;
   }
   .col-gutter {
     width: 4%;
@@ -499,7 +523,8 @@ export function printBatchCscForm48({ elements = [], htmlContent = '', title = '
       .map((el, idx) => {
         const isLast = idx === elements.length - 1
         const breakClass = isLast ? '' : 'has-page-break'
-        return `<div class="csc-sheet-wrapper ${breakClass}">${el.innerHTML}</div>`
+        const classNames = Array.from(el.classList).filter(c => c !== 'has-page-break').join(' ')
+        return `<div class="${classNames} ${breakClass}">${el.innerHTML}</div>`
       })
       .join('\n')
   }

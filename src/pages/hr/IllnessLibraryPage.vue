@@ -1,6 +1,6 @@
 <template>
-  <q-page class="q-pa-md illness-library-page">
-    <div class="q-mb-lg">
+  <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'illness-library-panel' : 'q-pa-md illness-library-page'">
+    <div v-if="!embedded" class="q-mb-lg">
       <div class="row items-center justify-between q-gutter-sm">
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Illness Library</h1>
@@ -9,54 +9,61 @@
         <q-btn
           unelevated
           no-caps
-          color="primary"
+          color="green-9"
           icon="add"
-          label="Create Illness"
+          label="Add Illness"
+          class="text-weight-bold q-px-md"
           @click="openCreateDialog"
         />
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg">
-      <div class="col-12 col-sm-6 col-md-4">
-        <q-card flat bordered class="rounded-borders">
-          <q-card-section>
-            <div class="row items-center no-wrap">
-              <q-icon name="medical_services" size="md" color="primary" class="q-mr-sm" />
-              <div>
-                <div class="text-caption text-weight-medium">Total Illnesses</div>
-                <div class="text-h4 text-primary">{{ totalIllnesses }}</div>
-              </div>
+    <!-- Unified Toolbar -->
+    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
+      <q-card-section class="q-pa-sm">
+        <div class="row items-center justify-between q-col-gutter-sm">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="search"
+              outlined
+              dense
+              clearable
+              debounce="250"
+              placeholder="Search illnesses..."
+              style="min-width: 260px;"
+            >
+              <template #prepend>
+                <q-icon name="search" color="grey-6" />
+              </template>
+            </q-input>
+          </div>
+          <div class="col-12 col-md-auto">
+            <div class="row items-center q-gutter-x-sm">
+              <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
+                {{ totalIllnesses }} Total Illnesses
+              </q-badge>
+              <q-btn
+                unelevated
+                no-caps
+                color="green-9"
+                icon="add"
+                label="Add Illness"
+                class="text-weight-bold q-px-md"
+                @click="openCreateDialog"
+              />
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
-
-    <q-card flat bordered class="rounded-borders q-mb-md">
-      <q-card-section>
-        <q-input
-          v-model="search"
-          outlined
-          dense
-          clearable
-          debounce="250"
-          label="Search illnesses"
-          placeholder="Type illness name..."
-        >
-          <template #prepend>
-            <q-icon name="search" color="grey-6" />
-          </template>
-        </q-input>
+          </div>
+        </div>
       </q-card-section>
     </q-card>
 
-    <q-card flat bordered class="rounded-borders">
+    <q-card flat bordered class="rounded-borders bg-white">
       <q-table
         :rows="filteredRows"
         :columns="columns"
         row-key="id"
         flat
+        dense
         :loading="loading"
         :rows-per-page-options="[10, 20, 50]"
       >
@@ -79,10 +86,10 @@
               dense
               round
               icon="edit"
-              color="primary"
+              color="green-9"
               @click="openEditDialog(props.row)"
             >
-              <q-tooltip>Edit Illness</q-tooltip>
+              <q-tooltip class="bg-dark text-white">Edit Illness</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -93,7 +100,7 @@
               :loading="deletingId === props.row.id"
               @click="confirmDelete(props.row)"
             >
-              <q-tooltip>Mark Illness Inactive</q-tooltip>
+              <q-tooltip class="bg-dark text-white">Mark Illness Inactive</q-tooltip>
             </q-btn>
           </q-td>
         </template>
@@ -101,11 +108,11 @@
         <template #no-data>
           <div class="full-width text-center q-pa-lg text-grey-7">
             <template v-if="loading">
-              <q-spinner color="primary" size="32px" />
+              <q-spinner color="green-9" size="32px" />
               <div class="q-mt-sm">Loading illnesses...</div>
             </template>
             <template v-else>
-              <q-icon name="medical_services" size="36px" />
+              <q-icon name="medical_services" size="36px" color="grey-5" />
               <div class="q-mt-sm">No illnesses found.</div>
             </template>
           </div>
@@ -115,14 +122,14 @@
 
     <q-dialog v-model="showDialog" persistent>
       <q-card style="width: 95vw; max-width: 520px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">{{ dialogTitle }}</div>
+        <q-card-section class="row items-center bg-green-9 text-white q-py-sm">
+          <div class="text-subtitle1 text-weight-bold">{{ dialogTitle }}</div>
           <q-space />
-          <q-btn icon="close" flat round dense :disable="saving" v-close-popup />
+          <q-btn icon="close" flat round dense text-color="white" :disable="saving" v-close-popup />
         </q-card-section>
 
         <q-form ref="formRef" @submit.prevent="saveIllness">
-          <q-card-section class="q-pt-sm">
+          <q-card-section class="q-pt-md">
             <q-input
               v-model="form.name"
               outlined
@@ -134,12 +141,13 @@
             />
           </q-card-section>
 
-          <q-card-actions align="right" class="q-pa-md">
+          <q-card-actions align="right" class="q-px-md q-pb-md">
             <q-btn flat no-caps label="Cancel" color="grey-7" :disable="saving" v-close-popup />
             <q-btn
               unelevated
               no-caps
-              color="primary"
+              color="green-9"
+              class="text-weight-bold q-px-md"
               :label="dialogMode === 'edit' ? 'Update Illness' : 'Create Illness'"
               :loading="saving"
               type="submit"
@@ -148,7 +156,7 @@
         </q-form>
       </q-card>
     </q-dialog>
-  </q-page>
+  </component>
 </template>
 
 <script setup>
@@ -156,6 +164,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const $q = useQuasar()
 

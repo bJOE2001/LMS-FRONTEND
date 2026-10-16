@@ -1,6 +1,6 @@
-﻿<template>
-  <q-page class="work-schedules-page q-pa-md">
-    <div class="page-header q-mb-md">
+<template>
+  <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'work-schedules-panel' : 'work-schedules-page q-pa-md'">
+    <div v-if="!embedded" class="page-header q-mb-md">
       <div>
         <div class="text-h4 text-weight-bold">Work Schedule</div>
       </div>
@@ -117,7 +117,7 @@
             </div>
             <div class="row q-gutter-sm">
               <q-btn flat no-caps color="grey-7" label="Reset" :disable="loading || savingDefault" @click="resetDefaultScheduleForm" />
-              <q-btn unelevated no-caps color="primary" label="Save Default Schedule" :loading="savingDefault" @click="saveDefaultSchedule" />
+              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" label="Save Default Schedule" :loading="savingDefault" @click="saveDefaultSchedule" />
             </div>
           </q-card-actions>
 
@@ -153,7 +153,7 @@
               </q-input>
             </div>
             <div class="col-12 col-md-auto">
-              <q-btn unelevated no-caps color="primary" icon="person_add" label="Add Override" @click="openCreateOverrideDialog" />
+              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="person_add" label="Add Override" @click="openCreateOverrideDialog" />
             </div>
           </q-card-section>
 
@@ -211,11 +211,11 @@
 
               <template #body-cell-actions="props">
                 <q-td :props="props" class="text-right">
-                  <q-btn flat round dense icon="edit" color="primary" @click="openEditOverrideDialog(props.row)">
-                    <q-tooltip>Edit override</q-tooltip>
+                  <q-btn flat round dense icon="edit" color="green-9" @click="openEditOverrideDialog(props.row)">
+                    <q-tooltip class="bg-dark text-white">Edit override</q-tooltip>
                   </q-btn>
                   <q-btn flat round dense icon="delete" color="negative" @click="confirmDeleteOverride(props.row)">
-                    <q-tooltip>Delete override</q-tooltip>
+                    <q-tooltip class="bg-dark text-white">Delete override</q-tooltip>
                   </q-btn>
                 </q-td>
               </template>
@@ -226,16 +226,12 @@
     </div>
 
     <q-dialog v-model="showOverrideDialog" persistent>
-      <q-card class="override-dialog">
-        <q-card-section class="row items-center q-pb-none">
+      <q-card class="override-dialog rounded-borders">
+        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
           <div>
-            <div class="text-h6">{{ editingOverrideId ? 'Edit Employee Override' : 'Add Employee Override' }}</div>
-            <div class="text-caption text-grey-7">
-              Create a custom work schedule and leave-deduction rule for one employee.
-            </div>
+            <div class="text-subtitle1 text-weight-bold">{{ editingOverrideId ? 'Edit Employee Override' : 'Add Employee Override' }}</div>
           </div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup :disable="savingOverride" />
+          <q-btn flat round dense icon="close" text-color="white" v-close-popup :disable="savingOverride" />
         </q-card-section>
 
         <q-card-section class="q-pt-md schedule-fields-shell">
@@ -360,13 +356,13 @@
           </div>
         </q-card-section>
 
-        <q-card-actions align="right" class="q-pa-md q-gutter-sm">
+        <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
           <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="savingOverride" />
-          <q-btn unelevated no-caps color="primary" :label="editingOverrideId ? 'Save Changes' : 'Create Override'" :loading="savingOverride" @click="saveOverride" />
+          <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" :label="editingOverrideId ? 'Save Changes' : 'Create Override'" :loading="savingOverride" @click="saveOverride" />
         </q-card-actions>
       </q-card>
     </q-dialog>
-  </q-page>
+  </component>
 </template>
 
 <script setup>
@@ -374,6 +370,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const STANDARD_WORKDAY_HOURS = 8
 const $q = useQuasar()

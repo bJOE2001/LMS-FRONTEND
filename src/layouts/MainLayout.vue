@@ -268,25 +268,9 @@
                 </q-item-section>
               </q-item>
               <q-separator />
-              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('leave_types')" clickable to="/hr/leave-types">
-                <q-item-section avatar><q-icon name="playlist_add" /></q-item-section>
-                <q-item-section>Leave Types</q-item-section>
-              </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('office_library')" clickable to="/hr/departments-library">
-                <q-item-section avatar><q-icon name="apartment" /></q-item-section>
-                <q-item-section>Office Library</q-item-section>
-              </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('illness_library')" clickable to="/hr/illness-library">
-                <q-item-section avatar><q-icon name="medical_services" /></q-item-section>
-                <q-item-section>Illness Library</q-item-section>
-              </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('work_schedules')" clickable to="/hr/work-schedules">
-                <q-item-section avatar><q-icon name="schedule" /></q-item-section>
-                <q-item-section>Work Schedules</q-item-section>
-              </q-item>
-              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('signatories')" clickable to="/hr/signatories">
-                <q-item-section avatar><q-icon name="draw" /></q-item-section>
-                <q-item-section>Signatories</q-item-section>
+              <q-item v-if="leaveStore.userRole === 'hr'" clickable to="/hr/libraries">
+                <q-item-section avatar><q-icon name="collections_bookmark" /></q-item-section>
+                <q-item-section>Libraries</q-item-section>
               </q-item>
               <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('access_control')" clickable to="/hr/access-control">
                 <q-item-section avatar><q-icon name="admin_panel_settings" /></q-item-section>
@@ -448,6 +432,7 @@ const visibleHrLeaveNav = computed(() => {
 const visibleHrAdminNav = computed(() => {
   return hrAdminNav.filter((item) => {
     if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
+    if (!item.moduleKey) return true
     return canAccessHrModule(item.moduleKey)
   })
 })

@@ -1,193 +1,129 @@
 <template>
-  <q-dialog :model-value="modelValue" persistent @update:model-value="val => $emit('update:modelValue', val)">
-    <q-card class="override-dialog-card rounded-borders">
-      <!-- Green Header Banner -->
-      <div class="override-dialog-header row items-center justify-between q-px-md q-py-sm">
-        <div class="text-subtitle1 text-weight-bold text-white">Override Time</div>
-        <q-btn icon="close" flat round dense text-color="white" @click="closeDialog" />
+  <q-dialog
+    :model-value="modelValue"
+    persistent
+    @update:model-value="val => $emit('update:modelValue', val)"
+    @keyup.enter="submitOverride"
+  >
+    <q-card class="dtr-override-popup">
+      <!-- Title Bar: Solid Forest Green matching System Design -->
+      <div class="popup-title-bar row items-center no-wrap">
+        <div class="row items-center q-gutter-x-xs no-wrap ellipsis">
+          <q-icon name="edit_calendar" size="18px" class="text-white q-mr-xs" />
+          <span class="text-subtitle2 text-weight-bolder text-uppercase letter-spacing-1 text-white">
+            {{ formattedDate }}
+          </span>
+          <span class="text-green-2 q-mx-xs">•</span>
+          <span class="text-caption text-weight-bold text-green-1 ellipsis">
+            {{ activeSlotMeta.label }}
+          </span>
+        </div>
       </div>
 
-      <q-card-section class="q-pa-md">
-        <!-- Date Summary Box -->
-        <div class="date-summary-box row items-center q-pa-sm q-mb-md">
-          <div class="calendar-icon-box flex flex-center q-mr-md">
-            <q-icon name="event_available" size="26px" color="white" />
-          </div>
-          <div>
-            <div class="text-h6 text-weight-bolder text-green-9 line-height-tight">
-              {{ dayOfWeek }}
+      <!-- Main Body: Two-Column Side-by-Side with Perfect Horizontal Alignment -->
+      <q-card-section class="popup-body bg-white">
+        <div class="row q-col-gutter-md items-start">
+          <!-- Left Column: Day + Time Input -->
+          <div class="col-12 col-sm-4">
+            <div class="column-header row items-center q-mb-xs">
+              <span class="day-label text-weight-bolder">{{ dayOfWeek }}</span>
             </div>
-            <div class="text-caption text-grey-7">
-              {{ formattedDate }}
-            </div>
-          </div>
-        </div>
-
-        <!-- Form Inputs Grid -->
-        <div class="q-gutter-y-sm">
-          <!-- Morning Time Section -->
-          <div>
-            <div class="section-heading q-mb-xs">Morning Time</div>
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-input
-                  v-model="form.am_arrival"
-                  dense
-                  outlined
-                  placeholder="8:00 AM"
-                  class="time-box-input"
-                >
-                  <template #prepend>
-                    <span class="prefix-text">In</span>
-                  </template>
-                  <template #append>
-                    <q-icon name="access_time" size="18px" class="cursor-pointer text-grey-6">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-time v-model="form.am_arrival" mask="h:mm A" />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
-              </div>
-
-              <div class="col-6">
-                <q-input
-                  v-model="form.am_departure"
-                  dense
-                  outlined
-                  placeholder="12:00 PM"
-                  class="time-box-input"
-                >
-                  <template #prepend>
-                    <span class="prefix-text">Out</span>
-                  </template>
-                  <template #append>
-                    <q-icon name="access_time" size="18px" class="cursor-pointer text-grey-6">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-time v-model="form.am_departure" mask="h:mm A" />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
-              </div>
-            </div>
+            <q-input
+              v-model="slotTime"
+              dense
+              outlined
+              :placeholder="slotPlaceholder"
+              class="popup-time-input font-mono"
+              autofocus
+            >
+              <template #append>
+                <q-icon
+                  v-if="slotTime"
+                  name="clear"
+                  size="14px"
+                  class="cursor-pointer text-grey-5"
+                  @click="slotTime = ''"
+                />
+                <q-icon name="schedule" size="18px" class="cursor-pointer text-green-9">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-time v-model="slotTime" mask="h:mm A" color="green-9" />
+                  </q-popup-proxy>
+                </q-icon>
+              </template>
+            </q-input>
           </div>
 
-          <!-- Afternoon Time Section -->
-          <div>
-            <div class="section-heading q-mb-xs">Afternoon Time</div>
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-input
-                  v-model="form.pm_arrival"
-                  dense
-                  outlined
-                  placeholder="1:00 PM"
-                  class="time-box-input"
-                >
-                  <template #prepend>
-                    <span class="prefix-text">In</span>
-                  </template>
-                  <template #append>
-                    <q-icon name="access_time" size="18px" class="cursor-pointer text-grey-6">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-time v-model="form.pm_arrival" mask="h:mm A" />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
-              </div>
-
-              <div class="col-6">
-                <q-input
-                  v-model="form.pm_departure"
-                  dense
-                  outlined
-                  placeholder="5:00 PM"
-                  class="time-box-input"
-                >
-                  <template #prepend>
-                    <span class="prefix-text">Out</span>
-                  </template>
-                  <template #append>
-                    <q-icon name="access_time" size="18px" class="cursor-pointer text-grey-6">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-time v-model="form.pm_departure" mask="h:mm A" />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
-              </div>
+          <!-- Right Column: Reason/Remarks Dropdown (Loaded from Remarks Library - Required) -->
+          <div class="col-12 col-sm-8">
+            <div class="column-header row items-center q-mb-xs">
+              <span class="section-title text-caption text-weight-bold text-grey-8">
+                Reason / Remarks <span class="text-negative text-weight-bolder">*</span>
+              </span>
             </div>
-          </div>
+            <q-select
+              ref="selectRemarkRef"
+              v-model="slotRemark"
+              dense
+              outlined
+              emit-value
+              map-options
+              :options="remarkOptionsList"
+              :loading="loadingRemarks"
+              :rules="[val => !!val || 'Reason / Remarks is required']"
+              lazy-rules="ondemand"
+              hide-bottom-space
+              placeholder="Select Reason"
+              class="popup-select-input"
+              @update:model-value="onRemarkSelected"
+            />
 
-          <!-- Overtime Section -->
-          <div>
-            <div class="section-heading q-mb-xs">Overtime</div>
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
+            <!-- Inline Custom Remark Input when OTHERS is chosen -->
+            <transition name="fade">
+              <div v-if="slotRemark === 'OTHERS'" class="q-mt-xs">
                 <q-input
-                  v-model="form.ot_arrival"
+                  ref="customRemarkRef"
+                  v-model="slotCustomRemark"
                   dense
                   outlined
-                  placeholder="5:00 PM"
-                  class="time-box-input"
-                >
-                  <template #prepend>
-                    <span class="prefix-text">In</span>
-                  </template>
-                  <template #append>
-                    <q-icon name="access_time" size="18px" class="cursor-pointer text-grey-6">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-time v-model="form.ot_arrival" mask="h:mm A" />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
+                  :rules="[val => !!(val && val.trim()) || 'Please specify remark']"
+                  lazy-rules="ondemand"
+                  hide-bottom-space
+                  placeholder="Specify remark (e.g. Pass Slip, Travel Order)..."
+                  class="popup-select-input"
+                />
               </div>
-
-              <div class="col-6">
-                <q-input
-                  v-model="form.ot_departure"
-                  dense
-                  outlined
-                  placeholder="10:00 PM"
-                  class="time-box-input"
-                >
-                  <template #prepend>
-                    <span class="prefix-text">Out</span>
-                  </template>
-                  <template #append>
-                    <q-icon name="access_time" size="18px" class="cursor-pointer text-grey-6">
-                      <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                        <q-time v-model="form.ot_departure" mask="h:mm A" />
-                      </q-popup-proxy>
-                    </q-icon>
-                  </template>
-                </q-input>
-              </div>
-            </div>
+            </transition>
           </div>
         </div>
       </q-card-section>
 
-      <!-- Bottom Action Section -->
-      <q-card-actions align="right" class="q-pa-md q-pt-none">
+      <!-- Action Footer (Clean System Design) -->
+      <div class="popup-footer row items-center justify-end q-gutter-x-sm bg-grey-1">
+        <q-btn
+          flat
+          dense
+          no-caps
+          label="Close"
+          color="grey-7"
+          class="footer-btn q-px-md text-weight-medium"
+          @click="closeDialog"
+        />
         <q-btn
           unelevated
+          dense
           no-caps
-          label="Override"
-          class="override-submit-btn"
+          label="Save"
+          class="save-btn text-weight-bold q-px-lg"
           :loading="submitting"
           @click="submitOverride"
         />
-      </q-card-actions>
+      </div>
     </q-card>
   </q-dialog>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 
@@ -212,27 +148,106 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  initialSlot: {
+    type: String,
+    default: 'am_arrival',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 const $q = useQuasar()
 const submitting = ref(false)
+const loadingRemarks = ref(false)
+const libraryRemarks = ref([])
 
-const form = reactive({
-  am_arrival: '',
-  am_departure: '',
-  pm_arrival: '',
-  pm_departure: '',
-  ot_arrival: '',
-  ot_departure: '',
+const selectRemarkRef = ref(null)
+const customRemarkRef = ref(null)
+
+const activeSlot = ref('am_arrival')
+const slotTime = ref('')
+const slotRemark = ref(null)
+const slotCustomRemark = ref('')
+
+const slotTabs = [
+  { key: 'am_arrival', label: 'Morning Arrival (A.M. In)', shortLabel: 'AM In' },
+  { key: 'am_departure', label: 'Morning Departure (A.M. Out)', shortLabel: 'AM Out' },
+  { key: 'pm_arrival', label: 'Afternoon Arrival (P.M. In)', shortLabel: 'PM In' },
+  { key: 'pm_departure', label: 'Afternoon Departure (P.M. Out)', shortLabel: 'PM Out' },
+]
+
+const activeSlotMeta = computed(() => {
+  return slotTabs.find(s => s.key === activeSlot.value) || slotTabs[0]
 })
+
+// Dynamic options loaded from System Remarks Library (tblDtrRemarks) - strictly required remarks
+const remarkOptionsList = computed(() => {
+  const options = []
+
+  if (libraryRemarks.value.length > 0) {
+    libraryRemarks.value.forEach(item => {
+      const abbrv = item.abbrv ? item.abbrv.trim().toUpperCase() : null
+      const desc = item.description ? item.description.trim().toUpperCase() : ''
+      const val = abbrv || desc
+      const label = abbrv ? `${desc} (${abbrv})` : desc
+      if (val && !options.some(o => o.value === val)) {
+        options.push({ label, value: val })
+      }
+    })
+  } else {
+    // Graceful fallback matching default library items
+    options.push(
+      { label: 'OFFICIAL BUSINESS (O.B.)', value: 'O.B.' },
+      { label: 'ON FIELD (O.F.)', value: 'O.F.' },
+      { label: 'OTHERS', value: 'OTHERS' }
+    )
+  }
+
+  return options
+})
+
+async function fetchRemarksOptions() {
+  if (libraryRemarks.value.length > 0) return
+  loadingRemarks.value = true
+  try {
+    const res = await api.get('/dtr-remarks/options', { params: { active_only: true } })
+    libraryRemarks.value = res.data?.remarks || []
+  } catch (err) {
+    console.error('Failed to load Remarks Library options:', err)
+  } finally {
+    loadingRemarks.value = false
+  }
+}
+
+onMounted(() => {
+  fetchRemarksOptions()
+})
+
+function getDefaultSlotTime(slotKey) {
+  switch (slotKey) {
+    case 'am_arrival': return '8:00 AM'
+    case 'am_departure': return '12:00 PM'
+    case 'pm_arrival': return '1:00 PM'
+    case 'pm_departure': return '5:00 PM'
+    default: return '8:00 AM'
+  }
+}
+
+const slotPlaceholder = computed(() => {
+  return getDefaultSlotTime(activeSlot.value)
+})
+
+function onRemarkSelected(newRemark) {
+  if (newRemark && !slotTime.value) {
+    slotTime.value = getDefaultSlotTime(activeSlot.value)
+  }
+}
 
 function formatTo12Hour(timeStr) {
   if (!timeStr || timeStr === '—' || timeStr === '-') return ''
   if (timeStr.toUpperCase().includes('AM') || timeStr.toUpperCase().includes('PM')) {
     return timeStr.trim()
   }
-  const parts = timeStr.split(':')
+  const parts = String(timeStr).split(':')
   if (parts.length >= 2) {
     let h = parseInt(parts[0], 10)
     const m = parts[1]
@@ -244,17 +259,66 @@ function formatTo12Hour(timeStr) {
   return timeStr
 }
 
-// Populate form whenever dialog opens or dtr changes
+function syncSlotState(slotKey) {
+  slotTime.value = formatTo12Hour(props.dtr?.[slotKey]) || ''
+
+  const adjusted = props.dtr?.adjusted_slots
+  if (adjusted && typeof adjusted === 'object' && !Array.isArray(adjusted)) {
+    const val = adjusted[slotKey]
+    if (val && val !== 'TIME') {
+      const upper = String(val).toUpperCase().trim()
+      if (['O.F.', 'ON FIELD'].includes(upper)) {
+        slotRemark.value = 'O.F.'
+        slotCustomRemark.value = ''
+      } else if (['O.B.', 'OFFICIAL BUSINESS'].includes(upper)) {
+        slotRemark.value = 'O.B.'
+        slotCustomRemark.value = ''
+      } else if (upper === 'OTHERS') {
+        slotRemark.value = 'OTHERS'
+        slotCustomRemark.value = ''
+      } else {
+        const found = remarkOptionsList.value.find(o => o.value === upper)
+        if (found) {
+          slotRemark.value = found.value
+          slotCustomRemark.value = ''
+        } else {
+          slotRemark.value = 'OTHERS'
+          slotCustomRemark.value = val
+        }
+      }
+      return
+    }
+  }
+
+  const rawRemark = String(props.dtr?.adjustment_remarks || '').toUpperCase().trim()
+  const rawStatus = String(props.dtr?.status || '').toUpperCase().trim()
+  if (rawRemark === 'O.F.' || rawStatus === 'O.F.') {
+    slotRemark.value = 'O.F.'
+    slotCustomRemark.value = ''
+  } else if (rawRemark === 'O.B.' || rawStatus === 'O.B.' || rawStatus === 'OFFICIAL_BUSINESS') {
+    slotRemark.value = 'O.B.'
+    slotCustomRemark.value = ''
+  } else {
+    slotRemark.value = null
+    slotCustomRemark.value = ''
+  }
+}
+
+// Watch dialog open & slot change
 watch(
-  () => [props.modelValue, props.dtr, props.date],
+  () => [props.modelValue, props.dtr, props.date, props.initialSlot],
   ([isOpen]) => {
     if (!isOpen) return
-    form.am_arrival = formatTo12Hour(props.dtr?.am_arrival)
-    form.am_departure = formatTo12Hour(props.dtr?.am_departure)
-    form.pm_arrival = formatTo12Hour(props.dtr?.pm_arrival)
-    form.pm_departure = formatTo12Hour(props.dtr?.pm_departure)
-    form.ot_arrival = formatTo12Hour(props.dtr?.ot_arrival)
-    form.ot_departure = formatTo12Hour(props.dtr?.ot_departure)
+
+    fetchRemarksOptions()
+
+    if (props.initialSlot && ['am_arrival', 'am_departure', 'pm_arrival', 'pm_departure'].includes(props.initialSlot)) {
+      activeSlot.value = props.initialSlot
+    } else {
+      activeSlot.value = 'am_arrival'
+    }
+
+    syncSlotState(activeSlot.value)
   },
   { immediate: true }
 )
@@ -284,39 +348,100 @@ function closeDialog() {
 }
 
 async function submitOverride() {
-  if (!props.controlNo || !props.date) {
+  if (!props.controlNo || !props.date) return
+
+  // Validation: Reason / Remarks is strictly required
+  if (!slotRemark.value) {
     $q.notify({
       type: 'warning',
-      message: 'Missing employee or date information.',
+      message: 'Reason / Remarks is required.',
+      position: 'top-right',
     })
+    selectRemarkRef.value?.validate?.()
+    return
+  }
+
+  if (slotRemark.value === 'OTHERS' && !slotCustomRemark.value.trim()) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please specify the remark description.',
+      position: 'top-right',
+    })
+    customRemarkRef.value?.validate?.()
     return
   }
 
   submitting.value = true
+
   try {
+    const existingAdjusted = props.dtr?.adjusted_slots
+    let adjustedMap = {}
+    if (existingAdjusted && typeof existingAdjusted === 'object' && !Array.isArray(existingAdjusted)) {
+      adjustedMap = { ...existingAdjusted }
+    } else if (Array.isArray(existingAdjusted)) {
+      existingAdjusted.forEach(slot => {
+        adjustedMap[slot] = 'TIME'
+      })
+    }
+
+    let amArr = formatTo12Hour(props.dtr?.am_arrival) || null
+    let amDep = formatTo12Hour(props.dtr?.am_departure) || null
+    let pmArr = formatTo12Hour(props.dtr?.pm_arrival) || null
+    let pmDep = formatTo12Hour(props.dtr?.pm_departure) || null
+
+    const finalRmk = slotRemark.value === 'OTHERS'
+      ? (slotCustomRemark.value.trim() || 'OTHERS')
+      : slotRemark.value
+
+    const timeVal = slotTime.value ? slotTime.value.trim() : null
+    const slot = activeSlot.value
+
+    if (finalRmk) {
+      adjustedMap[slot] = finalRmk
+      if (slot === 'am_arrival') amArr = timeVal
+      if (slot === 'am_departure') amDep = timeVal
+      if (slot === 'pm_arrival') pmArr = timeVal
+      if (slot === 'pm_departure') pmDep = timeVal
+    } else if (timeVal) {
+      adjustedMap[slot] = 'TIME'
+      if (slot === 'am_arrival') amArr = timeVal
+      if (slot === 'am_departure') amDep = timeVal
+      if (slot === 'pm_arrival') pmArr = timeVal
+      if (slot === 'pm_departure') pmDep = timeVal
+    } else {
+      delete adjustedMap[slot]
+      if (slot === 'am_arrival') amArr = null
+      if (slot === 'am_departure') amDep = null
+      if (slot === 'pm_arrival') pmArr = null
+      if (slot === 'pm_departure') pmDep = null
+    }
+
     const payload = {
       employee_control_no: props.controlNo,
       date: props.date,
-      am_arrival: form.am_arrival || null,
-      am_departure: form.am_departure || null,
-      pm_arrival: form.pm_arrival || null,
-      pm_departure: form.pm_departure || null,
-      ot_arrival: form.ot_arrival || null,
-      ot_departure: form.ot_departure || null,
+      am_arrival: amArr,
+      am_departure: amDep,
+      pm_arrival: pmArr,
+      pm_departure: pmDep,
+      ot_arrival: formatTo12Hour(props.dtr?.ot_arrival) || null,
+      ot_departure: formatTo12Hour(props.dtr?.ot_departure) || null,
+      remark: finalRmk || null,
+      adjusted_slots: Object.keys(adjustedMap).length > 0 ? adjustedMap : null,
     }
 
     const res = await api.post('/attendance/dtr/override', payload)
 
     $q.notify({
       type: 'positive',
-      message: 'Attendance time overridden successfully.',
+      message: 'Override saved successfully.',
       position: 'top-right',
+      timeout: 1500,
     })
 
     emit('saved', res.data?.dtr)
     closeDialog()
-  } catch (error) {
-    const msg = error.response?.data?.message || 'Failed to override attendance time.'
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Failed to save override.'
     $q.notify({
       type: 'negative',
       message: msg,
@@ -329,58 +454,102 @@ async function submitOverride() {
 </script>
 
 <style scoped>
-.override-dialog-card {
+.dtr-override-popup {
   width: 480px;
   max-width: 95vw;
   background-color: #ffffff;
+  color: #1e293b;
   border-radius: 6px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
   overflow: hidden;
+  border: 1px solid #cbd5e1;
 }
 
-.override-dialog-header {
-  background-color: #2e7d32; /* Solid Forest Green */
+.popup-title-bar {
+  background-color: #2e7d32; /* System Design Solid Forest Green */
   color: #ffffff;
+  padding: 8px 14px;
 }
 
-.date-summary-box {
-  border: 1px solid #dcdcdc;
+.popup-body {
+  background-color: #ffffff;
+  padding: 16px;
+}
+
+.popup-footer {
+  background-color: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  padding: 10px 16px;
+}
+
+.column-header {
+  height: 24px;
+  min-height: 24px;
+}
+
+.day-label {
+  font-size: 1.18rem;
+  color: #2e7d32; /* Forest Green matching brand typography */
+  line-height: 1.2;
+}
+
+.section-title {
+  color: #334155;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.popup-time-input :deep(.q-field__control),
+.popup-select-input :deep(.q-field__control) {
+  height: 40px;
+  min-height: 40px;
   border-radius: 4px;
   background-color: #ffffff;
 }
 
-.calendar-icon-box {
-  width: 42px;
-  height: 42px;
-  background-color: #2e7d32;
-  border-radius: 4px;
-}
-
-.section-heading {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #1a1a1a;
-}
-
-.prefix-text {
-  font-size: 0.85rem;
-  color: #757575;
-  margin-right: 4px;
-}
-
-.time-box-input :deep(.q-field__control) {
-  border-radius: 4px;
-}
-
-.override-submit-btn {
-  background-color: #2e7d32 !important;
-  color: #ffffff !important;
+.popup-time-input :deep(.q-field__native) {
+  font-size: 1.05rem;
   font-weight: 600;
-  font-size: 0.92rem;
-  padding: 8px 24px;
-  border-radius: 4px;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  color: #1e293b;
 }
 
-.line-height-tight {
-  line-height: 1.2;
+.popup-select-input :deep(.q-field__native),
+.popup-select-input :deep(.q-field__input) {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.save-btn {
+  background-color: #2e7d32 !important; /* Forest Green System Primary */
+  color: #ffffff !important;
+  border-radius: 4px;
+  height: 34px;
+  font-size: 0.88rem;
+}
+
+.save-btn:hover {
+  background-color: #256628 !important;
+}
+
+.footer-btn {
+  height: 34px;
+  border-radius: 4px;
+  font-size: 0.88rem;
+}
+
+.letter-spacing-1 {
+  letter-spacing: 0.5px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

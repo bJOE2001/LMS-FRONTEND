@@ -9,8 +9,15 @@
             <div class="row items-center q-gutter-x-sm">
               <q-icon name="print" color="green-9" size="22px" />
               <div>
-                <div class="text-subtitle2 text-weight-bold text-dark">
-                  CSC Form 48 & Accomplishment Report
+                <div class="text-subtitle2 text-weight-bold text-dark row items-center">
+                  <span>{{ isContractual ? 'CSC Form 48 & Accomplishment Report' : 'CSC Form 48 (Daily Time Record)' }}</span>
+                  <q-badge
+                    v-if="employeeEmploymentStatus"
+                    :color="isContractual ? 'orange-9' : 'teal-8'"
+                    class="q-ml-sm text-bold"
+                  >
+                    {{ employeeEmploymentStatus }}
+                  </q-badge>
                 </div>
               </div>
             </div>
@@ -69,62 +76,95 @@
     <!-- Official Dual-Panel Document (Supports Single or Multi-Sheet Cross-Month Cutoffs) -->
     <div id="csc-form-48-print-area" ref="printAreaRef" class="csc-sheets-list">
       <div
-        v-for="(sheet, sheetIdx) in cscSheets"
-        :key="sheet.key"
+        v-for="(pair, pairIdx) in pairedSheets"
+        :key="pair.key"
         class="csc-sheet-wrapper"
         :class="{
-          'q-mb-lg': sheetIdx < cscSheets.length - 1,
-          'has-page-break': sheetIdx < cscSheets.length - 1,
+          'single-centered-sheet': pair.mode === 'single-centered',
+          'q-mb-lg': pairIdx < pairedSheets.length - 1,
+          'has-page-break': pairIdx < pairedSheets.length - 1,
         }"
       >
         <!-- Multi-Sheet Screen Indicator Banner (Hidden on Print) -->
         <div
-          v-if="cscSheets.length > 1"
+          v-if="pairedSheets.length > 1"
           class="no-print row items-center justify-between q-px-sm q-py-xs q-mb-sm bg-green-1 text-green-9 rounded-borders text-caption text-weight-bold"
         >
           <span>
             <q-icon name="description" size="15px" class="q-mr-xs" />
-            Sheet {{ sheetIdx + 1 }} of {{ cscSheets.length }}: {{ sheet.periodDisplayLabel }}, {{ sheet.year }}
+            Sheet {{ pairIdx + 1 }} of {{ pairedSheets.length }}:
+            <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
+              {{ pair.leftSheet.periodDisplayLabel }} &amp; {{ pair.rightSheet.periodDisplayLabel }} (Side-by-Side)
+            </template>
+            <template v-else>
+              {{ pair.leftSheet.periodDisplayLabel }}, {{ pair.leftSheet.year }}
+            </template>
           </span>
-          <span>No. of Day(s): ~{{ sheet.presentDaysCount }}</span>
+          <span>
+            <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
+              Days: ~{{ pair.leftSheet.presentDaysCount }} + ~{{ pair.rightSheet.presentDaysCount }}
+            </template>
+            <template v-else>
+              No. of Day(s): ~{{ pair.leftSheet.presentDaysCount }}
+            </template>
+          </span>
         </div>
 
-        <div class="dtr-dual-page-sheet">
+        <div class="dtr-dual-page-sheet" :class="{ 'single-left-layout': pair.mode === 'single-centered' }">
           <!-- ========================================================= -->
           <!-- TOP HEADERS: ROW-BY-ROW HORIZONTAL LOCK                   -->
           <!-- ========================================================= -->
-          <div class="csc-top-tag">Form 48</div>
+          <div v-if="pair.mode === 'bimonthly-side-by-side'" class="csc-header-band">
+            <div class="csc-panel-col"><div class="csc-top-tag">Form 48</div></div>
+            <div class="csc-panel-gutter"></div>
+            <div class="csc-panel-col"><div class="csc-top-tag">Form 48</div></div>
+          </div>
+          <div v-else class="csc-header-band">
+            <div class="csc-panel-col"><div class="csc-top-tag">Form 48</div></div>
+          </div>
 
           <!-- Band 1: Main Titles -->
           <div class="csc-header-band">
             <div class="csc-panel-col text-center">
               <div class="csc-main-title">DAILY TIME RECORD</div>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div class="csc-panel-col text-center">
-              <div class="csc-main-title">ACCOMPLISHMENT REPORT</div>
-            </div>
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div class="csc-panel-col text-center">
+                <div class="csc-main-title">
+                  {{ pair.mode === 'bimonthly-side-by-side' ? 'DAILY TIME RECORD' : 'ACCOMPLISHMENT REPORT' }}
+                </div>
+              </div>
+            </template>
           </div>
 
-          <!-- Band 2: Employee Name (Left) & Program/Charges (Right) Underlines -->
+          <!-- Band 2: Employee Name (Left) & Program/Charges or Employee Name (Right) Underlines -->
           <div class="csc-header-band csc-identity-band">
             <div class="csc-panel-col text-center">
               <div class="csc-name-underline">{{ employeeDisplayName }}</div>
               <div class="csc-sub-label">NAME</div>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div class="csc-panel-col text-center">
-              <div class="csc-charges-underline">{{ chargesDisplay }}</div>
-              <div class="csc-sub-label">CHARGES</div>
-            </div>
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div class="csc-panel-col text-center">
+                <template v-if="pair.mode === 'bimonthly-side-by-side'">
+                  <div class="csc-name-underline">{{ employeeDisplayName }}</div>
+                  <div class="csc-sub-label">NAME</div>
+                </template>
+                <template v-else>
+                  <div class="csc-charges-underline">{{ chargesDisplay }}</div>
+                  <div class="csc-sub-label">CHARGES</div>
+                </template>
+              </div>
+            </template>
           </div>
 
-          <!-- Band 3: Month / Office Hours (Left) & PRN (Right) -->
+          <!-- Band 3: Month / Office Hours (Left) & PRN / Month 2 (Right) -->
           <div class="csc-header-band csc-meta-band">
             <div class="csc-panel-col">
               <div class="csc-meta-line">
                 <span>For the month of </span>
-                <span class="csc-period-underline">{{ sheet.periodDisplayLabel }}, {{ sheet.year }}</span>
+                <span class="csc-period-underline">{{ pair.leftSheet.periodDisplayLabel }}, {{ pair.leftSheet.year }}</span>
               </div>
               <div class="csc-hours-statement">
                 <div>Office Hours for Arrival (Regular Days) and</div>
@@ -134,25 +174,62 @@
                 </div>
               </div>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div class="csc-panel-col csc-prn-col">
-              <div
-                class="csc-prn-line cursor-pointer"
-                @click="openPrnDialog"
-              >
-                <span>PRN:</span>
-                <span class="csc-prn-underline">{{ prnNumber || '' }}</span>
-                <q-icon name="edit" size="11px" class="q-ml-xs text-grey-5 no-print" />
-                <q-tooltip class="bg-dark text-white no-print">Click to edit PRN Number</q-tooltip>
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div class="csc-panel-col" :class="{ 'csc-prn-col': pair.mode === 'contractual' }">
+                <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
+                  <div class="csc-meta-line">
+                    <span>For the month of </span>
+                    <span class="csc-period-underline">{{ pair.rightSheet.periodDisplayLabel }}, {{ pair.rightSheet.year }}</span>
+                  </div>
+                  <div class="csc-hours-statement">
+                    <div>Office Hours for Arrival (Regular Days) and</div>
+                    <div class="csc-hours-subline">
+                      <span>Departure <span class="csc-inline-rule"></span></span>
+                      <span>Saturday <span class="csc-inline-rule"></span></span>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div
+                    class="csc-prn-line cursor-pointer"
+                    @click="openPrnDialog"
+                  >
+                    <span>PRN:</span>
+                    <span class="csc-prn-underline">{{ prnNumber || '' }}</span>
+                    <q-icon name="edit" size="11px" class="q-ml-xs text-grey-5 no-print" />
+                    <q-tooltip class="bg-dark text-white no-print">Click to edit PRN Number</q-tooltip>
+                  </div>
+                </template>
               </div>
-            </div>
+            </template>
           </div>
 
           <!-- ========================================================= -->
           <!-- MASTER UNIFIED 31-DAY TABLE                               -->
           <!-- ========================================================= -->
           <table class="csc-master-table">
-            <colgroup>
+            <colgroup v-if="pair.mode === 'single-centered'">
+              <col class="col-single-date" style="width: 10%;" />
+              <col class="col-single-punch" style="width: 22.5%;" />
+              <col class="col-single-punch" style="width: 22.5%;" />
+              <col class="col-single-punch" style="width: 22.5%;" />
+              <col class="col-single-punch" style="width: 22.5%;" />
+            </colgroup>
+            <colgroup v-else-if="pair.mode === 'bimonthly-side-by-side'">
+              <col class="col-date" />
+              <col class="col-punch" />
+              <col class="col-punch" />
+              <col class="col-punch" />
+              <col class="col-punch" />
+              <col class="col-gutter" />
+              <col class="col-date" />
+              <col class="col-punch" />
+              <col class="col-punch" />
+              <col class="col-punch" />
+              <col class="col-punch" />
+            </colgroup>
+            <colgroup v-else>
               <col class="col-date" />
               <col class="col-punch" />
               <col class="col-punch" />
@@ -163,13 +240,22 @@
               <col class="col-quantity" />
             </colgroup>
             <thead>
-              <!-- Borderless AM / PM Row above Left Table -->
+              <!-- Borderless AM / PM Row -->
               <tr class="tr-am-pm">
                 <th class="th-borderless"></th>
                 <th colspan="2" class="th-am-pm">AM</th>
                 <th colspan="2" class="th-am-pm">PM</th>
-                <th class="th-gutter"></th>
-                <th colspan="2" class="th-borderless"></th>
+                <template v-if="pair.mode !== 'single-centered'">
+                  <th class="th-gutter"></th>
+                  <template v-if="pair.mode === 'bimonthly-side-by-side'">
+                    <th class="th-borderless"></th>
+                    <th colspan="2" class="th-am-pm">AM</th>
+                    <th colspan="2" class="th-am-pm">PM</th>
+                  </template>
+                  <template v-else>
+                    <th colspan="2" class="th-borderless"></th>
+                  </template>
+                </template>
               </tr>
               <!-- Single-Row Boxed Column Headers -->
               <tr class="tr-col-headers">
@@ -178,21 +264,32 @@
                 <th class="th-boxed">DEPARTURE</th>
                 <th class="th-boxed">ARRIVAL</th>
                 <th class="th-boxed">DEPARTURE</th>
-                <th class="th-gutter"></th>
-                <th
-                  class="th-boxed clickable-workload-header"
-                  @click="openBulkWorkloadDialog"
-                >
-                  <span>WORKLOAD UNDERTAKEN</span>
-                  <q-icon name="edit" size="11px" class="q-ml-xs no-print text-grey-4" />
-                  <q-tooltip class="bg-dark text-white no-print">Click to edit workload for all work days</q-tooltip>
-                </th>
-                <th class="th-boxed">QUANTITY</th>
+                <template v-if="pair.mode !== 'single-centered'">
+                  <th class="th-gutter"></th>
+                  <template v-if="pair.mode === 'bimonthly-side-by-side'">
+                    <th class="th-boxed">DATE</th>
+                    <th class="th-boxed">ARRIVAL</th>
+                    <th class="th-boxed">DEPARTURE</th>
+                    <th class="th-boxed">ARRIVAL</th>
+                    <th class="th-boxed">DEPARTURE</th>
+                  </template>
+                  <template v-else>
+                    <th
+                      class="th-boxed clickable-workload-header"
+                      @click="openBulkWorkloadDialog"
+                    >
+                      <span>WORKLOAD UNDERTAKEN</span>
+                      <q-icon name="edit" size="11px" class="q-ml-xs no-print text-grey-4" />
+                      <q-tooltip class="bg-dark text-white no-print">Click to edit workload for all work days</q-tooltip>
+                    </th>
+                    <th class="th-boxed">QUANTITY</th>
+                  </template>
+                </template>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="row in sheet.rows"
+                v-for="(row, rIdx) in pair.leftSheet.rows"
                 :key="row.dayNumber"
                 :class="{
                   'tr-weekend': row.isWeekend && row.isInCutoff,
@@ -201,7 +298,7 @@
                 }"
               >
                 <!-- ================= LEFT SIDE CELLS ================= -->
-                <!-- Date Column (Bold on active weekend days, regular on weekdays) -->
+                <!-- Date Column -->
                 <td
                   class="td-date"
                   :class="{ 'td-date-weekend': (row.isSaturday || row.isSunday) && row.isInCutoff }"
@@ -226,27 +323,39 @@
                   <td class="td-dash">-</td>
                 </template>
 
-                <!-- Saturday: Merged across 4 punch columns -->
-                <template v-else-if="row.isSaturday">
+                <!-- Saturday: Merged across 4 punch columns (unless punches or custom remark) -->
+                <template v-else-if="row.isSaturday && !row.hasAnyPunch && !row.isCustomRemark">
                   <td
                     colspan="4"
                     class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    @click="openTimeOverride(row, 'am_arrival')"
                   >
                     SATURDAY
                     <q-tooltip class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ row.dayNumber }})</q-tooltip>
                   </td>
                 </template>
 
-                <!-- Sunday: Merged across 4 punch columns -->
-                <template v-else-if="row.isSunday">
+                <!-- Sunday: Merged across 4 punch columns (unless punches or custom remark) -->
+                <template v-else-if="row.isSunday && !row.hasAnyPunch && !row.isCustomRemark">
                   <td
                     colspan="4"
                     class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    @click="openTimeOverride(row, 'am_arrival')"
                   >
                     SUNDAY
                     <q-tooltip class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ row.dayNumber }})</q-tooltip>
+                  </td>
+                </template>
+
+                <!-- Custom Remark (e.g. RESTDAY): Merged across 4 punch columns -->
+                <template v-else-if="row.isCustomRemark">
+                  <td
+                    colspan="4"
+                    class="td-merged-status td-time-clickable cursor-pointer"
+                    @click="openTimeOverride(row, 'am_arrival')"
+                  >
+                    {{ row.customRemark }}
+                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
                   </td>
                 </template>
 
@@ -255,7 +364,7 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-absent td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    @click="openTimeOverride(row, 'am_arrival')"
                   >
                     ABSENT
                     <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
@@ -267,7 +376,7 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.holidayName || 'HOLIDAY' }}
                     <q-tooltip class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ row.dayNumber }})</q-tooltip>
@@ -279,78 +388,337 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
                     <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
                   </td>
                 </template>
 
-                <!-- Regular Working Day with Punches -->
-                <template v-else>
+                <!-- On Leave (AM): Merged across AM slots, actual punches for PM -->
+                <template v-else-if="row.isOnLeaveAm">
                   <td
-                    class="td-time td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    colspan="2"
+                    class="td-merged-status td-time-clickable cursor-pointer"
+                    @click="openTimeOverride(row, 'am_arrival')"
                   >
-                    {{ row.amArrival }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    {{ row.leaveLabel || 'ON LEAVE' }}
+                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (AM Leave)</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
-                  >
-                    {{ row.amDeparture }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
-                  </td>
-                  <td
-                    class="td-time td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival') }"
+                    @click="openTimeOverride(row, 'pm_arrival')"
                   >
                     {{ row.pmArrival }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row)"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure') }"
+                    @click="openTimeOverride(row, 'pm_departure')"
                   >
                     {{ row.pmDeparture }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
                   </td>
                 </template>
 
-                <!-- ================= MIDDLE GUTTER ================= -->
-                <td class="td-gutter"></td>
+                <!-- On Leave (PM): Actual punches for AM, merged across PM slots -->
+                <template v-else-if="row.isOnLeavePm">
+                  <td
+                    class="td-time td-time-clickable cursor-pointer"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival') }"
+                    @click="openTimeOverride(row, 'am_arrival')"
+                  >
+                    {{ row.amArrival }}
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
+                  </td>
+                  <td
+                    class="td-time td-time-clickable cursor-pointer"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure') }"
+                    @click="openTimeOverride(row, 'am_departure')"
+                  >
+                    {{ row.amDeparture }}
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
+                  </td>
+                  <td
+                    colspan="2"
+                    class="td-merged-status td-time-clickable cursor-pointer"
+                    @click="openTimeOverride(row, 'pm_arrival')"
+                  >
+                    {{ row.leaveLabel || 'ON LEAVE' }}
+                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (PM Leave)</q-tooltip>
+                  </td>
+                </template>
 
-                <!-- ================= RIGHT SIDE CELLS ================= -->
-                <!-- WORKLOAD UNDERTAKEN & QUANTITY always keep their separate columns -->
-                <td
-                  class="td-workload"
-                  :class="{
-                    'td-workload-clickable cursor-pointer': row.hasWork,
-                  }"
-                  @click="row.hasWork ? openDayWorkloadDialog(row) : null"
-                >
-                  <template v-if="row.isNonExistentDay || !row.isInCutoff"></template>
-                  <span v-else-if="row.isSaturday" class="td-spaced-day">SATURDAY</span>
-                  <span v-else-if="row.isSunday" class="td-spaced-day">SUNDAY</span>
-                  <span v-else-if="row.isAbsent" class="td-absent">ABSENT</span>
-                  <span v-else-if="row.isHoliday">{{ row.holidayName || 'HOLIDAY' }}</span>
-                  <span v-else-if="row.isOnLeave">{{ row.leaveLabel || 'ON LEAVE' }}</span>
-                  <span v-else-if="row.hasWork" class="workload-text-span">
-                    {{ getRowWorkload(row) }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
-                  </span>
-                </td>
-                <td
-                  class="td-quantity"
-                  :class="{
-                    'td-quantity-clickable cursor-pointer': row.hasWork,
-                  }"
-                  @click="row.hasWork ? openDayWorkloadDialog(row) : null"
-                >
-                  <span v-if="row.hasWork">{{ getRowQuantity(row) }}</span>
-                  <q-tooltip v-if="row.hasWork" class="bg-dark text-white no-print">Click to edit quantity</q-tooltip>
-                </td>
+                <!-- Regular Working Day with Punches or Slot Overrides -->
+                <template v-else>
+                  <td
+                    class="td-time td-time-clickable cursor-pointer"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival') }"
+                    @click="openTimeOverride(row, 'am_arrival')"
+                  >
+                    {{ row.amArrival }}
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
+                  </td>
+                  <td
+                    class="td-time td-time-clickable cursor-pointer"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure') }"
+                    @click="openTimeOverride(row, 'am_departure')"
+                  >
+                    {{ row.amDeparture }}
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
+                  </td>
+                  <td
+                    class="td-time td-time-clickable cursor-pointer"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival') }"
+                    @click="openTimeOverride(row, 'pm_arrival')"
+                  >
+                    {{ row.pmArrival }}
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
+                  </td>
+                  <td
+                    class="td-time td-time-clickable cursor-pointer"
+                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure') }"
+                    @click="openTimeOverride(row, 'pm_departure')"
+                  >
+                    {{ row.pmDeparture }}
+                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
+                  </td>
+                </template>
+
+                <!-- ================= RIGHT SIDE CELLS (IF NOT SINGLE-CENTERED) ================= -->
+                <template v-if="pair.mode !== 'single-centered'">
+                  <td class="td-gutter"></td>
+
+                  <!-- BIMONTHLY RIGHT SIDE: MONTH 2 PUNCHES -->
+                  <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
+                    <!-- Date Column -->
+                    <td
+                      class="td-date"
+                      :class="{
+                        'td-date-weekend': (pair.rightSheet.rows[rIdx].isSaturday || pair.rightSheet.rows[rIdx].isSunday) && pair.rightSheet.rows[rIdx].isInCutoff
+                      }"
+                    >
+                      <span v-if="pair.rightSheet.rows[rIdx].isNonExistentDay">31</span>
+                      <span v-else>{{ pair.rightSheet.rows[rIdx].dayNumber }}</span>
+                    </td>
+
+                    <!-- Non-existent Day 31 -->
+                    <template v-if="pair.rightSheet.rows[rIdx].isNonExistentDay">
+                      <td class="td-x">X</td>
+                      <td class="td-x">X</td>
+                      <td class="td-x">X</td>
+                      <td class="td-x">X</td>
+                    </template>
+
+                    <!-- Outside Cutoff -->
+                    <template v-else-if="!pair.rightSheet.rows[rIdx].isInCutoff">
+                      <td class="td-dash">-</td>
+                      <td class="td-dash">-</td>
+                      <td class="td-dash">-</td>
+                      <td class="td-dash">-</td>
+                    </template>
+
+                    <!-- Saturday -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isSaturday && !pair.rightSheet.rows[rIdx].hasAnyPunch && !pair.rightSheet.rows[rIdx].isCustomRemark">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        SATURDAY
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- Sunday -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isSunday && !pair.rightSheet.rows[rIdx].hasAnyPunch && !pair.rightSheet.rows[rIdx].isCustomRemark">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        SUNDAY
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- Custom Remark (e.g. RESTDAY) -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isCustomRemark">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].customRemark }}
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- Absent -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isAbsent">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-absent td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        ABSENT
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- Holiday -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isHoliday">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].holidayName || 'HOLIDAY' }}
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- On Leave -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isOnLeave">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- On Leave (AM) -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isOnLeaveAm">
+                      <td
+                        colspan="2"
+                        class="td-merged-status td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (AM Leave)</q-tooltip>
+                      </td>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].pmArrival }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
+                      </td>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].pmDeparture }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- On Leave (PM) -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].isOnLeavePm">
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].amArrival }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
+                      </td>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].amDeparture }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
+                      </td>
+                      <td
+                        colspan="2"
+                        class="td-merged-status td-time-clickable cursor-pointer"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
+                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (PM Leave)</q-tooltip>
+                      </td>
+                    </template>
+
+                    <!-- Regular Working Day with Punches or Slot Overrides -->
+                    <template v-else>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].amArrival }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
+                      </td>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].amDeparture }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
+                      </td>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].pmArrival }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
+                      </td>
+                      <td
+                        class="td-time td-time-clickable cursor-pointer"
+                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure') }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].pmDeparture }}
+                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
+                      </td>
+                    </template>
+                  </template>
+
+                  <!-- CONTRACTUAL RIGHT SIDE: ACCOMPLISHMENT REPORT -->
+                  <template v-else>
+                    <td
+                      class="td-workload"
+                      :class="{
+                        'td-workload-clickable cursor-pointer': row.hasWork,
+                      }"
+                      @click="row.hasWork ? openDayWorkloadDialog(row) : null"
+                    >
+                      <template v-if="row.isNonExistentDay || !row.isInCutoff"></template>
+                      <span v-else-if="row.isSaturday" class="td-spaced-day">SATURDAY</span>
+                      <span v-else-if="row.isSunday" class="td-spaced-day">SUNDAY</span>
+                      <span v-else-if="row.isAbsent" class="td-absent">ABSENT</span>
+                      <span v-else-if="row.isHoliday">{{ row.holidayName || 'HOLIDAY' }}</span>
+                      <span v-else-if="row.isOnLeave">{{ row.leaveLabel || 'ON LEAVE' }}</span>
+                      <span v-else-if="row.isOnLeaveAm && !row.hasAnyPunch">{{ row.leaveLabel || 'ON LEAVE' }}</span>
+                      <span v-else-if="row.isOnLeavePm && !row.hasAnyPunch">{{ row.leaveLabel || 'ON LEAVE' }}</span>
+                      <span v-else-if="row.hasWork" class="workload-text-span">
+                        {{ getRowWorkload(row) }}
+                        <q-tooltip class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
+                      </span>
+                    </td>
+                    <td
+                      class="td-quantity"
+                      :class="{
+                        'td-quantity-clickable cursor-pointer': row.hasWork,
+                      }"
+                      @click="row.hasWork ? openDayWorkloadDialog(row) : null"
+                    >
+                      <span v-if="row.hasWork">{{ getRowQuantity(row) }}</span>
+                      <q-tooltip v-if="row.hasWork" class="bg-dark text-white no-print">Click to edit quantity</q-tooltip>
+                    </td>
+                  </template>
+                </template>
               </tr>
             </tbody>
           </table>
@@ -358,7 +726,7 @@
           <!-- ========================================================= -->
           <!-- FOOTERS: ROW-BY-ROW HORIZONTAL LOCK                       -->
           <!-- ========================================================= -->
-          <!-- Band 1: Barcode & Certification (Left Only) -->
+          <!-- Band 1: Barcode & Certification -->
           <div class="csc-footer-band">
             <div class="csc-panel-col">
               <div class="csc-barcode-wrap" v-html="barcodeSvg"></div>
@@ -367,21 +735,35 @@
                 record of which was made daily at the time of arrival and departure from the office.
               </div>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div class="csc-panel-col"></div>
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div class="csc-panel-col">
+                <template v-if="pair.mode === 'bimonthly-side-by-side'">
+                  <div class="csc-barcode-wrap" v-html="barcodeSvg"></div>
+                  <div class="csc-cert-statement">
+                    I certify on my honor that the above is true and correct report of works performed,
+                    record of which was made daily at the time of arrival and departure from the office.
+                  </div>
+                </template>
+              </div>
+            </template>
           </div>
 
-          <!-- Band 2: First Signature Line (Verified as to... | Prepared by) -->
+          <!-- Band 2: First Signature Line (Verified as to... | Prepared by / Verified as to...) -->
           <div class="csc-footer-band csc-verify-band">
             <div class="csc-panel-col text-center">
               <div class="csc-sig-line"></div>
               <div class="csc-sig-caption">Verified as to the prescribed office hours</div>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div class="csc-panel-col text-center">
-              <div class="csc-sig-line"></div>
-              <div class="csc-sig-caption">Prepared by</div>
-            </div>
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div class="csc-panel-col text-center">
+                <div class="csc-sig-line"></div>
+                <div class="csc-sig-caption">
+                  {{ pair.mode === 'bimonthly-side-by-side' ? 'Verified as to the prescribed office hours' : 'Prepared by' }}
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- Band 3: Signatory Name, Title & IN-CHARGE Line (Clickable to change) -->
@@ -399,30 +781,39 @@
               <div class="csc-sig-sub">IN-CHARGE</div>
               <q-tooltip class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div
-              class="csc-panel-col text-center csc-incharge-col cursor-pointer"
-              @click="openInChargeDialog"
-            >
-              <div class="csc-sig-name-wrap">
-                <div class="csc-sig-name">{{ inChargeName }}</div>
-                <q-icon name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div
+                class="csc-panel-col text-center csc-incharge-col cursor-pointer"
+                @click="openInChargeDialog"
+              >
+                <div class="csc-sig-name-wrap">
+                  <div class="csc-sig-name">{{ inChargeName }}</div>
+                  <q-icon name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
+                </div>
+                <div class="csc-sig-title">{{ inChargeTitle }}</div>
+                <div class="csc-sig-line csc-incharge-line"></div>
+                <div class="csc-sig-sub">IN-CHARGE</div>
+                <q-tooltip class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
               </div>
-              <div class="csc-sig-title">{{ inChargeTitle }}</div>
-              <div class="csc-sig-line csc-incharge-line"></div>
-              <div class="csc-sig-sub">IN-CHARGE</div>
-              <q-tooltip class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
-            </div>
+            </template>
           </div>
 
-          <!-- Band 4: Summary Counters (Left Only) -->
+          <!-- Band 4: Summary Counters -->
           <div class="csc-footer-band csc-summary-band">
             <div class="csc-panel-col csc-summary-row">
-              <span>No. of Day(s): ~{{ sheet.presentDaysCount }}</span>
-              <span>No. of Min. Late(s): {{ sheet.totalLateMinutes }}</span>
+              <span>No. of Day(s): ~{{ pair.leftSheet.presentDaysCount }}</span>
+              <span>No. of Min. Late(s): {{ pair.leftSheet.totalLateMinutes }}</span>
             </div>
-            <div class="csc-panel-gutter"></div>
-            <div class="csc-panel-col"></div>
+            <template v-if="pair.mode !== 'single-centered'">
+              <div class="csc-panel-gutter"></div>
+              <div class="csc-panel-col csc-summary-row">
+                <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
+                  <span>No. of Day(s): ~{{ pair.rightSheet.presentDaysCount }}</span>
+                  <span>No. of Min. Late(s): {{ pair.rightSheet.totalLateMinutes }}</span>
+                </template>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -634,6 +1025,7 @@
       :employee-name="employeeDisplayName"
       :date="activeOverrideDate"
       :dtr="activeOverrideDtr"
+      :initial-slot="activeOverrideSlot"
       @saved="onOverrideSaved"
     />
   </div>
@@ -700,11 +1092,13 @@ const emit = defineEmits(['update:customDateRange', 'adjust', 'adjust-saved'])
 const showOverrideDialog = ref(false)
 const activeOverrideDate = ref('')
 const activeOverrideDtr = ref(null)
+const activeOverrideSlot = ref('am_arrival')
 
-function openTimeOverride(row) {
+function openTimeOverride(row, slotKey = 'am_arrival') {
   if (!row || row.isNonExistentDay || !row.isInCutoff) return
   activeOverrideDate.value = row.dateString
   activeOverrideDtr.value = row.record || null
+  activeOverrideSlot.value = slotKey || 'am_arrival'
   showOverrideDialog.value = true
 }
 
@@ -1008,6 +1402,99 @@ function formatCscTime(timeStr) {
 }
 
 /**
+ * Check if a specific punch slot has been manually overridden.
+ */
+function isRecordSlotAdjusted(record, slotKey) {
+  if (!record || !record.is_adjusted) return false
+  if (record.adjusted_slots) {
+    if (Array.isArray(record.adjusted_slots)) {
+      return record.adjusted_slots.includes(slotKey)
+    }
+    if (typeof record.adjusted_slots === 'object') {
+      return Boolean(record.adjusted_slots[slotKey])
+    }
+  }
+  return Boolean(record[slotKey])
+}
+
+/**
+ * Get slot-specific acronym or remark (e.g. O.F., O.B.)
+ */
+function getSlotOverrideText(record, slotKey) {
+  if (!record) return ''
+  if (record.adjusted_slots && typeof record.adjusted_slots === 'object' && !Array.isArray(record.adjusted_slots)) {
+    const val = record.adjusted_slots[slotKey]
+    if (typeof val === 'string' && val.trim() !== '' && val !== 'TIME') {
+      return val.trim()
+    }
+    return ''
+  }
+
+  const rawStatus = String(record.status || '').toUpperCase().trim()
+  const rawRemark = String(record.adjustment_remarks || '').toUpperCase().trim()
+
+  const isAdjustedSlot = Array.isArray(record.adjusted_slots) && record.adjusted_slots.includes(slotKey)
+
+  if (isAdjustedSlot) {
+    if (rawRemark === 'O.B.' || rawRemark === 'OFFICIAL BUSINESS' || rawStatus === 'OFFICIAL_BUSINESS' || rawStatus === 'O.B.') {
+      return 'O.B.'
+    }
+    if (rawRemark === 'O.F.' || rawRemark === 'ON FIELD' || rawStatus === 'O.F.') {
+      return 'O.F.'
+    }
+    if (rawRemark && rawRemark.length <= 6 && !rawRemark.includes(' ')) {
+      return rawRemark
+    }
+    return ''
+  }
+
+  // If whole-record status is O.B. or O.F. without any slot-level mapping
+  if (!record.adjusted_slots) {
+    if (rawStatus === 'OFFICIAL_BUSINESS' || rawStatus === 'O.B.' || rawRemark === 'O.B.' || rawRemark === 'OFFICIAL BUSINESS') {
+      return 'O.B.'
+    }
+    if (rawStatus === 'O.F.' || rawRemark === 'O.F.' || rawRemark === 'ON FIELD') {
+      return 'O.F.'
+    }
+  }
+
+  return ''
+}
+
+/**
+ * Format a slot punch time with the CSC Form 48 double-dot indicator (. 8:00 .) if overridden,
+ * or acronym (O.F., O.B.) if overridden with a status.
+ */
+function formatSlotPunch(timeStr, record, slotKey, hasWork, hasAnyPunch) {
+  const slotText = getSlotOverrideText(record, slotKey)
+  if (slotText && (!timeStr || timeStr === '-' || timeStr === '—')) {
+    return slotText
+  }
+
+  const formatted = formatCscTime(timeStr)
+  if (!formatted) {
+    if (slotText) return slotText
+    return hasWork && !hasAnyPunch ? '-' : ''
+  }
+  if (isRecordSlotAdjusted(record, slotKey)) {
+    return `. ${formatted} .`
+  }
+  return formatted
+}
+
+function getSlotTooltip(row, slotKey, slotLabel) {
+  const slotText = getSlotOverrideText(row?.record, slotKey)
+  if (slotText) {
+    return `Day ${row.dayNumber} ${slotLabel}: ${slotText} (Click to override)`
+  }
+  if (isRecordSlotAdjusted(row?.record, slotKey)) {
+    const reason = row.record?.adjustment_remarks || row.record?.adjustment_reason || 'Manually Adjusted'
+    return `Day ${row.dayNumber} ${slotLabel}: ${reason} (Click to edit)`
+  }
+  return `Click to override time for Day ${row.dayNumber} (${slotLabel})`
+}
+
+/**
  * Build a single 1..31 CSC Form 48 sheet for a given (year, month, startDay, endDay)
  */
 function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
@@ -1027,9 +1514,14 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
         isWeekend: false,
         isSaturday: false,
         isSunday: false,
+        hasAnyPunch: false,
         isAbsent: false,
         isHoliday: false,
         isOnLeave: false,
+        isOnLeaveAm: false,
+        isOnLeavePm: false,
+        isCustomRemark: false,
+        customRemark: '',
         hasWork: false,
         amArrival: '',
         amDeparture: '',
@@ -1060,28 +1552,53 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
     let isAbsent = false
     let isHoliday = false
     let isOnLeave = false
+    let isOnLeaveAm = false
+    let isOnLeavePm = false
+    let isCustomRemark = false
+    let customRemark = ''
     let holidayName = ''
     let leaveLabel = ''
 
-    if (isInCutoff && !isWeekend) {
-      if (
-        record?.status === 'ABSENT' ||
-        (!hasAnyPunch &&
-          record?.status !== 'ON_LEAVE' &&
-          record?.status !== 'HOLIDAY' &&
-          !record?.is_adjusted)
-      ) {
-        isAbsent = true
-      } else if (record?.status === 'ON_LEAVE') {
-        isOnLeave = true
-        leaveLabel = record.remarks || 'ON LEAVE'
-      } else if (record?.status === 'HOLIDAY') {
+    const rawStatus = String(record?.status || '').toUpperCase().trim()
+    const rawRemark = String(record?.adjustment_remarks || '').toUpperCase().trim()
+
+    const isCellLevelOverride = ['O.B.', 'O.F.', 'OFFICIAL BUSINESS', 'ON FIELD'].includes(rawStatus)
+      || ['O.B.', 'O.F.', 'OFFICIAL BUSINESS', 'ON FIELD'].includes(rawRemark)
+      || (record?.adjusted_slots && typeof record.adjusted_slots === 'object' && !Array.isArray(record.adjusted_slots))
+
+    if (isInCutoff) {
+      if (rawStatus === 'HOLIDAY' || record?.is_holiday) {
         isHoliday = true
-        holidayName = record.remarks || 'HOLIDAY'
+        holidayName = record?.remarks || record?.adjustment_remarks || 'HOLIDAY'
+      } else if (rawStatus === 'ON_LEAVE' || rawStatus === 'ON_LEAVE_AM' || rawStatus === 'ON_LEAVE_PM') {
+        const leaveCode = String(record?.leave_type_code || '').trim()
+        const codeDisplay = leaveCode ? `ON LEAVE (${leaveCode})` : 'ON LEAVE'
+        leaveLabel = (record?.remarks && record.remarks !== 'ON LEAVE') ? record.remarks : codeDisplay
+
+        if (rawStatus === 'ON_LEAVE') {
+          isOnLeave = true
+        } else if (rawStatus === 'ON_LEAVE_AM') {
+          isOnLeaveAm = true
+        } else if (rawStatus === 'ON_LEAVE_PM') {
+          isOnLeavePm = true
+        }
+      } else if (!isCellLevelOverride && (rawStatus === 'RESTDAY' || (rawRemark && !hasAnyPunch && rawStatus !== 'ABSENT'))) {
+        isCustomRemark = true
+        customRemark = record?.adjustment_remarks || record?.status || ''
+      } else if (!isWeekend) {
+        if (
+          rawStatus === 'ABSENT' ||
+          (!hasAnyPunch &&
+            !record?.is_adjusted &&
+            !record?.adjustment_remarks &&
+            !isCellLevelOverride)
+        ) {
+          isAbsent = true
+        }
       }
     }
 
-    const hasWork = isInCutoff && !isWeekend && !isAbsent && !isOnLeave && !isHoliday
+    const hasWork = isInCutoff && !isWeekend && !isAbsent && !isOnLeave && !isHoliday && !isCustomRemark
 
     rows.push({
       dayNumber: d,
@@ -1091,22 +1608,27 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
       isWeekend,
       isSaturday,
       isSunday,
+      hasAnyPunch,
       isAbsent,
       isHoliday,
       holidayName,
       isOnLeave,
+      isOnLeaveAm,
+      isOnLeavePm,
       leaveLabel,
+      isCustomRemark,
+      customRemark,
       hasWork,
-      amArrival: formatCscTime(record?.am_arrival) || (hasWork && !hasAnyPunch ? '-' : ''),
-      amDeparture: formatCscTime(record?.am_departure) || (hasWork && !hasAnyPunch ? '-' : ''),
-      pmArrival: formatCscTime(record?.pm_arrival) || (hasWork && !hasAnyPunch ? '-' : ''),
-      pmDeparture: formatCscTime(record?.pm_departure) || (hasWork && !hasAnyPunch ? '-' : ''),
+      amArrival: formatSlotPunch(record?.am_arrival, record, 'am_arrival', hasWork, hasAnyPunch),
+      amDeparture: formatSlotPunch(record?.am_departure, record, 'am_departure', hasWork, hasAnyPunch),
+      pmArrival: formatSlotPunch(record?.pm_arrival, record, 'pm_arrival', hasWork, hasAnyPunch),
+      pmDeparture: formatSlotPunch(record?.pm_departure, record, 'pm_departure', hasWork, hasAnyPunch),
       record,
     })
   }
 
   const presentDaysCount = rows.filter(
-    (r) => r.isInCutoff && !r.isWeekend && !r.isAbsent && !r.isNonExistentDay && r.hasWork
+    (r) => r.isInCutoff && !r.isWeekend && !r.isAbsent && !r.isNonExistentDay && (r.hasWork || r.isOnLeaveAm || r.isOnLeavePm)
   ).length
 
   const totalLateMinutes = rows
@@ -1172,6 +1694,56 @@ const cscSheets = computed(() => {
   return sheets.length > 0 ? sheets : [buildSheetForMonth(year, month, 1, maxDays, recordsMap)]
 })
 
+const isContractual = computed(() => {
+  if (props.employee?.is_contractual !== undefined) {
+    return Boolean(props.employee.is_contractual)
+  }
+  const status = String(props.employee?.employment_status || props.employee?.status || '').toUpperCase().trim()
+  return status === 'CONTRACTUAL'
+})
+
+const employeeEmploymentStatus = computed(() => {
+  return String(props.employee?.employment_status || props.employee?.status || '').toUpperCase().trim()
+})
+
+const pairedSheets = computed(() => {
+  const sheets = cscSheets.value || []
+  if (sheets.length === 0) return []
+
+  if (isContractual.value) {
+    return sheets.map((sheet, idx) => ({
+      key: `contractual-${sheet.key || idx}`,
+      mode: 'contractual',
+      leftSheet: sheet,
+      rightSheet: null,
+    }))
+  }
+
+  // Non-contractual:
+  if (sheets.length === 1) {
+    return [{
+      key: `single-${sheets[0].key || 0}`,
+      mode: 'single-centered',
+      leftSheet: sheets[0],
+      rightSheet: null,
+    }]
+  }
+
+  // 2 or more months covered for non-contractual: pair them up 2-by-2 side-by-side
+  const pairs = []
+  for (let i = 0; i < sheets.length; i += 2) {
+    const left = sheets[i]
+    const right = sheets[i + 1] || null
+    pairs.push({
+      key: `bimonthly-${left.key || i}-${right ? (right.key || (i + 1)) : 'single'}`,
+      mode: right ? 'bimonthly-side-by-side' : 'single-centered',
+      leftSheet: left,
+      rightSheet: right,
+    })
+  }
+  return pairs
+})
+
 const barcodeSvg = computed(() => {
   return generateCscBarcodeSvg(controlNumber.value)
 })
@@ -1222,6 +1794,36 @@ defineExpose({
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   max-width: 920px;
   margin: 0 auto;
+}
+
+.csc-sheet-wrapper.single-centered-sheet {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.single-left-layout .csc-header-band,
+.single-left-layout .csc-footer-band {
+  display: flex;
+  width: 100%;
+}
+
+.single-left-layout .csc-panel-col {
+  width: 48% !important;
+  flex: 0 0 48% !important;
+}
+
+.single-left-layout .csc-master-table {
+  width: 48% !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+.col-single-date {
+  width: 10%;
+}
+
+.col-single-punch {
+  width: 22.5%;
 }
 
 .dtr-dual-page-sheet {
@@ -1463,6 +2065,17 @@ defineExpose({
   font-size: 8pt;
   font-weight: 400;
   font-family: Arial, sans-serif;
+}
+
+.td-overridden-slot {
+  font-weight: 700;
+  color: #1b5e20;
+}
+
+@media print {
+  .td-overridden-slot {
+    color: #000000 !important;
+  }
 }
 
 .td-dash {

@@ -1,15 +1,15 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-mb-lg">
+  <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'signatories-panel' : 'q-pa-md'">
+    <div v-if="!embedded" class="q-mb-lg">
       <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Signatories</h1>
       <p class="text-grey-7 q-mb-none">Manage leave-form signatory assignments.</p>
     </div>
 
-    <q-card flat bordered class="rounded-borders">
-      <q-card-section>
-        <div class="row items-center q-mb-lg">
-          <q-icon name="draw" size="28px" color="primary" class="q-mr-sm" />
-          <div class="text-h6 text-weight-bold">Leave Form Signatories</div>
+    <q-card flat bordered class="rounded-borders bg-white">
+      <q-card-section class="q-pa-md">
+        <div class="row items-center q-mb-md">
+          <q-icon name="draw" size="24px" color="green-9" class="q-mr-sm" />
+          <div class="text-subtitle1 text-weight-bold text-dark">Leave Form Signatories</div>
         </div>
 
         <div style="max-width: 560px;">
@@ -41,9 +41,11 @@
         <div class="q-mt-md">
           <q-btn
             unelevated
-            color="primary"
+            no-caps
+            color="green-9"
             label="Save Signatory"
             icon="save"
+            class="text-weight-bold q-px-md"
             :loading="saving"
             :disable="!chrmoLeaveInChargeSelection"
             @click="handleSaveChrmoLeaveInCharge"
@@ -51,7 +53,7 @@
         </div>
       </q-card-section>
     </q-card>
-  </q-page>
+  </component>
 </template>
 
 <script setup>
@@ -59,6 +61,13 @@ import { onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const $q = useQuasar()
 

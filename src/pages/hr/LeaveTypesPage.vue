@@ -1,6 +1,6 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-mb-lg">
+  <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'leave-types-panel' : 'q-pa-md'">
+    <div v-if="!embedded" class="q-mb-lg">
       <div class="row items-center justify-between q-gutter-sm">
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Leave Types</h1>
@@ -8,54 +8,74 @@
         <q-btn
           unelevated
           no-caps
-          color="primary"
+          color="green-9"
           icon="add"
           label="Add Leave Type"
+          class="text-weight-bold q-px-md"
           @click="openCreateDialog"
         />
       </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders q-mb-md">
-      <q-card-section>
-        <div class="row q-col-gutter-md items-end">
-          <div class="col-12 col-md-6">
-            <q-input
-              v-model="search"
-              outlined
-              dense
-              clearable
-              debounce="300"
-              label="Search leave type"
-              placeholder="Type name..."
-            >
-              <template #prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-            </q-input>
+    <!-- Unified Toolbar -->
+    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
+      <q-card-section class="q-pa-sm">
+        <div class="row items-center justify-between q-col-gutter-sm">
+          <div class="col-12 col-md-7">
+            <div class="row items-center q-gutter-sm">
+              <q-input
+                v-model="search"
+                outlined
+                dense
+                clearable
+                debounce="300"
+                placeholder="Search leave type..."
+                style="min-width: 240px;"
+              >
+                <template #prepend>
+                  <q-icon name="search" color="grey-6" />
+                </template>
+              </q-input>
+              <q-select
+                v-model="filterCategory"
+                :options="categoryFilterOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                clearable
+                label="Category"
+                style="width: 150px;"
+              />
+            </div>
           </div>
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filterCategory"
-              :options="categoryFilterOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              clearable
-              label="Category"
-            />
+          <div class="col-12 col-md-auto">
+            <div class="row items-center q-gutter-x-sm">
+              <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
+                {{ filteredRows.length }} Total Types
+              </q-badge>
+              <q-btn
+                unelevated
+                no-caps
+                color="green-9"
+                icon="add"
+                label="Add Leave Type"
+                class="text-weight-bold q-px-md"
+                @click="openCreateDialog"
+              />
+            </div>
           </div>
         </div>
       </q-card-section>
     </q-card>
 
-    <q-card flat bordered class="rounded-borders">
+    <q-card flat bordered class="rounded-borders bg-white">
       <q-table
         :rows="filteredRows"
         :columns="columns"
         row-key="id"
         flat
+        dense
         :loading="loading"
         :rows-per-page-options="[10, 20, 50]"
       >
@@ -120,8 +140,8 @@
 
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-center">
-            <q-btn flat dense round icon="edit" color="primary" @click="openEditDialog(props.row)">
-              <q-tooltip>Edit</q-tooltip>
+            <q-btn flat dense round icon="edit" color="green-9" @click="openEditDialog(props.row)">
+              <q-tooltip class="bg-dark text-white">Edit Leave Type</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -132,7 +152,7 @@
               :loading="deletingId === props.row.id"
               @click="confirmDelete(props.row)"
             >
-              <q-tooltip>Delete</q-tooltip>
+              <q-tooltip class="bg-dark text-white">Delete Leave Type</q-tooltip>
             </q-btn>
           </q-td>
         </template>
@@ -152,15 +172,15 @@
       </q-table>
     </q-card>
 
-    <q-dialog v-model="showFormDialog" seamless>
-      <q-card style="width: 95vw; max-width: 620px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">{{ isEditMode ? 'Edit Leave Type' : 'Add Leave Type' }}</div>
+    <q-dialog v-model="showFormDialog" persistent>
+      <q-card style="width: 95vw; max-width: 620px" class="rounded-borders">
+        <q-card-section class="row items-center bg-green-9 text-white q-py-sm">
+          <div class="text-subtitle1 text-weight-bold">{{ isEditMode ? 'Edit Leave Type' : 'Add Leave Type' }}</div>
           <q-space />
-          <q-btn icon="close" flat round dense v-close-popup :disable="saving" />
+          <q-btn icon="close" flat round dense text-color="white" v-close-popup :disable="saving" />
         </q-card-section>
 
-        <q-card-section class="q-pt-none">
+        <q-card-section class="q-pt-md">
           <div class="row q-col-gutter-md">
             <div class="col-12 col-md-6">
               <q-input v-model="form.name" outlined dense label="Name *" maxlength="255" />
@@ -227,12 +247,13 @@
           </div>
         </q-card-section>
 
-        <q-card-actions align="right">
+        <q-card-actions align="right" class="q-px-md q-pb-md">
           <q-btn flat no-caps label="Cancel" color="grey-7" v-close-popup :disable="saving" />
           <q-btn
             unelevated
             no-caps
-            color="primary"
+            color="green-9"
+            class="text-weight-bold q-px-md"
             :label="isEditMode ? 'Save Changes' : 'Create Leave Type'"
             :loading="saving"
             @click="saveLeaveType"
@@ -240,13 +261,20 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-  </q-page>
+  </component>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const $q = useQuasar()
 

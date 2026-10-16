@@ -417,7 +417,11 @@
 
               <!-- AM Time In (Morning Arrival) -->
               <template #body-cell-time_in="props">
-                <q-td :props="props" class="text-left font-mono">
+                <q-td
+                  :props="props"
+                  class="text-left font-mono cursor-pointer td-punch-cell"
+                  @click="openOverrideDialog(props.row, 'am_arrival')"
+                >
                   <div v-if="props.row.am_arrival" class="row items-center no-wrap q-gutter-x-xs">
                     <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
                       {{ formatPunchTime(props.row.am_arrival) }}
@@ -433,33 +437,57 @@
                       <q-tooltip>Tardy: {{ props.row.late_minutes }} minute(s) late</q-tooltip>
                     </q-badge>
                   </div>
+                  <span v-else-if="getSlotOverrideText(props.row, 'am_arrival')" class="text-weight-bold text-teal-8">
+                    {{ getSlotOverrideText(props.row, 'am_arrival') }}
+                  </span>
                   <span v-else class="text-grey-4">—</span>
+                  <q-tooltip class="bg-dark text-white">Click to override AM In</q-tooltip>
                 </q-td>
               </template>
 
               <!-- AM Time Out (Lunch Out) -->
               <template #body-cell-time_out="props">
-                <q-td :props="props" class="text-left font-mono">
+                <q-td
+                  :props="props"
+                  class="text-left font-mono cursor-pointer td-punch-cell"
+                  @click="openOverrideDialog(props.row, 'am_departure')"
+                >
                   <span v-if="props.row.am_departure" class="text-dark text-weight-medium">
                     {{ formatPunchTime(props.row.am_departure) }}
                   </span>
+                  <span v-else-if="getSlotOverrideText(props.row, 'am_departure')" class="text-weight-bold text-teal-8">
+                    {{ getSlotOverrideText(props.row, 'am_departure') }}
+                  </span>
                   <span v-else class="text-grey-4">—</span>
+                  <q-tooltip class="bg-dark text-white">Click to override AM Out</q-tooltip>
                 </q-td>
               </template>
 
               <!-- PM Time In (Lunch In) -->
               <template #body-cell-pm_time_in="props">
-                <q-td :props="props" class="text-left font-mono">
+                <q-td
+                  :props="props"
+                  class="text-left font-mono cursor-pointer td-punch-cell"
+                  @click="openOverrideDialog(props.row, 'pm_arrival')"
+                >
                   <span v-if="props.row.pm_arrival" class="text-dark text-weight-medium">
                     {{ formatPunchTime(props.row.pm_arrival) }}
                   </span>
+                  <span v-else-if="getSlotOverrideText(props.row, 'pm_arrival')" class="text-weight-bold text-teal-8">
+                    {{ getSlotOverrideText(props.row, 'pm_arrival') }}
+                  </span>
                   <span v-else class="text-grey-4">—</span>
+                  <q-tooltip class="bg-dark text-white">Click to override PM In</q-tooltip>
                 </q-td>
               </template>
 
               <!-- PM Time Out (Afternoon Departure) -->
               <template #body-cell-pm_time_out="props">
-                <q-td :props="props" class="text-left font-mono">
+                <q-td
+                  :props="props"
+                  class="text-left font-mono cursor-pointer td-punch-cell"
+                  @click="openOverrideDialog(props.row, 'pm_departure')"
+                >
                   <div v-if="props.row.pm_departure" class="row items-center no-wrap q-gutter-x-xs">
                     <span :class="isRowUndertime(props.row) ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
                       {{ formatPunchTime(props.row.pm_departure) }}
@@ -475,7 +503,11 @@
                       <q-tooltip>Undertime: {{ props.row.undertime_minutes }} minute(s)</q-tooltip>
                     </q-badge>
                   </div>
+                  <span v-else-if="getSlotOverrideText(props.row, 'pm_departure')" class="text-weight-bold text-teal-8">
+                    {{ getSlotOverrideText(props.row, 'pm_departure') }}
+                  </span>
                   <span v-else class="text-grey-4">—</span>
+                  <q-tooltip class="bg-dark text-white">Click to override PM Out</q-tooltip>
                 </q-td>
               </template>
 
@@ -505,6 +537,9 @@
                     >
                       <q-icon :name="getStatusColor(props.row).icon" size="12px" class="q-mr-xs" />
                       {{ getStatusLabel(props.row) }}
+                      <q-tooltip v-if="props.row.leave_type_code" class="bg-dark text-white">
+                        Leave Type: {{ props.row.leave_type_code }}
+                      </q-tooltip>
                     </q-chip>
 
                     <!-- Adjusted Indicator Chip -->
@@ -669,6 +704,7 @@
       :employee-name="employeeName"
       :date="activeOverrideDate"
       :dtr="activeOverrideDtr"
+      :initial-slot="activeOverrideSlot"
       @saved="onOverrideSaved"
     />
 
@@ -958,6 +994,10 @@ function isWeekendDay(row) {
 
 function getStatusLabel(row) {
   if (row.status === 'ON_LEAVE') return 'On Leave'
+  if (row.status === 'ON_LEAVE_AM') return 'On Leave (AM)'
+  if (row.status === 'ON_LEAVE_PM') return 'On Leave (PM)'
+  if (row.status === 'O.F.') return 'On Field (O.F.)'
+  if (row.status === 'O.B.' || row.status === 'OFFICIAL_BUSINESS') return 'Official Business (O.B.)'
   if (row.status === 'PRESENT') return 'Present'
   if (row.status === 'ABSENT') return 'Absent'
   if (row.status === 'WEEKEND') return 'Weekend'
@@ -973,9 +1013,14 @@ function getStatusColor(row) {
   switch (label) {
     case 'Present':
       return { bg: 'green-1', text: 'green-9', icon: 'check_circle' }
+    case 'On Field (O.F.)':
+    case 'Official Business (O.B.)':
+      return { bg: 'teal-1', text: 'teal-9', icon: 'business_center' }
     case 'Absent':
       return { bg: 'red-1', text: 'red-9', icon: 'cancel' }
     case 'On Leave':
+    case 'On Leave (AM)':
+    case 'On Leave (PM)':
       return { bg: 'blue-1', text: 'blue-9', icon: 'event_note' }
     case 'Weekend':
     case 'Rest Day':
@@ -985,6 +1030,47 @@ function getStatusColor(row) {
     default:
       return { bg: 'grey-2', text: 'grey-8', icon: 'help_outline' }
   }
+}
+
+function getSlotOverrideText(row, slotKey) {
+  if (!row) return ''
+  if (row.adjusted_slots && typeof row.adjusted_slots === 'object' && !Array.isArray(row.adjusted_slots)) {
+    const val = row.adjusted_slots[slotKey]
+    if (typeof val === 'string' && val.trim() !== '' && val !== 'TIME') {
+      return val.trim()
+    }
+    return ''
+  }
+
+  const rawStatus = String(row.status || '').toUpperCase().trim()
+  const rawRemark = String(row.adjustment_remarks || '').toUpperCase().trim()
+
+  const isAdjustedSlot = Array.isArray(row.adjusted_slots) && row.adjusted_slots.includes(slotKey)
+
+  if (isAdjustedSlot) {
+    if (rawRemark === 'O.B.' || rawRemark === 'OFFICIAL BUSINESS' || rawStatus === 'OFFICIAL_BUSINESS' || rawStatus === 'O.B.') {
+      return 'O.B.'
+    }
+    if (rawRemark === 'O.F.' || rawRemark === 'ON FIELD' || rawStatus === 'O.F.') {
+      return 'O.F.'
+    }
+    if (rawRemark && rawRemark.length <= 6 && !rawRemark.includes(' ')) {
+      return rawRemark
+    }
+    return ''
+  }
+
+  // If whole-record status is O.B. or O.F. without any slot-level mapping
+  if (!row.adjusted_slots) {
+    if (rawStatus === 'OFFICIAL_BUSINESS' || rawStatus === 'O.B.' || rawRemark === 'O.B.' || rawRemark === 'OFFICIAL BUSINESS') {
+      return 'O.B.'
+    }
+    if (rawStatus === 'O.F.' || rawRemark === 'O.F.' || rawRemark === 'ON FIELD') {
+      return 'O.F.'
+    }
+  }
+
+  return ''
 }
 
 function formatPunchTime(timeStr) {
@@ -1024,9 +1110,12 @@ function goBack() {
   router.push('/admin/attendance')
 }
 
-function openOverrideDialog(row) {
+const activeOverrideSlot = ref('am_arrival')
+
+function openOverrideDialog(row, slotKey = 'am_arrival') {
   activeOverrideDate.value = row?.record_date || normalizedCustomRange.value.from
   activeOverrideDtr.value = row?.dtr || row
+  activeOverrideSlot.value = slotKey || 'am_arrival'
   showOverrideDialog.value = true
 }
 

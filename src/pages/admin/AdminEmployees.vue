@@ -1980,14 +1980,10 @@ async function saveEmployee() {
   try {
     const payload = buildEmployeePayload()
     const { data } = await api.post('/admin/employees', payload)
-    const caption = data?.biometric_transfer?.transferred
-      ? `Biometrics transferred to ${data.biometric_transfer.target_devices?.join(', ') || 'office terminal'} (deleted from CHRMO).`
-      : undefined
 
     $q.notify({
       type: 'positive',
-      message: data?.message || 'Employee added successfully.',
-      caption,
+      message: data?.message || 'Employee and biometrics successfully transferred to your office.',
       position: 'top',
       timeout: 4000,
     })
