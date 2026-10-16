@@ -114,3 +114,85 @@ export function isSangguniangPanlungsodMemberIApplicant(app) {
   return isSangguniangPanlungsodMemberApplicant(app)
 }
 
+export function getOfficeCandidates(app) {
+  return [
+    app?.office,
+    app?.office_name,
+    app?.officeName,
+    app?.assignedOffice,
+    app?.assigned_office,
+    app?.assigned_department_name,
+    app?.assignedDepartmentName,
+    app?.officeAcronym,
+    app?.office_acronym,
+    app?.assignedDepartmentAcronym,
+    app?.assigned_department_acronym,
+    app?.departmentOfficeAbbr,
+    app?.department_office_abbr,
+    app?.hrisOfficeAcronym,
+    app?.hris_office_acronym,
+    app?.department_name,
+    app?.department?.name,
+    app?.employee?.office,
+    app?.employee?.office_name,
+    app?.employee?.assignedOffice,
+    app?.employee?.assigned_office,
+    app?.employee?.assigned_department_name,
+    app?.employee?.officeAcronym,
+    app?.employee?.office_acronym,
+    app?.employee?.assignedDepartmentAcronym,
+    app?.employee?.assigned_department_acronym,
+    app?.employee?.departmentOfficeAbbr,
+    app?.employee?.department_office_abbr,
+    app?.employee?.hrisOfficeAcronym,
+    app?.employee?.hris_office_acronym,
+    app?.employee?.department_name,
+    app?.raw?.office,
+    app?.raw?.officeAcronym,
+    app?.raw?.office_acronym,
+    app?.raw?.assignedOffice,
+    app?.raw?.assigned_office,
+    app?.raw?.assignedDepartmentAcronym,
+    app?.raw?.assigned_department_acronym,
+  ]
+}
+
+export function isLegislativeOfficeApplicant(app) {
+  const isDesignationMatching = getDesignationCandidates(app).some((candidate) => {
+    const token = normalizeRoleToken(candidate)
+    return token.includes('SECRETARY TO THE SANGGUNIAN') || token.includes('SP SECRETARY')
+  })
+  if (isDesignationMatching) {
+    return true
+  }
+
+  return getOfficeCandidates(app).some((candidate) => {
+    const token = normalizeRoleToken(candidate)
+    if (!token) return false
+    return (
+      token === 'SP LEGISLATIVE' ||
+      token === 'SP LEG' ||
+      token === 'SP SECRETARIAT' ||
+      token === 'SP SEC' ||
+      token === 'CVMO' ||
+      token.includes('SANGGUNIANG PANLUNGSOD') ||
+      token.includes('SP SECRETARIAT') ||
+      token.includes('SP LEGISLATIVE') ||
+      token.includes('CITY VICE MAYOR')
+    )
+  })
+}
+
+export function isLegislativeDepartmentHeadApplicant(app) {
+  const isHead = Boolean(
+    app?.is_department_head ||
+      app?.isDepartmentHead ||
+      app?.employee?.is_department_head ||
+      app?.employee?.isDepartmentHead,
+  )
+  if (!isHead) return false
+
+  return isLegislativeOfficeApplicant(app)
+}
+
+

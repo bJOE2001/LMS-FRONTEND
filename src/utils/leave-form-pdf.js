@@ -12,12 +12,12 @@ import {
   getChrmoLeaveInChargeSignatory,
   getMayorSignature,
   getRecommendationSignatory,
-  isDepartmentHeadApplicant,
 } from './department-head-signature'
 import { mergeLocalLeaveApplicationDetails } from './leave-application-local-details'
 import { isAbroadLeaveApplication } from './leave-application-details'
 import {
   isCityViceMayorApplicant,
+  isLegislativeOfficeApplicant,
 } from './signatory-rules/applicant-role-utils'
 import { resolveRecommendationSignatoryByApplicantType } from './signatory-rules/recommendation-signatory'
 import { resolveSpMemberApprovedForSignatory } from './signatory-rules/sp-member-signatory'
@@ -1433,7 +1433,9 @@ function getOfficeDepartmentLayoutConfig(value) {
 
 const CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS = new Set([
   'SP LEGISLATIVE',
+  'SP LEG',
   'SP SECRETARIAT',
+  'SP SEC',
   'CVMO',
 ])
 
@@ -1448,29 +1450,60 @@ function resolveLeaveApplicantOfficeAcronym(app) {
   const candidates = [
     app?.officeAcronym,
     app?.office_acronym,
+    app?.assignedDepartmentAcronym,
+    app?.assigned_department_acronym,
+    app?.assignedOffice,
+    app?.assigned_office,
     app?.hrisOfficeAcronym,
     app?.hris_office_acronym,
     app?.departmentOfficeAbbr,
     app?.department_office_abbr,
+    app?.office,
+    app?.department_name,
     app?.employee?.officeAcronym,
     app?.employee?.office_acronym,
+    app?.employee?.assignedDepartmentAcronym,
+    app?.employee?.assigned_department_acronym,
+    app?.employee?.assignedOffice,
+    app?.employee?.assigned_office,
     app?.employee?.hrisOfficeAcronym,
     app?.employee?.hris_office_acronym,
     app?.employee?.departmentOfficeAbbr,
     app?.employee?.department_office_abbr,
+    app?.employee?.office,
+    app?.employee?.department_name,
     app?.raw?.officeAcronym,
     app?.raw?.office_acronym,
+    app?.raw?.assignedDepartmentAcronym,
+    app?.raw?.assigned_department_acronym,
+    app?.raw?.assignedOffice,
+    app?.raw?.assigned_office,
     app?.raw?.hrisOfficeAcronym,
     app?.raw?.hris_office_acronym,
     app?.raw?.departmentOfficeAbbr,
     app?.raw?.department_office_abbr,
+    app?.raw?.office,
     app?.raw?.employee?.officeAcronym,
     app?.raw?.employee?.office_acronym,
+    app?.raw?.employee?.assignedDepartmentAcronym,
+    app?.raw?.employee?.assigned_department_acronym,
+    app?.raw?.employee?.assignedOffice,
+    app?.raw?.employee?.assigned_office,
     app?.raw?.employee?.hrisOfficeAcronym,
     app?.raw?.employee?.hris_office_acronym,
     app?.raw?.employee?.departmentOfficeAbbr,
     app?.raw?.employee?.department_office_abbr,
+    app?.raw?.employee?.office,
   ]
+
+  for (const candidate of candidates) {
+    const normalizedOfficeAcronym = normalizeOfficeAcronymToken(candidate)
+    if (normalizedOfficeAcronym) {
+      if (CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS.has(normalizedOfficeAcronym)) {
+        return normalizedOfficeAcronym
+      }
+    }
+  }
 
   for (const candidate of candidates) {
     const normalizedOfficeAcronym = normalizeOfficeAcronymToken(candidate)
@@ -1483,6 +1516,9 @@ function resolveLeaveApplicantOfficeAcronym(app) {
 }
 
 function shouldUseCityViceMayorApprovedForSignatory(app) {
+  if (isLegislativeOfficeApplicant(app)) {
+    return true
+  }
   return CITY_VICE_MAYOR_APPROVED_FOR_OFFICE_ACRONYMS.has(resolveLeaveApplicantOfficeAcronym(app))
 }
 
@@ -2234,7 +2270,6 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const useCityViceMayorApprovedForSignatory = spMemberApprovedSignatory
     ? spMemberApprovedSignatory === cityViceMayorSignatory
     : shouldUseCityViceMayorApprovedForSignatory(app) &&
-      !isDepartmentHeadApplicant(app) &&
       !isCityViceMayorApplicant(app)
   const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
     app,
@@ -2727,8 +2762,9 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
           dontBreakRows: true,
           widths: ['50%', '50%'],
           body: [
+            // Row 0: Content (Credits table on left, Recommendation checkboxes on right)
             [
-              // ─── 7.A ───
+              // ─── 7.A Content ───
               {
                 stack: [
                   {
@@ -2743,6 +2779,29 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                     margin: [4, 1, 0, 3],
                   },
                   buildCertificationTable(certificationColumns),
+                ],
+                border: [true, false, true, false],
+              },
+
+              // ─── 7.B Content ───
+              {
+                stack: [
+                  { text: '7.B  RECOMMENDATION', bold: true, fontSize: 8, margin: [4, 3, 0, 3] },
+                  checkboxRow(isForApproval, 'For approval', { marginVertical: 2 }),
+                  { text: ' ', fontSize: 2 },
+                  checkboxRow(isForDisapproval, `For disapproval due to ${disapprovalReason}`, {
+                    marginVertical: 2,
+                  }),
+                ],
+                border: [false, false, true, false],
+              },
+            ],
+
+            // Row 1: Signatures (Locked to bottom on the exact same baseline)
+            [
+              // ─── 7.A Signatory ───
+              {
+                stack: [
                   { text: ' ', fontSize: 4 },
                   {
                     table: {
@@ -2781,17 +2840,10 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
                 border: [true, false, true, true],
               },
 
-              // ─── 7.B ───
+              // ─── 7.B Signatory ───
               {
                 stack: [
-                  { text: '7.B  RECOMMENDATION', bold: true, fontSize: 8, margin: [4, 3, 0, 3] },
-                  checkboxRow(isForApproval, 'For approval', { marginVertical: 2 }),
-                  { text: ' ', fontSize: 2 },
-                  checkboxRow(isForDisapproval, `For disapproval due to ${disapprovalReason}`, {
-                    marginVertical: 2,
-                  }),
-                  { text: ' ', fontSize: 7 },
-                  { text: ' ', fontSize: 7 },
+                  { text: ' ', fontSize: 4 },
                   {
                     table: {
                       widths: ['*'],
@@ -2832,7 +2884,7 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
           ],
         },
         layout: {
-          hLineWidth: () => b,
+          hLineWidth: (i, node) => (i === 0 || i === node.table.body.length ? b : 0),
           vLineWidth: () => b,
           hLineColor: () => '#000',
           vLineColor: () => '#000',

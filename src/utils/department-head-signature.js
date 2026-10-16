@@ -1,4 +1,5 @@
 import { api } from 'src/boot/axios'
+import { isLegislativeDepartmentHeadApplicant } from './signatory-rules/applicant-role-utils'
 
 function normalizeText(value) {
   return String(value || '').trim()
@@ -155,9 +156,12 @@ export function getChrmoLeaveInChargeSignatory(app) {
 }
 
 export function getRecommendationSignatory(app) {
-  return isDepartmentHeadApplicant(app)
-    ? getCityAdministratorSignature(app)
-    : getDepartmentHeadSignature(app)
+  if (isDepartmentHeadApplicant(app)) {
+    return isLegislativeDepartmentHeadApplicant(app)
+      ? getCityViceMayorSignature(app)
+      : getCityAdministratorSignature(app)
+  }
+  return getDepartmentHeadSignature(app)
 }
 
 export async function enrichAppWithDepartmentHead(app) {
