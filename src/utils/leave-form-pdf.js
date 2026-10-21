@@ -80,12 +80,22 @@ function toBase64(url) {
     )
 }
 
+let cachedLogoDataUrl = null
+
 async function resolveHeaderLogoDataUrl() {
+  if (cachedLogoDataUrl) {
+    return cachedLogoDataUrl
+  }
+
   const logoCandidates = ['/logo.png', '/images/CityOfTagumLogo.png']
 
   for (const logoUrl of logoCandidates) {
     try {
-      return await toBase64(logoUrl)
+      const dataUrl = await toBase64(logoUrl)
+      if (dataUrl) {
+        cachedLogoDataUrl = dataUrl
+        return dataUrl
+      }
     } catch {
       // Try next available candidate.
     }
@@ -2133,6 +2143,49 @@ function openPdfDocument(pdfDocument, options = {}) {
   })
 }
 
+export async function resolveDefaultRecommendationSignatory(sourceApp) {
+  if (!sourceApp) {
+    return { fullName: '', designation: '' }
+  }
+
+  const app = await enrichAppWithDepartmentHead(mergeLocalLeaveApplicationDetails(sourceApp))
+  const baseRecommendationSignatory = getRecommendationSignatory(app)
+  const cityViceMayorSignatory = getCityViceMayorSignature(app)
+  const mayorSignatory = getMayorSignature(app)
+
+  const resolvedLeaveType = resolvePrintableLeaveType(app)
+  const lt = resolvedLeaveType.toLowerCase()
+  const isVacation = lt.includes('vacation')
+  const isWellness = lt.includes('wellness')
+  const isSpecPriv = lt.includes('special privilege')
+
+  const leaveDetails = resolveConfirmedLeaveDetails(app)
+  const vacationDetail = resolveVacationDetailValue(leaveDetails.vacation_detail)
+  const normalizedVacationDetail = normalizeVacationDetailValue(vacationDetail)
+
+  const showWithinPhilippines =
+    ((isVacation || isWellness) && normalizedVacationDetail === 'Within the Philippines') || isSpecPriv
+  const showAbroad = (isVacation || isWellness) && normalizedVacationDetail === 'Abroad'
+  const isAbroad = Boolean(showAbroad || isAbroadLeaveApplication(app))
+
+  const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
+    app,
+    isAbroad,
+    isWithinPhilippines: showWithinPhilippines,
+    mayorSignatory,
+    cityViceMayorSignatory,
+    baseRecommendationSignatory,
+  })
+
+  const fullName = formatSignatoryNameWithMiddleInitial(recommendationSignatory?.fullName || '')
+  const designation = recommendationSignatory?.designation || 'Authorized Official'
+
+  return {
+    fullName,
+    designation,
+  }
+}
+
 // ─── main builder ──────────────────────────────────────────────────────────
 export async function generateLeaveFormPdf(sourceApp, options = {}) {
   const app = await enrichAppWithDepartmentHead(mergeLocalLeaveApplicationDetails(sourceApp))
@@ -2271,7 +2324,17 @@ export async function generateLeaveFormPdf(sourceApp, options = {}) {
     ? spMemberApprovedSignatory === cityViceMayorSignatory
     : shouldUseCityViceMayorApprovedForSignatory(app) &&
       !isCityViceMayorApplicant(app)
-  const recommendationSignatory = resolveRecommendationSignatoryByApplicantType({
+  const signatoryOverride =
+    options?.recommendationSignatoryOverride ||
+    app?.recommendationSignatoryOverride ||
+    null
+
+  const recommendationSignatory = signatoryOverride?.fullName
+    ? {
+        fullName: signatoryOverride.fullName,
+        designation: signatoryOverride.designation || 'Authorized Official',
+      }
+    : resolveRecommendationSignatoryByApplicantType({
     app,
     isAbroad,
     isWithinPhilippines: showWithinPhilippines,

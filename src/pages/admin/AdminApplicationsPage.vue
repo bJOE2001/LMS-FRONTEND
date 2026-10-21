@@ -305,6 +305,12 @@
       @print="(dateRange) => printApplicationsPdf(dateRange, getFinalStatusForStatusColumn)"
     />
 
+    <PrintLeaveApplicationSignatoryDialog
+      v-model="showSignatoryPrintDialog"
+      :application="applicationForSignatoryPrint"
+      @confirm="handleConfirmSignatoryPrint"
+    />
+
     <q-dialog
       v-model="showDetailsDialog"
       persistent
@@ -920,6 +926,7 @@ import AdminApplicationActionResultDialog from 'src/components/admin/AdminApplic
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 import AdminApplicationRecallRequestDialog from 'src/components/admin/AdminApplicationRecallRequestDialog.vue'
 import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
+import PrintLeaveApplicationSignatoryDialog from 'src/components/admin/PrintLeaveApplicationSignatoryDialog.vue'
 import { api } from 'src/boot/axios'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
 import { computed, onMounted, ref } from 'vue'
@@ -1032,6 +1039,9 @@ const {
   canPrintApplication,
   canPrintRecallRequestApplication,
   canRequestRecallApplication,
+  showSignatoryPrintDialog,
+  applicationForSignatoryPrint,
+  handleConfirmSignatoryPrint,
   printApplication,
   printRecallRequestApplication,
   isCocApplication,

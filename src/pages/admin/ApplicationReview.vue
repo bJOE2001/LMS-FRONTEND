@@ -72,6 +72,12 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <PrintLeaveApplicationSignatoryDialog
+      v-model="showSignatoryPrintDialog"
+      :application="application"
+      @confirm="handleConfirmSignatoryPrint"
+    />
   </q-page>
 </template>
 
@@ -81,6 +87,7 @@ import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useLeaveStore } from 'stores/leave-store'
 import StatusBadge from 'components/StatusBadge.vue'
+import PrintLeaveApplicationSignatoryDialog from 'src/components/admin/PrintLeaveApplicationSignatoryDialog.vue'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
 import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
 import { api } from 'src/boot/axios'
@@ -139,13 +146,26 @@ function handleDisapprove() {
   leaveStore.updateApplicationStatus(application.value.id, 'Disapproved', remarks.value)
   router.push('/admin/dashboard')
 }
-async function printApplication() {
+const showSignatoryPrintDialog = ref(false)
+
+async function handleConfirmSignatoryPrint({ targetWindow, override }) {
+  showSignatoryPrintDialog.value = false
+  await printApplication({ targetWindow, override })
+}
+
+async function printApplication(options = {}) {
   if (!application.value) return
   const cocApplication = isCocApplicationRecord(application.value)
   const cocPrintBlockedMessage =
     'COC form can be printed only after HR review and Regular/Special classification.'
-  const pdfWindow = window.open('', '_blank')
-  if (pdfWindow) {
+
+  if (!cocApplication && !options.skipDialog && !options.targetWindow) {
+    showSignatoryPrintDialog.value = true
+    return
+  }
+
+  const pdfWindow = options.targetWindow || window.open('', '_blank')
+  if (pdfWindow && !options.targetWindow) {
     try {
       pdfWindow.document.title = 'Preparing PDF...'
       pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
@@ -189,7 +209,10 @@ async function printApplication() {
       return
     }
 
-    await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
+    await generateLeaveFormPdf(printableApplication, {
+      targetWindow: pdfWindow,
+      recommendationSignatoryOverride: options.override || undefined,
+    })
   } catch (error) {
     if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
     if (cocApplication) {

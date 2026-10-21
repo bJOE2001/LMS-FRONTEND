@@ -371,6 +371,13 @@
                       <td class="ledger-table__cell--action">
                         <div class="row items-center justify-center no-wrap">
                           <span style="white-space: pre-line">{{ entry.actionTaken }}</span>
+                        </div>
+                        <div
+                          v-if="(entry.isEditableAccrual && canEditAccrual) ||
+                                (isLateDeductionEntry(entry) && (canEditLateDeduction || canDeleteLateDeduction)) ||
+                                (isRestorationEntry(entry) && (canEditRestoration || canDeleteRestoration))"
+                          class="ledger-row-actions-floating no-print"
+                        >
                           <q-btn
                             v-if="entry.isEditableAccrual && canEditAccrual"
                             icon="edit"
@@ -378,9 +385,10 @@
                             color="primary"
                             flat
                             dense
-                            class="q-ml-xs"
+                            round
+                            class="q-pa-none"
                             title="Edit this accrual"
-                            @click="emit('edit-accrual', entry)"
+                            @click.stop="emit('edit-accrual', entry)"
                           />
                           <q-btn
                             v-if="isLateDeductionEntry(entry) && canEditLateDeduction"
@@ -389,9 +397,35 @@
                             color="negative"
                             flat
                             dense
-                            class="q-ml-xs"
+                            round
+                            class="q-pa-none"
                             title="Edit this late deduction"
-                            @click="openEditLateDeduction(entry)"
+                            @click.stop="openEditLateDeduction(entry)"
+                          />
+                          <q-btn
+                            v-if="isLateDeductionEntry(entry) && canDeleteLateDeduction"
+                            icon="delete"
+                            size="xs"
+                            color="negative"
+                            flat
+                            dense
+                            round
+                            class="q-pa-none"
+                            title="Delete this late deduction"
+                            :loading="deletingLateDeduction"
+                            @click.stop="confirmDeleteLateDeduction(entry)"
+                          />
+                          <q-btn
+                            v-if="isRestorationEntry(entry) && canEditRestoration"
+                            icon="edit"
+                            size="xs"
+                            color="primary"
+                            flat
+                            dense
+                            round
+                            class="q-pa-none"
+                            title="Edit this restoration"
+                            @click.stop="openEditRestoration(entry)"
                           />
                           <q-btn
                             v-if="isRestorationEntry(entry) && canDeleteRestoration"
@@ -400,10 +434,11 @@
                             color="negative"
                             flat
                             dense
-                            class="q-ml-xs"
+                            round
+                            class="q-pa-none"
                             title="Delete this restoration"
                             :loading="deletingRestoration"
-                            @click="confirmDeleteRestoration(entry)"
+                            @click.stop="confirmDeleteRestoration(entry)"
                           />
                         </div>
                       </td>
@@ -437,7 +472,7 @@
             icon="settings_backup_restore"
             :disable="loading"
             class="text-weight-bold"
-            @click="showRestoreDialog = true"
+            @click="openCreateRestoration"
           />
           <q-btn
             unelevated
@@ -457,7 +492,9 @@
     <HrLeaveRestorationDialog
       v-model="showRestoreDialog"
       :employee="employee"
+      :restoration="editingRestoration"
       @restored="handleRestored"
+      @updated="handleRestored"
     />
 
     <HrLateDeductionDialog
@@ -486,6 +523,11 @@ const canDeleteRestoration = computed(() => {
   const access = authStore.user?.hr_module_access || []
   return access.includes('ledger_restore_delete')
 })
+const canEditRestoration = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_restore_edit') || access.includes('ledger_restore_delete')
+})
 const canEditAccrual = computed(() => {
   if (isHrAdmin.value) return true
   const access = authStore.user?.hr_module_access || []
@@ -496,10 +538,17 @@ const canEditLateDeduction = computed(() => {
   const access = authStore.user?.hr_module_access || []
   return access.includes('ledger_late_deduction_edit')
 })
+const canDeleteLateDeduction = computed(() => {
+  if (isHrAdmin.value) return true
+  const access = authStore.user?.hr_module_access || []
+  return access.includes('ledger_late_deduction_delete') || access.includes('ledger_late_deduction_edit')
+})
 const showRestoreDialog = ref(false)
+const editingRestoration = ref(null)
 const showLateDeductionDialog = ref(false)
 const editingLateDeduction = ref(null)
 const deletingRestoration = ref(false)
+const deletingLateDeduction = ref(false)
 const isMaximized = ref(false)
 const zoomLevel = ref(100)
 const activePageIndex = ref(0)
@@ -679,6 +728,16 @@ function openCreateLateDeduction() {
   showLateDeductionDialog.value = true
 }
 
+function openEditRestoration(entry) {
+  editingRestoration.value = entry
+  showRestoreDialog.value = true
+}
+
+function openCreateRestoration() {
+  editingRestoration.value = null
+  showRestoreDialog.value = true
+}
+
 function isLateDeductionEntry(entry) {
   if (!entry) return false
   if (entry.isLateDeduction) return true
@@ -689,6 +748,23 @@ function isLateDeductionEntry(entry) {
   if (actionTaken.includes('late deduction')) return true
   const particulars = String(entry.particulars || '').toLowerCase()
   return particulars.startsWith('late ') || particulars.includes('late deduction')
+}
+
+function getLateDeductionId(entry) {
+  if (!entry) return null
+  if (entry.late_deduction_id) return entry.late_deduction_id
+  if (entry.lateDeductionId) return entry.lateDeductionId
+  if (entry.rawEntry?.late_deduction_id) return entry.rawEntry.late_deduction_id
+  const rowId = String(entry.id || entry.row_id || entry.merge_key || '').trim()
+  if (rowId.startsWith('late-deduction-')) {
+    const id = parseInt(rowId.replace('late-deduction-', ''), 10)
+    if (!Number.isNaN(id) && id > 0) return id
+  }
+  if (/^\d+$/.test(rowId) && isLateDeductionEntry(entry)) {
+    const id = parseInt(rowId, 10)
+    if (!Number.isNaN(id) && id > 0) return id
+  }
+  return null
 }
 
 const controlNo = computed(() => {
@@ -805,6 +881,95 @@ function confirmDeleteRestoration(entry) {
       })
     } finally {
       deletingRestoration.value = false
+    }
+  })
+}
+
+function confirmDeleteLateDeduction(entry) {
+  const rawDeductionId = getLateDeductionId(entry)
+  if (!rawDeductionId) {
+    $q.notify({
+      type: 'negative',
+      message: 'Unable to identify late deduction record ID to delete.',
+      position: 'top',
+    })
+    return
+  }
+
+  const employeeCtrlNo = controlNo.value
+  if (!employeeCtrlNo) {
+    $q.notify({
+      type: 'warning',
+      message: 'No employee control number found.',
+      position: 'top',
+    })
+    return
+  }
+
+  const cleanId = String(rawDeductionId).replace('late-deduction-', '').trim()
+
+  const deductedDaysDisplay =
+    entry.vacationDeduction ||
+    entry.sickDeduction ||
+    entry.otherDeduction ||
+    entry.deducted_days ||
+    entry.amount ||
+    'N/A'
+  const particularsDisplay = entry.particulars || 'N/A'
+  const periodDisplay = entry.period || entry.actionTaken || entry.action_taken || 'N/A'
+  const leaveTypeDisplay = entry.target_leave || entry.leave_type_code || entry.leaveTypeCode || 'Leave Credits'
+
+  $q.dialog({
+    title: 'Delete Late Deduction Entry',
+    message: `<div style="font-size: 0.95rem; line-height: 1.6;">
+      <p style="margin-bottom: 8px; font-weight: 500; color: #b91c1c;">
+        Are you sure you want to delete this late deduction entry?
+      </p>
+      <p style="margin-bottom: 12px; font-size: 0.85rem; color: #4b5563;">
+        Deleting this entry will remove it from the ledger and credit back (+days) the previously deducted leave credits to the employee's balance.
+      </p>
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px;">
+        <div style="margin-bottom: 4px;"><strong>Target Leave Type:</strong> ${leaveTypeDisplay}</div>
+        <div style="margin-bottom: 4px;"><strong>Particulars:</strong> ${particularsDisplay}</div>
+        <div style="margin-bottom: 4px;"><strong>Date / Period:</strong> ${periodDisplay}</div>
+        <div><strong>Credits to Refund:</strong> <span style="color: #15803d; font-weight: 700;">+${deductedDaysDisplay}</span></div>
+      </div>
+    </div>`,
+    html: true,
+    cancel: {
+      flat: true,
+      label: 'Cancel',
+      color: 'grey-8',
+    },
+    ok: {
+      unelevated: true,
+      label: 'Confirm Delete',
+      color: 'negative',
+      icon: 'delete',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    deletingLateDeduction.value = true
+    try {
+      const res = await api.post(
+        `/hr/employees/${employeeCtrlNo}/late-deductions/${cleanId}/delete`,
+      )
+      $q.notify({
+        type: 'positive',
+        message: res.data?.message || 'Late deduction entry deleted successfully.',
+        position: 'top',
+      })
+      emit('restored')
+    } catch (err) {
+      const message =
+        err.response?.data?.message || 'Failed to delete late deduction entry.'
+      $q.notify({
+        type: 'negative',
+        message,
+        position: 'top',
+      })
+    } finally {
+      deletingLateDeduction.value = false
     }
   })
 }
@@ -995,7 +1160,7 @@ function resolveBadgeColorClass(code) {
 .ledger-sheet {
   margin: 0 auto;
   border: 1px solid #000000;
-  overflow: hidden;
+  overflow: visible;
   background: #ffffff;
   box-shadow:
     0 10px 25px -5px rgba(0, 0, 0, 0.15),
@@ -1224,8 +1389,35 @@ function resolveBadgeColorClass(code) {
 }
 
 .ledger-table__cell--action {
+  position: relative;
   white-space: pre-line;
   font-weight: 600;
+}
+
+.ledger-row-actions-floating {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  z-index: 25;
+  white-space: nowrap;
+}
+
+@media print {
+  .ledger-sheet {
+    overflow: hidden !important;
+  }
+  .ledger-row-actions-floating {
+    display: none !important;
+  }
 }
 
 .border-top {
