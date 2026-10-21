@@ -1018,12 +1018,6 @@ function getLeaveBalanceTypeKey(value) {
 
 const FORCED_LEAVE_TYPE_KEY = getLeaveBalanceTypeKey('Mandatory / Forced Leave')
 const VACATION_LEAVE_TYPE_KEY = getLeaveBalanceTypeKey('Vacation Leave')
-const VACATION_BACKED_LEAVE_TYPE_KEYS = [
-  'Special Privilege Leave',
-  'Wellness Leave',
-  'Solo Parent Leave',
-  'Special Emergency (Calamity) Leave',
-].map((leaveTypeName) => getLeaveBalanceTypeKey(leaveTypeName))
 
 function getLeaveTypeBalanceValue(leaveType) {
   const numericValue = Number(
@@ -1041,10 +1035,6 @@ function shouldShowLeaveTypeOption(leaveType) {
 
   const balanceValue = getLeaveTypeBalanceValue(leaveType)
   return balanceValue === null || balanceValue > 0
-}
-
-function isVacationBackedLeaveTypeKey(leaveTypeKey) {
-  return VACATION_BACKED_LEAVE_TYPE_KEYS.includes(getLeaveBalanceTypeKey(leaveTypeKey))
 }
 
 function addLeaveBalanceEntry(entries, seen, label, value) {
@@ -1692,12 +1682,6 @@ const availableSelectedLeaveBalance = computed(() => {
     if (selectedAvailableBalance <= 0 || vacationAvailableBalance <= 0) return 0
 
     return Math.max(0, vacationAvailableBalance)
-  }
-
-  if (isVacationBackedLeaveTypeKey(leaveTypeKey)) {
-    const vacationAvailableBalance = resolveAvailableLeaveBalanceForTypeKey(VACATION_LEAVE_TYPE_KEY) ?? 0
-
-    return Math.max(0, selectedAvailableBalance + vacationAvailableBalance)
   }
 
   return selectedAvailableBalance
@@ -2763,54 +2747,6 @@ function canUseSlVlCrossDeductionForTotal(payStatuses = selectedDatePayStatuses.
   return alternateDeductionDays <= context.alternateAvailableBalance + 1e-9
 }
 
-async function confirmSlVlCrossDeductionForTotal(payStatuses = selectedDatePayStatuses.value) {
-  const context = slVlCrossDeductionContext.value
-  const alternateDeductionDays = resolveSlVlCrossDeductionAlternateDays(payStatuses)
-  if (!context || !Number.isFinite(alternateDeductionDays) || alternateDeductionDays <= 1e-9) {
-    return false
-  }
-
-  const message = `${formatDayCountValue(alternateDeductionDays)} day(s) will be deducted from ${context.alternateLeaveTypeLabel} to keep this leave with pay. Continue?`
-  if (typeof $q?.dialog === 'function') {
-    return await new Promise((resolve) => {
-      let settled = false
-
-      const finish = (value) => {
-        if (settled) {
-          return
-        }
-
-        settled = true
-        resolve(value)
-      }
-
-      $q.dialog({
-        title: 'Keep This Leave With Pay?',
-        message,
-        persistent: true,
-        ok: {
-          label: 'Continue',
-          color: 'primary',
-          unelevated: true,
-        },
-        cancel: {
-          label: 'Cancel',
-          flat: true,
-          color: 'primary',
-        },
-      })
-        .onOk(() => finish(true))
-        .onCancel(() => finish(false))
-        .onDismiss(() => finish(false))
-    })
-  }
-
-  if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
-    return false
-  }
-
-  return window.confirm(message)
-}
 
 async function confirmSetDateToWithoutPay() {
   const message = 'This date will be marked as without pay. Do you want to continue?'
@@ -2914,13 +2850,6 @@ function enforceCreditBasedPayStatusLimit() {
   let currentWithPayDays = getSelectedDateCreditTotalForDates(sortedDates)
   if (currentWithPayDays <= withPayCap + 1e-9) {
     allowSlVlCrossDeduction.value = false
-    return
-  }
-
-  if (
-    allowSlVlCrossDeduction.value
-    && canUseSlVlCrossDeductionForTotal()
-  ) {
     return
   }
 
@@ -3132,19 +3061,9 @@ async function toggleSelectedDatePayStatus(date) {
     const withPayCap = resolveCreditBasedWithPayCap()
 
     if (Number.isFinite(withPayCap) && projectedWithPayDays > withPayCap + 1e-9) {
-      if (
-        canUseSlVlCrossDeductionForTotal(projectedPayStatuses)
-        && await confirmSlVlCrossDeductionForTotal(projectedPayStatuses)
-      ) {
-        allowSlVlCrossDeduction.value = true
-        selectedDatePayStatuses.value[date] = 'with_pay'
-        enforceCreditBasedPayStatusLimit()
-        return
-      }
-
       $q.notify({
         type: 'warning',
-        message: 'Not enough leave credits. Set another selected day to WOP first.',
+        message: 'Not enough leave credits. Excess days must be filed as Without Pay (WOP). HR can review and cross-deduct during processing.',
       })
       return
     }

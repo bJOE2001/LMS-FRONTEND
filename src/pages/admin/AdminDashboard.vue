@@ -553,6 +553,12 @@
       @print="printApplicationsPdf"
     />
 
+    <PrintLeaveApplicationSignatoryDialog
+      v-model="showSignatoryPrintDialog"
+      :application="applicationForSignatoryPrint"
+      @confirm="handleConfirmSignatoryPrint"
+    />
+
     <q-dialog v-model="showDetailsDialog" persistent position="standard">
       <q-card
         v-if="selectedApp"
@@ -878,6 +884,7 @@ import { useNotificationStore } from 'stores/notification-store'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
+import PrintLeaveApplicationSignatoryDialog from 'src/components/admin/PrintLeaveApplicationSignatoryDialog.vue'
 import { formatDisplayRemarks, getTimelineEntryRemarks } from 'src/utils/application-timeline'
 
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
@@ -3396,13 +3403,33 @@ function confirmPendingAction() {
   openDisapprove(target, type === 'cancel' ? 'cancel' : 'disapprove')
 }
 
-async function printApplication(app) {
+const showSignatoryPrintDialog = ref(false)
+const applicationForSignatoryPrint = ref(null)
+
+async function handleConfirmSignatoryPrint({ targetWindow, override, application }) {
+  showSignatoryPrintDialog.value = false
+  const appToPrint = application || applicationForSignatoryPrint.value
+  if (!appToPrint) {
+    if (targetWindow && !targetWindow.closed) targetWindow.close()
+    return
+  }
+  await printApplication(appToPrint, { targetWindow, override })
+}
+
+async function printApplication(app, printOptions = {}) {
   if (!canPrintApplication(app)) return
   const cocApplication = isCocApplication(app)
   const cocPrintBlockedMessage =
     'COC form can be printed only after HR review and Regular/Special classification.'
-  const pdfWindow = window.open('', '_blank')
-  if (pdfWindow) {
+
+  if (!cocApplication && !printOptions.skipDialog && !printOptions.targetWindow) {
+    applicationForSignatoryPrint.value = app
+    showSignatoryPrintDialog.value = true
+    return
+  }
+
+  const pdfWindow = printOptions.targetWindow || window.open('', '_blank')
+  if (pdfWindow && !printOptions.targetWindow) {
     try {
       pdfWindow.document.title = 'Preparing PDF...'
       pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
@@ -3415,56 +3442,25 @@ async function printApplication(app) {
   ).trim()
 
   try {
-    const [dashboardResponse, applicationResponse] = await Promise.all([
-      api.get('/admin/dashboard'),
-      targetApplicationId !== ''
-        ? api
-            .get(
-              cocApplication
-                ? `/admin/coc-applications/${targetApplicationId}`
-                : `/admin/leave-applications/${targetApplicationId}`,
-            )
-            .catch(() => null)
-        : Promise.resolve(null),
-    ])
-    const data = dashboardResponse?.data
-    const updatedApplications = mergeApplications(extractApplicationsFromPayload(data))
-    const apiRejectedCount = Number(data?.rejected_count)
-    const rejectedCount = Number.isFinite(apiRejectedCount)
-      ? apiRejectedCount
-      : countRejectedApplications(updatedApplications)
+    let printableApplication = app
 
-    dashboardData.value = {
-      pending_count: Number(data?.pending_count || 0),
-      approved_today: Number(data?.approved_today || 0),
-      total_approved: Number(data?.total_approved || 0),
-      rejected_count: rejectedCount,
-      total_count: Number(data?.total_count || 0),
-      analytics:
-        data?.analytics && typeof data.analytics === 'object'
-          ? normalizeDashboardAnalytics(data.analytics)
-          : null,
-      kpi_breakdown: data?.kpi_breakdown ?? {
-        pending: emptyEmploymentBreakdown(),
-        approved_today: emptyEmploymentBreakdown(),
-        total_approved: emptyEmploymentBreakdown(),
-        total: emptyEmploymentBreakdown(),
-      },
-    }
+    if (targetApplicationId !== '') {
+      try {
+        const applicationResponse = await api.get(
+          cocApplication
+            ? `/admin/coc-applications/${targetApplicationId}`
+            : `/admin/leave-applications/${targetApplicationId}`,
+        )
+        const detailedApplication = extractSingleApplicationFromPayload(applicationResponse?.data)
 
-    const updated = updatedApplications.find(
-      (item) => String(item?.id ?? '') === String(app?.id ?? ''),
-    )
-    let printableApplication = updated || app
-
-    if (targetApplicationId !== '' && applicationResponse?.data) {
-      const detailedApplication = extractSingleApplicationFromPayload(applicationResponse.data)
-
-      if (detailedApplication && typeof detailedApplication === 'object') {
-        printableApplication = {
-          ...printableApplication,
-          ...detailedApplication,
+        if (detailedApplication && typeof detailedApplication === 'object') {
+          printableApplication = {
+            ...printableApplication,
+            ...detailedApplication,
+          }
         }
+      } catch {
+        // Ignore detail endpoint failures and print with the best available data.
       }
     }
 
@@ -3479,7 +3475,10 @@ async function printApplication(app) {
       return
     }
 
-    await generateLeaveFormPdf(printableApplication, { targetWindow: pdfWindow })
+    await generateLeaveFormPdf(printableApplication, {
+      targetWindow: pdfWindow,
+      recommendationSignatoryOverride: printOptions.override || undefined,
+    })
   } catch (error) {
     if (cocApplication) {
       if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
@@ -3491,7 +3490,10 @@ async function printApplication(app) {
     }
 
     try {
-      await generateLeaveFormPdf(app, { targetWindow: pdfWindow })
+      await generateLeaveFormPdf(app, {
+        targetWindow: pdfWindow,
+        recommendationSignatoryOverride: printOptions.override || undefined,
+      })
     } catch (fallbackError) {
       if (pdfWindow && !pdfWindow.closed) pdfWindow.close()
       throw fallbackError

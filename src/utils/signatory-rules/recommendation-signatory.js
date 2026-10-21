@@ -34,6 +34,7 @@ export function resolveRecommendationSignatoryByApplicantType({
       app,
       isAbroad,
       mayorSignatory,
+      cityViceMayorSignatory,
       baseRecommendationSignatory,
     })
 
@@ -50,6 +51,7 @@ export function resolveRecommendationSignatoryByApplicantType({
     app,
     isAbroad,
     mayorSignatory,
+    cityViceMayorSignatory,
     baseRecommendationSignatory,
   })
   if (departmentHeadRecommendation) {

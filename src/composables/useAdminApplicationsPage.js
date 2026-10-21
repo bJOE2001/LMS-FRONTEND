@@ -6815,13 +6815,32 @@ export function useAdminApplicationsPage() {
     openDisapprove(target, type === 'cancel' ? 'cancel' : 'disapprove')
   }
 
-  async function printApplication(app) {
+  const showSignatoryPrintDialog = ref(false)
+  const applicationForSignatoryPrint = ref(null)
+
+  async function handleConfirmSignatoryPrint({ targetWindow, override, application }) {
+    showSignatoryPrintDialog.value = false
+    const appToPrint = application || applicationForSignatoryPrint.value
+    if (!appToPrint) {
+      if (targetWindow && !targetWindow.closed) targetWindow.close()
+      return
+    }
+    await printApplication(appToPrint, { targetWindow, override })
+  }
+
+  async function printApplication(app, printOptions = {}) {
     if (!canPrintApplication(app)) return
     const cocApplication = isCocApplication(app)
     const cocPrintBlockedMessage =
       'COC form can be printed only after HR review and Regular/Special classification.'
-    const pdfWindow = window.open('', '_blank')
-    if (pdfWindow) {
+
+    if (!cocApplication && !printOptions.skipDialog && !printOptions.targetWindow) {
+      applicationForSignatoryPrint.value = app
+      showSignatoryPrintDialog.value = true
+      return
+    }
+    const pdfWindow = printOptions.targetWindow || window.open('', '_blank')
+    if (pdfWindow && !printOptions.targetWindow) {
       try {
         pdfWindow.document.title = 'Preparing PDF...'
         pdfWindow.document.body.innerHTML =
@@ -6840,38 +6859,32 @@ export function useAdminApplicationsPage() {
         return
       }
 
-      await generateLeaveFormPdf(application, { targetWindow: pdfWindow })
+      await generateLeaveFormPdf(application, {
+        targetWindow: pdfWindow,
+        recommendationSignatoryOverride: printOptions.override || undefined,
+      })
     }
 
     try {
-      const [dashboardResponse, leaveApplicationsResponse] = await Promise.all([
-        api.get('/admin/dashboard'),
-        cocApplication
-          ? Promise.resolve(null)
-          : targetApplicationId !== ''
-            ? api.get(`/admin/leave-applications/${targetApplicationId}`).catch(() => null)
-            : Promise.resolve(null),
-      ])
+      let printableApplication = app
 
-      const dashboardPayload = dashboardResponse?.data
-      const updatedApplications = mergeApplications(
-        extractApplicationsFromPayload(dashboardPayload),
-      )
-      const updated = updatedApplications.find(
-        (item) => getApplicationRowKey(item) === getApplicationRowKey(app),
-      )
-      let printableApplication = updated || app
+      if (!cocApplication && targetApplicationId !== '') {
+        try {
+          const leaveApplicationsResponse = await api.get(
+            `/admin/leave-applications/${targetApplicationId}`,
+          )
+          const detailedLeaveApplication = extractSingleApplicationFromPayload(
+            leaveApplicationsResponse?.data,
+          )
 
-      if (!cocApplication && targetApplicationId !== '' && leaveApplicationsResponse?.data) {
-        const detailedLeaveApplication = extractSingleApplicationFromPayload(
-          leaveApplicationsResponse.data,
-        )
-
-        if (detailedLeaveApplication && typeof detailedLeaveApplication === 'object') {
-          printableApplication = {
-            ...printableApplication,
-            ...detailedLeaveApplication,
+          if (detailedLeaveApplication && typeof detailedLeaveApplication === 'object') {
+            printableApplication = {
+              ...printableApplication,
+              ...detailedLeaveApplication,
+            }
           }
+        } catch {
+          // Ignore detail endpoint failures and print with the best available data.
         }
       }
 
@@ -7330,6 +7343,9 @@ export function useAdminApplicationsPage() {
     isCocApplication,
     canPrintApplication,
     canPrintRecallRequestApplication,
+    showSignatoryPrintDialog,
+    applicationForSignatoryPrint,
+    handleConfirmSignatoryPrint,
     printApplication,
     printRecallRequestApplication,
     hasMobileApplicationActions,

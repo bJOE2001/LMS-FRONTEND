@@ -3,8 +3,8 @@
     <q-card style="width: 540px; max-width: 95vw" class="rounded-borders">
       <q-card-section class="bg-primary text-white row items-center justify-between q-py-sm">
         <div class="row items-center text-subtitle1 text-weight-bold">
-          <q-icon name="settings_backup_restore" class="q-mr-sm" size="sm" />
-          Restore/Cancel/Recall Leave
+          <q-icon :name="isEditMode ? 'edit' : 'settings_backup_restore'" class="q-mr-sm" size="sm" />
+          {{ isEditMode ? 'Edit Restored Leave Entry' : 'Restore/Cancel/Recall Leave' }}
         </div>
         <q-btn icon="close" flat round dense v-close-popup />
       </q-card-section>
@@ -98,8 +98,8 @@
           <q-btn
             type="submit"
             color="primary"
-            icon="settings_backup_restore"
-            label="Submit"
+            :icon="isEditMode ? 'save' : 'settings_backup_restore'"
+            :label="isEditMode ? 'Save Changes' : 'Submit'"
             :loading="submitting"
           />
         </q-card-actions>
@@ -124,9 +124,13 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  restoration: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['update:modelValue', 'restored'])
+const emit = defineEmits(['update:modelValue', 'restored', 'updated'])
 
 const dialogModel = computed({
   get: () => props.modelValue,
@@ -140,6 +144,22 @@ const rawSelectedDates = ref(null)
 const controlNo = computed(() => {
   if (!props.employee) return ''
   return props.employee.control_no || props.employee.controlNo || ''
+})
+
+const restorationId = computed(() => {
+  if (!props.restoration) return null
+  return (
+    props.restoration.restoration_id ||
+    props.restoration.restorationId ||
+    props.restoration.id ||
+    null
+  )
+})
+
+const isEditMode = computed(() => {
+  if (!restorationId.value) return false
+  const clean = String(restorationId.value).replace('restoration-', '').trim()
+  return !Number.isNaN(parseInt(clean, 10)) && parseInt(clean, 10) > 0
 })
 
 const DEFAULT_LEAVE_TYPES = [
@@ -351,11 +371,54 @@ function resetForm() {
   form.restored_days = null
 }
 
+function populateForm() {
+  if (isEditMode.value && props.restoration) {
+    const r = props.restoration
+    form.target_leave_type_id = r.target_leave_type_id || r.targetLeaveTypeId || 2
+    form.particulars = r.particulars || ''
+
+    if (Array.isArray(r.selected_dates) && r.selected_dates.length) {
+      rawSelectedDates.value = r.selected_dates.length === 1 ? r.selected_dates[0] : [...r.selected_dates]
+    } else if (Array.isArray(r.inclusive_dates) && r.inclusive_dates.length) {
+      rawSelectedDates.value = r.inclusive_dates.length === 1 ? r.inclusive_dates[0] : [...r.inclusive_dates]
+    } else if (r.inclusive_start_date || r.start_date) {
+      const s = r.inclusive_start_date || r.start_date
+      const e = r.inclusive_end_date || r.end_date || s
+      if (s === e) {
+        rawSelectedDates.value = s
+      } else {
+        rawSelectedDates.value = { from: s, to: e }
+      }
+    } else {
+      rawSelectedDates.value = null
+    }
+
+    const parsePositiveNumber = (val) => {
+      if (val === null || val === undefined || val === '') return null
+      const clean = String(val).replace('+', '').trim()
+      const n = parseFloat(clean)
+      return !Number.isNaN(n) && n > 0 ? n : null
+    }
+
+    const days =
+      parsePositiveNumber(r.restored_days) ??
+      parsePositiveNumber(r.amount) ??
+      parsePositiveNumber(r.vacationEarned) ??
+      parsePositiveNumber(r.sickEarned) ??
+      parsePositiveNumber(r.otherEarned) ??
+      (normalizedSelectedDates.value.length > 0 ? normalizedSelectedDates.value.length : null)
+
+    form.restored_days = days !== null ? Number(days).toFixed(3) : null
+  } else {
+    resetForm()
+  }
+}
+
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen) {
-      resetForm()
+      populateForm()
       if (!availableLeaveTypes.value.length) {
         fetchAvailableLeaveTypes()
       }
@@ -363,8 +426,18 @@ watch(
   },
 )
 
+watch(
+  () => props.restoration,
+  () => {
+    if (props.modelValue) {
+      populateForm()
+    }
+  },
+)
+
 onMounted(() => {
   if (props.modelValue) {
+    populateForm()
     fetchAvailableLeaveTypes()
   }
 })
@@ -389,8 +462,14 @@ async function handleSubmit() {
   const dates = normalizedSelectedDates.value
   const formattedDatesStr = formatLedgerInclusiveDatesLabel(dates)
 
+  const dialogTitle = isEditMode.value
+    ? 'Confirm Restoration Update'
+    : 'Confirm Leave Credit Restoration'
+  const actionButtonLabel = isEditMode.value ? 'Save Changes' : 'Confirm'
+  const actionButtonIcon = isEditMode.value ? 'save' : 'check_circle'
+
   $q.dialog({
-    title: 'Confirm Leave Credit Restoration',
+    title: dialogTitle,
     message: `<div style="font-size: 0.95rem; line-height: 1.6;">
       <p style="margin-bottom: 8px; font-weight: 500;">Please review the restoration details before proceeding:</p>
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
@@ -408,9 +487,9 @@ async function handleSubmit() {
     },
     ok: {
       unelevated: true,
-      label: 'Confirm',
+      label: actionButtonLabel,
       color: 'primary',
-      icon: 'check_circle',
+      icon: actionButtonIcon,
     },
     persistent: true,
   }).onOk(async () => {
@@ -425,18 +504,32 @@ async function handleSubmit() {
         restored_days: parseFloat(form.restored_days),
       }
 
-      const res = await api.post(`/hr/employees/${controlNo.value}/restore-leave-credits`, payload)
-
-      $q.notify({
-        type: 'positive',
-        message: res.data?.message || 'Leave credits restored successfully!',
-        position: 'top',
-      })
-
-      dialogModel.value = false
-      emit('restored', res.data?.restoration)
+      let res
+      if (isEditMode.value) {
+        const cleanId = String(restorationId.value).replace('restoration-', '').trim()
+        res = await api.post(`/hr/employees/${controlNo.value}/restore-leave-credits/${cleanId}/update`, payload)
+        $q.notify({
+          type: 'positive',
+          message: res.data?.message || 'Leave credit restoration updated successfully!',
+          position: 'top',
+        })
+        dialogModel.value = false
+        emit('updated', res.data?.restoration)
+        emit('restored', res.data?.restoration)
+      } else {
+        res = await api.post(`/hr/employees/${controlNo.value}/restore-leave-credits`, payload)
+        $q.notify({
+          type: 'positive',
+          message: res.data?.message || 'Leave credits restored successfully!',
+          position: 'top',
+        })
+        dialogModel.value = false
+        emit('restored', res.data?.restoration)
+      }
     } catch (err) {
-      const message = err.response?.data?.message || 'Failed to restore leave credits.'
+      const message =
+        err.response?.data?.message ||
+        (isEditMode.value ? 'Failed to update leave restoration.' : 'Failed to restore leave credits.')
       $q.notify({ type: 'negative', message, position: 'top' })
     } finally {
       submitting.value = false

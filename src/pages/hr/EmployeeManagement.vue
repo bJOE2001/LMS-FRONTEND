@@ -4631,7 +4631,13 @@ function normalizeLedgerRow(entry, index) {
     isRestoration:
       Boolean(entry?.restoration_id || entry?.restorationId) ||
       (typeof entry?.id === 'string' && entry.id.startsWith('restoration-')),
-    restored_days: entry?.restored_days || entry?.amount || null,
+    restored_days:
+      entry?.restored_days ||
+      entry?.amount ||
+      entry?.vacation_earned ||
+      entry?.sick_earned ||
+      entry?.other_earned ||
+      null,
     target_leave: entry?.target_leave || entry?.targetLeave || null,
     target_leave_type_id: entry?.target_leave_type_id || entry?.targetLeaveTypeId || null,
     days_late: entry?.days_late !== undefined ? entry.days_late : (entry?.daysLate ?? null),
