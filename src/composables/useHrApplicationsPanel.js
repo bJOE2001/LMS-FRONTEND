@@ -1639,6 +1639,7 @@ function getRequestedLeaveTypeLabel(app) {
 }
 
 function hasPendingLeaveTypeUpdate(app) {
+  if (!app || isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object') return false
 
@@ -1690,13 +1691,18 @@ function isApplicationEditCancellationRequest(app) {
 }
 
 function getApplicationEditRequestSectionTitle(app) {
+  if (isRecallRequestAction(app)) return 'Recall Request Details'
   return isApplicationEditCancellationRequest(app)
     ? 'Cancellation Request Details'
     : 'Requested Changes'
 }
 
 function shouldShowApplicationEditRequestDateComparison(app) {
-  return hasApplicationEditRequest(app) && !isApplicationEditCancellationRequest(app)
+  return (
+    hasApplicationEditRequest(app) &&
+    !isApplicationEditCancellationRequest(app) &&
+    !isRecallRequestAction(app)
+  )
 }
 
 function shouldShowApplicationEditRequestSection(app) {
@@ -1860,6 +1866,7 @@ function hasApplicationEditRequestDetailsChanged(app) {
 
 function hasApplicationEditRequestDateChanged(app) {
   if (!hasApplicationEditRequest(app)) return false
+  if (isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
   const payload = getPendingUpdatePayload(app)
 
   if (payload && typeof payload === 'object') {
@@ -2448,6 +2455,7 @@ function getPendingUpdateInclusiveDateLines(app) {
 }
 
 function hasPendingDateUpdate(app) {
+  if (!app || isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
@@ -2517,6 +2525,7 @@ function getRequestedDurationDisplay(app) {
 }
 
 function hasPendingDurationUpdate(app) {
+  if (!app || isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
   const snapshot = resolveRequestedDurationSnapshot(app)
   if (!snapshot) return false
   return getRequestedDurationDisplay(app) !== getApplicationDurationDisplay(app)
