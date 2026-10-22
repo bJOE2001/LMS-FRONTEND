@@ -513,9 +513,21 @@
                 no-caps
                 color="teal-7"
                 icon="description"
-                label="Print Form"
+                :label="
+                  canPrintRecallRequestApplication(selectedApp)
+                    ? 'Print Amendment Form'
+                    : 'Print Form'
+                "
                 @click="printRequestChangesApplication(selectedApp)"
-              />
+              >
+                <q-tooltip>
+                  {{
+                    isApplicationEditCancellationRequest(selectedApp)
+                      ? 'Print Cancellation Form'
+                      : 'Print Request for Amendment Form'
+                  }}
+                </q-tooltip>
+              </q-btn>
             </div>
           </div>
 
@@ -893,7 +905,11 @@
             unelevated
             no-caps
             color="teal-7"
-            label="Print Form"
+            :label="
+              isApplicationEditCancellationRequest(selectedApp)
+                ? 'Print Cancellation Form'
+                : (canPrintRecallRequestApplication(selectedApp) ? 'Print Amendment Form' : 'Print Form')
+            "
             @click="printRequestChangesApplication(selectedApp)"
           />
           <q-btn

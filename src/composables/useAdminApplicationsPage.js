@@ -2355,8 +2355,108 @@ export function useAdminApplicationsPage() {
     return [...new Set(getRemainingRecallableDateKeys(app))].sort()
   }
 
-  function formatRecallDateLabel(value) {
-    return formatDate(value) || String(value || '').trim()
+  function formatRecallDateLabel(value, app = null) {
+    const baseFormatted = formatDate(value) || String(value || '').trim()
+    const targetApp = app || recallRequestTargetApp?.value || selectedApp?.value || null
+    if (!targetApp) return baseFormatted
+
+    const dateKey = toIsoDateString(value) || String(value || '').trim()
+    const indicatorRows = getSelectedDateIndicatorRows(targetApp)
+    const matchedRow = indicatorRows.find((row) => row.dateKey === dateKey)
+
+    if (matchedRow) {
+      const halfDayPortion = String(matchedRow.halfDayPortion || '').trim().toUpperCase()
+      if (halfDayPortion === 'AM' || halfDayPortion === 'PM') {
+        return `${baseFormatted} (${halfDayPortion})`
+      }
+      if (String(matchedRow.coverageLabel || '').startsWith('Half Day')) {
+        return `${baseFormatted} (Half Day)`
+      }
+      return baseFormatted
+    }
+
+    const pendingPayload = getPendingUpdatePayload(targetApp)
+    const halfDayPortionMap = normalizeMapKeysWithIsoAlias(
+      toSelectedDateHalfDayPortionMap(
+        targetApp?.selected_date_half_day_portion ??
+          targetApp?.selectedDateHalfDayPortion ??
+          pendingPayload?.selected_date_half_day_portion ??
+          targetApp?.selected_date_half_day_period ??
+          targetApp?.selectedDateHalfDayPeriod ??
+          targetApp?.selected_date_halfday_period,
+      ),
+    )
+    const portion = String(halfDayPortionMap[dateKey] || '').trim().toUpperCase()
+    if (portion === 'AM' || portion === 'PM') {
+      return `${baseFormatted} (${portion})`
+    }
+    const coverageWeights = getSelectedDateCoverageWeights(targetApp)
+    if (Number(coverageWeights[dateKey]) === 0.5) {
+      return `${baseFormatted} (Half Day)`
+    }
+
+    return baseFormatted
+  }
+
+  function formatRecallSelectedDatesSummary(dateValues = [], app = null) {
+    const normalizedSelectedDates = normalizeRecallFormDateSet(dateValues)
+    if (!normalizedSelectedDates.length) return 'N/A'
+
+    const targetApp = app || recallRequestTargetApp?.value || selectedApp?.value || null
+    if (!targetApp) {
+      return formatDateSetSummary(normalizedSelectedDates)
+    }
+
+    const pendingPayload = getPendingUpdatePayload(targetApp)
+    const halfDayPortionMap = normalizeMapKeysWithIsoAlias(
+      toSelectedDateHalfDayPortionMap(
+        targetApp?.selected_date_half_day_portion ??
+          targetApp?.selectedDateHalfDayPortion ??
+          pendingPayload?.selected_date_half_day_portion ??
+          targetApp?.selected_date_half_day_period ??
+          targetApp?.selectedDateHalfDayPeriod ??
+          targetApp?.selected_date_halfday_period,
+      ),
+    )
+    const coverageWeights = getSelectedDateCoverageWeights(targetApp)
+
+    const lines = []
+    let wholeDayDates = []
+
+    const flushWholeDayDates = () => {
+      if (!wholeDayDates.length) return
+      const grouped = formatGroupedInclusiveDateLines(wholeDayDates)
+      lines.push(
+        ...(grouped.length
+          ? grouped
+          : wholeDayDates.map((dateValue) => formatDate(dateValue))),
+      )
+      wholeDayDates = []
+    }
+
+    for (const dateKey of normalizedSelectedDates) {
+      const portion = String(halfDayPortionMap[dateKey] || '').trim().toUpperCase()
+      const isHalfDay =
+        portion === 'AM' || portion === 'PM' || Number(coverageWeights[dateKey]) === 0.5
+
+      if (!isHalfDay) {
+        wholeDayDates.push(dateKey)
+        continue
+      }
+
+      flushWholeDayDates()
+
+      const formattedDate = formatDate(dateKey) || dateKey
+      if (portion === 'AM' || portion === 'PM') {
+        lines.push(`${formattedDate} (${portion})`)
+      } else {
+        lines.push(`${formattedDate} (Half Day)`)
+      }
+    }
+
+    flushWholeDayDates()
+
+    return lines.length ? lines.join(', ') : formatDateSetSummary(normalizedSelectedDates)
   }
 
   function isRecallableLeaveApplication(app) {
@@ -2371,7 +2471,7 @@ export function useAdminApplicationsPage() {
 
   function canRequestRecallApplication(app) {
     if (!app || isCocApplication(app)) return false
-    if (hasApplicationEditRequest(app)) return false
+    if (isPendingUpdateWorkflowCycle(app)) return false
     if (getApplicationRawStatus(app) !== 'APPROVED') return false
     if (!isRecallableLeaveApplication(app)) return false
     return getRemainingRecallableDateKeys(app).length > 0
@@ -2851,6 +2951,7 @@ export function useAdminApplicationsPage() {
   }
 
   function hasPendingDateUpdate(app) {
+    if (!app || isApplicationEditRecallRequest(app) || isApplicationEditCancellationRequest(app)) return false
     const payload = getPendingUpdatePayload(app)
     if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
@@ -4009,6 +4110,7 @@ export function useAdminApplicationsPage() {
 
   function hasApplicationEditRequestDateChanged(app) {
     if (!hasApplicationEditRequest(app)) return false
+    if (isApplicationEditRecallRequest(app) || isApplicationEditCancellationRequest(app)) return false
     const payload = getPendingUpdatePayload(app)
 
     if (payload && typeof payload === 'object') {
@@ -6609,7 +6711,7 @@ export function useAdminApplicationsPage() {
     const leaveTypeLabel = formatApplicationLeaveTypeLabel(
       application?.leaveType || application?.leave_type || 'leave',
     )
-    const inclusiveDatesText = formatDateSetSummary(recallSelectedDates)
+    const inclusiveDatesText = formatRecallSelectedDatesSummary(recallSelectedDates, application)
     const recipientPosition = String(
       application?.employee?.designation ??
         application?.designation ??
@@ -7090,12 +7192,128 @@ export function useAdminApplicationsPage() {
       // Ignore department head endpoint failures and print with best available approver data.
     }
 
+    const updateRequests = Array.isArray(printableApplication?.update_requests)
+      ? printableApplication.update_requests
+      : (Array.isArray(printableApplication?.updateRequests) ? printableApplication.updateRequests : [])
+
+    const approvedEditRequest = updateRequests.find((req) => {
+      const status = String(req?.status || '').toUpperCase()
+      const actionType = String(req?.action_type || req?.actionType || '').toUpperCase()
+      return (
+        status === 'APPROVED' &&
+        actionType !== 'REQUEST_RECALL' &&
+        actionType !== 'REQUEST_CANCEL' &&
+        (actionType === 'REQUEST_UPDATE' || actionType === 'HR_APPLICATION_EDIT' || !actionType)
+      )
+    })
+
+    if (
+      approvedEditRequest &&
+      (isApplicationEditRecallRequest(printableApplication) || isAdminRecallRequest(printableApplication))
+    ) {
+      const editPayload = approvedEditRequest.payload || approvedEditRequest.requested_payload || {}
+      const editReason = approvedEditRequest.reason || editPayload?.reason || editPayload?.requested_reason || ''
+      const editRequestedAt = approvedEditRequest.requested_at || printableApplication.latest_update_requested_at
+
+      printableApplication = {
+        ...printableApplication,
+        pending_update: editPayload,
+        pendingUpdate: editPayload,
+        latest_update_request_payload: editPayload,
+        latestUpdateRequestPayload: editPayload,
+        pending_update_action_type: 'REQUEST_UPDATE',
+        pendingUpdateActionType: 'REQUEST_UPDATE',
+        latest_update_request_action_type: 'REQUEST_UPDATE',
+        latestUpdateRequestActionType: 'REQUEST_UPDATE',
+        pending_update_reason: editReason,
+        pendingUpdateReason: editReason,
+        latest_update_request_reason: editReason,
+        latestUpdateRequestReason: editReason,
+        latest_update_requested_at: editRequestedAt,
+        latestUpdateRequestedAt: editRequestedAt,
+        pending_update_requested_at: editRequestedAt,
+        pendingUpdateRequestedAt: editRequestedAt,
+      }
+
+      if (printableApplication.raw && typeof printableApplication.raw === 'object') {
+        printableApplication.raw = {
+          ...printableApplication.raw,
+          pending_update: editPayload,
+          pendingUpdate: editPayload,
+          latest_update_request_payload: editPayload,
+          latestUpdateRequestPayload: editPayload,
+          pending_update_action_type: 'REQUEST_UPDATE',
+          pendingUpdateActionType: 'REQUEST_UPDATE',
+          latest_update_request_action_type: 'REQUEST_UPDATE',
+          latestUpdateRequestActionType: 'REQUEST_UPDATE',
+          pending_update_reason: editReason,
+          pendingUpdateReason: editReason,
+          latest_update_request_reason: editReason,
+          latestUpdateRequestReason: editReason,
+        }
+      }
+    }
+
     return printableApplication
+  }
+
+  function hasApprovedEditHistory(app) {
+    const target = resolveApp(app) || app
+    if (!target || typeof target !== 'object') return false
+    if (isCocApplication(target)) return false
+
+    const updateRequests = Array.isArray(target?.update_requests)
+      ? target.update_requests
+      : (Array.isArray(target?.updateRequests) ? target.updateRequests : [])
+
+    const hasApprovedUpdateRequest = updateRequests.some((req) => {
+      const status = String(req?.status || '').toUpperCase()
+      const actionType = String(req?.action_type || req?.actionType || '').toUpperCase()
+      return (
+        status === 'APPROVED' &&
+        actionType !== 'REQUEST_RECALL' &&
+        actionType !== 'REQUEST_CANCEL' &&
+        (actionType === 'REQUEST_UPDATE' || actionType === 'HR_APPLICATION_EDIT' || !actionType)
+      )
+    })
+    if (hasApprovedUpdateRequest) return true
+
+    const statusHistory = getStatusHistoryEntries(target)
+    const hasHistoryEdit = statusHistory.some((entry) => {
+      const action = String(entry?.action || '').toUpperCase()
+      const stage = String(entry?.stage || '').toLowerCase()
+      return (
+        action === 'HR_APPLICATION_EDITED' ||
+        action === 'HR_APPLICATION_EDIT_REQUEST_APPROVED' ||
+        stage === 'hr edited application' ||
+        stage === 'hr approved application edit request'
+      )
+    })
+    if (hasHistoryEdit) return true
+
+    const latestStatus = String(
+      target?.latest_update_request_status || target?.latestUpdateRequestStatus || '',
+    ).toUpperCase()
+    const latestAction = String(
+      target?.latest_update_request_action_type || target?.latestUpdateRequestActionType || '',
+    ).toUpperCase()
+
+    if (
+      latestStatus === 'APPROVED' &&
+      latestAction !== 'REQUEST_RECALL' &&
+      latestAction !== 'REQUEST_CANCEL' &&
+      (latestAction === 'REQUEST_UPDATE' || latestAction === 'HR_APPLICATION_EDIT' || !latestAction)
+    ) {
+      return true
+    }
+
+    return false
   }
 
   function canPrintRequestChangesApplication(app) {
     const target = resolveApp(app) || app
-    if (!target) return false
+    if (!target || isCocApplication(target)) return false
+    if (hasApprovedEditHistory(target)) return true
     return hasApplicationEditRequest(target) && !isApplicationEditRecallRequest(target)
   }
 
@@ -7369,6 +7587,7 @@ export function useAdminApplicationsPage() {
     getActionResultLabel,
     getActionResultVerb,
     printActionResult,
+    hasApprovedEditHistory,
     canPrintRequestChangesApplication,
     printRequestChangesApplication,
     formatApplicationLeaveTypeLabel,

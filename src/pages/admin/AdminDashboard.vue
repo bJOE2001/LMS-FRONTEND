@@ -2553,6 +2553,14 @@ function getPendingUpdateInclusiveDateLines(app) {
 
 function hasPendingDateUpdate(app) {
   if (!isEditUpdateRequest(app)) return false
+  if (
+    app?.rawStatus === 'RECALLED' ||
+    String(app?.status || '').includes('Recall') ||
+    String(app?.latest_update_request_action_type || '').includes('RECALL') ||
+    String(app?.pending_update_action_type || '').includes('RECALL')
+  ) {
+    return false
+  }
 
   const payload = getPendingUpdatePayload(app)
   if (!payload || payload.is_monetization) return false

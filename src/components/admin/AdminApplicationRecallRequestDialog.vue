@@ -90,7 +90,7 @@ const recallDateOptions = computed(() => {
   ].sort()
 
   return options.map((value) => ({
-    label: props.formatRecallDateLabel(value),
+    label: props.formatRecallDateLabel(value, application),
     value,
   }))
 })
