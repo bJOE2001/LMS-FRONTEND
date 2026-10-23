@@ -628,21 +628,47 @@ function formatSignatoryNameWithMiddleInitial(value) {
     .replace(/\s+/g, ' ')
   if (!rawName) return ''
 
+  let nameToFormat = rawName
+  let extractedSuffix = ''
+
   if (rawName.includes(',')) {
-    const [lastName = '', givenPart = '', middlePart = ''] = rawName
+    const rawParts = rawName
       .split(',')
       .map((part) => part.trim())
-    const middleInitial = formatMiddleInitial(middlePart)
-    return [givenPart, middleInitial, lastName].filter(Boolean).join(' ')
+      .filter(Boolean)
+    const nonSuffixParts = []
+
+    for (const part of rawParts) {
+      if (isNameSuffix(part)) {
+        extractedSuffix = part
+      } else {
+        nonSuffixParts.push(part)
+      }
+    }
+
+    if (nonSuffixParts.length === 1) {
+      nameToFormat = nonSuffixParts[0]
+    } else if (nonSuffixParts.length >= 2) {
+      const lastName = nonSuffixParts[0]
+      const givenAndMiddle = nonSuffixParts.slice(1).join(' ')
+      nameToFormat = `${givenAndMiddle} ${lastName}`
+    }
   }
 
-  const parts = rawName.split(' ').filter(Boolean)
-  if (parts.length < 2) return rawName
+  const parts = nameToFormat.split(' ').filter(Boolean)
+  if (parts.length < 2) {
+    const cleanSuffix = extractedSuffix ? extractedSuffix.replace(/\.*$/, '.') : ''
+    return [nameToFormat, cleanSuffix].filter(Boolean).join(', ')
+  }
 
-  const suffix = isNameSuffix(parts[parts.length - 1]) ? parts.pop() : ''
+  if (!extractedSuffix && isNameSuffix(parts[parts.length - 1])) {
+    extractedSuffix = parts.pop()
+  }
+
   const { givenTokens, surnameTokens } = splitNameTokensWithSurnameParticles(parts)
   if (givenTokens.length === 0 || surnameTokens.length === 0) {
-    return rawName
+    const cleanSuffix = extractedSuffix ? extractedSuffix.replace(/\.*$/, '.') : ''
+    return [nameToFormat, cleanSuffix].filter(Boolean).join(', ')
   }
 
   const middleName = givenTokens.length > 1 ? givenTokens[givenTokens.length - 1] : ''
@@ -650,7 +676,10 @@ function formatSignatoryNameWithMiddleInitial(value) {
   const middleInitial = formatMiddleInitial(middleName)
   const normalizedSurname = surnameTokens.map((token) => normalizeSurnameToken(token)).join(' ')
 
-  return [givenNames, middleInitial, normalizedSurname, suffix].filter(Boolean).join(' ')
+  const formattedBase = [givenNames, middleInitial, normalizedSurname].filter(Boolean).join(' ')
+  const cleanSuffix = extractedSuffix ? extractedSuffix.replace(/\.*$/, '.') : ''
+
+  return cleanSuffix ? `${formattedBase}, ${cleanSuffix}` : formattedBase
 }
 
 function fmtSalary(val) {
