@@ -44,7 +44,7 @@
       <!-- Skeleton Main Table Card -->
       <q-card flat bordered class="rounded-borders bg-white table-card">
         <q-card-section class="q-pa-md row items-center justify-end q-gutter-sm border-bottom">
-          <q-skeleton type="rect" width="160px" height="34px" class="rounded-borders" animation="wave" />
+          <q-skeleton type="rect" width="180px" height="34px" class="rounded-borders" animation="wave" />
           <q-skeleton type="rect" width="220px" height="34px" class="rounded-borders" animation="wave" />
           <q-skeleton type="rect" width="160px" height="34px" class="rounded-borders" animation="wave" />
         </q-card-section>
@@ -210,16 +210,16 @@
         <!-- Toolbar Section: Filter Dropdown + Search + Date Navigator -->
         <q-card-section class="q-pa-sm q-px-md border-bottom">
           <div class="row items-center justify-end q-gutter-sm">
-            <!-- Filter Dropdown -->
+            <!-- Employment Status Filter Dropdown -->
             <q-select
-              v-model="activeFilter"
-              :options="filterOptions"
+              v-model="selectedEmploymentStatus"
+              :options="employmentStatusOptions"
               emit-value
               map-options
               outlined
               dense
               options-dense
-              class="filter-select"
+              class="status-filter-select"
             >
               <template #prepend>
                 <q-icon name="filter_list" size="18px" color="grey-6" />
@@ -310,7 +310,7 @@
                 <div class="text-weight-bold text-dark employee-name-text">
                   {{ props.row.employee_name }}
                 </div>
-                <div class="text-caption text-grey-7 ellipsis" style="max-width: 220px;">
+                <div class="text-caption text-grey-7 ellipsis" style="max-width: 250px;">
                   {{ props.row.designation || 'Staff Member' }}
                   <q-tooltip v-if="props.row.designation" class="bg-dark text-caption">
                     {{ props.row.designation }}
@@ -492,6 +492,46 @@
               </div>
             </div>
 
+            <!-- Quick Preset Cutoff Buttons -->
+            <div class="row items-center q-gutter-xs q-mb-xs q-px-xs">
+              <q-btn
+                size="xs"
+                dense
+                no-caps
+                :unelevated="isDateRangeMatchingPreset(singleDtrDateRange, 'month')"
+                :outline="!isDateRangeMatchingPreset(singleDtrDateRange, 'month')"
+                :color="isDateRangeMatchingPreset(singleDtrDateRange, 'month') ? 'green-9' : 'grey-8'"
+                :class="{ 'text-white': isDateRangeMatchingPreset(singleDtrDateRange, 'month') }"
+                class="q-px-xs text-weight-medium"
+                label="1 Month (Full)"
+                @click="applySingleDtrPreset('month')"
+              />
+              <q-btn
+                size="xs"
+                dense
+                no-caps
+                :unelevated="isDateRangeMatchingPreset(singleDtrDateRange, '11-25')"
+                :outline="!isDateRangeMatchingPreset(singleDtrDateRange, '11-25')"
+                :color="isDateRangeMatchingPreset(singleDtrDateRange, '11-25') ? 'green-9' : 'grey-8'"
+                :class="{ 'text-white': isDateRangeMatchingPreset(singleDtrDateRange, '11-25') }"
+                class="q-px-xs text-weight-medium"
+                label="11th – 25th"
+                @click="applySingleDtrPreset('11-25')"
+              />
+              <q-btn
+                size="xs"
+                dense
+                no-caps
+                :unelevated="isDateRangeMatchingPreset(singleDtrDateRange, '26-9')"
+                :outline="!isDateRangeMatchingPreset(singleDtrDateRange, '26-9')"
+                :color="isDateRangeMatchingPreset(singleDtrDateRange, '26-9') ? 'green-9' : 'grey-8'"
+                :class="{ 'text-white': isDateRangeMatchingPreset(singleDtrDateRange, '26-9') }"
+                class="q-px-xs text-weight-medium"
+                label="26th – 9th"
+                @click="applySingleDtrPreset('26-9')"
+              />
+            </div>
+
             <q-date
               v-model="singleDtrDatePickerModel"
               range
@@ -632,6 +672,46 @@
                       <q-tooltip class="bg-dark">Clear date range</q-tooltip>
                     </q-btn>
                   </div>
+                </div>
+
+                <!-- Quick Preset Cutoff Buttons -->
+                <div class="row items-center q-gutter-xs q-mb-xs q-px-xs">
+                  <q-btn
+                    size="xs"
+                    dense
+                    no-caps
+                    :unelevated="isDateRangeMatchingPreset(batchDateRange, 'month')"
+                    :outline="!isDateRangeMatchingPreset(batchDateRange, 'month')"
+                    :color="isDateRangeMatchingPreset(batchDateRange, 'month') ? 'green-9' : 'grey-8'"
+                    :class="{ 'text-white': isDateRangeMatchingPreset(batchDateRange, 'month') }"
+                    class="q-px-xs text-weight-medium"
+                    label="1 Month (Full)"
+                    @click="applyBatchPreset('month')"
+                  />
+                  <q-btn
+                    size="xs"
+                    dense
+                    no-caps
+                    :unelevated="isDateRangeMatchingPreset(batchDateRange, '11-25')"
+                    :outline="!isDateRangeMatchingPreset(batchDateRange, '11-25')"
+                    :color="isDateRangeMatchingPreset(batchDateRange, '11-25') ? 'green-9' : 'grey-8'"
+                    :class="{ 'text-white': isDateRangeMatchingPreset(batchDateRange, '11-25') }"
+                    class="q-px-xs text-weight-medium"
+                    label="11th – 25th"
+                    @click="applyBatchPreset('11-25')"
+                  />
+                  <q-btn
+                    size="xs"
+                    dense
+                    no-caps
+                    :unelevated="isDateRangeMatchingPreset(batchDateRange, '26-9')"
+                    :outline="!isDateRangeMatchingPreset(batchDateRange, '26-9')"
+                    :color="isDateRangeMatchingPreset(batchDateRange, '26-9') ? 'green-9' : 'grey-8'"
+                    :class="{ 'text-white': isDateRangeMatchingPreset(batchDateRange, '26-9') }"
+                    class="q-px-xs text-weight-medium"
+                    label="26th – 9th"
+                    @click="applyBatchPreset('26-9')"
+                  />
                 </div>
 
                 <q-date
@@ -783,7 +863,7 @@
           :label="`Print Selected DTR (${selectedEmployees.length})`"
           class="text-weight-bold shadow-6 q-px-md q-py-sm"
           no-caps
-          @click="showBulkDialog = true"
+          @click="openBatchPrintDialog"
         >
           <q-tooltip class="bg-dark">Open batch print configuration</q-tooltip>
         </q-btn>
@@ -922,7 +1002,6 @@ const loading = ref(false)
 const todayStr = getLocalTodayStr()
 const selectedDate = ref(todayStr)
 const searchTerm = ref('')
-const activeFilter = ref('ALL') // 'ALL', 'PRESENT', 'LATE', 'ABSENT', 'ON_LEAVE'
 
 const stats = reactive({
   total: 0,
@@ -952,40 +1031,63 @@ const columns = [
   { name: 'status', label: 'Status', field: 'attendance_status', align: 'center', sortable: true },
 ]
 
-const filterOptions = computed(() => [
-  { label: `All (${stats.total})`, value: 'ALL' },
-  { label: `Present (${stats.present})`, value: 'PRESENT' },
-  { label: `Late (${stats.late})`, value: 'LATE' },
-  { label: `Absent (${stats.absent})`, value: 'ABSENT' },
-  { label: `On Leave (${stats.on_leave})`, value: 'ON_LEAVE' },
-])
+const selectedEmploymentStatus = ref('ALL')
 
-/**
- * Filtered rows based on active segmented filter
- */
+function formatEmploymentStatus(status) {
+  if (!status) return ''
+  const s = String(status).toUpperCase().trim()
+  if (s === 'CASUAL') return 'Casual'
+  if (s === 'REGULAR') return 'Permanent'
+  if (s === 'CONTRACTUAL') return 'Job Order'
+  if (s === 'CO-TERMINOUS') return 'Co-terminous'
+  if (s === 'ELECTIVE') return 'Elective'
+  if (s === 'HONORARIUM') return 'Honorarium'
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+}
+
+const employmentStatusOptions = computed(() => {
+  const counts = {}
+  employeeRows.value.forEach((row) => {
+    const raw = (row.employment_status || 'OTHER').toUpperCase().trim()
+    counts[raw] = (counts[raw] || 0) + 1
+  })
+
+  const baseOptions = [
+    { label: `All Statuses (${employeeRows.value.length})`, value: 'ALL' },
+    { label: `Casual (${counts['CASUAL'] || 0})`, value: 'CASUAL' },
+    { label: `Permanent (${counts['REGULAR'] || 0})`, value: 'REGULAR' },
+  ]
+
+  if (counts['CONTRACTUAL']) {
+    baseOptions.push({ label: `Job Order (${counts['CONTRACTUAL']})`, value: 'CONTRACTUAL' })
+  }
+  if (counts['CO-TERMINOUS']) {
+    baseOptions.push({ label: `Co-terminous (${counts['CO-TERMINOUS']})`, value: 'CO-TERMINOUS' })
+  }
+  if (counts['ELECTIVE']) {
+    baseOptions.push({ label: `Elective (${counts['ELECTIVE']})`, value: 'ELECTIVE' })
+  }
+
+  Object.keys(counts).forEach((key) => {
+    if (!['CASUAL', 'REGULAR', 'CONTRACTUAL', 'CO-TERMINOUS', 'ELECTIVE', 'OTHER'].includes(key)) {
+      baseOptions.push({
+        label: `${formatEmploymentStatus(key)} (${counts[key]})`,
+        value: key,
+      })
+    }
+  })
+
+  return baseOptions
+})
+
 const filteredEmployeeRows = computed(() => {
-  if (activeFilter.value === 'ALL') return employeeRows.value
-
+  if (!selectedEmploymentStatus.value || selectedEmploymentStatus.value === 'ALL') {
+    return employeeRows.value
+  }
+  const target = selectedEmploymentStatus.value.toUpperCase().trim()
   return employeeRows.value.filter((row) => {
-    const status = String(row.attendance_status || '').toLowerCase().trim()
-    if (activeFilter.value === 'PRESENT') {
-      return status === 'on time' || status === 'present' || status === 'late'
-    }
-    if (activeFilter.value === 'LATE') {
-      return status === 'late'
-    }
-    if (activeFilter.value === 'ABSENT') {
-      return status === 'absent'
-    }
-    if (activeFilter.value === 'ON_LEAVE') {
-      return (
-        status === 'on leave' ||
-        status.startsWith('on leave') ||
-        status.startsWith('on_leave') ||
-        status === 'half day'
-      )
-    }
-    return true
+    const s = String(row.employment_status || '').toUpperCase().trim()
+    return s === target
   })
 })
 
@@ -1108,6 +1210,107 @@ async function fetchAttendanceOverview() {
   } finally {
     loading.value = false
   }
+}
+
+// =========================================================
+// CUTOFF DATE RANGE HELPERS (CONTRACTUAL VS OTHERS)
+// =========================================================
+function isEmployeeContractual(emp) {
+  if (!emp) return false
+  if (emp.is_contractual !== undefined && emp.is_contractual !== null) {
+    return Boolean(emp.is_contractual)
+  }
+  const status = String(emp.employment_status || emp.status || '').toUpperCase().trim()
+  if (status === 'CONTRACTUAL') return true
+  const designation = String(emp.designation || '').toUpperCase()
+  return designation.includes('JOB ORDER') || designation.includes('CONTRACTUAL')
+}
+
+function areSelectedEmployeesContractual() {
+  if (selectedEmploymentStatus.value === 'CONTRACTUAL') {
+    return true
+  }
+  if (selectedEmployees.value.length > 0) {
+    return selectedEmployees.value.some((emp) => isEmployeeContractual(emp))
+  }
+  return false
+}
+
+function getCutoffRange(type, baseDateStr) {
+  const parts = (baseDateStr || getLocalTodayStr()).split('-').map(Number)
+  const year = parts[0]
+  const month = parts[1]
+  const day = parts[2]
+  const curMStr = String(month).padStart(2, '0')
+
+  if (type === 'month') {
+    const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0')
+    return {
+      from: `${year}-${curMStr}-01`,
+      to: `${year}-${curMStr}-${lastDay}`,
+    }
+  }
+
+  if (type === '11-25') {
+    return {
+      from: `${year}-${curMStr}-11`,
+      to: `${year}-${curMStr}-25`,
+    }
+  }
+
+  if (type === '26-9') {
+    if (day <= 15) {
+      const prevD = new Date(year, month - 2, 26)
+      const prevY = prevD.getFullYear()
+      const prevM = String(prevD.getMonth() + 1).padStart(2, '0')
+      return {
+        from: `${prevY}-${prevM}-26`,
+        to: `${year}-${curMStr}-09`,
+      }
+    } else {
+      const nextD = new Date(year, month, 9)
+      const nextY = nextD.getFullYear()
+      const nextM = String(nextD.getMonth() + 1).padStart(2, '0')
+      return {
+        from: `${year}-${curMStr}-26`,
+        to: `${nextY}-${nextM}-09`,
+      }
+    }
+  }
+
+  return null
+}
+
+function computeDefaultRange(isContractual, baseDateStr) {
+  if (!isContractual) {
+    return getCutoffRange('month', baseDateStr)
+  }
+
+  const parts = (baseDateStr || getLocalTodayStr()).split('-').map(Number)
+  const day = parts[2]
+
+  if (day >= 11 && day <= 25) {
+    return getCutoffRange('11-25', baseDateStr)
+  }
+
+  return getCutoffRange('26-9', baseDateStr)
+}
+
+function isDateRangeMatchingPreset(rangeVal, type, baseDateStr = selectedDate.value) {
+  if (!rangeVal) return false
+  const target = getCutoffRange(type, baseDateStr)
+  if (!target) return false
+  const from = typeof rangeVal === 'string' ? rangeVal : rangeVal.from
+  const to = typeof rangeVal === 'string' ? rangeVal : (rangeVal.to || from)
+  return from === target.from && to === target.to
+}
+
+function applySingleDtrPreset(type) {
+  singleDtrDateRange.value = getCutoffRange(type, selectedDate.value)
+}
+
+function applyBatchPreset(type) {
+  batchDateRange.value = getCutoffRange(type, selectedDate.value)
 }
 
 // =========================================================
@@ -1245,12 +1448,7 @@ const dtrCustomRangeLabel = computed(() => {
 
 const isDtrEmployeeContractual = computed(() => {
   const emp = dtrData.value?.employee || selectedDtrEmployee.value
-  if (!emp) return false
-  if (emp.is_contractual !== undefined) {
-    return Boolean(emp.is_contractual)
-  }
-  const status = String(emp.employment_status || emp.status || '').toUpperCase().trim()
-  return status === 'CONTRACTUAL'
+  return isEmployeeContractual(emp)
 })
 
 const dtrModalHeaderTitle = computed(() => {
@@ -1327,7 +1525,8 @@ async function fetchEmployeeDtr(controlNo) {
 function openEmployeeDtr(employee) {
   if (!employee || !employee.control_no) return
   singleDtrEmployee.value = employee
-  singleDtrDateRange.value = null
+  const isContractual = isEmployeeContractual(employee)
+  singleDtrDateRange.value = computeDefaultRange(isContractual, selectedDate.value)
   showSingleDtrSetupDialog.value = true
 }
 
@@ -1407,6 +1606,23 @@ watch(
     }
   }
 )
+
+function initBatchDateRange() {
+  const isContractual = areSelectedEmployeesContractual()
+  batchDateRange.value = computeDefaultRange(isContractual, selectedDate.value)
+}
+
+function openBatchPrintDialog() {
+  initBatchDateRange()
+  showBulkDialog.value = true
+}
+
+// Automatically default coverage date range when bulk print dialog opens
+watch(showBulkDialog, (isOpen) => {
+  if (isOpen) {
+    initBatchDateRange()
+  }
+})
 
 const batchDateRange = ref(null)
 
@@ -1627,11 +1843,11 @@ onMounted(() => {
   border-top: 1px solid #f1f5f9;
 }
 
-.filter-select {
-  min-width: 170px;
+.status-filter-select {
+  min-width: 180px;
 }
 
-.filter-select :deep(.q-field__control) {
+.status-filter-select :deep(.q-field__control) {
   height: 34px;
   border-radius: 6px;
 }

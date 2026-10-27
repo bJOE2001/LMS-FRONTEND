@@ -48,7 +48,7 @@
             v-if="visibleHrLeaveNav.length > 0"
             v-model="hrLeaveMenuExpanded"
             icon="assignment"
-            label="Leave Management"
+            label="Leave"
             header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
             expand-icon-class="text-white opacity-80"
             :class="{ 'group-active': isHrLeaveRouteActive }"
@@ -79,19 +79,6 @@
               <q-separator class="nav-section-divider" />
               <div class="nav-section-label">BIOMETRICS & TIME</div>
             </div>
-
-            <q-item
-              clickable
-              :active="route.path === '/hr/biometric-registration'"
-              active-class="bg-primary-dark text-white text-weight-bold"
-              to="/hr/biometric-registration"
-              class="q-mx-sm q-mb-xs rounded-borders"
-            >
-              <q-item-section avatar>
-                <q-icon name="fingerprint" />
-              </q-item-section>
-              <q-item-section>Biometric Registration</q-item-section>
-            </q-item>
 
             <q-item
               clickable

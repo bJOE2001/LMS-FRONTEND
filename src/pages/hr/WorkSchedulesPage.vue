@@ -11,9 +11,9 @@
         <q-card flat bordered class="settings-card full-height">
           <q-card-section class="row items-center q-pb-none">
             <div>
-              <div class="text-h6">Default Schedule</div>
+              <div class="text-h6">Standard Work Schedule</div>
               <div class="text-caption text-grey-7">
-                Used for everyone unless an employee override exists.
+                Applies to all employees by default unless a custom schedule exists.
               </div>
             </div>
             <q-space />
@@ -42,17 +42,6 @@
                 />
               </div>
               <div class="schedule-field">
-                <div class="schedule-field-label">Work End</div>
-                <q-input
-                  v-model="defaultScheduleForm.work_end_time"
-                  outlined
-                  dense
-                  hide-bottom-space
-                  type="time"
-                  aria-label="Work End"
-                />
-              </div>
-              <div class="schedule-field">
                 <div class="schedule-field-label">Break Start</div>
                 <q-input
                   v-model="defaultScheduleForm.break_start_time"
@@ -72,6 +61,17 @@
                   hide-bottom-space
                   type="time"
                   aria-label="Break End"
+                />
+              </div>
+              <div class="schedule-field">
+                <div class="schedule-field-label">Work End</div>
+                <q-input
+                  v-model="defaultScheduleForm.work_end_time"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  type="time"
+                  aria-label="Work End"
                 />
               </div>
               <div class="schedule-field">
@@ -97,6 +97,61 @@
                 />
               </div>
             </div>
+
+            <div v-if="defaultPunchWindows" class="punch-windows-section q-mt-md">
+              <div class="row items-center justify-between q-mb-xs">
+                <div class="row items-center text-subtitle2 text-weight-bold text-grey-9">
+                  <q-icon name="fingerprint" color="green-8" size="18px" class="q-mr-xs" />
+                  Time-In & Time-Out Windows
+                </div>
+              </div>
+
+              <div class="punch-windows-table-wrap">
+                <table class="punch-windows-table">
+                  <thead>
+                    <tr>
+                      <th>Slot / Shift</th>
+                      <th>Preferred (On-Time)</th>
+                      <th>Tardiness / Undertime</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="w in defaultPunchWindows" :key="w.slot">
+                      <td class="text-weight-bold text-grey-9">
+                        {{ w.slot }}
+                      </td>
+                      <td>
+                        <span class="text-weight-medium text-grey-9">{{ w.preferredRange }}</span>
+                        <q-badge
+                          v-if="w.preferredStatus !== 'N/A'"
+                          dense
+                          class="q-ml-xs text-weight-bold"
+                          color="green-1"
+                          text-color="green-9"
+                          :label="w.preferredStatus"
+                        />
+                      </td>
+                      <td>
+                        <span
+                          class="text-weight-medium"
+                          :class="w.lateStatus === 'Late' ? 'text-negative' : w.lateStatus === 'Undertime' ? 'text-orange-9' : 'text-grey-6'"
+                        >
+                          {{ w.lateRange }}
+                        </span>
+                        <q-badge
+                          v-if="w.lateStatus !== 'N/A'"
+                          dense
+                          class="q-ml-xs text-weight-bold"
+                          :color="w.lateStatus === 'Late' ? 'red-1' : 'orange-1'"
+                          :text-color="w.lateStatus === 'Late' ? 'negative' : 'orange-9'"
+                          :label="w.lateStatus"
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </q-card-section>
 
           <q-card-section v-else class="q-pt-md schedule-fields-shell">
@@ -117,7 +172,7 @@
             </div>
             <div class="row q-gutter-sm">
               <q-btn flat no-caps color="grey-7" label="Reset" :disable="loading || savingDefault" @click="resetDefaultScheduleForm" />
-              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" label="Save Default Schedule" :loading="savingDefault" @click="saveDefaultSchedule" />
+              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" label="Save Standard Schedule" :loading="savingDefault" @click="saveDefaultSchedule" />
             </div>
           </q-card-actions>
 
@@ -132,7 +187,7 @@
         <q-card flat bordered class="settings-card full-height">
           <q-card-section class="row items-center q-col-gutter-sm">
             <div class="col-12 col-md">
-              <div class="text-h6">Employee Overrides</div>
+              <div class="text-h6">Custom Work Schedules</div>
               <div class="text-caption text-grey-7">
                 Assign a custom work schedule and deduction rule for a specific employee.
               </div>
@@ -144,7 +199,7 @@
                 dense
                 clearable
                 debounce="250"
-                label="Search override"
+                label="Search custom schedule"
                 style="min-width: 220px"
               >
                 <template #prepend>
@@ -153,7 +208,7 @@
               </q-input>
             </div>
             <div class="col-12 col-md-auto">
-              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="person_add" label="Add Override" @click="openCreateOverrideDialog" />
+              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="person_add" label="Add Custom Schedule" @click="openCreateOverrideDialog" />
             </div>
           </q-card-section>
 
@@ -167,7 +222,7 @@
               row-key="id"
               :loading="loading"
               :pagination="{ rowsPerPage: 10 }"
-              no-data-label="No employee overrides yet."
+              no-data-label="No custom work schedules yet."
             >
               <template #body-cell-employee="props">
                 <q-td :props="props">
@@ -211,11 +266,14 @@
 
               <template #body-cell-actions="props">
                 <q-td :props="props" class="text-right">
+                  <q-btn flat round dense icon="visibility" color="primary" @click="openViewOverrideDialog(props.row)">
+                    <q-tooltip class="bg-dark text-white">View custom schedule</q-tooltip>
+                  </q-btn>
                   <q-btn flat round dense icon="edit" color="green-9" @click="openEditOverrideDialog(props.row)">
-                    <q-tooltip class="bg-dark text-white">Edit override</q-tooltip>
+                    <q-tooltip class="bg-dark text-white">Edit custom schedule</q-tooltip>
                   </q-btn>
                   <q-btn flat round dense icon="delete" color="negative" @click="confirmDeleteOverride(props.row)">
-                    <q-tooltip class="bg-dark text-white">Delete override</q-tooltip>
+                    <q-tooltip class="bg-dark text-white">Delete custom schedule</q-tooltip>
                   </q-btn>
                 </q-td>
               </template>
@@ -229,7 +287,7 @@
       <q-card class="override-dialog rounded-borders">
         <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
           <div>
-            <div class="text-subtitle1 text-weight-bold">{{ editingOverrideId ? 'Edit Employee Override' : 'Add Employee Override' }}</div>
+            <div class="text-subtitle1 text-weight-bold">{{ isViewingOverride ? 'Custom Schedule Details' : editingOverrideId ? 'Edit Custom Schedule' : 'Add Custom Schedule' }}</div>
           </div>
           <q-btn flat round dense icon="close" text-color="white" v-close-popup :disable="savingOverride" />
         </q-card-section>
@@ -276,11 +334,37 @@
             </div>
 
             <div v-if="selectedOverrideEmployee" class="col-12">
-              <q-banner rounded class="bg-grey-1 text-grey-9">
-                <div class="text-weight-medium">{{ selectedOverrideEmployee.full_name || selectedOverrideEmployee.label }}</div>
-                <div class="text-caption">{{ selectedOverrideEmployee.designation || 'No designation' }}</div>
-                <div class="text-caption">{{ resolveEmployeeOfficeAcronymLabel(selectedOverrideEmployee) || 'No office' }} • {{ selectedOverrideEmployee.status || 'No status' }}</div>
-              </q-banner>
+              <div class="employee-summary-card">
+                <div class="row q-col-gutter-md items-center">
+                  <div class="col-12 col-sm-4">
+                    <div class="schedule-field-label">Employee</div>
+                    <div
+                      class="text-weight-bold text-subtitle2 text-grey-9 ellipsis"
+                      :title="selectedOverrideEmployee.full_name || selectedOverrideEmployee.label"
+                    >
+                      {{ selectedOverrideEmployee.full_name || selectedOverrideEmployee.label }}
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-4">
+                    <div class="schedule-field-label">Designation</div>
+                    <div
+                      class="text-weight-medium text-body2 text-grey-8 ellipsis"
+                      :title="selectedOverrideEmployee.designation || 'No designation'"
+                    >
+                      {{ selectedOverrideEmployee.designation || 'No designation' }}
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-4">
+                    <div class="schedule-field-label">Office & Status</div>
+                    <div
+                      class="text-weight-medium text-body2 text-grey-8 ellipsis"
+                      :title="`${resolveEmployeeOfficeAcronymLabel(selectedOverrideEmployee) || 'No office'} • ${selectedOverrideEmployee.status || 'No status'}`"
+                    >
+                      {{ resolveEmployeeOfficeAcronymLabel(selectedOverrideEmployee) || 'No office' }} • {{ selectedOverrideEmployee.status || 'No status' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="col-12">
@@ -294,17 +378,7 @@
                     hide-bottom-space
                     type="time"
                     aria-label="Work Start"
-                  />
-                </div>
-                <div class="schedule-field">
-                  <div class="schedule-field-label">Work End</div>
-                  <q-input
-                    v-model="overrideForm.work_end_time"
-                    outlined
-                    dense
-                    hide-bottom-space
-                    type="time"
-                    aria-label="Work End"
+                    :readonly="isViewingOverride"
                   />
                 </div>
                 <div class="schedule-field">
@@ -316,6 +390,7 @@
                     hide-bottom-space
                     type="time"
                     aria-label="Break Start"
+                    :readonly="isViewingOverride"
                   />
                 </div>
                 <div class="schedule-field">
@@ -327,6 +402,19 @@
                     hide-bottom-space
                     type="time"
                     aria-label="Break End"
+                    :readonly="isViewingOverride"
+                  />
+                </div>
+                <div class="schedule-field">
+                  <div class="schedule-field-label">Work End</div>
+                  <q-input
+                    v-model="overrideForm.work_end_time"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    type="time"
+                    aria-label="Work End"
+                    :readonly="isViewingOverride"
                   />
                 </div>
                 <div class="schedule-field">
@@ -353,12 +441,77 @@
                 </div>
               </div>
             </div>
+
+            <div v-if="overridePunchWindows" class="col-12 q-mt-xs">
+              <div class="row items-center justify-between q-mb-xs">
+                <div class="row items-center text-subtitle2 text-weight-bold text-grey-9">
+                  <q-icon name="fingerprint" color="green-8" size="18px" class="q-mr-xs" />
+                  Time-In & Time-Out Windows for this Schedule
+                </div>
+              </div>
+
+              <div class="punch-windows-table-wrap">
+                <table class="punch-windows-table">
+                  <thead>
+                    <tr>
+                      <th>Slot / Shift</th>
+                      <th>Preferred (On-Time)</th>
+                      <th>Tardiness / Undertime</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="w in overridePunchWindows" :key="w.slot">
+                      <td class="text-weight-bold text-grey-9">
+                        {{ w.slot }}
+                      </td>
+                      <td>
+                        <span class="text-weight-medium text-grey-9">{{ w.preferredRange }}</span>
+                        <q-badge
+                          v-if="w.preferredStatus !== 'N/A'"
+                          dense
+                          class="q-ml-xs text-weight-bold"
+                          color="green-1"
+                          text-color="green-9"
+                          :label="w.preferredStatus"
+                        />
+                      </td>
+                      <td>
+                        <span
+                          class="text-weight-medium"
+                          :class="w.lateStatus === 'Late' ? 'text-negative' : w.lateStatus === 'Undertime' ? 'text-orange-9' : 'text-grey-6'"
+                        >
+                          {{ w.lateRange }}
+                        </span>
+                        <q-badge
+                          v-if="w.lateStatus !== 'N/A'"
+                          dense
+                          class="q-ml-xs text-weight-bold"
+                          :color="w.lateStatus === 'Late' ? 'red-1' : 'orange-1'"
+                          :text-color="w.lateStatus === 'Late' ? 'negative' : 'orange-9'"
+                          :label="w.lateStatus"
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div v-if="isViewingOverride && viewingOverrideMeta.updated_at" class="col-12 text-caption text-grey-7 q-pt-xs">
+              Last updated on {{ formatDateTime(viewingOverrideMeta.updated_at) }} by {{ viewingOverrideMeta.updated_by_hr || 'HR' }}.
+            </div>
           </div>
         </q-card-section>
 
         <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
-          <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="savingOverride" />
-          <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" :label="editingOverrideId ? 'Save Changes' : 'Create Override'" :loading="savingOverride" @click="saveOverride" />
+          <template v-if="isViewingOverride">
+            <q-btn flat no-caps color="grey-7" label="Close" v-close-popup />
+            <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="edit" label="Edit Schedule" @click="switchToEditOverride" />
+          </template>
+          <template v-else>
+            <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="savingOverride" />
+            <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" :label="editingOverrideId ? 'Save Changes' : 'Create Custom Schedule'" :loading="savingOverride" @click="saveOverride" />
+          </template>
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -389,6 +542,8 @@ const hasLoadedSchedules = ref(false)
 
 const showOverrideDialog = ref(false)
 const editingOverrideId = ref(null)
+const isViewingOverride = ref(false)
+const viewingOverrideMeta = ref({ updated_at: null, updated_by_hr: null })
 const overrideSearch = ref('')
 const employeeSearch = ref('')
 
@@ -437,8 +592,10 @@ const filteredOverrides = computed(() => {
 const defaultWorkingHoursLabel = computed(() => formatWorkingHoursLabel(calculateWorkingHours(defaultScheduleForm.value)))
 const defaultWholeDayDeduction = computed(() => calculateWholeDayDeduction(defaultScheduleForm.value))
 const defaultHalfDayDeduction = computed(() => calculateHalfDayDeduction(defaultScheduleForm.value))
+const defaultPunchWindows = computed(() => calculatePunchWindows(defaultScheduleForm.value))
 const overrideWholeDayDeduction = computed(() => calculateWholeDayDeduction(overrideForm.value))
 const overrideHalfDayDeduction = computed(() => calculateHalfDayDeduction(overrideForm.value))
+const overridePunchWindows = computed(() => calculatePunchWindows(overrideForm.value))
 const employeeNoOptionMessage = computed(() => {
   if (loadingEmployeeOptions.value) return 'Searching employees...'
   if (String(employeeSearch.value || '').trim().length < 2) return 'Type at least 2 characters to search employees.'
@@ -527,11 +684,11 @@ async function saveDefaultSchedule() {
     const payload = buildSchedulePayload(defaultScheduleForm.value)
     const { data } = await api.post('/hr/work-schedules/default/update', payload)
     applyDefaultSchedule(data?.default_schedule || payload)
-    $q.notify({ type: 'positive', message: data?.message || 'Default schedule updated successfully.', position: 'top' })
+    $q.notify({ type: 'positive', message: data?.message || 'Standard schedule updated successfully.', position: 'top' })
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: resolveApiErrorMessage(err, 'Unable to save the default schedule right now.'),
+      message: resolveApiErrorMessage(err, 'Unable to save the standard schedule right now.'),
       position: 'top',
     })
   } finally {
@@ -539,7 +696,33 @@ async function saveDefaultSchedule() {
   }
 }
 
+function openViewOverrideDialog(row) {
+  isViewingOverride.value = true
+  editingOverrideId.value = Number(row.id)
+  viewingOverrideMeta.value = {
+    updated_at: row.updated_at,
+    updated_by_hr: row.updated_by_hr,
+  }
+  selectedOverrideEmployee.value = {
+    control_no: row.employee_control_no,
+    full_name: row.employee_name,
+    designation: row.designation,
+    office: row.office,
+    officeAcronym: row.hrisOfficeAcronym || row.officeAcronym || null,
+    hrisOfficeAcronym: row.hrisOfficeAcronym || row.officeAcronym || null,
+    status: row.status,
+    label: row.employee_name,
+  }
+  applyOverrideForm(row, selectedOverrideEmployee.value)
+  showOverrideDialog.value = true
+}
+
+function switchToEditOverride() {
+  isViewingOverride.value = false
+}
+
 function openCreateOverrideDialog() {
+  isViewingOverride.value = false
   editingOverrideId.value = null
   employeeSearch.value = ''
   employeeOptions.value = []
@@ -550,6 +733,7 @@ function openCreateOverrideDialog() {
 }
 
 function openEditOverrideDialog(row) {
+  isViewingOverride.value = false
   editingOverrideId.value = Number(row.id)
   employeeSearch.value = row.employee_name || ''
   employeeOptions.value = []
@@ -589,7 +773,7 @@ async function saveOverride() {
 
     $q.notify({
       type: 'positive',
-      message: data?.message || 'Employee schedule override saved successfully.',
+      message: data?.message || 'Custom work schedule saved successfully.',
       position: 'top',
     })
 
@@ -598,7 +782,7 @@ async function saveOverride() {
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: resolveApiErrorMessage(err, 'Unable to save the employee override right now.'),
+      message: resolveApiErrorMessage(err, 'Unable to save the custom schedule right now.'),
       position: 'top',
     })
   } finally {
@@ -608,20 +792,20 @@ async function saveOverride() {
 
 function confirmDeleteOverride(row) {
   $q.dialog({
-    title: 'Delete Override',
-    message: `Remove the work schedule override for ${row.employee_name}?`,
+    title: 'Delete Custom Schedule',
+    message: `Remove the custom work schedule for ${row.employee_name}?`,
     cancel: { flat: true, noCaps: true, color: 'grey-7' },
     ok: { unelevated: true, noCaps: true, color: 'negative', label: 'Delete' },
     persistent: true,
   }).onOk(async () => {
     try {
       const { data } = await api.post(`/hr/work-schedules/overrides/${row.id}/delete`)
-      $q.notify({ type: 'positive', message: data?.message || 'Employee override removed successfully.', position: 'top' })
+      $q.notify({ type: 'positive', message: data?.message || 'Custom schedule removed successfully.', position: 'top' })
       await loadSchedules()
     } catch (err) {
       $q.notify({
         type: 'negative',
-        message: resolveApiErrorMessage(err, 'Unable to delete the employee override right now.'),
+        message: resolveApiErrorMessage(err, 'Unable to delete the custom schedule right now.'),
         position: 'top',
       })
     }
@@ -835,6 +1019,73 @@ function formatDateTime(value) {
     minute: '2-digit',
   }).format(parsed)
 }
+
+function formatMinutesTo12Hour(totalMinutes) {
+  if (totalMinutes === null || totalMinutes === undefined) return '--'
+  const mins = Math.max(0, Math.min(1439, totalMinutes))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const displayH = h % 12 === 0 ? 12 : h % 12
+  const displayM = String(m).padStart(2, '0')
+  return `${String(displayH).padStart(2, '0')}:${displayM} ${ampm}`
+}
+
+function calculatePunchWindows(schedule) {
+  const startM = parseTimeToMinutes(schedule?.work_start_time)
+  const endM = parseTimeToMinutes(schedule?.work_end_time)
+  const bStartM = parseTimeToMinutes(schedule?.break_start_time)
+  const bEndM = parseTimeToMinutes(schedule?.break_end_time)
+
+  if (startM === null || endM === null || endM <= startM) return null
+
+  const hasBreak = bStartM !== null && bEndM !== null && bEndM > bStartM && bStartM >= startM && bEndM <= endM
+  const breakDuration = hasBreak ? bEndM - bStartM : 0
+  const midM = hasBreak ? bStartM + Math.floor(breakDuration / 2) : null
+
+  // Morning In: Earliest 2 hours before start, Late from start + 1 min up to breakStart - 1 min (or end - 60 min)
+  const amInEarliestM = Math.max(0, startM - 120)
+  const amInLatestM = hasBreak ? bStartM - 1 : Math.max(startM + 1, endM - 60)
+
+  return [
+    {
+      slot: 'IN — AM / 1st Shift',
+      preferredRange: `${formatMinutesTo12Hour(amInEarliestM)} – ${formatMinutesTo12Hour(startM)}`,
+      preferredStatus: 'On-Time',
+      lateRange: `${formatMinutesTo12Hour(startM + 1)} – ${formatMinutesTo12Hour(amInLatestM)}`,
+      lateStatus: 'Late',
+    },
+    {
+      slot: 'OUT — AM / 1st Shift',
+      preferredRange: hasBreak
+        ? `${formatMinutesTo12Hour(bStartM)} – ${formatMinutesTo12Hour(midM)}`
+        : 'N/A (No break)',
+      preferredStatus: hasBreak ? 'On-Time' : 'N/A',
+      lateRange: hasBreak
+        ? `Before ${formatMinutesTo12Hour(bStartM)}`
+        : 'Continuous shift',
+      lateStatus: hasBreak ? 'Undertime' : 'N/A',
+    },
+    {
+      slot: 'IN — PM / 2nd Shift',
+      preferredRange: hasBreak
+        ? `${formatMinutesTo12Hour(midM + 1)} – ${formatMinutesTo12Hour(bEndM)}`
+        : 'N/A (No break)',
+      preferredStatus: hasBreak ? 'On-Time' : 'N/A',
+      lateRange: hasBreak
+        ? `${formatMinutesTo12Hour(bEndM + 1)} – ${formatMinutesTo12Hour(Math.max(bEndM + 1, endM - 60))}`
+        : 'Continuous shift',
+      lateStatus: hasBreak ? 'Late' : 'N/A',
+    },
+    {
+      slot: 'OUT — PM / 2nd Shift',
+      preferredRange: `${formatMinutesTo12Hour(endM)} – 11:59 PM`,
+      preferredStatus: 'On-Time',
+      lateRange: `Before ${formatMinutesTo12Hour(endM)}`,
+      lateStatus: 'Undertime',
+    },
+  ]
+}
 </script>
 
 <style scoped>
@@ -876,6 +1127,13 @@ function formatDateTime(value) {
   color: #5f6b7a;
 }
 
+.employee-summary-card {
+  padding: 12px 16px;
+  background-color: #f8faf9;
+  border: 1px solid #e2e8e5;
+  border-radius: 12px;
+}
+
 .override-dialog {
   width: min(1180px, 96vw);
   max-width: 96vw;
@@ -892,5 +1150,40 @@ function formatDateTime(value) {
   .schedule-fields-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.punch-windows-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  background-color: #fafafa;
+}
+
+.punch-windows-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.punch-windows-table th {
+  background-color: #f1f6f2;
+  color: #2e5235;
+  font-weight: 700;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.punch-windows-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #ededed;
+  vertical-align: middle;
+}
+
+.punch-windows-table tr:last-child td {
+  border-bottom: none;
 }
 </style>

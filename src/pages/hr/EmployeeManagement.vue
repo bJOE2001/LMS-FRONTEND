@@ -81,6 +81,18 @@
               class="activity-filter"
               label="Employment Status"
             />
+            <q-select
+              v-model="biometricStatusFilter"
+              :options="biometricStatusOptions"
+              option-label="label"
+              option-value="value"
+              emit-value
+              map-options
+              outlined
+              dense
+              class="activity-filter"
+              label="Bio Status"
+            />
             <q-input
               v-model="search"
               outlined
@@ -167,8 +179,36 @@
           </q-td>
         </template>
 
+        <template #body-cell-biometric_status="props">
+          <q-td :props="props" class="text-center">
+            <q-badge
+              rounded
+              class="text-weight-bold text-caption q-px-sm"
+              :color="getBiometricStatusColor(props.row.biometric_status)"
+              :text-color="getBiometricStatusTextColor(props.row.biometric_status)"
+              :label="formatBiometricStatus(props.row.biometric_status)"
+            >
+              <q-tooltip v-if="props.row.biometric_device_name || props.row.biometric_enrolled_at">
+                <div v-if="props.row.biometric_device_name">Device: {{ props.row.biometric_device_name }}</div>
+                <div v-if="props.row.biometric_enrolled_at">Enrolled: {{ props.row.biometric_enrolled_at }}</div>
+              </q-tooltip>
+            </q-badge>
+          </q-td>
+        </template>
+
         <template #body-cell-actions="props">
           <q-td :props="props" class="q-gutter-xs">
+            <q-btn
+              flat
+              dense
+              round
+              icon="fingerprint"
+              :color="props.row.biometric_status === 'REGISTERED' ? 'positive' : props.row.biometric_status === 'PENDING_ENROLLMENT' ? 'amber-9' : 'primary'"
+              size="sm"
+              @click.stop="openPushToBioDialog(props.row)"
+            >
+              <q-tooltip>{{ props.row.biometric_status === 'REGISTERED' ? 'Push / Re-push to Biometric Device' : 'Push to Biometric Device' }}</q-tooltip>
+            </q-btn>
             <q-btn
               v-if="canShowAddLeaveCreditsAction(props.row)"
               flat
@@ -780,6 +820,65 @@
       :on-surface-pointer-down="handleCalendarPreviewSurfacePointerDown"
       :on-surface-click="handleCalendarPreviewSurfaceClick"
     />
+
+    <!-- Push to Biometric Device Dialog -->
+    <q-dialog v-model="showPushToBioDialog" persistent>
+      <q-card style="width: 500px; max-width: 95vw;" class="rounded-borders">
+        <q-card-section class="row items-center justify-between bg-primary text-white q-py-sm">
+          <div class="row items-center q-gutter-x-sm">
+            <q-icon name="fingerprint" size="22px" />
+            <div class="text-subtitle1 text-weight-bold">Push to Biometric Device</div>
+          </div>
+          <q-btn flat round dense icon="close" text-color="white" v-close-popup :disable="pushingToBio" />
+        </q-card-section>
+
+        <q-card-section class="q-pt-md">
+          <div v-if="activeBioEmployee" class="q-mb-md">
+            <div class="text-caption text-grey-6 text-uppercase text-weight-bold">Employee</div>
+            <div class="text-weight-bold text-subtitle2 text-grey-9">
+              {{ getEmployeeFullName(activeBioEmployee) }}
+            </div>
+            <div class="text-caption text-grey-7">
+              Control No: {{ activeBioEmployee.control_no }} • {{ resolveOfficeAcronymLabel(activeBioEmployee) || 'No office' }}
+            </div>
+          </div>
+
+          <div class="q-mb-sm">
+            <div class="text-caption text-grey-7 q-mb-xs">Select Biometric Terminal:</div>
+            <q-select
+              v-model="selectedBioDeviceSn"
+              :options="bioDeviceOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              :loading="loadingBioDevices"
+              label="Biometric Terminal *"
+              hint="The employee record will be sent to this terminal for registration."
+            >
+              <template #prepend>
+                <q-icon name="devices" />
+              </template>
+            </q-select>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
+          <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="pushingToBio" />
+          <q-btn
+            unelevated
+            no-caps
+            color="primary"
+            class="text-weight-bold q-px-md"
+            icon="send"
+            label="Push to Device"
+            :loading="pushingToBio"
+            :disable="!selectedBioDeviceSn"
+            @click="submitPushToBio"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -814,6 +913,20 @@ const activityOptions = [
   { label: 'Inactive', value: 'INACTIVE' },
   { label: 'All', value: 'ALL' },
 ]
+const biometricStatusFilter = ref('ALL')
+const biometricStatusOptions = [
+  { label: 'All Biometrics', value: 'ALL' },
+  { label: 'Registered', value: 'REGISTERED' },
+  { label: 'Pending', value: 'PENDING' },
+  { label: 'Not Registered', value: 'NOT_REGISTERED' },
+]
+
+const showPushToBioDialog = ref(false)
+const activeBioEmployee = ref(null)
+const selectedBioDeviceSn = ref(null)
+const bioDeviceOptions = ref([])
+const loadingBioDevices = ref(false)
+const pushingToBio = ref(false)
 
 const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
@@ -928,12 +1041,19 @@ const employeeColumns = [
     field: (row) => resolveAssignedOfficeAcronymLabel(row),
     sortable: true,
   },
+  {
+    name: 'biometric_status',
+    label: 'Bio Status',
+    align: 'center',
+    field: 'biometric_status',
+    sortable: true,
+  },
   { name: 'actions', label: 'Actions', align: 'center', field: 'actions' },
 ]
 const visibleEmployeeColumns = computed(() =>
   $q.screen.lt.sm
     ? employeeColumns.filter(
-        (column) => !['control_no', 'status', 'assigned_office'].includes(column.name),
+        (column) => !['control_no', 'status', 'assigned_office', 'biometric_status'].includes(column.name),
       )
     : employeeColumns,
 )
@@ -1613,6 +1733,7 @@ async function fetchData(page = 1) {
         department_id: departmentId || undefined,
         search: searchText || undefined,
         activity: activityFilter.value || 'ALL',
+        biometric_status: biometricStatusFilter.value !== 'ALL' ? biometricStatusFilter.value : undefined,
         per_page: employeePagination.value.rowsPerPage,
         page,
       },
@@ -2019,6 +2140,85 @@ watch(activityFilter, () => {
   void fetchTotalEmployeesSummary()
   fetchData(1)
 })
+
+watch(biometricStatusFilter, () => {
+  fetchData(1)
+})
+
+function getBiometricStatusColor(status) {
+  if (status === 'REGISTERED' || status === 'FINGERPRINT_ENROLLED') return 'green-1'
+  if (status === 'PENDING_ENROLLMENT' || status === 'PENDING') return 'amber-1'
+  return 'grey-2'
+}
+
+function getBiometricStatusTextColor(status) {
+  if (status === 'REGISTERED' || status === 'FINGERPRINT_ENROLLED') return 'green-9'
+  if (status === 'PENDING_ENROLLMENT' || status === 'PENDING') return 'amber-9'
+  return 'grey-8'
+}
+
+function formatBiometricStatus(status) {
+  if (!status || status === 'NOT_REGISTERED') return 'NOT REGISTERED'
+  if (status === 'PENDING_ENROLLMENT' || status === 'PENDING') return 'PENDING'
+  if (status === 'FINGERPRINT_ENROLLED') return 'REGISTERED'
+  return status
+}
+
+async function loadBioDevices() {
+  if (bioDeviceOptions.value.length > 0) return
+  loadingBioDevices.value = true
+  try {
+    const { data } = await api.get('/attendance/devices')
+    const list = Array.isArray(data?.devices) ? data.devices : []
+    bioDeviceOptions.value = list.map((dev) => ({
+      label: `${dev.device_name || dev.serial_number} (${dev.department_name || dev.ip_address || 'Terminal'})`,
+      value: dev.serial_number,
+    }))
+    if (bioDeviceOptions.value.length > 0 && !selectedBioDeviceSn.value) {
+      selectedBioDeviceSn.value = bioDeviceOptions.value[0].value
+    }
+  } catch (err) {
+    console.error('Failed to load biometric devices:', err)
+  } finally {
+    loadingBioDevices.value = false
+  }
+}
+
+function openPushToBioDialog(employee) {
+  activeBioEmployee.value = employee
+  void loadBioDevices()
+  showPushToBioDialog.value = true
+}
+
+async function submitPushToBio() {
+  if (!activeBioEmployee.value || !selectedBioDeviceSn.value) return
+  pushingToBio.value = true
+  try {
+    const { data } = await api.post('/hr/biometric-registration/register', {
+      employee_control_no: activeBioEmployee.value.control_no,
+      device_serial_number: selectedBioDeviceSn.value,
+    })
+
+    $q.notify({
+      type: 'positive',
+      message: data?.message || `Registration command sent for ${getEmployeeFullName(activeBioEmployee.value)}.`,
+      position: 'top',
+    })
+
+    activeBioEmployee.value.biometric_status = 'PENDING_ENROLLMENT'
+    activeBioEmployee.value.biometric_device_sn = selectedBioDeviceSn.value
+
+    showPushToBioDialog.value = false
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: resolveApiErrorMessage(err, 'Failed to push employee to biometric device.'),
+      position: 'top',
+    })
+  } finally {
+    pushingToBio.value = false
+  }
+}
 
 watch(showViewDialog, (isOpen) => {
   if (isOpen) return

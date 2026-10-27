@@ -25,7 +25,7 @@ const routes = [
 
       // HR
       { path: 'hr/dashboard', name: 'hr-dashboard', component: () => import('pages/hr/HRDashboard.vue') },
-      { path: 'hr/biometric-registration', name: 'hr-biometric-registration', component: () => import('pages/hr/BiometricRegistrationPage.vue') },
+      { path: 'hr/biometric-registration', redirect: '/hr/employees' },
       { path: 'hr/biometric-devices', name: 'hr-biometric-devices', component: () => import('pages/hr/BiometricDevicesPage.vue') },
       { path: 'hr/employees', name: 'hr-employees', component: () => import('pages/hr/EmployeeManagement.vue') },
       { path: 'hr/coc-applications', name: 'hr-coc-applications', component: () => import('pages/hr/CocApplicationsPage.vue') },
