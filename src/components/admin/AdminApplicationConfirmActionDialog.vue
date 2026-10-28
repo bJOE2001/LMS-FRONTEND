@@ -5,7 +5,7 @@
       :class="
         confirmActionType === 'approve'
           ? 'admin-action-dialog-card--approve'
-          : confirmActionType === 'cancel'
+          : confirmActionType === 'cancel' || confirmActionType === 'withdraw_recall'
             ? 'admin-action-dialog-card--cancel'
             : 'admin-action-dialog-card--reject'
       "
@@ -42,11 +42,11 @@
         <q-btn
           unelevated
           no-caps
-          label="Confirm"
+          :label="confirmActionType === 'withdraw_recall' ? 'Withdraw Recall' : 'Confirm'"
           :color="
             confirmActionType === 'approve'
               ? 'green-7'
-              : confirmActionType === 'cancel'
+              : confirmActionType === 'cancel' || confirmActionType === 'withdraw_recall'
                 ? 'warning'
                 : 'negative'
           "
@@ -87,12 +87,14 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const actionIcon = computed(() => {
+  if (props.confirmActionType === 'withdraw_recall') return 'undo'
   if (props.confirmActionType === 'approve') return 'check_circle'
   if (props.confirmActionType === 'cancel') return 'remove_circle'
   return 'cancel'
 })
 
 const actionIconColor = computed(() => {
+  if (props.confirmActionType === 'withdraw_recall') return 'deep-orange-7'
   if (props.confirmActionType === 'approve') return 'green-7'
   if (props.confirmActionType === 'cancel') return 'warning'
   return 'negative'

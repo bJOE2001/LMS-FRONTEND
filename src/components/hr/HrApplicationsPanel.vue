@@ -207,7 +207,7 @@
             <template v-if="props.row?.is_monetization">
               <span class="text-weight-medium text-grey-9 block">N/A</span>
             </template>
-            <template v-else-if="hasPendingDateUpdate(props.row) && getLatestUpdateRequestStatus(props.row) !== 'APPROVED'">
+            <template v-else-if="hasPendingDateUpdate(props.row) && getLatestUpdateRequestStatus(props.row) === 'PENDING'">
               <span class="text-caption text-grey-7 block">Current</span>
               <span
                 v-for="(line, index) in getApplicationInclusiveDateColumnLines(props.row)"
@@ -228,6 +228,24 @@
               >
                 {{ line }}
               </span>
+            </template>
+            <template v-else-if="isPendingRecallRequest(props.row) && getRecallDatesSummary(props.row)">
+              <span
+                v-for="(line, index) in getApplicationInclusiveDateColumnLines(props.row)"
+                :key="`${props.row.application_uid || props.row.id}-inclusive-${index}`"
+                class="text-weight-medium text-grey-9 block"
+                @click.stop="openCalendarPreview(props.row)"
+              >
+                {{ line }}
+              </span>
+              <q-badge
+                color="amber-9"
+                outline
+                class="q-mt-xs text-weight-bold"
+                style="font-size: 11px; padding: 2px 6px;"
+              >
+                Recall: {{ getRecallDatesSummary(props.row) }} ({{ getRecallDaysCountLabel(props.row) }})
+              </q-badge>
             </template>
             <template v-else>
               <span
@@ -263,7 +281,13 @@
               {{ getApplicationDurationDisplay(props.row) }}
             </span>
             <span
-              v-if="getCtoHoursRowCaption(props.row)"
+              v-if="isPendingRecallRequest(props.row) && getRecallDaysCountLabel(props.row)"
+              class="text-caption text-amber-9 text-weight-medium block"
+            >
+              ({{ getRecallDaysCountLabel(props.row) }} to recall)
+            </span>
+            <span
+              v-else-if="getCtoHoursRowCaption(props.row)"
               class="text-caption text-grey-7 block application-duration-subtext"
             >
               {{ getCtoHoursRowCaption(props.row) }}
@@ -461,6 +485,7 @@
     :has-application-edit-request="hasApplicationEditRequest"
     :should-show-application-edit-request-section="shouldShowApplicationEditRequestSection"
     :get-application-edit-request-section-title="getApplicationEditRequestSectionTitle"
+    :get-application-edit-request-change-summary-label="getApplicationEditRequestChangeSummaryLabel"
     :should-show-application-edit-request-date-comparison="
       shouldShowApplicationEditRequestDateComparison
     "
@@ -489,6 +514,11 @@
     :has-pending-duration-update="hasPendingDurationUpdate"
     :get-requested-duration-display="getRequestedDurationDisplay"
     :is-coc-application="isCocApplication"
+    :is-recall-request-action="isRecallRequestAction"
+    :get-recall-dates-summary="getRecallDatesSummary"
+    :get-retained-dates-summary="getRetainedDatesSummary"
+    :get-recall-days-count-label="getRecallDaysCountLabel"
+    :get-retained-days-count-label="getRetainedDaysCountLabel"
     :has-pending-reason-update="hasPendingReasonUpdate"
     :get-coc-nature-of-overtime-lines="getCocNatureOfOvertimeLines"
     :get-current-reason-display="getCurrentReasonDisplay"

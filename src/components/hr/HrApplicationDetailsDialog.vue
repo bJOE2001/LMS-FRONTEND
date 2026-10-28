@@ -54,7 +54,7 @@
       </q-card-section>
       <q-card-section class="q-gutter-y-sm hr-application-details-content">
         <div
-          v-if="shouldShowApplicationEditRequestSection(application)"
+          v-if="shouldShowApplicationEditRequestSection(application) && !isEditRequestRejected(application)"
           class="hr-application-requested-changes-section"
         >
           <div class="row items-center justify-between q-gutter-sm">
@@ -154,17 +154,49 @@
           </div>
           <div v-else class="hr-application-requested-changes-grid">
             <div class="hr-application-requested-changes-item">
-              <div class="hr-application-requested-changes-title">Changes</div>
-              <div class="hr-application-requested-changes-line">
-                <span class="hr-application-requested-changes-key">Requested:</span>
-                <span
-                  class="
-                    hr-application-requested-changes-value
-                    hr-application-requested-changes-value--requested
-                  "
-                  >Cancel Leave</span
-                >
+              <div class="hr-application-requested-changes-title">
+                {{ isRecallRequestAction(application) ? 'Recall Scope' : 'Changes' }}
               </div>
+              <template v-if="isRecallRequestAction(application)">
+                <div class="hr-application-requested-changes-line">
+                  <span class="hr-application-requested-changes-key">Dates to Recall:</span>
+                  <span
+                    class="
+                      hr-application-requested-changes-value
+                      hr-application-requested-changes-value--requested
+                      text-weight-bold
+                    "
+                    >{{ getRecallDatesSummary(application) }}</span
+                  >
+                  <q-badge color="amber-9" text-color="white" class="q-ml-xs">
+                    {{ getRecallDaysCountLabel(application) }}
+                  </q-badge>
+                </div>
+                <div
+                  v-if="getRetainedDatesSummary(application)"
+                  class="hr-application-requested-changes-line q-mt-xs"
+                >
+                  <span class="hr-application-requested-changes-key">Retained Dates:</span>
+                  <span class="hr-application-requested-changes-value text-positive text-weight-medium">
+                    {{ getRetainedDatesSummary(application) }}
+                  </span>
+                  <q-badge color="positive" outline class="q-ml-xs">
+                    {{ getRetainedDaysCountLabel(application) }}
+                  </q-badge>
+                </div>
+              </template>
+              <template v-else>
+                <div class="hr-application-requested-changes-line">
+                  <span class="hr-application-requested-changes-key">Requested:</span>
+                  <span
+                    class="
+                      hr-application-requested-changes-value
+                      hr-application-requested-changes-value--requested
+                    "
+                    >{{ getApplicationEditRequestChangeSummaryLabel(application) }}</span
+                  >
+                </div>
+              </template>
             </div>
             <div class="hr-application-requested-changes-item">
               <div class="hr-application-requested-changes-title">Request Details</div>
@@ -277,7 +309,7 @@
               </div>
             </div>
             <div
-              v-else-if="hasPendingDateUpdate(application) && !isEditRequestApproved(application)"
+              v-else-if="hasPendingDateUpdate(application) && !isEditRequestApproved(application) && !isEditRequestRejected(application)"
               :class="[
                 'text-weight-medium',
                 'hr-application-date-change-preview',
@@ -301,12 +333,30 @@
                         formatInclusiveDateEntry(entry)
                       }}</span>
                       <q-badge
-                        v-if="entry.recalled"
+                        v-if="entry.isRecallRequested"
                         dense
                         rounded
-                        color="warning"
-                        text-color="dark"
+                        color="amber-9"
+                        text-color="white"
+                        label="Recall Requested"
+                        class="hr-application-pay-status-badge"
+                      />
+                      <q-badge
+                        v-else-if="entry.recalled || entry.isRecalled"
+                        dense
+                        rounded
+                        color="grey-7"
+                        text-color="white"
                         label="Recalled"
+                        class="hr-application-pay-status-badge"
+                      />
+                      <q-badge
+                        v-else-if="entry.hasRecallContext && entry.isRetained"
+                        dense
+                        rounded
+                        outline
+                        color="positive"
+                        label="Retained"
                         class="hr-application-pay-status-badge"
                       />
                       <q-badge
@@ -404,9 +454,39 @@
                   :key="`duration-pay-status-${columnIndex}-${entry.dateKey}`"
                   class="hr-application-duration-date-row"
                 >
-                  <span class="text-caption hr-application-duration-date">{{
+                  <span
+                    class="text-caption hr-application-duration-date"
+                    :class="{ 'text-strike text-grey-6': entry.recalled || entry.isRecalled }"
+                  >{{
                     formatInclusiveDateEntry(entry)
                   }}</span>
+                  <q-badge
+                    v-if="entry.isRecallRequested"
+                    dense
+                    rounded
+                    color="amber-9"
+                    text-color="white"
+                    label="Recall Requested"
+                    class="hr-application-pay-status-badge"
+                  />
+                  <q-badge
+                    v-else-if="entry.recalled || entry.isRecalled"
+                    dense
+                    rounded
+                    color="grey-7"
+                    text-color="white"
+                    label="Recalled"
+                    class="hr-application-pay-status-badge"
+                  />
+                  <q-badge
+                    v-else-if="entry.hasRecallContext && entry.isRetained"
+                    dense
+                    rounded
+                    outline
+                    color="positive"
+                    label="Retained"
+                    class="hr-application-pay-status-badge"
+                  />
                   <q-badge
                     dense
                     rounded
@@ -613,6 +693,16 @@ const props = defineProps({
     type: Function,
     default: () => false,
   },
+  getApplicationEditRequestChangeSummaryLabel: {
+    type: Function,
+    default: (app) => {
+      const remarks = String(app?.remarks || '').toLowerCase()
+      const status = String(app?.status || app?.rawStatus || '').toUpperCase()
+      if (remarks.includes('recall') || status === 'RECALLED') return 'Recall Leave Dates'
+      if (remarks.includes('cancel')) return 'Cancel Leave'
+      return 'Cancel Leave'
+    },
+  },
   getApplicationEditRequestSectionTitle: {
     type: Function,
     default: () => 'Requested Changes',
@@ -680,6 +770,30 @@ const props = defineProps({
   isCocApplication: {
     type: Function,
     default: () => false,
+  },
+  isRecallRequestAction: {
+    type: Function,
+    default: (app) => {
+      const remarks = String(app?.remarks || '').toLowerCase()
+      const status = String(app?.status || app?.rawStatus || '').toUpperCase()
+      return remarks.includes('recall') || status.includes('RECALL')
+    },
+  },
+  getRecallDatesSummary: {
+    type: Function,
+    default: () => '',
+  },
+  getRetainedDatesSummary: {
+    type: Function,
+    default: () => '',
+  },
+  getRecallDaysCountLabel: {
+    type: Function,
+    default: () => '',
+  },
+  getRetainedDaysCountLabel: {
+    type: Function,
+    default: () => '',
   },
   hasPendingReasonUpdate: {
     type: Function,
@@ -843,6 +957,30 @@ const shouldShowFooterActions = computed(() => {
     props.canPrintCocCertificate(app) || (props.isMobile && props.hasMobileApplicationActions(app))
   )
 })
+
+function isEditRequestRejected(app) {
+  if (!app) return false
+  const latestStatus = String(
+    app?.latest_update_request_status ||
+      app?.latestUpdateRequestStatus ||
+      app?.raw?.latest_update_request_status ||
+      app?.raw?.latestUpdateRequestStatus ||
+      '',
+  )
+    .toUpperCase()
+    .trim()
+
+  if (latestStatus === 'REJECTED' || latestStatus === 'DISAPPROVED') return true
+  const mainStatus = String(app?.status || app?.rawStatus || '')
+    .toUpperCase()
+    .trim()
+  return (
+    mainStatus.includes('EDIT REQUEST REJECTED') ||
+    mainStatus.includes('REJECTED_EDIT_REQUEST') ||
+    mainStatus.includes('EDIT REQUEST DISAPPROVED') ||
+    mainStatus.includes('DISAPPROVED_EDIT_REQUEST')
+  )
+}
 
 function isEditRequestApproved(app) {
   if (!app) return false

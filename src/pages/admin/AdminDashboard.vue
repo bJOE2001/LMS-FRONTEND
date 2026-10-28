@@ -278,7 +278,7 @@
               <template v-if="props.row?.is_monetization">
                 <span class="text-weight-medium text-grey-9">N/A</span>
               </template>
-              <template v-else-if="hasPendingDateUpdate(props.row) && (props.row?.latest_update_request_status || props.row?.latestUpdateRequestStatus) !== 'APPROVED'">
+              <template v-else-if="hasPendingDateUpdate(props.row) && (props.row?.latest_update_request_status || props.row?.latestUpdateRequestStatus) === 'PENDING'">
                 <span class="text-caption text-grey-7">Current</span>
                 <span
                   v-for="(line, index) in getApplicationInclusiveDateLines(props.row)"
@@ -2321,6 +2321,8 @@ function buildHalfDayInclusiveDateLines(source) {
 }
 
 function getPendingUpdatePayload(app) {
+  const status = String(app?.latest_update_request_status || app?.latestUpdateRequestStatus || app?.raw?.latest_update_request_status || '').trim().toUpperCase()
+  if (status === 'REJECTED' || status === 'DISAPPROVED') return null
   const candidates = [
     app?.pending_update,
     app?.pendingUpdate,
@@ -2436,6 +2438,8 @@ function getPendingUpdateInclusiveDateLines(app) {
 }
 
 function hasPendingDateUpdate(app) {
+  const status = String(app?.latest_update_request_status || app?.latestUpdateRequestStatus || app?.raw?.latest_update_request_status || '').trim().toUpperCase()
+  if (status === 'REJECTED' || status === 'DISAPPROVED') return false
   if (!isEditUpdateRequest(app)) return false
   if (
     app?.rawStatus === 'RECALLED' ||
@@ -2602,6 +2606,8 @@ function getApplicationStatusColor(app) {
 
 function isEditUpdateRequest(app) {
   if (!app || typeof app !== 'object') return false
+  const status = String(app?.latest_update_request_status || app?.latestUpdateRequestStatus || app?.raw?.latest_update_request_status || '').trim().toUpperCase()
+  if (status === 'REJECTED' || status === 'DISAPPROVED') return false
 
   const candidates = [
     app?.has_pending_update_request,

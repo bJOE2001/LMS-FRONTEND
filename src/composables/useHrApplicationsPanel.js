@@ -168,6 +168,10 @@ function createRecalledCompanionRow(app, index = 0) {
     application_uid: `${baseKey}:recalled`,
     application_row_variant: 'recalled',
     group_raw_status: 'RECALLED',
+    queue_group_status: 'RECALLED',
+    queueGroupStatus: 'RECALLED',
+    queue_stage_key: null,
+    queueStageKey: null,
     status: 'Recalled',
     rawStatus: 'RECALLED',
     raw_status: 'RECALLED',
@@ -605,6 +609,9 @@ function isPendingUpdateWorkflowCycle(app) {
 
 function getLeaveWorkflowStageStatus(app) {
   if (!app || isCocApplication(app)) return ''
+  if (app?.application_row_variant === 'recalled' || getApplicationRawStatusKey(app) === 'RECALLED') {
+    return ''
+  }
 
   const queueStageKey = getApplicationQueueStageKey(app)
   if (queueStageKey === 'PENDING_ADMIN') return 'Department Recommendation'
@@ -648,6 +655,9 @@ function mergeStatus(app) {
   if (cocReleaseStageStatus) return cocReleaseStageStatus
 
   if (isCancelledByUser(app)) return 'Cancelled'
+  if (app?.application_row_variant === 'recalled' || getApplicationRawStatusKey(app) === 'RECALLED') {
+    return 'Recalled'
+  }
 
   const raw = getApplicationRawStatusKey(app)
   const status = String(app.status || '').toUpperCase()
@@ -680,6 +690,7 @@ function mergeStatus(app) {
 
 function isEditUpdateRequest(app) {
   if (!app || typeof app !== 'object') return false
+  if (normalizeUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return false
   if (isTruthyBackendFlag(app?.has_pending_update_request)) return true
   if (getLeaveRequestActionType(app)) return true
   return Boolean(app?.pending_update || app?.latest_update_request_payload)
@@ -693,7 +704,7 @@ function normalizeUpdateRequestStatus(value) {
 
   if (normalized === 'PENDING') return 'PENDING'
   if (normalized === 'APPROVED') return 'APPROVED'
-  if (normalized === 'REJECTED') return 'REJECTED'
+  if (normalized === 'REJECTED' || normalized === 'DISAPPROVED') return 'REJECTED'
   return ''
 }
 
@@ -862,6 +873,17 @@ function isCancellationRequestAction(app) {
 
 function isRecallRequestAction(app) {
   return getLeaveRequestActionType(app) === REQUEST_ACTION_RECALL
+}
+
+function isPendingRecallRequest(app) {
+  if (!app || typeof app !== 'object' || isCocApplication(app)) return false
+  if (app?.application_row_variant === 'recalled') return false
+  const rawStatus = getApplicationRawStatusKey(app)
+  if (rawStatus === 'RECALLED') return false
+  if (!isRecallRequestAction(app)) return false
+  const updateStatus = normalizeUpdateRequestStatus(app?.latest_update_request_status)
+  if (updateStatus === 'APPROVED' || updateStatus === 'REJECTED') return false
+  return updateStatus === 'PENDING' || rawStatus === 'PENDING_HR' || rawStatus === 'PENDING_ADMIN'
 }
 
 function getEditRequestLabelPrefix(app) {
@@ -1562,7 +1584,79 @@ function getRemainingRecallableDateKeys(app) {
   return selectedDates.filter((dateKey) => !recalledDateSet.has(dateKey))
 }
 
+function getPendingRecallDateKeys(app) {
+  if (!app || typeof app !== 'object') return []
+  const payload = getPendingUpdatePayload(app)
+  const candidates = [
+    payload?.recall_selected_dates,
+    payload?.recallSelectedDates,
+    app?.pending_update?.recall_selected_dates,
+    app?.pending_update?.recallSelectedDates,
+    app?.pendingUpdate?.recall_selected_dates,
+    app?.pendingUpdate?.recallSelectedDates,
+    app?.latest_update_request?.recall_selected_dates,
+    app?.latest_update_request?.recallSelectedDates,
+    app?.latestUpdateRequest?.recall_selected_dates,
+    app?.latestUpdateRequest?.recallSelectedDates,
+    app?.latest_update_request_payload?.recall_selected_dates,
+    app?.latest_update_request_payload?.recallSelectedDates,
+  ]
+  for (const candidate of candidates) {
+    const list = normalizeIsoDateList(parseSelectedDatesValue(candidate))
+    if (list.length > 0) return list
+  }
+  return []
+}
+
+function getApplicationRecallDateKeys(app) {
+  if (!app || typeof app !== 'object') return []
+  if (isRecallRequestAction(app)) {
+    const pendingKeys = getPendingRecallDateKeys(app)
+    if (pendingKeys.length > 0) return pendingKeys
+  }
+  return getStoredRecallDateKeys(app)
+}
+
+function getApplicationRetainedDateKeys(app) {
+  if (!app || typeof app !== 'object') return []
+  const allDates = resolveDateSetFromSource(app)
+  if (!allDates.length) return []
+  const recallKeys = getApplicationRecallDateKeys(app)
+  if (!recallKeys.length) return []
+  const recallSet = new Set(recallKeys)
+  return allDates.filter((dateKey) => !recallSet.has(dateKey))
+}
+
+function getRecallDatesSummary(app) {
+  const recallKeys = getApplicationRecallDateKeys(app)
+  if (!recallKeys.length) return ''
+  const lines = formatGroupedInclusiveDateLines(recallKeys, isAbroadLeaveApplication(app))
+  return lines.join(', ')
+}
+
+function getRetainedDatesSummary(app) {
+  const retainedKeys = getApplicationRetainedDateKeys(app)
+  if (!retainedKeys.length) return ''
+  const lines = formatGroupedInclusiveDateLines(retainedKeys, isAbroadLeaveApplication(app))
+  return lines.join(', ')
+}
+
+function getRecallDaysCountLabel(app) {
+  const recallKeys = getApplicationRecallDateKeys(app)
+  const count = recallKeys.length
+  if (!count) return ''
+  return `${count} ${count === 1 ? 'day' : 'days'}`
+}
+
+function getRetainedDaysCountLabel(app) {
+  const retainedKeys = getApplicationRetainedDateKeys(app)
+  const count = retainedKeys.length
+  if (!count) return ''
+  return `${count} ${count === 1 ? 'day' : 'days'}`
+}
+
 function getPendingUpdatePayload(app) {
+  if (normalizeUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return null
   const candidates = [app?.pending_update, app?.latest_update_request_payload]
 
   for (const candidate of candidates) {
@@ -1690,6 +1784,17 @@ function isApplicationEditCancellationRequest(app) {
   return isCancellationRequestAction(app)
 }
 
+function getApplicationEditRequestChangeSummaryLabel(app) {
+  if (
+    isRecallRequestAction(app) ||
+    String(app?.status || '').trim().toUpperCase() === 'RECALLED' ||
+    String(app?.rawStatus || '').trim().toUpperCase() === 'RECALLED'
+  ) {
+    return 'Recall Leave Dates'
+  }
+  return isApplicationEditCancellationRequest(app) ? 'Cancel Leave' : 'Requested Changes'
+}
+
 function getApplicationEditRequestSectionTitle(app) {
   if (isRecallRequestAction(app)) return 'Recall Request Details'
   return isApplicationEditCancellationRequest(app)
@@ -1707,6 +1812,7 @@ function shouldShowApplicationEditRequestDateComparison(app) {
 
 function shouldShowApplicationEditRequestSection(app) {
   if (!hasApplicationEditRequest(app)) return false
+  if (normalizeUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return false
   return true
 }
 
@@ -2456,6 +2562,7 @@ function getPendingUpdateInclusiveDateLines(app) {
 
 function hasPendingDateUpdate(app) {
   if (!app || isRecallRequestAction(app) || isCancellationRequestAction(app)) return false
+  if (normalizeUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return false
   const payload = getPendingUpdatePayload(app)
   if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
@@ -3906,6 +4013,7 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
         'UPDATE_REQUEST_APPROVED',
         'RECALL_REQUEST_APPROVED',
         'REQUEST_RECALL_APPROVED',
+        'HR_RECALLED',
         'CANCELLATION_REQUEST_APPROVED',
         'CANCEL_REQUEST_APPROVED',
       ]
@@ -3937,7 +4045,7 @@ function resolveEditRequestDecisionHistoryEntry(app, decision = 'APPROVED') {
 
     const expectedDecisionActions = targetDecision === 'REJECTED'
       ? ['ADMIN_REJECTED', 'HR_REJECTED']
-      : ['HR_APPROVED']
+      : ['HR_APPROVED', 'HR_RECALLED']
     if (!expectedDecisionActions.includes(actionToken)) return false
 
     if (requestActionType === REQUEST_ACTION_RECALL && recallRequestSignal) return true
@@ -4149,7 +4257,7 @@ function resolveEditRequestRejectionMeta(app) {
 
   const reviewedAt = app?.latest_update_reviewed_at || null
   const reviewedBy = String(decisionHistoryEntry?.actor_name || '').trim()
-  const reviewRemarks = String(app?.latest_update_review_remarks || '').trim()
+  const reviewRemarks = String(app?.latest_update_review_remarks || decisionHistoryEntry?.remarks || '').trim()
 
   return {
     reviewedAt,
@@ -5331,7 +5439,13 @@ function buildApplicationTimeline(app) {
     }
 
     if (hasEditRequest) {
-      entries.push(...editRequestEntries)
+      const filteredEditEntries = isRecallRequestAction(app)
+        ? editRequestEntries.filter(
+            (entry) =>
+              !String(entry?.title || '').toLowerCase().includes('recall request approved')
+          )
+        : editRequestEntries
+      entries.push(...filteredEditEntries)
     }
 
     if (releasedTimelineEntry) {
@@ -5592,9 +5706,14 @@ function getSelectedDatePayStatusRows(app) {
   const fallbackStatus = resolveApplicationPayModeCode(app)
   const coverageWeights = getSelectedDateCoverageWeights(app)
   const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+  const pendingRecallKeys = getPendingRecallDateKeys(app)
+  const pendingRecallSet = new Set(pendingRecallKeys)
+  const isPendingRecall = isRecallRequestAction(app) && pendingRecallKeys.length > 0
   const shouldMarkRecalledDates =
     app?.application_row_variant === 'recalled' ||
     getApplicationRawStatusKey(app) === 'RECALLED'
+  const isAlreadyRecalled = shouldMarkRecalledDates && recalledDateSet.size > 0
+  const hasRecallContext = isPendingRecall || isAlreadyRecalled
 
   return dateSet.map((dateValue, index) => {
     const isoDate = toIsoDateString(dateValue)
@@ -5609,6 +5728,9 @@ function getSelectedDatePayStatusRows(app) {
       normalizedHalfDayPortionMap[String(index)] ??
       normalizedHalfDayPortionMap[String(index + 1)] ??
       ''
+    const isRecallRequested = isPendingRecall && pendingRecallSet.has(key)
+    const isRecalled = isAlreadyRecalled && recalledDateSet.has(key)
+    const isRetained = hasRecallContext && !isRecallRequested && !isRecalled
 
     return {
       dateKey: key,
@@ -5616,7 +5738,11 @@ function getSelectedDatePayStatusRows(app) {
       coverageLabel: getDateCoverageLabel(coverageWeights[key] ?? 1, halfDayPortion),
       halfDayPortion: halfDayPortion === 'AM' || halfDayPortion === 'PM' ? halfDayPortion : '',
       payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
-      recalled: shouldMarkRecalledDates && recalledDateSet.has(key),
+      recalled: isRecalled,
+      isRecallRequested,
+      isRecalled,
+      isRetained,
+      hasRecallContext,
     }
   })
 }
@@ -7606,6 +7732,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     getApplicationEditRequestReason,
     getApplicationEditRequestRequestedAt,
     getApplicationEditRequestRequestedDuration,
+    getApplicationEditRequestChangeSummaryLabel,
     getApplicationEditRequestSectionTitle,
     getApplicationEditRequestToDates,
     getCocBaseCreditableDisplay,
@@ -7671,6 +7798,13 @@ async function handleDialogMutationSuccess(payload = {}) {
     getPreEditHrApprovalTimelineEntry,
     getRawLeaveBalanceEntriesFromApplication,
     getRecallDateOptions,
+    getPendingRecallDateKeys,
+    getApplicationRecallDateKeys,
+    getApplicationRetainedDateKeys,
+    getRecallDatesSummary,
+    getRetainedDatesSummary,
+    getRecallDaysCountLabel,
+    getRetainedDaysCountLabel,
     getReceivedApplicationTimelineEntry,
     getReceivedByHrSummary,
     getReleasedByHrSummary,
@@ -7711,6 +7845,7 @@ async function handleDialogMutationSuccess(payload = {}) {
     isServerPaginatedLeaveView,
     isCancellationRequestAction,
     isRecallRequestAction,
+    isPendingRecallRequest,
     isEditUpdateRequest,
     isPendingEditRequest,
     isRecallableLeaveApplication,
