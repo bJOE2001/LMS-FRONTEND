@@ -840,6 +840,10 @@ export function useAdminApplicationsPage() {
       application_uid: `${baseKey}:recalled`,
       application_row_variant: 'recalled',
       group_raw_status: 'RECALLED',
+      queue_group_status: 'RECALLED',
+      queueGroupStatus: 'RECALLED',
+      queue_stage_key: null,
+      queueStageKey: null,
       status: 'Recalled',
       rawStatus: 'RECALLED',
       raw_status: 'RECALLED',
@@ -1171,6 +1175,7 @@ export function useAdminApplicationsPage() {
 
   function isAdminEditUpdateRequest(app) {
     if (!app || typeof app !== 'object') return false
+    if (normalizeAdminUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return false
 
     const candidates = [app?.has_pending_update_request]
 
@@ -1193,7 +1198,7 @@ export function useAdminApplicationsPage() {
 
     if (normalized === 'PENDING') return 'PENDING'
     if (normalized === 'APPROVED') return 'APPROVED'
-    if (normalized === 'REJECTED') return 'REJECTED'
+    if (normalized === 'REJECTED' || normalized === 'DISAPPROVED') return 'REJECTED'
     return ''
   }
 
@@ -1358,6 +1363,7 @@ export function useAdminApplicationsPage() {
           'UPDATE_REQUEST_APPROVED',
           'CANCELLATION_REQUEST_APPROVED',
           'CANCEL_REQUEST_APPROVED',
+          'HR_RECALLED',
           'RECALL_REQUEST_APPROVED',
           'REQUEST_RECALL_APPROVED',
           'REQUEST_UPDATE_APPROVED',
@@ -2351,6 +2357,92 @@ export function useAdminApplicationsPage() {
     return selectedDates.filter((dateKey) => !recalledDateSet.has(dateKey))
   }
 
+  function getPendingRecallDateKeys(app) {
+    if (!app || typeof app !== 'object') return []
+    const payload = getPendingUpdatePayload(app)
+    const candidates = [
+      payload?.recall_selected_dates,
+      payload?.recallSelectedDates,
+      app?.pending_update?.recall_selected_dates,
+      app?.pending_update?.recallSelectedDates,
+      app?.pendingUpdate?.recall_selected_dates,
+      app?.pendingUpdate?.recallSelectedDates,
+      app?.latest_update_request?.recall_selected_dates,
+      app?.latest_update_request?.recallSelectedDates,
+      app?.latestUpdateRequest?.recall_selected_dates,
+      app?.latestUpdateRequest?.recallSelectedDates,
+      app?.latest_update_request_payload?.recall_selected_dates,
+      app?.latest_update_request_payload?.recallSelectedDates,
+    ]
+    for (const candidate of candidates) {
+      const list = normalizeIsoDateList(parseSelectedDatesValue(candidate))
+      if (list.length > 0) return list
+    }
+    return []
+  }
+
+  function isRecallRequestAction(app) {
+    return Boolean(isAdminRecallRequest(app) || isApplicationEditRecallRequest(app))
+  }
+
+  function isPendingRecallRequest(app) {
+    if (!app || typeof app !== 'object' || isCocApplication(app)) return false
+    if (app?.application_row_variant === 'recalled') return false
+    const rawStatus = getApplicationRawStatus(app)
+    if (rawStatus === 'RECALLED') return false
+    if (!isRecallRequestAction(app)) return false
+    const updateStatus = getAdminLatestUpdateRequestStatus(app)
+    if (updateStatus === 'APPROVED' || updateStatus === 'REJECTED') return false
+    return updateStatus === 'PENDING' || rawStatus === 'PENDING_HR' || rawStatus === 'PENDING_ADMIN'
+  }
+
+  function getApplicationRecallDateKeys(app) {
+    if (!app || typeof app !== 'object') return []
+    if (isRecallRequestAction(app)) {
+      const pendingKeys = getPendingRecallDateKeys(app)
+      if (pendingKeys.length > 0) return pendingKeys
+    }
+    return getStoredRecallDateKeys(app)
+  }
+
+  function getApplicationRetainedDateKeys(app) {
+    if (!app || typeof app !== 'object') return []
+    const allDates = resolveDateSetFromSource(app)
+    if (!allDates.length) return []
+    const recallKeys = getApplicationRecallDateKeys(app)
+    if (!recallKeys.length) return []
+    const recallSet = new Set(recallKeys)
+    return allDates.filter((dateKey) => !recallSet.has(dateKey))
+  }
+
+  function getRecallDatesSummary(app) {
+    const recallKeys = getApplicationRecallDateKeys(app)
+    if (!recallKeys.length) return ''
+    const lines = formatGroupedInclusiveDateLines(recallKeys, isAbroadLeaveApplication(app))
+    return lines.join(', ')
+  }
+
+  function getRetainedDatesSummary(app) {
+    const retainedKeys = getApplicationRetainedDateKeys(app)
+    if (!retainedKeys.length) return ''
+    const lines = formatGroupedInclusiveDateLines(retainedKeys, isAbroadLeaveApplication(app))
+    return lines.join(', ')
+  }
+
+  function getRecallDaysCountLabel(app) {
+    const recallKeys = getApplicationRecallDateKeys(app)
+    const count = recallKeys.length
+    if (!count) return ''
+    return `${count} ${count === 1 ? 'day' : 'days'}`
+  }
+
+  function getRetainedDaysCountLabel(app) {
+    const retainedKeys = getApplicationRetainedDateKeys(app)
+    const count = retainedKeys.length
+    if (!count) return ''
+    return `${count} ${count === 1 ? 'day' : 'days'}`
+  }
+
   function getRecallDateOptions(app) {
     return [...new Set(getRemainingRecallableDateKeys(app))].sort()
   }
@@ -2478,6 +2570,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getPendingUpdatePayload(app) {
+    if (normalizeAdminUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return null
     const candidates = [app?.pending_update, app?.latest_update_request_payload]
 
     for (const candidate of candidates) {
@@ -2799,8 +2892,13 @@ export function useAdminApplicationsPage() {
     const fallbackStatus = resolveApplicationPayModeCode(app)
     const coverageWeights = getSelectedDateCoverageWeights(app)
     const recalledDateSet = new Set(getStoredRecallDateKeys(app))
+    const pendingRecallKeys = getPendingRecallDateKeys(app)
+    const pendingRecallSet = new Set(pendingRecallKeys)
+    const isPendingRecall = isRecallRequestAction(app) && pendingRecallKeys.length > 0
     const shouldMarkRecalledDates =
       app?.application_row_variant === 'recalled' || getApplicationRawStatus(app) === 'RECALLED'
+    const isAlreadyRecalled = shouldMarkRecalledDates && recalledDateSet.size > 0
+    const hasRecallContext = isPendingRecall || isAlreadyRecalled
 
     return dateSet.map((dateValue, index) => {
       const isoDate = toIsoDateString(dateValue)
@@ -2816,6 +2914,9 @@ export function useAdminApplicationsPage() {
         normalizedHalfDayPortionMap[String(index)] ??
         normalizedHalfDayPortionMap[String(index + 1)] ??
         ''
+      const isRecallRequested = isPendingRecall && pendingRecallSet.has(key)
+      const isRecalled = isAlreadyRecalled && recalledDateSet.has(key)
+      const isRetained = hasRecallContext && !isRecallRequested && !isRecalled
 
       return {
         dateKey: key,
@@ -2823,7 +2924,11 @@ export function useAdminApplicationsPage() {
         coverageLabel: getDateCoverageLabel(coverageWeight, halfDayPortion),
         halfDayPortion: halfDayPortion === 'AM' || halfDayPortion === 'PM' ? halfDayPortion : '',
         payStatus: payStatus === 'WOP' ? 'WOP' : 'WP',
-        recalled: shouldMarkRecalledDates && recalledDateSet.has(key),
+        recalled: isRecalled,
+        isRecallRequested,
+        isRecalled,
+        isRetained,
+        hasRecallContext,
       }
     })
   }
@@ -2952,6 +3057,7 @@ export function useAdminApplicationsPage() {
 
   function hasPendingDateUpdate(app) {
     if (!app || isApplicationEditRecallRequest(app) || isApplicationEditCancellationRequest(app)) return false
+    if (normalizeAdminUpdateRequestStatus(app?.latest_update_request_status) === 'REJECTED') return false
     const payload = getPendingUpdatePayload(app)
     if (!payload || typeof payload !== 'object' || payload.is_monetization) return false
 
@@ -3419,6 +3525,9 @@ export function useAdminApplicationsPage() {
 
   function getLeaveWorkflowStageStatus(app) {
     if (!app || isCocApplication(app)) return ''
+    if (app?.application_row_variant === 'recalled' || getApplicationRawStatus(app) === 'RECALLED') {
+      return ''
+    }
 
     const queueStageKey = getApplicationQueueStageKey(app)
     if (queueStageKey === 'PENDING_ADMIN') return 'Department Recommendation'
@@ -3463,6 +3572,9 @@ export function useAdminApplicationsPage() {
 
   function getApplicationStatusLabel(app) {
     if (isCancelledByUser(app)) return 'Cancelled'
+    if (app?.application_row_variant === 'recalled' || getApplicationRawStatus(app) === 'RECALLED') {
+      return 'Recalled'
+    }
     if (isApplicationReleased(app)) return 'Released'
 
     const cocReleaseStageStatus = getCocReleaseStageStatus(app)
@@ -4625,7 +4737,7 @@ export function useAdminApplicationsPage() {
     const reviewedByRole = resolveAdminEditRequestReviewRole(decisionHistoryEntry)
     const reviewedAt = app?.latest_update_reviewed_at || null
     const reviewedBy = String(decisionHistoryEntry?.actor_name || '').trim()
-    const reviewRemarks = String(app?.latest_update_review_remarks || '').trim()
+    const reviewRemarks = String(app?.latest_update_review_remarks || decisionHistoryEntry?.remarks || '').trim()
 
     return {
       reviewedAt,
@@ -5100,7 +5212,13 @@ export function useAdminApplicationsPage() {
       }
 
       if (hasEditRequest) {
-        entries.push(...editRequestEntries)
+        const filteredEditEntries = isApplicationEditRecallRequest(app)
+          ? editRequestEntries.filter(
+              (entry) =>
+                !String(entry?.title || '').toLowerCase().includes('recall request approved')
+            )
+          : editRequestEntries
+        entries.push(...filteredEditEntries)
       }
 
       entries.push({
@@ -6271,6 +6389,7 @@ export function useAdminApplicationsPage() {
   }
 
   function getConfirmActionTitle(type) {
+    if (type === 'withdraw_recall') return 'Withdraw Recall Request'
     if (type === 'approve' && isPendingAdminEditRequestApprovalTarget()) {
       return isAdminCancellationRequest(resolveApp(confirmActionTarget.value))
         ? 'Confirm Cancellation Request'
@@ -6282,6 +6401,9 @@ export function useAdminApplicationsPage() {
   }
 
   function getConfirmActionMessage(type) {
+    if (type === 'withdraw_recall') {
+      return 'Are you sure you want to withdraw this recall request? The application will revert to its original approved status.'
+    }
     if (type === 'approve' && isPendingAdminEditRequestApprovalTarget()) {
       const targetApp = resolveApp(confirmActionTarget.value)
       if (isAdminCancellationRequest(targetApp)) {
@@ -6914,6 +7036,11 @@ export function useAdminApplicationsPage() {
       return
     }
 
+    if (type === 'withdraw_recall') {
+      handleWithdrawRecall(target)
+      return
+    }
+
     openDisapprove(target, type === 'cancel' ? 'cancel' : 'disapprove')
   }
 
@@ -7314,6 +7441,7 @@ export function useAdminApplicationsPage() {
     const target = resolveApp(app) || app
     if (!target || isCocApplication(target)) return false
     if (hasApprovedEditHistory(target)) return true
+    if (normalizeAdminUpdateRequestStatus(target?.latest_update_request_status) === 'REJECTED') return false
     return hasApplicationEditRequest(target) && !isApplicationEditRecallRequest(target)
   }
 
@@ -7383,6 +7511,49 @@ export function useAdminApplicationsPage() {
       showPostActionDialog('approved', id, app, { isEditRequestApproval })
     } catch (err) {
       const message = resolveApiErrorMessage(err, 'Unable to approve this application right now.')
+      $q.notify({ type: 'negative', message, position: 'top' })
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  function canCancelRecallRequest(app) {
+    if (!app || isCocApplication(app)) return false
+    return isPendingRecallRequest(app)
+  }
+
+  function openWithdrawRecallConfirm(target) {
+    const app = resolveApp(target) || target || null
+    if (!app) return
+
+    confirmActionType.value = 'withdraw_recall'
+    confirmActionTarget.value = app
+    showCalendarPreviewDialog.value = false
+    showTimelineDialog.value = false
+    showDetailsDialog.value = false
+    showConfirmActionDialog.value = true
+  }
+
+  async function handleWithdrawRecall(target) {
+    const app = resolveApp(target) || target || null
+    if (!app) return
+    const applicationId = app?.id ?? target?.id ?? target
+    if (!applicationId) return
+
+    actionLoading.value = true
+    try {
+      const response = await api.post(`/admin/leave-applications/${applicationId}/cancel-recall`)
+      $q.notify({
+        type: 'positive',
+        message:
+          response?.data?.message ||
+          'Recall request withdrawn successfully. Application restored to Approved.',
+        position: 'top',
+      })
+      showDetailsDialog.value = false
+      await fetchApplications()
+    } catch (err) {
+      const message = resolveApiErrorMessage(err, 'Unable to withdraw recall request right now.')
       $q.notify({ type: 'negative', message, position: 'top' })
     } finally {
       actionLoading.value = false
@@ -7514,6 +7685,15 @@ export function useAdminApplicationsPage() {
     getApplicationInclusiveDateColumnLines,
     getApplicationInclusiveDateLines,
     getSelectedDateIndicatorRows,
+    getPendingRecallDateKeys,
+    isRecallRequestAction,
+    isPendingRecallRequest,
+    getApplicationRecallDateKeys,
+    getApplicationRetainedDateKeys,
+    getRecallDatesSummary,
+    getRetainedDatesSummary,
+    getRecallDaysCountLabel,
+    getRetainedDaysCountLabel,
     getPendingUpdateDateIndicatorRows,
     hasPendingDateUpdate,
     formatDate,
@@ -7572,6 +7752,9 @@ export function useAdminApplicationsPage() {
     isCtoLeaveApplication,
     openActionConfirm,
     canRequestRecallApplication,
+    canCancelRecallRequest,
+    openWithdrawRecallConfirm,
+    handleWithdrawRecall,
     getRecallDateOptions,
     formatRecallDateLabel,
     getTimelineEntryTone,

@@ -114,8 +114,8 @@
           </div>
         </template>
       </q-card-section>
-      <q-separator />
-      <q-card-actions class="application-timeline-footer">
+      <q-separator v-if="shouldShowFooterActions" />
+      <q-card-actions v-if="shouldShowFooterActions" class="application-timeline-footer">
         <div class="application-timeline-footer-actions">
           <q-btn
             v-if="canReceiveState"
@@ -602,14 +602,51 @@ const isReleasedState = computed(() => {
 })
 
 const canUndoReleaseState = computed(() => {
-  return Boolean(props.application && isReleasedState.value)
+  if (!props.application || !isReleasedState.value) return false
+  if (isTerminalApplicationState.value) return false
+  return true
+})
+
+const isTerminalApplicationState = computed(() => {
+  const rawStatus = String(
+    props.application?.rawStatus ||
+      props.application?.raw_status ||
+      props.application?.status ||
+      '',
+  )
+    .toUpperCase()
+    .trim()
+
+  return ['RECALLED', 'REJECTED', 'CANCELLED'].includes(rawStatus)
 })
 
 const canUndoReceiveState = computed(() => {
   if (!props.application || !isReceivedState.value) return false
   if (isReleasedState.value) return false
+  if (isTerminalApplicationState.value) return false
+  const rawStatus = String(
+    props.application?.rawStatus ||
+      props.application?.raw_status ||
+      props.application?.status ||
+      '',
+  )
+    .toUpperCase()
+    .trim()
+  if (rawStatus === 'APPROVED' && !isUpdateRequestCycle.value) return false
   if (!isUpdateRequestCycle.value && isBackendCmoCbmoReviewState(props.application)) return false
   return true
+})
+
+const shouldShowFooterActions = computed(() => {
+  if (isTerminalApplicationState.value || isRecallRequestCycle.value) {
+    return false
+  }
+  return Boolean(
+    canReceiveState.value ||
+      isReceivedState.value ||
+      canReleaseState.value ||
+      isReleasedState.value,
+  )
 })
 
 function getUndoTimelineEntryType(entry) {

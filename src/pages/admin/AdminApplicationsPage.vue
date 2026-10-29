@@ -184,11 +184,20 @@
               <span
                 v-for="(line, index) in getApplicationInclusiveDateColumnLines(tableProps.row)"
                 :key="`${tableProps.row.id}-inclusive-${index}`"
-                class="text-weight-medium text-grey-9"
+                class="text-weight-medium text-grey-9 block"
                 @click.stop="openCalendarPreview(tableProps.row)"
               >
                 {{ line }}
               </span>
+              <q-badge
+                v-if="isPendingRecallRequest(tableProps.row) && getRecallDatesSummary(tableProps.row)"
+                color="amber-9"
+                outline
+                class="q-mt-xs text-weight-bold"
+                style="font-size: 11px; padding: 2px 6px;"
+              >
+                Recall: {{ getRecallDatesSummary(tableProps.row) }} ({{ getRecallDaysCountLabel(tableProps.row) }})
+              </q-badge>
             </div>
           </q-td>
         </template>
@@ -206,7 +215,13 @@
                 {{ getApplicationDurationDisplay(tableProps.row) }}
               </span>
               <span
-                v-if="getCtoHoursRowCaption(tableProps.row)"
+                v-if="isPendingRecallRequest(tableProps.row) && getRecallDaysCountLabel(tableProps.row)"
+                class="text-caption text-amber-9 text-weight-medium block"
+              >
+                ({{ getRecallDaysCountLabel(tableProps.row) }} to recall)
+              </span>
+              <span
+                v-else-if="getCtoHoursRowCaption(tableProps.row)"
                 class="text-caption text-grey-7 block application-duration-subtext"
               >
                 {{ getCtoHoursRowCaption(tableProps.row) }}
@@ -312,6 +327,18 @@
                 @click.stop="printRecallRequestApplication(tableProps.row)"
               >
                 <q-tooltip>Print Recall Form</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canCancelRecallRequest(tableProps.row)"
+                flat
+                dense
+                round
+                size="sm"
+                icon="cancel"
+                color="negative"
+                @click.stop="openWithdrawRecallConfirm(tableProps.row)"
+              >
+                <q-tooltip>Withdraw Recall Request</q-tooltip>
               </q-btn>
               <template v-if="tableProps.row.rawStatus === 'PENDING_ADMIN'">
                 <q-btn
@@ -534,7 +561,8 @@
           <div
             v-if="
               hasApplicationEditRequest(selectedApp) &&
-              !isApplicationEditRequestHrApproved(selectedApp)
+              !isApplicationEditRequestHrApproved(selectedApp) &&
+              getAdminLatestUpdateRequestStatus(selectedApp) === 'PENDING'
             "
             class="admin-application-requested-changes-section"
           >
@@ -626,14 +654,42 @@
             </div>
             <div v-else class="admin-application-requested-changes-grid">
               <div class="admin-application-requested-changes-item">
-                <div class="admin-application-requested-changes-title">Changes</div>
-                <div class="admin-application-requested-changes-line">
-                  <span class="admin-application-requested-changes-key">Requested:</span>
-                  <span
-                    class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
-                    >{{ getApplicationEditRequestChangeSummaryLabel(selectedApp) }}</span
-                  >
+                <div class="admin-application-requested-changes-title">
+                  {{ isRecallRequestAction(selectedApp) ? 'Recall Scope' : 'Changes' }}
                 </div>
+                <template v-if="isRecallRequestAction(selectedApp)">
+                  <div class="admin-application-requested-changes-line">
+                    <span class="admin-application-requested-changes-key">Dates to Recall:</span>
+                    <span
+                      class="admin-application-requested-changes-value admin-application-requested-changes-value--requested text-weight-bold"
+                      >{{ getRecallDatesSummary(selectedApp) }}</span
+                    >
+                    <q-badge color="amber-9" text-color="white" class="q-ml-xs">
+                      {{ getRecallDaysCountLabel(selectedApp) }}
+                    </q-badge>
+                  </div>
+                  <div
+                    v-if="getRetainedDatesSummary(selectedApp)"
+                    class="admin-application-requested-changes-line q-mt-xs"
+                  >
+                    <span class="admin-application-requested-changes-key">Retained Dates:</span>
+                    <span class="admin-application-requested-changes-value text-positive text-weight-medium">
+                      {{ getRetainedDatesSummary(selectedApp) }}
+                    </span>
+                    <q-badge color="positive" outline class="q-ml-xs">
+                      {{ getRetainedDaysCountLabel(selectedApp) }}
+                    </q-badge>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="admin-application-requested-changes-line">
+                    <span class="admin-application-requested-changes-key">Requested:</span>
+                    <span
+                      class="admin-application-requested-changes-value admin-application-requested-changes-value--requested"
+                      >{{ getApplicationEditRequestChangeSummaryLabel(selectedApp) }}</span
+                    >
+                  </div>
+                </template>
               </div>
               <div class="admin-application-requested-changes-item">
                 <div class="admin-application-requested-changes-title">Request Details</div>
@@ -828,9 +884,39 @@
                   :key="`${selectedApp.application_uid || selectedApp.id}-details-indicator-${entry.dateKey}`"
                   class="admin-application-duration-date-row"
                 >
-                  <span class="text-caption admin-application-duration-date">{{
+                  <span
+                    class="text-caption admin-application-duration-date"
+                    :class="{ 'text-strike text-grey-6': entry.recalled || entry.isRecalled }"
+                  >{{
                     formatInclusiveDateEntry(entry)
                   }}</span>
+                  <q-badge
+                    v-if="entry.isRecallRequested"
+                    dense
+                    rounded
+                    color="amber-9"
+                    text-color="white"
+                    label="Recall Requested"
+                    class="admin-application-duration-badge"
+                  />
+                  <q-badge
+                    v-else-if="entry.recalled || entry.isRecalled"
+                    dense
+                    rounded
+                    color="grey-7"
+                    text-color="white"
+                    label="Recalled"
+                    class="admin-application-duration-badge"
+                  />
+                  <q-badge
+                    v-else-if="entry.hasRecallContext && entry.isRetained"
+                    dense
+                    rounded
+                    outline
+                    color="positive"
+                    label="Retained"
+                    class="admin-application-duration-badge"
+                  />
                   <q-badge
                     dense
                     rounded
@@ -927,6 +1013,15 @@
             color="teal-7"
             label="Print Recall Form"
             @click="printRecallRequestApplication(selectedApp)"
+          />
+          <q-btn
+            v-if="canCancelRecallRequest(selectedApp)"
+            unelevated
+            no-caps
+            color="negative"
+            label="Withdraw Recall Request"
+            icon="cancel"
+            @click="openWithdrawRecallConfirm(selectedApp)"
           />
           <template v-if="selectedApp.rawStatus === 'PENDING_ADMIN'">
             <q-btn
@@ -1148,6 +1243,8 @@ const {
   canPrintApplication,
   canPrintRecallRequestApplication,
   canRequestRecallApplication,
+  canCancelRecallRequest,
+  openWithdrawRecallConfirm,
   showSignatoryPrintDialog,
   applicationForSignatoryPrint,
   handleConfirmSignatoryPrint,
@@ -1176,6 +1273,12 @@ const {
   formatApplicationLeaveTypeLabel,
   printRequestChangesActionResult,
   submitRecallRequest,
+  isRecallRequestAction,
+  isPendingRecallRequest,
+  getRecallDatesSummary,
+  getRetainedDatesSummary,
+  getRecallDaysCountLabel,
+  getRetainedDaysCountLabel,
   // shouldShowCurrentLeaveBalance,
 } = useAdminApplicationsPage()
 
