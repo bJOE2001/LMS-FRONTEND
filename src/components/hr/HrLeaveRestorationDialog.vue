@@ -112,8 +112,10 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useQuasar, date as qdate } from 'quasar'
 import { api } from 'src/boot/axios'
+import { useEmployeeStore } from 'src/stores/employee-store'
 
 const $q = useQuasar()
+const employeeStore = useEmployeeStore()
 
 const props = defineProps({
   modelValue: {
@@ -348,11 +350,11 @@ function clearDates() {
   form.restored_days = null
 }
 
-async function fetchAvailableLeaveTypes() {
+async function fetchAvailableLeaveTypes(force = false) {
+  if (!controlNo.value) return
   try {
-    const params = controlNo.value ? { employee_control_no: controlNo.value } : {}
-    const res = await api.get('/hr/leave-balances/available-types', { params })
-    const types = res.data?.leave_types || res.data?.types || res.data || []
+    const data = await employeeStore.fetchAvailableLeaveTypes(controlNo.value, force)
+    const types = data?.leave_types || data?.types || data || []
     if (Array.isArray(types) && types.length) {
       availableLeaveTypes.value = types.map((t) => ({
         id: t.id || t.leave_type_id,
@@ -419,7 +421,7 @@ watch(
   (isOpen) => {
     if (isOpen) {
       populateForm()
-      if (!availableLeaveTypes.value.length) {
+      if (controlNo.value) {
         fetchAvailableLeaveTypes()
       }
     }
@@ -436,7 +438,7 @@ watch(
 )
 
 onMounted(() => {
-  if (props.modelValue) {
+  if (props.modelValue && controlNo.value) {
     populateForm()
     fetchAvailableLeaveTypes()
   }
@@ -508,6 +510,7 @@ async function handleSubmit() {
       if (isEditMode.value) {
         const cleanId = String(restorationId.value).replace('restoration-', '').trim()
         res = await api.post(`/hr/employees/${controlNo.value}/restore-leave-credits/${cleanId}/update`, payload)
+        employeeStore.invalidateEmployee(controlNo.value)
         $q.notify({
           type: 'positive',
           message: res.data?.message || 'Leave credit restoration updated successfully!',
@@ -518,6 +521,7 @@ async function handleSubmit() {
         emit('restored', res.data?.restoration)
       } else {
         res = await api.post(`/hr/employees/${controlNo.value}/restore-leave-credits`, payload)
+        employeeStore.invalidateEmployee(controlNo.value)
         $q.notify({
           type: 'positive',
           message: res.data?.message || 'Leave credits restored successfully!',

@@ -285,168 +285,19 @@
     </q-card>
 
     <!-- View Employee Dialog -->
-    <q-dialog v-model="showViewDialog" persistent>
-      <q-card class="rounded-borders employee-details-dialog">
-        <q-card-section class="row items-center q-pb-none employee-details-dialog__toolbar">
-          <div class="text-h6">Employee Details</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        <q-card-section v-if="selectedEmployee" class="employee-details-dialog__content">
-          <div class="employee-details-header">
-            <div class="employee-details-header__profile">
-              <div class="employee-details-header__identity">
-                <div class="text-h6 employee-details-header__name">
-                  {{ getEmployeeColumnDisplayName(selectedEmployee) }}
-                </div>
-                <div class="text-caption text-grey-6 employee-details-header__designation">
-                  {{ selectedEmployee.designation || '-' }}
-                </div>
-              </div>
-            </div>
-
-            <div class="employee-details-header__meta">
-              <div class="employee-details-header__meta-item">
-                <div class="text-caption text-grey-6">Monthly Rate</div>
-                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
-                  {{ employeeMonthlyRateLabel }}
-                </div>
-              </div>
-              <div class="employee-details-header__meta-item">
-                <div class="text-caption text-grey-6">Estimated Terminal Leave</div>
-                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
-                  {{ employeeTerminalLeaveEstimatedAmountLabel }}
-                </div>
-              </div>
-              <div class="employee-details-header__meta-item">
-                <div class="text-caption text-grey-6">Office</div>
-                <div class="text-body2 text-weight-medium employee-details-header__meta-value">
-                  {{
-                    resolveOfficeAcronymLabel(selectedEmployee) || selectedEmployee.office || '-'
-                  }}
-                </div>
-              </div>
-              <div class="employee-details-header__meta-item">
-                <div class="text-caption text-grey-6">Status</div>
-                <q-badge
-                  class="employee-details-header__status-badge"
-                  :color="statusBadgeColor(selectedEmployee.status)"
-                  :label="displayStatusLabel(selectedEmployee.status)"
-                  rounded
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="employee-details-leave-credits" aria-label="Employee leave credits">
-            <div class="employee-details-leave-credits__badges">
-              <template v-if="employeeDetailsLeaveBadgesLoading">
-                <q-spinner color="secondary" size="16px" />
-                <span class="employee-details-leave-credits__loading-text">
-                  Loading leave credits...
-                </span>
-              </template>
-              <template v-else>
-                <span
-                  v-for="badge in employeeDetailsLeaveBadges"
-                  :key="`employee-details-leave-badge-${badge.code}`"
-                  class="employee-details-leave-badge"
-                  :style="badge.style || {}"
-                >
-                  <span class="employee-details-leave-badge__code">{{ badge.label }}</span>
-                  <span class="employee-details-leave-badge__value">{{ badge.value }}</span>
-                </span>
-              </template>
-            </div>
-          </div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section>
-          <div class="row items-center q-mb-sm">
-            <div class="text-subtitle2 text-weight-medium">Leave History</div>
-            <q-space />
-            <q-spinner v-if="leaveHistoryLoading" color="primary" size="20px" />
-          </div>
-          <q-table
-            class="leave-history-table"
-            flat
-            dense
-            :rows="leaveHistory"
-            :columns="historyColumns"
-            row-key="id"
-            :rows-per-page-options="[5, 10, 20]"
-            :loading="leaveHistoryLoading"
-            table-style="table-layout: fixed; width: 100%"
-          >
-            <template #header-cell="props">
-              <q-th :props="props" class="leave-history-table__header-cell">
-                <span class="leave-history-table__header-label">
-                  {{ props.col.label }}
-                </span>
-              </q-th>
-            </template>
-            <template #body-cell-status="props">
-              <q-td :props="props" class="leave-history-table__status-cell">
-                <q-badge
-                  :color="leaveStatusColor(props.row.raw_status)"
-                  :label="props.row.status"
-                  rounded
-                />
-              </q-td>
-            </template>
-            <template #body-cell-leave_type="props">
-              <q-td :props="props" class="leave-history-table__leave-type-cell">
-                <span class="leave-history-table__leave-type-text">
-                  {{ props.row.leave_type || '-' }}
-                </span>
-              </q-td>
-            </template>
-            <template #body-cell-inclusive_date="props">
-              <q-td :props="props" class="leave-history-table__inclusive-date-cell">
-                <div class="row items-center justify-center no-wrap q-gutter-xs">
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    class="leave-history-table__inclusive-date-trigger"
-                    :disable="!canOpenLeaveHistoryCalendarPreview(props.row)"
-                    @click.stop="openLeaveHistoryCalendarPreview(props.row)"
-                  >
-                    <span class="leave-history-table__inclusive-date-text">
-                      {{ buildLeaveHistoryInclusiveDateLabel(props.row) }}
-                    </span>
-                  </q-btn>
-                  <q-btn
-                    flat
-                    dense
-                    round
-                    icon="calendar_today"
-                    color="primary"
-                    :disable="!canOpenLeaveHistoryCalendarPreview(props.row)"
-                    @click.stop="openLeaveHistoryCalendarPreview(props.row)"
-                  >
-                    <q-tooltip>View calendar</q-tooltip>
-                  </q-btn>
-                </div>
-              </q-td>
-            </template>
-            <template #body-cell-date_filed="props">
-              <q-td :props="props">{{ formatDate(props.row.date_filed) }}</q-td>
-            </template>
-            <template #no-data>
-              <div class="full-width text-center q-pa-md text-grey-6">
-                <template v-if="leaveHistoryLoading">
-                  <q-spinner color="primary" size="24px" class="q-mr-sm" />
-                  <span>Loading leave history...</span>
-                </template>
-                <template v-else> No leave history found for this employee. </template>
-              </div>
-            </template>
-          </q-table>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+    <HrEmployeeDetailsDialog
+      v-model="showViewDialog"
+      :employee="selectedEmployee"
+      :monthly-rate="employeeMonthlyRateLabel"
+      :terminal-leave-estimate="employeeTerminalLeaveEstimatedAmountLabel"
+      :leave-badges="employeeDetailsLeaveBadges"
+      :loading-badges="employeeDetailsLeaveBadgesLoading"
+      :leave-history="leaveHistory"
+      :loading-history="leaveHistoryLoading"
+      :inclusive-date-builder="buildLeaveHistoryInclusiveDateLabel"
+      :can-open-calendar-checker="canOpenLeaveHistoryCalendarPreview"
+      @open-calendar-preview="openLeaveHistoryCalendarPreview"
+    />
 
     <HrEmployeeCocCtoLedgerDialog
       v-model="showCocCtoLedgerDialog"
@@ -492,316 +343,12 @@
     />
 
     <!-- Manual Leave Credits Dialog -->
-    <q-dialog v-model="showLeaveCreditsDialog" persistent>
-      <q-card class="rounded-borders leave-credit-dialog">
-        <q-card-section class="row items-center q-pb-none">
-          <q-icon :name="leaveCreditDialogIcon" size="sm" color="secondary" class="q-mr-sm" />
-          <div class="text-h6">{{ leaveCreditDialogTitle }}</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup :disable="savingLeaveCredits" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-sm">
-          <q-banner dense rounded class="bg-blue-1 text-blue-9 q-mb-md">
-            <template #avatar>
-              <q-icon name="info" color="blue-8" />
-            </template>
-            {{ leaveCreditDialogDescription }}
-          </q-banner>
-
-          <div class="row q-col-gutter-md">
-            <div class="col-12 col-sm-7">
-              <q-select
-                ref="creditEmployeeSelect"
-                v-model="leaveCreditForm.employee_control_no"
-                v-model:input-value="creditEmployeeFilter"
-                :options="filteredCreditEmployeeOptions"
-                outlined
-                dense
-                emit-value
-                map-options
-                option-label="label"
-                option-value="value"
-                use-input
-                fill-input
-                hide-selected
-                input-debounce="300"
-                clearable
-                label="Employee Name *"
-                :loading="loadingCreditEmployees"
-                :disable="isLeaveCreditsEditMode"
-                @filter="filterCreditEmployeeOptions"
-                @update:input-value="onCreditEmployeeInputValue"
-              >
-                <template #option="scope">
-                  <q-item v-bind="scope.itemProps">
-                    <q-item-section>
-                      <q-item-label>{{ scope.opt.label }}</q-item-label>
-                      <q-item-label v-if="scope.opt.caption" caption>
-                        {{ scope.opt.caption }}
-                      </q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </template>
-                <template #no-option>
-                  <q-item>
-                    <q-item-section class="text-grey-7">
-                      {{ creditEmployeeNoOptionMessage }}
-                    </q-item-section>
-                  </q-item>
-                </template>
-              </q-select>
-            </div>
-            <div class="col-12 col-sm-5">
-              <q-input
-                v-model="leaveCreditForm.as_of_date"
-                outlined
-                dense
-                label="As of Date *"
-                :rules="[(val) => !!val || 'As of date is required']"
-              >
-                <template #append>
-                  <q-icon name="event" class="cursor-pointer">
-                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                      <q-date v-model="leaveCreditForm.as_of_date" mask="YYYY-MM-DD">
-                        <div class="row items-center justify-end q-gutter-sm q-pa-sm">
-                          <q-btn v-close-popup label="Close" color="primary" flat no-caps />
-                        </div>
-                      </q-date>
-                    </q-popup-proxy>
-                  </q-icon>
-                </template>
-              </q-input>
-            </div>
-            <div class="col-12">
-              <div class="row items-start justify-between q-col-gutter-sm">
-                <div class="col">
-                  <div class="text-subtitle2 text-weight-medium">Leave Type Balances</div>
-                  <div class="text-caption text-grey-6">Fill all allowed leave type balances.</div>
-                </div>
-                <div class="col-auto">
-                  <q-btn
-                    flat
-                    no-caps
-                    label="COC Credits"
-                    color="primary"
-                    icon="event_available"
-                    :disable="!canOpenCocImportDialog || savingLeaveCredits"
-                    @click="openCocImportDialog"
-                  />
-                </div>
-              </div>
-            </div>
-            <template v-if="loadingCreditLeaveTypes">
-              <div class="col-12">
-                <div class="row items-center q-gutter-sm text-grey-7">
-                  <q-spinner color="secondary" size="20px" />
-                  <span>Loading leave types...</span>
-                </div>
-              </div>
-            </template>
-            <template v-else-if="creditLeaveTypes.length">
-              <div
-                v-for="leaveType in creditLeaveTypes"
-                :key="leaveType.id"
-                class="col-12 col-sm-6"
-              >
-                <q-input
-                  v-model="leaveCreditForm.balances[leaveType.id]"
-                  outlined
-                  dense
-                  type="number"
-                  min="0"
-                  :max="resolveLeaveTypeMaxDays(leaveType) ?? undefined"
-                  step="0.001"
-                  :label="`${getLeaveTypeDisplayName(leaveType)} *`"
-                  :hint="formatLeaveTypeInputHint(leaveType)"
-                  :rules="leaveCreditBalanceRules(leaveType)"
-                  lazy-rules
-                />
-              </div>
-            </template>
-            <div v-else class="col-12">
-              <q-banner dense rounded class="bg-orange-1 text-orange-9">
-                {{ creditLeaveTypesEmptyMessage }}
-              </q-banner>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md">
-          <q-btn
-            flat
-            no-caps
-            label="Cancel"
-            color="grey-7"
-            v-close-popup
-            :disable="savingLeaveCredits"
-          />
-          <q-btn
-            unelevated
-            no-caps
-            :label="leaveCreditDialogSaveLabel"
-            color="secondary"
-            :icon="isLeaveCreditsEditMode ? 'edit' : 'save'"
-            :loading="savingLeaveCredits"
-            @click="saveLeaveCredits"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- COC Balance Import Dialog -->
-    <q-dialog v-model="showCocImportDialog" persistent>
-      <q-card class="rounded-borders coc-import-dialog">
-        <q-card-section class="row items-center q-pb-none">
-          <q-icon name="event_available" size="sm" color="primary" class="q-mr-sm" />
-          <div class="text-h6">Manage COC Entries</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup :disable="savingCocImport" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-sm">
-          <div class="row q-col-gutter-md q-mb-md">
-            <div class="col-12">
-              <q-input
-                :model-value="selectedCreditEmployeeLabel"
-                outlined
-                dense
-                readonly
-                label="Employee"
-              />
-            </div>
-          </div>
-
-          <div class="row q-col-gutter-md">
-            <div class="col-12">
-              <div class="row items-center justify-between">
-                <div class="text-subtitle2 text-weight-medium">COC Entries</div>
-                <div class="row items-center q-gutter-xs">
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    icon="add"
-                    color="primary"
-                    label="Add Row"
-                    :disable="
-                      savingCocImport ||
-                      loadingCocImportEntries ||
-                      cocImportForm.entries.length >= 200
-                    "
-                    @click="addCocImportEntry"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div v-if="loadingCocImportEntries" class="col-12">
-              <div class="row items-center q-gutter-sm text-grey-7">
-                <q-spinner color="primary" size="18px" />
-                <span>Loading existing COC entries...</span>
-              </div>
-            </div>
-
-            <template v-for="(entry, index) in cocImportForm.entries" :key="`coc-entry-${index}`">
-              <div class="col-12">
-                <div class="coc-import-entry">
-                  <div class="row items-center justify-between q-mb-sm">
-                    <div class="row items-center q-gutter-sm">
-                      <div class="text-subtitle2 text-weight-medium">Entry #{{ index + 1 }}</div>
-                      <q-badge
-                        v-if="isExistingCocImportEntry(entry)"
-                        color="blue-8"
-                        text-color="white"
-                        label="Saved"
-                      />
-                    </div>
-                    <q-btn
-                      flat
-                      dense
-                      round
-                      icon="delete"
-                      color="negative"
-                      :disable="
-                        savingCocImport ||
-                        loadingCocImportEntries ||
-                        cocImportForm.entries.length <= 1 ||
-                        isExistingCocImportEntry(entry)
-                      "
-                      @click="removeCocImportEntry(index)"
-                    >
-                      <q-tooltip>
-                        {{
-                          isExistingCocImportEntry(entry)
-                            ? 'Saved entries cannot be removed here.'
-                            : 'Remove row'
-                        }}
-                      </q-tooltip>
-                    </q-btn>
-                  </div>
-
-                  <div class="row q-col-gutter-sm">
-                    <div class="col-12 col-sm-4">
-                      <q-input
-                        v-model="entry.hours"
-                        outlined
-                        dense
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        label="COC Hours *"
-                      />
-                    </div>
-                    <div class="col-12 col-sm-4">
-                      <q-input
-                        v-model="entry.credited_at"
-                        outlined
-                        dense
-                        type="date"
-                        label="Earned Date *"
-                        @update:model-value="handleCocImportEntryEarnedDateChange(index)"
-                      />
-                    </div>
-                    <div class="col-12 col-sm-4">
-                      <q-input
-                        v-model="entry.expires_on"
-                        outlined
-                        dense
-                        type="date"
-                        label="Expiration Date *"
-                        readonly
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md">
-          <q-btn
-            flat
-            no-caps
-            label="Cancel"
-            color="grey-7"
-            v-close-popup
-            :disable="savingCocImport"
-          />
-          <q-btn
-            unelevated
-            no-caps
-            label="Save"
-            color="primary"
-            icon="save"
-            :loading="savingCocImport"
-            :disable="loadingCocImportEntries"
-            @click="saveCocImports"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <HrEmployeeLeaveCreditsDialog
+      v-model="showLeaveCreditsDialog"
+      :mode="leaveCreditDialogMode"
+      :employee="activeCreditEmployee"
+      @saved="onLeaveCreditsSaved"
+    />
 
     <AdminApplicationCalendarDialog
       v-model="showCalendarPreviewDialog"
@@ -822,74 +369,26 @@
     />
 
     <!-- Push to Biometric Device Dialog -->
-    <q-dialog v-model="showPushToBioDialog" persistent>
-      <q-card style="width: 500px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center justify-between bg-primary text-white q-py-sm">
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="fingerprint" size="22px" />
-            <div class="text-subtitle1 text-weight-bold">Push to Biometric Device</div>
-          </div>
-          <q-btn flat round dense icon="close" text-color="white" v-close-popup :disable="pushingToBio" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-md">
-          <div v-if="activeBioEmployee" class="q-mb-md">
-            <div class="text-caption text-grey-6 text-uppercase text-weight-bold">Employee</div>
-            <div class="text-weight-bold text-subtitle2 text-grey-9">
-              {{ getEmployeeFullName(activeBioEmployee) }}
-            </div>
-            <div class="text-caption text-grey-7">
-              Control No: {{ activeBioEmployee.control_no }} • {{ resolveOfficeAcronymLabel(activeBioEmployee) || 'No office' }}
-            </div>
-          </div>
-
-          <div class="q-mb-sm">
-            <div class="text-caption text-grey-7 q-mb-xs">Select Biometric Terminal:</div>
-            <q-select
-              v-model="selectedBioDeviceSn"
-              :options="bioDeviceOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              :loading="loadingBioDevices"
-              label="Biometric Terminal *"
-              hint="The employee record will be sent to this terminal for registration."
-            >
-              <template #prepend>
-                <q-icon name="devices" />
-              </template>
-            </q-select>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
-          <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="pushingToBio" />
-          <q-btn
-            unelevated
-            no-caps
-            color="primary"
-            class="text-weight-bold q-px-md"
-            icon="send"
-            label="Push to Device"
-            :loading="pushingToBio"
-            :disable="!selectedBioDeviceSn"
-            @click="submitPushToBio"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <HrEmployeePushToBioDialog
+      v-model="showPushToBioDialog"
+      :employee="activeBioEmployee"
+      @registered="onBiometricRegistered"
+    />
   </q-page>
 </template>
 
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useQuasar } from 'quasar'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import { api } from 'src/boot/axios'
+import { useEmployeeStore } from 'src/stores/employee-store'
 import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'
 import HrEmployeeLeaveCreditsLedgerDialog from 'src/components/hr/HrEmployeeLeaveCreditsLedgerDialog.vue'
+import HrEmployeeDetailsDialog from 'src/components/hr/HrEmployeeDetailsDialog.vue'
+import HrEmployeeLeaveCreditsDialog from 'src/components/hr/HrEmployeeLeaveCreditsDialog.vue'
+import HrEmployeePushToBioDialog from 'src/components/hr/HrEmployeePushToBioDialog.vue'
 import HrEmployeeCocCtoLedgerDialog from 'src/components/hr/HrEmployeeCocCtoLedgerDialog.vue'
 import HrEmployeeLeaveAccrualsEditDialog from 'src/components/hr/HrEmployeeLeaveAccrualsEditDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
@@ -898,16 +397,19 @@ import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
 
 const $q = useQuasar()
+const employeeStore = useEmployeeStore()
+const {
+  employees,
+  totalEmployees,
+  allDepartments,
+  employeePagination,
+  loading,
+  loadingDepartments,
+  loadingTotalEmployees,
+} = storeToRefs(employeeStore)
 
 const search = ref('')
 const activityFilter = ref('ACTIVE')
-const loading = ref(false)
-const loadingTotalEmployees = ref(false)
-const loadingDepartments = ref(false)
-
-const employees = ref([])
-const allDepartments = ref([])
-const totalEmployees = ref(0)
 const activityOptions = [
   { label: 'Active', value: 'ACTIVE' },
   { label: 'Inactive', value: 'INACTIVE' },
@@ -923,10 +425,7 @@ const biometricStatusOptions = [
 
 const showPushToBioDialog = ref(false)
 const activeBioEmployee = ref(null)
-const selectedBioDeviceSn = ref(null)
-const bioDeviceOptions = ref([])
-const loadingBioDevices = ref(false)
-const pushingToBio = ref(false)
+const activeCreditEmployee = ref(null)
 
 const showViewDialog = ref(false)
 const selectedEmployee = ref(null)
@@ -965,62 +464,9 @@ const ledgerPaperSize = ref('A4')
 
 // Manual leave credit state
 const showLeaveCreditsDialog = ref(false)
-const LEAVE_CREDIT_DIALOG_MODE_ADD = 'add'
-const LEAVE_CREDIT_DIALOG_MODE_EDIT = 'edit'
-const leaveCreditDialogMode = ref(LEAVE_CREDIT_DIALOG_MODE_ADD)
-const savingLeaveCredits = ref(false)
-const loadingCreditEmployees = ref(false)
-const loadingCreditLeaveTypes = ref(false)
-const creditLeaveTypes = ref([])
-const allCreditEmployeeOptions = ref([])
-const filteredCreditEmployeeOptions = ref([])
-const leaveCreditForm = ref(defaultLeaveCreditForm())
-const showCocImportDialog = ref(false)
-const savingCocImport = ref(false)
-const loadingCocImportEntries = ref(false)
-const cocImportForm = ref(defaultCocImportForm())
-const creditEmployeeSelect = ref(null)
-const creditEmployeeFilter = ref('')
-const CREDIT_EMPLOYEE_LOOKUP_LIMIT = 20
-const CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH = 2
-const creditEmployeeLookupCache = new Map()
-let creditEmployeeLookupSequence = 0
-let creditEmployeeAbortController = null
-let creditLeaveTypesLookupSequence = 0
+const leaveCreditDialogMode = ref('ADD')
 let employeeDetailsLeaveBadgesLookupSequence = 0
-
-const isLeaveCreditsEditMode = computed(
-  () => leaveCreditDialogMode.value === LEAVE_CREDIT_DIALOG_MODE_EDIT,
-)
-const leaveCreditDialogTitle = computed(() =>
-  isLeaveCreditsEditMode.value ? 'Edit Leave Credits' : 'Add Leave Credits',
-)
-const leaveCreditDialogIcon = computed(() =>
-  isLeaveCreditsEditMode.value ? 'edit_note' : 'add_card',
-)
-const leaveCreditDialogDescription = computed(() =>
-  isLeaveCreditsEditMode.value
-    ? "Update only the employee's initial manual leave credits."
-    : "This sets the employee's balances for allowed credit-based leave types.",
-)
-const leaveCreditDialogSaveLabel = computed(() =>
-  isLeaveCreditsEditMode.value ? 'Update Leave Credits' : 'Save Leave Credits',
-)
-const selectedCreditEmployeeLabel = computed(() => {
-  const selectedOption = getSelectedCreditEmployeeOption()
-  return selectedOption?.label || 'No employee selected'
-})
-const canOpenCocImportDialog = computed(() => {
-  const controlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
-  return /^\d+$/.test(controlNo)
-})
-
-// Server-side pagination state
-const employeePagination = ref({
-  page: 1,
-  rowsPerPage: 10,
-  rowsNumber: 0,
-})
+// Server-side pagination state managed by employeeStore
 
 // Column definitions (local LMS_DB)
 const employeeColumns = [
@@ -1057,91 +503,6 @@ const visibleEmployeeColumns = computed(() =>
       )
     : employeeColumns,
 )
-const creditEmployeeNoOptionMessage = computed(() => {
-  if (loadingCreditEmployees.value) {
-    return 'Searching employees...'
-  }
-
-  if (
-    normalizeCreditEmployeeSearchValue(creditEmployeeFilter.value).length <
-    CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH
-  ) {
-    return 'Type at least 2 characters to search employees.'
-  }
-
-  return 'No matching employees found.'
-})
-const creditLeaveTypesEmptyMessage = computed(() => {
-  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
-  if (!selectedControlNo) {
-    return 'Select an employee to load allowed leave types.'
-  }
-
-  return 'No credit-based leave types available for this employee.'
-})
-
-const historyColumns = [
-  {
-    name: 'date_filed',
-    label: 'Date Filed',
-    align: 'center',
-    field: 'date_filed',
-    sortable: true,
-    style: 'width: 15%; white-space: nowrap;',
-    headerStyle: 'width: 15%; white-space: nowrap;',
-  },
-  {
-    name: 'leave_type',
-    label: 'Leave Type',
-    align: 'center',
-    field: 'leave_type',
-    sortable: true,
-    classes: 'leave-history-table__leave-type-cell',
-    headerClasses: 'leave-history-table__leave-type-cell',
-    style: 'white-space: normal;',
-    headerStyle: 'white-space: normal;',
-  },
-  {
-    name: 'inclusive_date',
-    label: 'Inclusive Date',
-    align: 'center',
-    field: (row) => buildLeaveHistoryInclusiveDateSortValue(row),
-    sortable: true,
-    classes: 'leave-history-table__inclusive-date-cell',
-    headerClasses: 'leave-history-table__inclusive-date-cell',
-    style: 'width: 29%; white-space: normal;',
-    headerStyle: 'width: 29%; white-space: normal;',
-  },
-  {
-    name: 'total_days',
-    label: 'Days',
-    align: 'center',
-    field: 'total_days',
-    sortable: true,
-    classes: 'leave-history-table__days-cell',
-    headerClasses: 'leave-history-table__days-cell',
-    style: 'width: 10%; white-space: nowrap;',
-    headerStyle: 'width: 10%; white-space: nowrap;',
-  },
-  {
-    name: 'status',
-    label: 'Status',
-    align: 'center',
-    field: 'status',
-    sortable: true,
-    classes: 'leave-history-table__status-cell',
-    headerClasses: 'leave-history-table__status-cell',
-    style: 'width: 21%; white-space: nowrap;',
-    headerStyle: 'width: 21%; white-space: nowrap;',
-  },
-]
-
-const LEDGER_ENDPOINT_FACTORIES = [
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-balance-ledger`,
-  (controlNo) => `/hr/employees/${encodeURIComponent(controlNo)}/leave-credits-ledger`,
-]
-let preferredLedgerEndpointFactoryIndex = null
-
 const LEDGER_PAPER_PRESETS = {
   A4: {
     label: 'A4',
@@ -1691,441 +1052,42 @@ function buildLedgerIdentityPreviewStyle(value) {
   }
 }
 
-async function fetchDepartments() {
-  loadingDepartments.value = true
+async function fetchDepartments(force = false) {
   try {
-    const { data } = await api.get('/departments')
-    allDepartments.value = data.departments ?? []
+    await employeeStore.fetchDepartments(force)
   } catch (err) {
     console.error('Failed to load departments:', err)
     const msg = resolveApiErrorMessage(err, 'Unable to load departments right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    loadingDepartments.value = false
   }
 }
 
-async function fetchTotalEmployeesSummary() {
-  loadingTotalEmployees.value = true
-  try {
-    const { data } = await api.get('/employees', {
-      params: {
-        activity: activityFilter.value || 'ALL',
-        per_page: 1,
-        page: 1,
-      },
-    })
-    totalEmployees.value = Number(data?.total_employees ?? 0)
-  } catch (err) {
-    console.error('Failed to load employee summary:', err)
-  } finally {
-    loadingTotalEmployees.value = false
-  }
-}
-
-async function fetchData(page = 1) {
-  loading.value = true
+async function fetchData(page = 1, force = false) {
   try {
     const { searchText, departmentId } = resolveEmployeeSearch(search.value)
 
-    const { data } = await api.get('/employees', {
-      params: {
+    await employeeStore.fetchEmployees(
+      {
         department_id: departmentId || undefined,
         search: searchText || undefined,
         activity: activityFilter.value || 'ALL',
-        biometric_status: biometricStatusFilter.value !== 'ALL' ? biometricStatusFilter.value : undefined,
+        biometric_status:
+          biometricStatusFilter.value !== 'ALL' ? biometricStatusFilter.value : undefined,
         per_page: employeePagination.value.rowsPerPage,
         page,
       },
-    })
-
-    if (data.employees) {
-      employees.value = data.employees.data ?? []
-      employeePagination.value.page = data.employees.current_page ?? 1
-      employeePagination.value.rowsNumber = data.employees.total ?? 0
-    } else {
-      employees.value = []
-      employeePagination.value.page = 1
-      employeePagination.value.rowsNumber = 0
-    }
+      force,
+    )
   } catch (err) {
     console.error('Failed to load data:', err)
     const msg = resolveApiErrorMessage(err, 'Unable to load employee records right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    loading.value = false
   }
 }
 
-async function fetchCreditLeaveTypes(employeeControlNo = '', options = {}) {
-  const lookupSequence = ++creditLeaveTypesLookupSequence
-  const selectedControlNo = String(employeeControlNo ?? '').trim()
-  const prefillFromCurrentBalances = options?.prefillFromCurrentBalances === true
 
-  loadingCreditLeaveTypes.value = true
-  try {
-    if (!selectedControlNo) {
-      creditLeaveTypes.value = []
-      leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
-      return
-    }
 
-    const { data } = await api.get('/hr/leave-balances/available-types', {
-      params: {
-        employee_control_no: selectedControlNo,
-      },
-    })
-    if (lookupSequence !== creditLeaveTypesLookupSequence) {
-      return
-    }
 
-    const leaveTypes = Array.isArray(data?.leave_types) ? data.leave_types : []
-    creditLeaveTypes.value = sortCreditLeaveTypesForDisplay(
-      leaveTypes
-        .map((leaveType) => ({
-          ...leaveType,
-          // available-types endpoint already returns credit-based types; keep compatibility with existing checks.
-          is_credit_based: leaveType?.is_credit_based ?? true,
-        }))
-        .filter((type) => isManualAddLeaveCreditType(type)),
-    )
-    if (prefillFromCurrentBalances) {
-      if (data?.as_of_date) {
-        leaveCreditForm.value.as_of_date = String(data.as_of_date)
-      }
-      const balances = {}
-
-      for (const leaveType of creditLeaveTypes.value) {
-        const balanceKey = String(leaveType.id)
-        const editableBalance = Number(
-          leaveType?.editable_balance ??
-            leaveType?.editableBalance ??
-            leaveType?.current_balance ??
-            leaveType?.currentBalance ??
-            0,
-        )
-
-        balances[balanceKey] = Number.isFinite(editableBalance)
-          ? roundLedgerNumericValue(editableBalance).toFixed(3)
-          : '0.000'
-      }
-
-      leaveCreditForm.value.balances = buildLeaveCreditBalanceState(balances)
-    } else {
-      leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
-    }
-  } catch (err) {
-    if (lookupSequence !== creditLeaveTypesLookupSequence) {
-      return
-    }
-
-    creditLeaveTypes.value = []
-    leaveCreditForm.value.balances = buildLeaveCreditBalanceState(leaveCreditForm.value.balances)
-    const msg = resolveApiErrorMessage(err, 'Unable to load leave types right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    if (lookupSequence === creditLeaveTypesLookupSequence) {
-      loadingCreditLeaveTypes.value = false
-    }
-  }
-}
-
-function normalizeLeaveTypeName(value) {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-}
-
-function getLeaveTypeDisplayName(leaveType) {
-  return String(leaveType?.display_name || leaveType?.name || '').trim()
-}
-
-function isManualAddLeaveCreditType(leaveType) {
-  if (!leaveType?.is_credit_based) return false
-
-  return normalizeLeaveTypeName(leaveType?.name) !== 'cto leave'
-}
-
-function getCreditLeaveTypeDisplayPriority(leaveType) {
-  const normalizedName = normalizeLeaveTypeName(leaveType?.name)
-  const preferredOrder = {
-    'vacation leave': 0,
-    'sick leave': 1,
-    'mandatory / forced leave': 2,
-    'special privilege leave': 3,
-    'wellness leave': 4,
-    'solo parent leave': 5,
-    'special emergency (calamity) leave': 6,
-  }
-
-  return Object.prototype.hasOwnProperty.call(preferredOrder, normalizedName)
-    ? preferredOrder[normalizedName]
-    : 99
-}
-
-function sortCreditLeaveTypesForDisplay(leaveTypes) {
-  return [...leaveTypes].sort((left, right) => {
-    const priorityDifference =
-      getCreditLeaveTypeDisplayPriority(left) - getCreditLeaveTypeDisplayPriority(right)
-    if (priorityDifference !== 0) return priorityDifference
-
-    return String(left?.name ?? '').localeCompare(String(right?.name ?? ''))
-  })
-}
-
-function normalizeCreditEmployeeOptions(options) {
-  const optionMap = new Map()
-
-  for (const option of options) {
-    const value = String(option?.value ?? '').trim()
-    if (!value) continue
-
-    optionMap.set(value, {
-      ...option,
-      value,
-    })
-  }
-
-  return Array.from(optionMap.values()).sort((left, right) => left.label.localeCompare(right.label))
-}
-
-function getFilteredCreditEmployeeOptions(filterValue, options = allCreditEmployeeOptions.value) {
-  const normalizedFilter = normalizeCreditEmployeeSearchValue(filterValue)
-  if (!normalizedFilter) {
-    return options
-  }
-
-  const filterTerms = normalizedFilter.split(' ').filter(Boolean)
-
-  return options.filter((option) =>
-    filterTerms.every((term) => option.searchTerms.some((candidate) => candidate.includes(term))),
-  )
-}
-
-function setCreditEmployeeOptions(options) {
-  const normalizedOptions = normalizeCreditEmployeeOptions(options)
-  allCreditEmployeeOptions.value = normalizedOptions
-  filteredCreditEmployeeOptions.value = getFilteredCreditEmployeeOptions(
-    creditEmployeeFilter.value,
-    normalizedOptions,
-  )
-}
-
-function buildCreditEmployeeOption(employee) {
-  const controlNo = String(employee?.control_no ?? '').trim()
-  if (!controlNo) return null
-
-  const firstname = String(employee?.firstname ?? '').trim()
-  const surname = String(employee?.surname ?? '').trim()
-  const designation = String(employee?.designation ?? '').trim()
-  const department = String(employee?.office ?? '').trim()
-  const officeCode = resolveOfficeAcronymLabel(employee)
-  const displayName = [surname, firstname].filter(Boolean).join(', ')
-  const fullName = [firstname, surname].filter(Boolean).join(' ')
-  const captionParts = []
-
-  if (designation) {
-    captionParts.push(designation)
-  }
-
-  if (department) {
-    captionParts.push(officeCode)
-  }
-
-  const searchTerms = Array.from(
-    new Set(
-      [
-        firstname,
-        surname,
-        displayName,
-        fullName,
-        designation,
-        department,
-        officeCode,
-        `${officeCode} ${firstname}`,
-        `${officeCode} ${surname}`,
-        `${officeCode} ${displayName}`,
-        `${officeCode} ${fullName}`,
-        `${department} ${displayName}`,
-        `${department} ${fullName}`,
-      ]
-        .map((value) => normalizeCreditEmployeeSearchValue(value))
-        .filter(Boolean),
-    ),
-  )
-
-  return {
-    label: displayName || 'Unnamed Employee',
-    value: controlNo,
-    caption: captionParts.join(' | '),
-    searchTerms,
-  }
-}
-
-function normalizeCreditEmployeeSearchValue(value) {
-  return String(value ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function upsertCreditEmployeeOption(employee) {
-  const option = buildCreditEmployeeOption(employee)
-  if (!option) return
-
-  setCreditEmployeeOptions([...allCreditEmployeeOptions.value, option])
-}
-
-function getSelectedCreditEmployeeOption() {
-  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
-  if (!selectedControlNo) return null
-
-  return allCreditEmployeeOptions.value.find((option) => option.value === selectedControlNo) ?? null
-}
-
-function buildCreditEmployeeLookupCacheKey(departmentId, searchText) {
-  const normalizedDepartmentId = departmentId ? String(departmentId).trim() : ''
-  const normalizedSearchText = normalizeCreditEmployeeSearchValue(searchText)
-  return `${normalizedDepartmentId}|${normalizedSearchText}|${CREDIT_EMPLOYEE_LOOKUP_LIMIT}`
-}
-
-function isCreditEmployeeLookupAbortError(error) {
-  const errorCode = String(error?.code ?? '')
-    .trim()
-    .toUpperCase()
-  const errorName = String(error?.name ?? '').trim()
-  return errorCode === 'ERR_CANCELED' || errorName === 'AbortError' || errorName === 'CanceledError'
-}
-
-function buildCreditEmployeeLookupParams(rawSearchValue) {
-  const normalizedRawSearchValue = normalizeCreditEmployeeSearchValue(rawSearchValue)
-  const { searchText, departmentId } = resolveEmployeeSearch(rawSearchValue)
-  const trimmedSearchText = String(searchText ?? '').trim()
-  const lookupSearchText =
-    trimmedSearchText
-      .split(/\s+/)
-      .filter(Boolean)
-      .sort((left, right) => right.length - left.length)[0] || trimmedSearchText
-  const fallbackSearchText = String(rawSearchValue ?? '').trim()
-  const resolvedSearchText =
-    departmentId !== null && trimmedSearchText === '' ? '' : lookupSearchText || fallbackSearchText
-
-  return {
-    departmentId,
-    searchText: resolvedSearchText,
-    shouldLookup:
-      departmentId !== null || normalizedRawSearchValue.length >= CREDIT_EMPLOYEE_SEARCH_MIN_LENGTH,
-  }
-}
-
-async function fetchCreditEmployees(rawSearchValue = '') {
-  const lookupSequence = ++creditEmployeeLookupSequence
-  const { departmentId, searchText, shouldLookup } = buildCreditEmployeeLookupParams(rawSearchValue)
-
-  if (!shouldLookup) {
-    if (creditEmployeeAbortController) {
-      creditEmployeeAbortController.abort()
-      creditEmployeeAbortController = null
-    }
-    const selectedOption = getSelectedCreditEmployeeOption()
-    setCreditEmployeeOptions(selectedOption ? [selectedOption] : [])
-    return
-  }
-
-  const cacheKey = buildCreditEmployeeLookupCacheKey(departmentId, searchText)
-  const cachedOptions = creditEmployeeLookupCache.get(cacheKey)
-  if (Array.isArray(cachedOptions)) {
-    const selectedOption = getSelectedCreditEmployeeOption()
-    setCreditEmployeeOptions(selectedOption ? [selectedOption, ...cachedOptions] : cachedOptions)
-    return
-  }
-
-  if (creditEmployeeAbortController) {
-    creditEmployeeAbortController.abort()
-  }
-  creditEmployeeAbortController = new AbortController()
-  loadingCreditEmployees.value = true
-
-  try {
-    const { data } = await api.get('/hr/employee-options', {
-      params: {
-        department_id: departmentId || undefined,
-        search: searchText || undefined,
-        limit: CREDIT_EMPLOYEE_LOOKUP_LIMIT,
-      },
-      signal: creditEmployeeAbortController.signal,
-    })
-
-    if (lookupSequence !== creditEmployeeLookupSequence) {
-      return
-    }
-
-    const selectedOption = getSelectedCreditEmployeeOption()
-    const lookupOptions = (Array.isArray(data?.employees) ? data.employees : [])
-      .map(buildCreditEmployeeOption)
-      .filter(Boolean)
-
-    creditEmployeeLookupCache.set(cacheKey, lookupOptions)
-    setCreditEmployeeOptions(selectedOption ? [selectedOption, ...lookupOptions] : lookupOptions)
-  } catch (err) {
-    if (lookupSequence !== creditEmployeeLookupSequence) {
-      return
-    }
-    if (isCreditEmployeeLookupAbortError(err)) {
-      return
-    }
-
-    const msg = resolveApiErrorMessage(err, 'Unable to load employee options right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    if (lookupSequence === creditEmployeeLookupSequence) {
-      loadingCreditEmployees.value = false
-      creditEmployeeAbortController = null
-    }
-  }
-}
-
-function filterCreditEmployeeOptions(value, update) {
-  creditEmployeeFilter.value = String(value ?? '')
-  const currentSearchValue = creditEmployeeFilter.value
-  const lookupSequence = creditEmployeeLookupSequence + 1
-  const { shouldLookup } = buildCreditEmployeeLookupParams(currentSearchValue)
-
-  if (!shouldLookup) {
-    creditEmployeeLookupSequence = lookupSequence
-    loadingCreditEmployees.value = false
-    update(() => {
-      const selectedOption = getSelectedCreditEmployeeOption()
-      setCreditEmployeeOptions(selectedOption ? [selectedOption] : [])
-    })
-    return
-  }
-
-  loadingCreditEmployees.value = true
-  void fetchCreditEmployees(currentSearchValue)
-    .then(() => {
-      update(() => {
-        filteredCreditEmployeeOptions.value = getFilteredCreditEmployeeOptions(
-          creditEmployeeFilter.value,
-          allCreditEmployeeOptions.value,
-        )
-      })
-    })
-    .catch(() => {
-      update(() => {
-        filteredCreditEmployeeOptions.value = []
-      })
-    })
-}
-
-function onCreditEmployeeInputValue(value) {
-  creditEmployeeFilter.value = String(value ?? '')
-
-  if (creditEmployeeFilter.value.trim() !== '') {
-    creditEmployeeSelect.value?.showPopup?.()
-  }
-}
 
 function onEmployeeRequest(props) {
   employeePagination.value.rowsPerPage = props.pagination.rowsPerPage
@@ -2137,7 +1099,6 @@ watch(search, () => {
 })
 
 watch(activityFilter, () => {
-  void fetchTotalEmployeesSummary()
   fetchData(1)
 })
 
@@ -2164,61 +1125,6 @@ function formatBiometricStatus(status) {
   return status
 }
 
-async function loadBioDevices() {
-  if (bioDeviceOptions.value.length > 0) return
-  loadingBioDevices.value = true
-  try {
-    const { data } = await api.get('/attendance/devices')
-    const list = Array.isArray(data?.devices) ? data.devices : []
-    bioDeviceOptions.value = list.map((dev) => ({
-      label: `${dev.device_name || dev.serial_number} (${dev.department_name || dev.ip_address || 'Terminal'})`,
-      value: dev.serial_number,
-    }))
-    if (bioDeviceOptions.value.length > 0 && !selectedBioDeviceSn.value) {
-      selectedBioDeviceSn.value = bioDeviceOptions.value[0].value
-    }
-  } catch (err) {
-    console.error('Failed to load biometric devices:', err)
-  } finally {
-    loadingBioDevices.value = false
-  }
-}
-
-function openPushToBioDialog(employee) {
-  activeBioEmployee.value = employee
-  void loadBioDevices()
-  showPushToBioDialog.value = true
-}
-
-async function submitPushToBio() {
-  if (!activeBioEmployee.value || !selectedBioDeviceSn.value) return
-  pushingToBio.value = true
-  try {
-    const { data } = await api.post('/hr/biometric-registration/register', {
-      employee_control_no: activeBioEmployee.value.control_no,
-      device_serial_number: selectedBioDeviceSn.value,
-    })
-
-    $q.notify({
-      type: 'positive',
-      message: data?.message || `Registration command sent for ${getEmployeeFullName(activeBioEmployee.value)}.`,
-      position: 'top',
-    })
-
-    activeBioEmployee.value.biometric_status = 'PENDING_ENROLLMENT'
-    activeBioEmployee.value.biometric_device_sn = selectedBioDeviceSn.value
-
-    showPushToBioDialog.value = false
-  } catch (err) {
-    $q.notify({
-      type: 'negative',
-      message: resolveApiErrorMessage(err, 'Failed to push employee to biometric device.'),
-      position: 'top',
-    })
-  } finally {
-    pushingToBio.value = false
-  }
-}
 
 watch(showViewDialog, (isOpen) => {
   if (isOpen) return
@@ -2246,37 +1152,7 @@ watch(calendarPreviewDateStates, () => {
 
 onMounted(() => {
   void fetchDepartments()
-  void fetchTotalEmployeesSummary()
   void fetchData()
-})
-
-watch(
-  () => String(leaveCreditForm.value.employee_control_no ?? '').trim(),
-  (selectedControlNo, previousControlNo) => {
-    if (!showLeaveCreditsDialog.value) return
-    if (selectedControlNo === previousControlNo) return
-
-    if (showCocImportDialog.value) {
-      cocImportForm.value.employee_control_no = selectedControlNo
-      if (/^\d+$/.test(selectedControlNo)) {
-        void loadCocImportEntries(selectedControlNo)
-      } else {
-        cocImportForm.value = defaultCocImportForm()
-      }
-    }
-
-    void fetchCreditLeaveTypes(selectedControlNo, {
-      prefillFromCurrentBalances: isLeaveCreditsEditMode.value,
-    })
-  },
-)
-
-watch(showLeaveCreditsDialog, (isOpen) => {
-  if (isOpen) return
-  showCocImportDialog.value = false
-  cocImportForm.value = defaultCocImportForm()
-  savingCocImport.value = false
-  loadingCocImportEntries.value = false
 })
 
 onBeforeUnmount(() => {
@@ -2297,22 +1173,7 @@ function onEmployeeRowClick(_evt, row) {
   viewEmployee(row)
 }
 
-function leaveStatusColor(status) {
-  const map = {
-    PENDING_ADMIN: 'orange-8',
-    PENDING_HR: 'amber-8',
-    APPROVED: 'positive',
-    REJECTED: 'negative',
-  }
-  return map[status] ?? 'grey-7'
-}
 
-function formatDate(value) {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-}
 
 function roundCurrencyValue(value) {
   const numericValue = Number(value)
@@ -2549,6 +1410,12 @@ function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
   })
 
   return [...coreBadges, ...customBadges]
+}
+
+function normalizeLeaveTypeName(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
 }
 
 function resolveLedgerCustomLeaveBadgeLabel(leaveTypeName) {
@@ -4005,13 +2872,7 @@ function buildLeaveHistoryInclusiveDateLabel(entry) {
     .join('\n')
 }
 
-function buildLeaveHistoryInclusiveDateSortValue(entry) {
-  const normalizedList = resolveLeaveHistoryInclusiveDateParts(entry)
-  if (!normalizedList.length) return ''
 
-  const first = normalizedList[0]
-  return `${String(first.year).padStart(4, '0')}-${String(first.month).padStart(2, '0')}-${String(first.day).padStart(2, '0')}`
-}
 
 function parseInclusiveDatesValue(value) {
   if (Array.isArray(value)) return value
@@ -4962,92 +3823,20 @@ function extractLedgerEmployee(payload) {
 }
 
 async function fetchLeaveCreditsLedgerPayload(controlNo) {
-  const endpointEntries = LEDGER_ENDPOINT_FACTORIES.map((buildEndpoint, index) => ({
-    buildEndpoint,
-    index,
-  }))
-
-  const isMissingLedgerEndpointResponse = (err) => {
-    const statusCode = Number(err?.response?.status)
-    return statusCode === 404 || statusCode === 405
+  const data = await employeeStore.fetchLeaveCreditsLedger(controlNo)
+  if (!data) {
+    const error = new Error('Leave credits ledger endpoint was not found.')
+    error.isMissingLedgerEndpoint = true
+    throw error
   }
-
-  const probeLedgerEndpoints = async (entries) =>
-    new Promise((resolve, reject) => {
-      if (!entries.length) {
-        const error = new Error('Leave credits ledger endpoint was not found.')
-        error.isMissingLedgerEndpoint = true
-        reject(error)
-        return
-      }
-
-      let pendingRequests = entries.length
-      let settled = false
-      let lastNotFoundError = null
-
-      entries.forEach(({ buildEndpoint, index }) => {
-        api
-          .get(buildEndpoint(controlNo))
-          .then(({ data }) => {
-            if (settled) return
-            settled = true
-            preferredLedgerEndpointFactoryIndex = index
-            resolve(data)
-          })
-          .catch((err) => {
-            if (settled) return
-            if (isMissingLedgerEndpointResponse(err)) {
-              lastNotFoundError = err
-              pendingRequests -= 1
-
-              if (pendingRequests === 0) {
-                settled = true
-                const error =
-                  lastNotFoundError || new Error('Leave credits ledger endpoint was not found.')
-                error.isMissingLedgerEndpoint = true
-                reject(error)
-              }
-              return
-            }
-
-            settled = true
-            reject(err)
-          })
-      })
-    })
-
-  if (preferredLedgerEndpointFactoryIndex !== null) {
-    const preferredEntry = endpointEntries.find(
-      ({ index }) => index === preferredLedgerEndpointFactoryIndex,
-    )
-
-    if (preferredEntry) {
-      try {
-        const { data } = await api.get(preferredEntry.buildEndpoint(controlNo))
-        return data
-      } catch (err) {
-        if (!isMissingLedgerEndpointResponse(err)) {
-          throw err
-        }
-
-        preferredLedgerEndpointFactoryIndex = null
-      }
-    }
-  }
-
-  return probeLedgerEndpoints(endpointEntries)
+  return data
 }
 
 async function fetchLedgerLeaveBalanceTypes(controlNo) {
   const normalizedControlNo = String(controlNo ?? '').trim()
   if (!normalizedControlNo) return []
 
-  const { data } = await api.get('/hr/leave-balances/available-types', {
-    params: {
-      employee_control_no: normalizedControlNo,
-    },
-  })
-
+  const data = await employeeStore.fetchAvailableLeaveTypes(normalizedControlNo)
   return Array.isArray(data?.leave_types) ? data.leave_types : []
 }
 
@@ -5059,9 +3848,9 @@ async function fetchEmployeeLeaveHistory(controlNo) {
 
   leaveHistoryLoading.value = true
   try {
-    const { data } = await api.get(`/hr/employees/${encodeURIComponent(controlNo)}/leave-history`)
-    leaveHistory.value = data.applications ?? []
-    if (data.employee) {
+    const data = await employeeStore.fetchEmployeeLeaveHistory(controlNo)
+    leaveHistory.value = data?.applications ?? []
+    if (data?.employee) {
       selectedEmployee.value = {
         ...selectedEmployee.value,
         ...data.employee,
@@ -5088,15 +3877,15 @@ async function openCocCtoLedgerDialog(employee) {
   cocCtoLedgerLoading.value = true
 
   try {
-    const { data } = await api.get(`/hr/employees/${encodeURIComponent(controlNo)}/coc-cto-ledger`)
-    if (data.employee) {
+    const data = await employeeStore.fetchCocCtoLedger(controlNo)
+    if (data?.employee) {
       cocCtoLedgerEmployee.value = {
         ...cocCtoLedgerEmployee.value,
         ...data.employee,
       }
     }
-    cocCtoLedgerCurrentBalance.value = data.current_balance || { hours: 0, days: 0 }
-    cocCtoLedgerRows.value = orderLedgerRowsOldestFirst(data.ledger || [])
+    cocCtoLedgerCurrentBalance.value = data?.current_balance || { hours: 0, days: 0 }
+    cocCtoLedgerRows.value = orderLedgerRowsOldestFirst(data?.ledger || [])
   } catch (err) {
     const message = resolveApiErrorMessage(err, 'Unable to load COC / CTO ledger right now.')
     cocCtoLedgerError.value = message
@@ -5192,441 +3981,35 @@ async function fetchEmployeeDetailsLeaveBadges(controlNo) {
   }
 }
 
-function getTodayIsoDate() {
-  const d = new Date()
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+
+
+
+function openPushToBioDialog(employee) {
+  activeBioEmployee.value = employee
+  showPushToBioDialog.value = true
 }
 
-function defaultLeaveCreditForm() {
-  return {
-    as_of_date: getTodayIsoDate(),
-    employee_control_no: '',
-    balances: buildLeaveCreditBalanceState(),
+function onBiometricRegistered({ employee, deviceSn }) {
+  if (employee) {
+    employee.biometric_status = 'PENDING_ENROLLMENT'
+    employee.biometric_device_sn = deviceSn
   }
-}
-
-function buildDefaultCocImportEntry() {
-  return {
-    id: null,
-    hours: '',
-    credited_at: '',
-    expires_on: '',
-  }
-}
-
-function defaultCocImportForm(employeeControlNo = '') {
-  return {
-    employee_control_no: String(employeeControlNo ?? '').trim(),
-    entries: [buildDefaultCocImportEntry()],
-  }
-}
-
-function resetLeaveCreditForm() {
-  creditLeaveTypesLookupSequence += 1
-  loadingCreditLeaveTypes.value = false
-  creditLeaveTypes.value = []
-  creditEmployeeLookupSequence += 1
-  if (creditEmployeeAbortController) {
-    creditEmployeeAbortController.abort()
-    creditEmployeeAbortController = null
-  }
-  loadingCreditEmployees.value = false
-  leaveCreditForm.value = defaultLeaveCreditForm()
-  cocImportForm.value = defaultCocImportForm()
-  showCocImportDialog.value = false
-  savingCocImport.value = false
-  loadingCocImportEntries.value = false
-  leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_ADD
-  creditEmployeeFilter.value = ''
-  setCreditEmployeeOptions([])
 }
 
 function openLeaveCreditsDialog(employee = null) {
-  resetLeaveCreditForm()
-  leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_ADD
-  if (employee?.control_no) {
-    leaveCreditForm.value.employee_control_no = String(employee.control_no)
-    upsertCreditEmployeeOption(employee)
-  }
+  activeCreditEmployee.value = employee
+  leaveCreditDialogMode.value = 'ADD'
   showLeaveCreditsDialog.value = true
-  void fetchCreditLeaveTypes(leaveCreditForm.value.employee_control_no)
 }
 
 function openLeaveCreditsEditDialog(employee = null) {
-  const controlNo = String(employee?.control_no ?? '').trim()
-  if (!controlNo) return
-
-  resetLeaveCreditForm()
-  leaveCreditDialogMode.value = LEAVE_CREDIT_DIALOG_MODE_EDIT
-  leaveCreditForm.value.employee_control_no = controlNo
-  upsertCreditEmployeeOption(employee)
+  activeCreditEmployee.value = employee
+  leaveCreditDialogMode.value = 'EDIT'
   showLeaveCreditsDialog.value = true
-  void fetchCreditLeaveTypes(controlNo, { prefillFromCurrentBalances: true })
 }
 
-function addCocImportEntry() {
-  if (cocImportForm.value.entries.length >= 200) return
-  cocImportForm.value.entries.push(buildDefaultCocImportEntry())
-}
-
-function resolveCocImportExpiryDate(creditedAtRaw) {
-  const creditedAt = String(creditedAtRaw ?? '').trim()
-  if (!creditedAt) return ''
-
-  const match = creditedAt.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) return ''
-
-  const parsedDate = new Date(`${creditedAt}T00:00:00`)
-  if (Number.isNaN(parsedDate.getTime())) return ''
-
-  const expiryYear = parsedDate.getFullYear() + 1
-  return `${expiryYear}-12-31`
-}
-
-function handleCocImportEntryEarnedDateChange(index) {
-  const entries = Array.isArray(cocImportForm.value.entries) ? cocImportForm.value.entries : []
-  const entry = entries[index]
-  if (!entry) return
-
-  const resolvedExpiry = resolveCocImportExpiryDate(entry.credited_at)
-  entry.expires_on = resolvedExpiry || ''
-}
-
-function removeCocImportEntry(index) {
-  if (cocImportForm.value.entries.length <= 1) return
-  cocImportForm.value.entries.splice(index, 1)
-}
-
-function isExistingCocImportEntry(entry) {
-  const entryId = Number(entry?.id)
-  return Number.isInteger(entryId) && entryId > 0
-}
-
-function isEditableImportedCocApplication(application) {
-  const rawStatus = String(
-    application?.rawStatus ?? application?.raw_status ?? application?.status ?? '',
-  )
-    .trim()
-    .toUpperCase()
-  if (rawStatus !== 'APPROVED') return false
-
-  const remarks = String(application?.remarks ?? '')
-    .trim()
-    .toLowerCase()
-  if (!remarks.startsWith('coc balance import (hr)')) return false
-
-  const creditedHours = Number(application?.credited_hours)
-  if (!Number.isFinite(creditedHours) || creditedHours <= 0) return false
-
-  const expiresOn = String(application?.cto_expires_on ?? '').trim()
-  if (!expiresOn) return false
-
-  return true
-}
-
-function buildCocImportEntryFromApplication(application) {
-  const creditedAtRaw = String(application?.cto_credited_at ?? '').trim()
-  let creditedAtDate = ''
-  if (creditedAtRaw) {
-    const dateMatch = creditedAtRaw.match(/^(\d{4}-\d{2}-\d{2})/)
-    if (dateMatch?.[1]) {
-      creditedAtDate = dateMatch[1]
-    } else {
-      const parsedDate = new Date(creditedAtRaw)
-      if (!Number.isNaN(parsedDate.getTime())) {
-        const year = parsedDate.getFullYear()
-        const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
-        const day = String(parsedDate.getDate()).padStart(2, '0')
-        creditedAtDate = `${year}-${month}-${day}`
-      }
-    }
-  }
-
-  const expiresOnFromApi = String(application?.cto_expires_on ?? '').trim()
-  const resolvedExpiry = expiresOnFromApi || resolveCocImportExpiryDate(creditedAtDate)
-  const hours = Number(application?.credited_hours)
-  return {
-    id: Number(application?.id) > 0 ? Number(application.id) : null,
-    hours: Number.isFinite(hours) && hours > 0 ? String(hours) : '',
-    credited_at: creditedAtDate,
-    expires_on: resolvedExpiry,
-  }
-}
-
-async function loadCocImportEntries(employeeControlNo) {
-  const normalizedControlNo = String(employeeControlNo ?? '').trim()
-  if (!/^\d+$/.test(normalizedControlNo)) {
-    cocImportForm.value = defaultCocImportForm()
-    return
-  }
-
-  loadingCocImportEntries.value = true
-  try {
-    const { data } = await api.get('/hr/coc-applications', {
-      params: {
-        employee_control_no: normalizedControlNo,
-        status: 'APPROVED',
-        include_imported: 1,
-      },
-    })
-    const applications = Array.isArray(data?.applications) ? data.applications : []
-    const editableEntries = applications
-      .filter((application) => isEditableImportedCocApplication(application))
-      .map((application) => buildCocImportEntryFromApplication(application))
-      .filter((entry) => entry.expires_on && entry.hours !== '')
-
-    cocImportForm.value = {
-      employee_control_no: normalizedControlNo,
-      entries: editableEntries.length ? editableEntries : [buildDefaultCocImportEntry()],
-    }
-  } catch (err) {
-    const message = resolveApiErrorMessage(err, 'Unable to load existing COC entries right now.')
-    $q.notify({ type: 'negative', message, position: 'top' })
-    cocImportForm.value = defaultCocImportForm(normalizedControlNo)
-  } finally {
-    loadingCocImportEntries.value = false
-  }
-}
-
-function openCocImportDialog() {
-  const selectedControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
-  if (!/^\d+$/.test(selectedControlNo)) {
-    $q.notify({
-      type: 'warning',
-      message: 'Select a valid employee first before importing COC balances.',
-      position: 'top',
-    })
-    return
-  }
-
-  cocImportForm.value = defaultCocImportForm(selectedControlNo)
-  showCocImportDialog.value = true
-  void loadCocImportEntries(selectedControlNo)
-}
-
-function cocImportValidationError() {
-  const employeeControlNo = String(cocImportForm.value.employee_control_no ?? '').trim()
-  if (!employeeControlNo) return 'Employee is required.'
-  if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
-
-  const entries = Array.isArray(cocImportForm.value.entries) ? cocImportForm.value.entries : []
-  if (!entries.length) return 'Add at least one COC entry.'
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const rowNo = index + 1
-    const entry = entries[index] ?? {}
-    const hoursRaw = normalizeBalanceInputValue(entry.hours)
-    if (hoursRaw === '') return `Entry #${rowNo}: hours are required.`
-
-    const hours = Number(hoursRaw)
-    if (!Number.isFinite(hours)) return `Entry #${rowNo}: hours must be a number.`
-    if (hours <= 0) return `Entry #${rowNo}: hours must be greater than zero.`
-
-    const creditedAtRaw = String(entry.credited_at ?? '').trim()
-    const expiresOnRaw = String(entry.expires_on ?? '').trim()
-    if (!creditedAtRaw) return `Entry #${rowNo}: earned date is required.`
-    if (!expiresOnRaw) return `Entry #${rowNo}: expiration date is required.`
-
-    const creditedAt = new Date(`${creditedAtRaw}T00:00:00`)
-    const expiresOn = new Date(`${expiresOnRaw}T00:00:00`)
-    if (Number.isNaN(creditedAt.getTime())) return `Entry #${rowNo}: credited date is invalid.`
-    if (Number.isNaN(expiresOn.getTime())) return `Entry #${rowNo}: expiration date is invalid.`
-    if (expiresOn < creditedAt) {
-      return `Entry #${rowNo}: expiration date cannot be earlier than credited date.`
-    }
-  }
-
-  return ''
-}
-
-function buildCocImportEntriesPayload() {
-  return cocImportForm.value.entries.map((entry) => ({
-    id: isExistingCocImportEntry(entry) ? Number(entry.id) : undefined,
-    hours: Number(normalizeBalanceInputValue(entry.hours)),
-    credited_at: String(entry.credited_at ?? '').trim(),
-    expires_on: String(entry.expires_on ?? '').trim(),
-  }))
-}
-
-async function saveCocImports() {
-  if (loadingCocImportEntries.value) {
-    return
-  }
-
-  const validationError = cocImportValidationError()
-  if (validationError) {
-    $q.notify({ type: 'warning', message: validationError, position: 'top' })
-    return
-  }
-
-  savingCocImport.value = true
-  try {
-    const employeeControlNo = String(cocImportForm.value.employee_control_no ?? '').trim()
-    const payload = {
-      employee_control_no: employeeControlNo,
-      entries: buildCocImportEntriesPayload(),
-    }
-
-    const { data } = await api.post('/hr/coc-balances/import', payload)
-    const createdCount = Number(data?.created_count ?? data?.imported_count ?? 0)
-    const updatedCount = Number(data?.updated_count ?? 0)
-    const savedCount = Number(data?.saved_count ?? payload.entries.length)
-    const normalizedCreatedCount =
-      Number.isFinite(createdCount) && createdCount > 0 ? createdCount : 0
-    const normalizedUpdatedCount =
-      Number.isFinite(updatedCount) && updatedCount > 0 ? updatedCount : 0
-    const normalizedSavedCount =
-      Number.isFinite(savedCount) && savedCount > 0 ? savedCount : payload.entries.length
-    const updatedBalance = Number(data?.updated_balance)
-    const balanceLabel = Number.isFinite(updatedBalance)
-      ? ` Updated CTO balance: ${updatedBalance}.`
-      : ''
-    const detailParts = []
-    if (normalizedCreatedCount > 0) {
-      detailParts.push(`${normalizedCreatedCount} added`)
-    }
-    if (normalizedUpdatedCount > 0) {
-      detailParts.push(`${normalizedUpdatedCount} updated`)
-    }
-    const detailLabel = detailParts.length ? ` (${detailParts.join(', ')})` : ''
-
-    $q.notify({
-      type: 'positive',
-      message: `${normalizedSavedCount} COC entr${normalizedSavedCount === 1 ? 'y' : 'ies'} saved successfully${detailLabel}.${balanceLabel}`,
-      position: 'top',
-    })
-
-    showCocImportDialog.value = false
-    cocImportForm.value = defaultCocImportForm(employeeControlNo)
-  } catch (err) {
-    const message = resolveApiErrorMessage(err, 'Unable to save COC entries right now.')
-    $q.notify({ type: 'negative', message, position: 'top' })
-  } finally {
-    savingCocImport.value = false
-  }
-}
-
-function buildLeaveCreditBalanceState(existingBalances = {}) {
-  const balances = {}
-
-  for (const leaveType of creditLeaveTypes.value) {
-    const balanceKey = String(leaveType.id)
-    balances[balanceKey] = Object.prototype.hasOwnProperty.call(existingBalances, balanceKey)
-      ? existingBalances[balanceKey]
-      : ''
-  }
-
-  return balances
-}
-
-function normalizeBalanceInputValue(value) {
-  if (value === null || value === undefined) return ''
-  return typeof value === 'string' ? value.trim() : value
-}
-
-function getEnteredLeaveCreditEntries() {
-  return creditLeaveTypes.value.reduce((entries, leaveType) => {
-    const balanceKey = String(leaveType.id)
-    const rawBalance = normalizeBalanceInputValue(leaveCreditForm.value.balances?.[balanceKey])
-
-    if (rawBalance === '') {
-      return entries
-    }
-
-    entries.push({
-      leaveType,
-      balanceKey,
-      rawBalance,
-      balance: Number(rawBalance),
-    })
-
-    return entries
-  }, [])
-}
-
-function resolveLeaveTypeMaxDays(leaveType) {
-  const rawMaxDays = leaveType?.max_days ?? leaveType?.maxDays
-  const maxDays = Number(rawMaxDays)
-  return Number.isFinite(maxDays) && maxDays >= 0 ? maxDays : null
-}
-
-function formatDayLimitLabel(value) {
-  const numericValue = Number(value)
-  if (!Number.isFinite(numericValue)) return ''
-
-  const displayValue = Number.isInteger(numericValue) ? String(numericValue) : String(numericValue)
-  return `${displayValue} day${numericValue === 1 ? '' : 's'}`
-}
-
-function leaveCreditBalanceRules(leaveType) {
-  const leaveTypeLabel = getLeaveTypeDisplayName(leaveType)
-
-  return [
-    (value) => {
-      const rawValue = normalizeBalanceInputValue(value)
-      if (rawValue === '') return `${leaveTypeLabel} is required.`
-
-      const numericValue = Number(rawValue)
-      if (!Number.isFinite(numericValue)) return `${leaveTypeLabel} must be a number.`
-      if (numericValue < 0) return `${leaveTypeLabel} cannot be negative.`
-
-      const maxDays = resolveLeaveTypeMaxDays(leaveType)
-      if (maxDays !== null && numericValue > maxDays) {
-        return `${leaveTypeLabel} cannot exceed ${formatDayLimitLabel(maxDays)}.`
-      }
-
-      return true
-    },
-  ]
-}
-
-function formatLeaveTypeInputHint(leaveType) {
-  const maxDays = resolveLeaveTypeMaxDays(leaveType)
-  if (maxDays === null) return ''
-  return `Max ${formatDayLimitLabel(maxDays)}`
-}
-
-function leaveCreditValidationError() {
-  const employeeControlNo = String(leaveCreditForm.value.employee_control_no ?? '').trim()
-  if (!employeeControlNo) return 'Employee is required.'
-  if (!/^\d+$/.test(employeeControlNo)) return 'Select a valid employee.'
-
-  const asOfDate = String(leaveCreditForm.value.as_of_date ?? '').trim()
-  if (!asOfDate) return 'As of date is required.'
-
-  if (loadingCreditLeaveTypes.value) return 'Leave types are still loading.'
-  if (!creditLeaveTypes.value.length) return 'No credit-based leave types are available.'
-
-  let hasPositiveBalance = false
-
-  for (const leaveType of creditLeaveTypes.value) {
-    const leaveTypeLabel = getLeaveTypeDisplayName(leaveType)
-    const balanceKey = String(leaveType.id)
-    const rawBalance = normalizeBalanceInputValue(leaveCreditForm.value.balances?.[balanceKey])
-    if (rawBalance === '') return `${leaveTypeLabel} is required.`
-
-    const numericValue = Number(rawBalance)
-    if (!Number.isFinite(numericValue)) return `${leaveTypeLabel} must be a number.`
-    if (numericValue < 0) return `${leaveTypeLabel} cannot be negative.`
-
-    if (numericValue > 0) {
-      hasPositiveBalance = true
-    }
-
-    const maxDays = resolveLeaveTypeMaxDays(leaveType)
-    if (maxDays !== null && numericValue > maxDays) {
-      return `${leaveTypeLabel} cannot exceed ${formatDayLimitLabel(maxDays)}.`
-    }
-  }
-
-  if (!hasPositiveBalance && !isLeaveCreditsEditMode.value) {
-    return 'At least one leave type must be greater than 0.'
-  }
-
-  return ''
+function onLeaveCreditsSaved({ employeeControlNo }) {
+  markEmployeeManualLeaveCreditsUsed(employeeControlNo)
 }
 
 function markEmployeeManualLeaveCreditsUsed(controlNo) {
@@ -5655,53 +4038,6 @@ function markEmployeeManualLeaveCreditsUsed(controlNo) {
   })
 }
 
-async function saveLeaveCredits() {
-  const validationError = leaveCreditValidationError()
-  if (validationError) {
-    $q.notify({ type: 'warning', message: validationError, position: 'top' })
-    return
-  }
-
-  savingLeaveCredits.value = true
-  try {
-    const employeeControlNo = String(leaveCreditForm.value.employee_control_no).trim()
-    const asOfDate = String(leaveCreditForm.value.as_of_date ?? '').trim()
-    const entries = getEnteredLeaveCreditEntries()
-    const isEditMode = isLeaveCreditsEditMode.value
-    const payload = {
-      employee_control_no: employeeControlNo,
-      as_of_date: asOfDate || getTodayIsoDate(),
-      balances: entries.map((entry) => ({
-        leave_type_id: Number(entry.leaveType.id),
-        balance: Number(entry.balance),
-      })),
-    }
-
-    const { data } = isEditMode
-      ? await api.post('/hr/leave-balances/update', payload)
-      : await api.post('/hr/leave-balances', payload)
-    const touchedCount = Number(data?.updated_count ?? data?.saved_count)
-    const normalizedTouchedCount =
-      Number.isFinite(touchedCount) && touchedCount >= 0 ? touchedCount : entries.length
-
-    $q.notify({
-      type: 'positive',
-      message: isEditMode
-        ? `${normalizedTouchedCount} leave balance(s) updated successfully.`
-        : `${normalizedTouchedCount} leave balance(s) saved successfully.`,
-      position: 'top',
-    })
-
-    markEmployeeManualLeaveCreditsUsed(employeeControlNo)
-    showLeaveCreditsDialog.value = false
-    resetLeaveCreditForm()
-  } catch (err) {
-    const msg = resolveApiErrorMessage(err, 'Unable to save leave credits right now.')
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    savingLeaveCredits.value = false
-  }
-}
 </script>
 
 <style scoped>

@@ -512,11 +512,13 @@ import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth-store'
+import { useEmployeeStore } from 'src/stores/employee-store'
 import HrLeaveRestorationDialog from 'src/components/hr/HrLeaveRestorationDialog.vue'
 import HrLateDeductionDialog from 'src/components/hr/HrLateDeductionDialog.vue'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
+const employeeStore = useEmployeeStore()
 const isHrAdmin = computed(() => Boolean(authStore.user?.is_access_control_owner))
 const canDeleteRestoration = computed(() => {
   if (isHrAdmin.value) return true
@@ -865,6 +867,7 @@ function confirmDeleteRestoration(entry) {
       const res = await api.post(
         `/hr/employees/${employeeCtrlNo}/restore-leave-credits/${restorationId}/delete`,
       )
+      employeeStore.invalidateEmployee(employeeCtrlNo)
       $q.notify({
         type: 'positive',
         message: res.data?.message || 'Restoration entry deleted successfully.',
@@ -954,6 +957,7 @@ function confirmDeleteLateDeduction(entry) {
       const res = await api.post(
         `/hr/employees/${employeeCtrlNo}/late-deductions/${cleanId}/delete`,
       )
+      employeeStore.invalidateEmployee(employeeCtrlNo)
       $q.notify({
         type: 'positive',
         message: res.data?.message || 'Late deduction entry deleted successfully.',

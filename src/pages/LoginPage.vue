@@ -21,15 +21,20 @@
         <div class="col-12 col-md-6 right-panel flex flex-center">
           <div class="form-wrapper">
             <div class="login-header q-mb-lg">
-              <div class="login-logo">
+              <div class="login-brand">
                 <img
-                  src="~src/assets/images/LEAVE-MONITORING-SYSTEM-LOGO copy.png"
-                  alt="LMS Logo"
-                  class="login-logo-img"
+                  src="~src/assets/images/CityOfTagumLogo.png"
+                  alt="City of Tagum Seal"
+                  class="login-seal-img"
                 />
+                <div class="login-brand-text">
+                  <span class="login-brand-tag">CITY OF TAGUM</span>
+                  <span class="login-brand-title">Attendance &amp; Leave</span>
+                  <span class="login-brand-subtitle">Management System</span>
+                </div>
               </div>
-              <h5 class="q-mt-md q-mb-xs text-weight-bold text-dark">Welcome back</h5>
-              <p class="text-grey-6 q-mb-none text-body2">Sign in to your LMS account</p>
+              <h5 class="q-mt-lg q-mb-xs text-weight-bold text-dark">Welcome back</h5>
+              <p class="text-grey-6 q-mb-none text-body2">Sign in to your account</p>
             </div>
 
             <q-form class="q-gutter-y-md" @submit.prevent="onSubmit">
@@ -263,17 +268,52 @@ async function onSubmit() {
   text-align: left;
 }
 
-.login-logo {
+.login-brand {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  gap: 12px;
 }
 
-.login-logo-img {
-  max-width: 240px;
-  max-height: 120px;
-  height: auto;
+.login-seal-img {
+  width: 52px;
+  height: 52px;
   object-fit: contain;
+  flex-shrink: 0;
+}
+
+.login-brand-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.login-brand-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #15803d;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.login-brand-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.login-brand-subtitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4b5563;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .input-label {

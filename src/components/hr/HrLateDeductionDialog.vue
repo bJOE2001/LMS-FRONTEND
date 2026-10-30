@@ -151,8 +151,10 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useQuasar, date as qdate } from 'quasar'
 import { api } from 'src/boot/axios'
+import { useEmployeeStore } from 'src/stores/employee-store'
 
 const $q = useQuasar()
+const employeeStore = useEmployeeStore()
 
 const props = defineProps({
   modelValue: {
@@ -436,6 +438,7 @@ async function handleSubmit() {
       if (isEditMode.value) {
         const cleanId = String(deductionId.value).replace('late-deduction-', '').trim()
         const res = await api.post(`/hr/employees/${controlNo.value}/late-deductions/${cleanId}/update`, payload)
+        employeeStore.invalidateEmployee(controlNo.value)
 
         $q.notify({
           type: 'positive',
@@ -448,6 +451,7 @@ async function handleSubmit() {
         emit('updated', res.data?.deduction)
       } else {
         const res = await api.post(`/hr/employees/${controlNo.value}/deduct-late-leave`, payload)
+        employeeStore.invalidateEmployee(controlNo.value)
 
         $q.notify({
           type: 'positive',

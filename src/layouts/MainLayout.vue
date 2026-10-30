@@ -21,8 +21,8 @@
         <div class="sidebar-header">
           <div class="sidebar-logo-wrap">
             <img
-              src="~src/assets/images/logov2.png"
-              alt="City of Tagum ALMS Logo"
+              src="~src/assets/images/CityOfTagumLogo.png"
+              alt="City of Tagum Seal"
               class="sidebar-logo"
             />
           </div>
@@ -580,21 +580,21 @@ async function doLogout() {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
   height: calc(var(--navbar-height, 58px) - 1px);
   min-height: 58px;
-  padding: 0 12px;
+  padding: 0 14px;
   box-sizing: border-box;
   flex-shrink: 0;
   overflow: hidden;
 }
 .sidebar-logo-wrap {
   flex-shrink: 0;
-  width: 80px;
-  height: 48px;
-  overflow: hidden;
+  width: 46px;
+  height: 46px;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 .sidebar-brand-text {
   display: flex;
@@ -614,15 +614,15 @@ async function doLogout() {
   margin-bottom: 2px;
 }
 .sidebar-brand-title {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 800;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .sidebar-brand-subtitle {
-  font-size: 0.70rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
   white-space: nowrap;
 }
 .sidebar-divider {
@@ -631,8 +631,8 @@ async function doLogout() {
 }
 .sidebar-logo {
   height: 100%;
-  width: auto;
-  max-width: none;
+  width: 100%;
+  object-fit: contain;
   display: block;
 }
 .logout-card {
