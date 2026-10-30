@@ -1,8 +1,8 @@
 {
   "name": "lms-frontend",
   "version": "0.0.1",
-  "description": "Leave Management System for City Government of Tagum",
-  "productName": "Leave Management System",
+  "description": "Attendance & Leave Management System for City Government of Tagum",
+  "productName": "Attendance & Leave Management System",
   "author": "BELLY JOE BUENO BASADRE <132354249+bJOE2001@users.noreply.github.com>",
   "type": "module",
   "private": true,

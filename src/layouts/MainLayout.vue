@@ -18,12 +18,19 @@
       class="side-panel-fixed text-white bg-primary"
     >
       <div class="side-panel-content">
-        <div class="sidebar-header text-center">
-          <img
-            src="~src/assets/images/INSIDE LMS SYSTEM LOGO.png"
-            alt="LMS Logo"
-            class="sidebar-logo"
-          />
+        <div class="sidebar-header">
+          <div class="sidebar-logo-wrap">
+            <img
+              src="~src/assets/images/logov2.png"
+              alt="City of Tagum ALMS Logo"
+              class="sidebar-logo"
+            />
+          </div>
+          <div class="sidebar-brand-text">
+            <span class="sidebar-brand-tag">CITY OF TAGUM</span>
+            <span class="sidebar-brand-title">Attendance &amp; Leave</span>
+            <span class="sidebar-brand-subtitle">Management System</span>
+          </div>
         </div>
         <q-separator class="sidebar-divider" />
 
@@ -572,19 +579,61 @@ async function doLogout() {
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: calc(var(--navbar-height, 52px) - 1px);
-  padding: 0 16px;
+  justify-content: flex-start;
+  gap: 8px;
+  height: calc(var(--navbar-height, 58px) - 1px);
+  min-height: 58px;
+  padding: 0 12px;
   box-sizing: border-box;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.sidebar-logo-wrap {
+  flex-shrink: 0;
+  width: 80px;
+  height: 48px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  line-height: 1.15;
+  color: #ffffff;
+}
+.sidebar-brand-tag {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #facc15;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.sidebar-brand-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.sidebar-brand-subtitle {
+  font-size: 0.70rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
 }
 .sidebar-divider {
   background: rgba(255, 255, 255, 0.2);
   margin: 0 0 8px 0;
 }
 .sidebar-logo {
-  width: 150px;
-  height: auto;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  display: block;
 }
 .logout-card {
   min-width: 340px;
