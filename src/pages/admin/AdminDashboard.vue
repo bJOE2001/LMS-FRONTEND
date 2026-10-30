@@ -873,7 +873,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
-import { api } from 'src/boot/axios'
+import { useAdminDashboardStore } from 'stores/admin-dashboard-store'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
@@ -924,6 +924,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const adminDashboardStore = useAdminDashboardStore()
 const PENDING_REMINDER_SESSION_PREFIX = 'lms_pending_reminder_seen:'
 
 const mobileApplicationColumnWidths = {
@@ -1469,8 +1470,8 @@ async function fetchDashboard() {
   loading.value = true
   try {
     const [dashboardResponse, cocApplicationsResponse] = await Promise.all([
-      api.get('/admin/dashboard'),
-      api.get('/admin/coc-applications').catch(() => null),
+      adminDashboardStore.fetchRawDashboard(),
+      adminDashboardStore.fetchRawCocApplications(),
     ])
 
     const data = dashboardResponse?.data ?? {}
@@ -3337,7 +3338,7 @@ async function viewApplicationAttachment(app = selectedApp.value) {
   }
 
   try {
-    const response = await api.get(`/admin/leave-applications/${id}/attachment`, {
+    const response = await adminDashboardStore.fetchAttachment(id, {
       responseType: 'blob',
     })
 
@@ -3460,7 +3461,7 @@ async function printApplication(app, printOptions = {}) {
 
     if (targetApplicationId !== '') {
       try {
-        const applicationResponse = await api.get(
+        const applicationResponse = await adminDashboardStore.fetchApplicationDetail(
           cocApplication
             ? `/admin/coc-applications/${targetApplicationId}`
             : `/admin/leave-applications/${targetApplicationId}`,
@@ -3663,7 +3664,7 @@ async function handleApprove(target) {
     : `/admin/leave-applications/${id}/approve`
   actionLoading.value = true
   try {
-    await api.post(approvalEndpoint)
+    await adminDashboardStore.postApproval(approvalEndpoint)
     $q.notify({
       type: 'positive',
       message: isCoc
@@ -3714,7 +3715,7 @@ async function confirmDisapprove() {
       ? `/admin/coc-applications/${disapproveId.value}/reject`
       : `/admin/leave-applications/${disapproveId.value}/reject`
 
-    await api.post(disapprovalEndpoint, {
+    await adminDashboardStore.postDisapproval(disapprovalEndpoint, {
       remarks: payloadRemarks,
     })
     const successMessage =

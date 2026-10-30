@@ -423,18 +423,18 @@
                   @click="openOverrideDialog(props.row, 'am_arrival')"
                 >
                   <div v-if="props.row.am_arrival" class="row items-center no-wrap q-gutter-x-xs">
-                    <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
+                    <span :class="getRecordSlotLateMinutes(props.row, 'am_arrival') > 0 ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
                       {{ formatPunchTime(props.row.am_arrival) }}
                     </span>
                     <q-badge
-                      v-if="isRowLate(props.row)"
+                      v-if="getRecordSlotLateMinutes(props.row, 'am_arrival') > 0"
                       color="red-1"
                       text-color="negative"
                       class="q-pa-none q-px-xs text-weight-bold font-mono"
                       size="xs"
                     >
-                      +{{ props.row.late_minutes }}m
-                      <q-tooltip>Tardy: {{ props.row.late_minutes }} minute(s) late</q-tooltip>
+                      +{{ getRecordSlotLateMinutes(props.row, 'am_arrival') }}m
+                      <q-tooltip>Tardy: {{ getRecordSlotLateMinutes(props.row, 'am_arrival') }} minute(s) late</q-tooltip>
                     </q-badge>
                   </div>
                   <span v-else-if="getSlotOverrideText(props.row, 'am_arrival')" class="text-weight-bold text-teal-8">
@@ -470,9 +470,21 @@
                   class="text-left font-mono cursor-pointer td-punch-cell"
                   @click="openOverrideDialog(props.row, 'pm_arrival')"
                 >
-                  <span v-if="props.row.pm_arrival" class="text-dark text-weight-medium">
-                    {{ formatPunchTime(props.row.pm_arrival) }}
-                  </span>
+                  <div v-if="props.row.pm_arrival" class="row items-center no-wrap q-gutter-x-xs">
+                    <span :class="getRecordSlotLateMinutes(props.row, 'pm_arrival') > 0 ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
+                      {{ formatPunchTime(props.row.pm_arrival) }}
+                    </span>
+                    <q-badge
+                      v-if="getRecordSlotLateMinutes(props.row, 'pm_arrival') > 0"
+                      color="red-1"
+                      text-color="negative"
+                      class="q-pa-none q-px-xs text-weight-bold font-mono"
+                      size="xs"
+                    >
+                      +{{ getRecordSlotLateMinutes(props.row, 'pm_arrival') }}m
+                      <q-tooltip>Tardy: {{ getRecordSlotLateMinutes(props.row, 'pm_arrival') }} minute(s) late</q-tooltip>
+                    </q-badge>
+                  </div>
                   <span v-else-if="getSlotOverrideText(props.row, 'pm_arrival')" class="text-weight-bold text-teal-8">
                     {{ getSlotOverrideText(props.row, 'pm_arrival') }}
                   </span>
@@ -1097,8 +1109,39 @@ function formatOtHours(row) {
   return `${hrs} hr(s) (${mins} mins)`
 }
 
-function isRowLate(row) {
-  return Number(row.late_minutes || 0) > 0
+function parsePunchMinutes(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null
+  const parts = timeStr.trim().split(':')
+  if (parts.length < 2) return null
+  const hours = parseInt(parts[0], 10)
+  const minutes = parseInt(parts[1], 10)
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+  return hours * 60 + minutes
+}
+
+function getRecordSlotLateMinutes(row, slotKey) {
+  if (!row || Number(row.late_minutes || 0) <= 0) return 0
+  const rawStatus = String(row.status || '').toUpperCase().trim()
+  if (rawStatus === 'ON_LEAVE' || rawStatus === 'HOLIDAY' || rawStatus === 'ABSENT') return 0
+
+  const actualMinutes = parsePunchMinutes(row[slotKey])
+  if (actualMinutes === null) return 0
+
+  const schedule = dtrData.value?.employee?.schedule
+
+  if (slotKey === 'am_arrival') {
+    if (rawStatus === 'ON_LEAVE_AM') return 0
+    const scheduleStart = parsePunchMinutes(schedule?.work_start_time) ?? 480
+    return actualMinutes > scheduleStart ? actualMinutes - scheduleStart : 0
+  }
+
+  if (slotKey === 'pm_arrival') {
+    if (rawStatus === 'ON_LEAVE_PM') return 0
+    const scheduleBreakEnd = parsePunchMinutes(schedule?.break_end_time) ?? 780
+    return actualMinutes > scheduleBreakEnd ? actualMinutes - scheduleBreakEnd : 0
+  }
+
+  return 0
 }
 
 function isRowUndertime(row) {

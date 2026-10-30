@@ -9,12 +9,12 @@
             <div class="row items-center q-gutter-x-sm">
               <q-icon name="print" color="green-9" size="22px" />
               <div>
-                <div class="text-subtitle2 text-weight-bold text-dark row items-center">
+                <div class="text-subtitle2 text-weight-bold text-dark row items-center q-gutter-x-xs">
                   <span>{{ isContractual ? 'CSC Form 48 & Accomplishment Report' : 'CSC Form 48 (Daily Time Record)' }}</span>
                   <q-badge
                     v-if="employeeEmploymentStatus"
                     :color="isContractual ? 'orange-9' : 'teal-8'"
-                    class="q-ml-sm text-bold"
+                    class="text-bold"
                   >
                     {{ employeeEmploymentStatus }}
                   </q-badge>
@@ -66,7 +66,9 @@
                 label="Print"
                 class="text-weight-bold q-px-md"
                 @click="triggerPrint"
-              />
+              >
+                <q-tooltip class="bg-dark text-white">Print Civil Service Form No. 48</q-tooltip>
+              </q-btn>
             </div>
           </div>
         </div>
@@ -301,7 +303,10 @@
                 <!-- Date Column -->
                 <td
                   class="td-date"
-                  :class="{ 'td-date-weekend': (row.isSaturday || row.isSunday) && row.isInCutoff }"
+                  :class="{
+                    'td-date-weekend': (row.isSaturday || row.isSunday) && row.isInCutoff,
+                    'td-date-missing': row.missingSlots?.length > 0,
+                  }"
                 >
                   <span v-if="row.isNonExistentDay">31</span>
                   <span v-else>{{ row.dayNumber }}</span>
@@ -407,7 +412,11 @@
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival'),
+                      'td-late-slot': isRowSlotLate(row, 'pm_arrival'),
+                      'td-missing-slot': isRowSlotMissing(row, 'pm_arrival'),
+                    }"
                     @click="openTimeOverride(row, 'pm_arrival')"
                   >
                     {{ row.pmArrival }}
@@ -415,7 +424,10 @@
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure'),
+                      'td-missing-slot': isRowSlotMissing(row, 'pm_departure'),
+                    }"
                     @click="openTimeOverride(row, 'pm_departure')"
                   >
                     {{ row.pmDeparture }}
@@ -427,7 +439,11 @@
                 <template v-else-if="row.isOnLeavePm">
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival'),
+                      'td-late-slot': isRowSlotLate(row, 'am_arrival'),
+                      'td-missing-slot': isRowSlotMissing(row, 'am_arrival'),
+                    }"
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.amArrival }}
@@ -435,7 +451,10 @@
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure'),
+                      'td-missing-slot': isRowSlotMissing(row, 'am_departure'),
+                    }"
                     @click="openTimeOverride(row, 'am_departure')"
                   >
                     {{ row.amDeparture }}
@@ -455,7 +474,11 @@
                 <template v-else>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival'),
+                      'td-late-slot': isRowSlotLate(row, 'am_arrival'),
+                      'td-missing-slot': isRowSlotMissing(row, 'am_arrival'),
+                    }"
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.amArrival }}
@@ -463,7 +486,10 @@
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure'),
+                      'td-missing-slot': isRowSlotMissing(row, 'am_departure'),
+                    }"
                     @click="openTimeOverride(row, 'am_departure')"
                   >
                     {{ row.amDeparture }}
@@ -471,7 +497,11 @@
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival'),
+                      'td-late-slot': isRowSlotLate(row, 'pm_arrival'),
+                      'td-missing-slot': isRowSlotMissing(row, 'pm_arrival'),
+                    }"
                     @click="openTimeOverride(row, 'pm_arrival')"
                   >
                     {{ row.pmArrival }}
@@ -479,7 +509,10 @@
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
-                    :class="{ 'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure') }"
+                    :class="{
+                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure'),
+                      'td-missing-slot': isRowSlotMissing(row, 'pm_departure'),
+                    }"
                     @click="openTimeOverride(row, 'pm_departure')"
                   >
                     {{ row.pmDeparture }}
@@ -497,7 +530,8 @@
                     <td
                       class="td-date"
                       :class="{
-                        'td-date-weekend': (pair.rightSheet.rows[rIdx].isSaturday || pair.rightSheet.rows[rIdx].isSunday) && pair.rightSheet.rows[rIdx].isInCutoff
+                        'td-date-weekend': (pair.rightSheet.rows[rIdx].isSaturday || pair.rightSheet.rows[rIdx].isSunday) && pair.rightSheet.rows[rIdx].isInCutoff,
+                        'td-date-missing': pair.rightSheet.rows[rIdx].missingSlots?.length > 0
                       }"
                     >
                       <span v-if="pair.rightSheet.rows[rIdx].isNonExistentDay">31</span>
@@ -604,7 +638,11 @@
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival'),
+                          'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'pm_arrival'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_arrival'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmArrival }}
@@ -612,7 +650,10 @@
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_departure'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmDeparture }}
@@ -624,7 +665,11 @@
                     <template v-else-if="pair.rightSheet.rows[rIdx].isOnLeavePm">
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival'),
+                          'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amArrival }}
@@ -632,7 +677,10 @@
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_departure'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amDeparture }}
@@ -652,7 +700,11 @@
                     <template v-else>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival'),
+                          'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amArrival }}
@@ -660,7 +712,10 @@
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_departure'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amDeparture }}
@@ -668,7 +723,11 @@
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival'),
+                          'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'pm_arrival'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_arrival'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmArrival }}
@@ -676,7 +735,10 @@
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
-                        :class="{ 'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure') }"
+                        :class="{
+                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure'),
+                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_departure'),
+                        }"
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmDeparture }}
@@ -704,8 +766,8 @@
                       <span v-else-if="row.isOnLeavePm && !row.hasAnyPunch">{{ row.leaveLabel || 'ON LEAVE' }}</span>
                       <span v-else-if="row.hasWork" class="workload-text-span">
                         {{ getRowWorkload(row) }}
-                        <q-tooltip class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
                       </span>
+                      <q-tooltip v-if="row.hasWork" class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
                     </td>
                     <td
                       class="td-quantity"
@@ -803,14 +865,18 @@
           <div class="csc-footer-band csc-summary-band">
             <div class="csc-panel-col csc-summary-row">
               <span>No. of Day(s): ~{{ pair.leftSheet.presentDaysCount }}</span>
-              <span>No. of Min. Late(s): {{ pair.leftSheet.totalLateMinutes }}</span>
+              <span :class="{ 'td-late-summary': pair.leftSheet.totalLateMinutes > 0 }">
+                No. of Min. Late(s): {{ pair.leftSheet.totalLateMinutes }}
+              </span>
             </div>
             <template v-if="pair.mode !== 'single-centered'">
               <div class="csc-panel-gutter"></div>
               <div class="csc-panel-col csc-summary-row">
                 <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
                   <span>No. of Day(s): ~{{ pair.rightSheet.presentDaysCount }}</span>
-                  <span>No. of Min. Late(s): {{ pair.rightSheet.totalLateMinutes }}</span>
+                  <span :class="{ 'td-late-summary': pair.rightSheet.totalLateMinutes > 0 }">
+                    No. of Min. Late(s): {{ pair.rightSheet.totalLateMinutes }}
+                  </span>
                 </template>
               </div>
             </template>
@@ -933,7 +999,7 @@
             type="textarea"
             rows="3"
             label="Workload Undertaken *"
-            hint="e.g. rendering security services @ CICTMO"
+            hint="Enter daily accomplishment or workload"
             autofocus
           />
 
@@ -1112,7 +1178,7 @@ const localCustomRange = ref(null)
 const printAreaRef = ref(null)
 
 // Workload Management State
-const defaultWorkload = ref('rendering security services @ CICTMO')
+const defaultWorkload = ref('')
 const customWorkloads = ref({})
 const customQuantities = ref({})
 
@@ -1482,7 +1548,108 @@ function formatSlotPunch(timeStr, record, slotKey, hasWork, hasAnyPunch) {
   return formatted
 }
 
+function isSlotValueMissing(val) {
+  const s = String(val ?? '').trim()
+  return s === '' || s === '-' || s === '—'
+}
+
+function computeRowMissingSlots(row) {
+  if (!row || row.isNonExistentDay || !row.isInCutoff) return []
+  if (row.isSaturday && !row.hasAnyPunch && !row.isCustomRemark) return []
+  if (row.isSunday && !row.hasAnyPunch && !row.isCustomRemark) return []
+  if (row.isCustomRemark || row.isAbsent || row.isHoliday || row.isOnLeave) return []
+
+  const missing = []
+  if (row.isOnLeaveAm) {
+    if (isSlotValueMissing(row.pmArrival)) missing.push({ key: 'pm_arrival', label: 'PM In' })
+    if (isSlotValueMissing(row.pmDeparture)) missing.push({ key: 'pm_departure', label: 'PM Out' })
+    return missing
+  }
+  if (row.isOnLeavePm) {
+    if (isSlotValueMissing(row.amArrival)) missing.push({ key: 'am_arrival', label: 'AM In' })
+    if (isSlotValueMissing(row.amDeparture)) missing.push({ key: 'am_departure', label: 'AM Out' })
+    return missing
+  }
+
+  if (isSlotValueMissing(row.amArrival)) missing.push({ key: 'am_arrival', label: 'AM In' })
+  if (isSlotValueMissing(row.amDeparture)) missing.push({ key: 'am_departure', label: 'AM Out' })
+  if (isSlotValueMissing(row.pmArrival)) missing.push({ key: 'pm_arrival', label: 'PM In' })
+  if (isSlotValueMissing(row.pmDeparture)) missing.push({ key: 'pm_departure', label: 'PM Out' })
+  return missing
+}
+
+function isRowSlotMissing(row, slotKey) {
+  if (!row?.missingSlots?.length) return false
+  return row.missingSlots.some((s) => s.key === slotKey)
+}
+
+const WAIVED_LATE_REASONS = new Set([
+  'OFFICIAL_BUSINESS',
+  'PASS_SLIP',
+  'TRAVEL_ORDER',
+  'CERTIFICATE_OF_APPEARANCE',
+  'O.B.',
+  'O.F.',
+])
+
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null
+  const trimmed = timeStr.trim()
+  if (!trimmed || trimmed === '-' || trimmed === '—') return null
+  const parts = trimmed.split(':')
+  if (parts.length < 2) return null
+  const hours = parseInt(parts[0], 10)
+  const minutes = parseInt(parts[1], 10)
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+  return hours * 60 + minutes
+}
+
+function getSlotLateMinutes(row, slotKey) {
+  if (slotKey !== 'am_arrival' && slotKey !== 'pm_arrival') return 0
+  if (!row || !row.isInCutoff || row.isNonExistentDay) return 0
+  if (row.isWeekend || row.isAbsent || row.isHoliday || row.isOnLeave || row.isCustomRemark) return 0
+
+  const record = row.record
+  if (!record) return 0
+  if (record.late_minutes !== undefined && record.late_minutes !== null && Number(record.late_minutes) <= 0) {
+    return 0
+  }
+
+  if (record.is_adjusted) {
+    const adjReason = String(record.adjustment_reason || '').toUpperCase().trim()
+    if (WAIVED_LATE_REASONS.has(adjReason)) return 0
+  }
+
+  const actualMinutes = parseTimeToMinutes(record[slotKey])
+  if (actualMinutes === null) return 0
+
+  if (slotKey === 'am_arrival') {
+    if (row.isOnLeaveAm) return 0
+    const scheduleStart = parseTimeToMinutes(props.employee?.schedule?.work_start_time) ?? 480
+    return actualMinutes > scheduleStart ? actualMinutes - scheduleStart : 0
+  }
+
+  if (slotKey === 'pm_arrival') {
+    if (row.isOnLeavePm) return 0
+    const scheduleBreakEnd = parseTimeToMinutes(props.employee?.schedule?.break_end_time) ?? 780
+    return actualMinutes > scheduleBreakEnd ? actualMinutes - scheduleBreakEnd : 0
+  }
+
+  return 0
+}
+
+function isRowSlotLate(row, slotKey) {
+  return getSlotLateMinutes(row, slotKey) > 0
+}
+
 function getSlotTooltip(row, slotKey, slotLabel) {
+  if (isRowSlotMissing(row, slotKey)) {
+    return `MISSING PUNCH — Day ${row.dayNumber} (${slotLabel}) is empty. Click to input time or remark (O.B. / O.F.) before printing.`
+  }
+  const lateMins = getSlotLateMinutes(row, slotKey)
+  if (lateMins > 0) {
+    return `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}). Click to override.`
+  }
   const slotText = getSlotOverrideText(row?.record, slotKey)
   if (slotText) {
     return `Day ${row.dayNumber} ${slotLabel}: ${slotText} (Click to override)`
@@ -1600,7 +1767,12 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
 
     const hasWork = isInCutoff && !isWeekend && !isAbsent && !isOnLeave && !isHoliday && !isCustomRemark
 
-    rows.push({
+    const amArrival = formatSlotPunch(record?.am_arrival, record, 'am_arrival', hasWork, hasAnyPunch)
+    const amDeparture = formatSlotPunch(record?.am_departure, record, 'am_departure', hasWork, hasAnyPunch)
+    const pmArrival = formatSlotPunch(record?.pm_arrival, record, 'pm_arrival', hasWork, hasAnyPunch)
+    const pmDeparture = formatSlotPunch(record?.pm_departure, record, 'pm_departure', hasWork, hasAnyPunch)
+
+    const rowObj = {
       dayNumber: d,
       dateString: dateStr,
       isNonExistentDay: false,
@@ -1619,12 +1791,15 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
       isCustomRemark,
       customRemark,
       hasWork,
-      amArrival: formatSlotPunch(record?.am_arrival, record, 'am_arrival', hasWork, hasAnyPunch),
-      amDeparture: formatSlotPunch(record?.am_departure, record, 'am_departure', hasWork, hasAnyPunch),
-      pmArrival: formatSlotPunch(record?.pm_arrival, record, 'pm_arrival', hasWork, hasAnyPunch),
-      pmDeparture: formatSlotPunch(record?.pm_departure, record, 'pm_departure', hasWork, hasAnyPunch),
+      amArrival,
+      amDeparture,
+      pmArrival,
+      pmDeparture,
       record,
-    })
+      missingSlots: [],
+    }
+    rowObj.missingSlots = computeRowMissingSlots(rowObj)
+    rows.push(rowObj)
   }
 
   const presentDaysCount = rows.filter(
@@ -2072,9 +2247,27 @@ defineExpose({
   color: #1b5e20;
 }
 
+.td-late-slot {
+  color: #c62828 !important;
+  font-weight: 700;
+}
+
+.td-late-summary {
+  color: #c62828;
+  font-weight: 700;
+}
+
 @media print {
   .td-overridden-slot {
     color: #000000 !important;
+  }
+
+  .td-late-slot {
+    color: #c62828 !important;
+  }
+
+  .td-late-summary {
+    color: #c62828 !important;
   }
 }
 
@@ -2259,5 +2452,28 @@ defineExpose({
   outline: 1.5px solid #4caf50;
   outline-offset: -1.5px;
   cursor: pointer;
+}
+
+.td-late-slot:hover {
+  background-color: #fff1f2 !important;
+  color: #b91c1c !important;
+  outline: 1.5px solid #e11d48;
+}
+
+/* ================= SCREEN-ONLY MISSING PUNCH SLOT HIGHLIGHTS ================= */
+.td-date-missing {
+  background-color: #ffe4e6 !important;
+  color: #9f1239 !important;
+  font-weight: 900 !important;
+}
+
+.td-missing-slot {
+  background-color: #fff1f2 !important;
+  box-shadow: inset 0 0 0 1.5px #f43f5e;
+}
+
+.td-missing-slot:hover {
+  background-color: #ffe4e6 !important;
+  outline: 1.5px solid #e11d48 !important;
 }
 </style>

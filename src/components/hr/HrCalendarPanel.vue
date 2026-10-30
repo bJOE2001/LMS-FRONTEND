@@ -200,13 +200,14 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, useAttrs } from 'vue'
-import { api } from 'src/boot/axios'
+import { useHrDashboardStore } from 'stores/hr-dashboard-store'
 
 defineOptions({
   inheritAttrs: false,
 })
 
 const attrs = useAttrs()
+const hrDashboardStore = useHrDashboardStore()
 
 const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PRIORITY_LEAVE_TYPES = [
@@ -245,14 +246,9 @@ const departmentSearchEnabled = computed(() => !calendarDept.value)
 async function fetchDepartments() {
   loadingDepts.value = true
   try {
-    const { data } = await api.get('/departments')
-    const depts = data.departments ?? data ?? []
-    allDepartmentOptions.value = depts.map((d) => ({
-      label: typeof d === 'string' ? d : d.name,
-      value: typeof d === 'string' ? d : d.name,
-    }))
+    allDepartmentOptions.value = await hrDashboardStore.fetchDepartments()
     resetDepartmentOptions()
-  } catch {
+      } catch {
     allDepartmentOptions.value = []
     departmentOptions.value = []
   } finally {
@@ -306,8 +302,9 @@ async function fetchCalendarLeaves() {
     const month = currentMonth.value.getMonth() + 1
     const params = { year, month }
     if (calendarDept.value) params.department = calendarDept.value
-    const { data } = await api.get('/hr/calendar', { params })
-    calendarLeaves.value = data.leaves ?? []
+    calendarLeaves.value = await hrDashboardStore.fetchCalendarLeaves(params)
+
+
   } catch {
     calendarLeaves.value = []
   }

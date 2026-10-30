@@ -1,12 +1,11 @@
 <template>
   <q-page class="q-pa-md attendance-overview-page">
-    <!-- Top Executive Header -->
-    <div class="q-mb-md executive-header">
-      <div class="row items-center q-gutter-x-sm">
-        <div>
-          <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none page-title">
-            Attendance Management
-          </h1>
+    <!-- Page Header -->
+    <div class="row items-center justify-between q-mb-md">
+      <div>
+        <h1 class="text-h5 text-weight-bold text-dark q-my-none">Attendance Management</h1>
+        <div class="text-caption text-grey-7 q-mt-xs">
+          Monitor daily time records, biometric punches, and Civil Service Form No. 48
         </div>
       </div>
     </div>
@@ -27,14 +26,14 @@
       <!-- 5 Skeleton KPI Stat Cards -->
       <div class="row q-col-gutter-sm q-mb-md">
         <div v-for="i in 5" :key="'sk-stat-' + i" class="col-12 col-sm-6 col-md">
-          <q-card flat bordered class="rounded-borders bg-white stat-kpi-card">
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <q-skeleton type="text" width="80px" height="16px" animation="wave" />
-                <q-skeleton type="QAvatar" size="32px" animation="wave" />
-              </div>
-              <div class="q-mt-xs">
-                <q-skeleton type="text" width="45px" height="34px" animation="wave" />
+          <q-card flat bordered class="rounded-borders bg-white stat-card">
+            <q-card-section class="q-py-md q-px-md">
+              <div class="row items-center no-wrap">
+                <q-skeleton type="QAvatar" size="40px" class="q-mr-sm flex-shrink-0" animation="wave" />
+                <div class="col">
+                  <q-skeleton type="text" width="75px" height="14px" animation="wave" />
+                  <q-skeleton type="text" width="42px" height="28px" class="q-mt-xs" animation="wave" />
+                </div>
               </div>
             </q-card-section>
           </q-card>
@@ -43,25 +42,26 @@
 
       <!-- Skeleton Main Table Card -->
       <q-card flat bordered class="rounded-borders bg-white table-card">
-        <q-card-section class="q-pa-md row items-center justify-end q-gutter-sm border-bottom">
-          <q-skeleton type="rect" width="180px" height="34px" class="rounded-borders" animation="wave" />
-          <q-skeleton type="rect" width="220px" height="34px" class="rounded-borders" animation="wave" />
-          <q-skeleton type="rect" width="160px" height="34px" class="rounded-borders" animation="wave" />
+        <q-card-section class="q-py-sm q-px-md row items-center q-col-gutter-sm border-bottom">
+          <div class="col-auto"><q-skeleton type="rect" width="195px" height="40px" class="rounded-borders" animation="wave" /></div>
+          <div class="col-auto"><q-skeleton type="rect" width="180px" height="40px" class="rounded-borders" animation="wave" /></div>
+          <div class="col"><q-skeleton type="rect" width="100%" height="40px" class="rounded-borders" animation="wave" /></div>
+          <div class="col-auto"><q-skeleton type="rect" width="150px" height="40px" class="rounded-borders" animation="wave" /></div>
         </q-card-section>
 
         <!-- Skeleton Table Body -->
         <div class="q-pa-md">
           <!-- Columns Header Placeholder -->
           <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
+            <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
             <div class="col-3"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="80%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-right"><q-skeleton type="text" width="60%" height="16px" class="q-ml-auto" animation="wave" /></div>
+            <div class="col-2 text-center"><q-skeleton type="text" width="65%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
           </div>
 
           <!-- 8 Skeleton Rows -->
@@ -71,26 +71,19 @@
             class="row items-center q-py-md border-bottom q-col-gutter-sm"
             :class="{ 'bg-grey-1': r % 2 === 0 }"
           >
+            <div class="col-1"><q-skeleton type="text" width="60px" height="16px" animation="wave" /></div>
             <div class="col-3">
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-skeleton type="QAvatar" size="36px" animation="wave" />
-                <div>
-                  <q-skeleton type="text" width="130px" height="18px" animation="wave" />
-                  <q-skeleton type="text" width="75px" height="14px" class="q-mt-xs" animation="wave" />
-                </div>
-              </div>
+              <q-skeleton type="text" width="145px" height="18px" animation="wave" />
+              <q-skeleton type="text" width="95px" height="14px" class="q-mt-xs" animation="wave" />
             </div>
-            <div class="col-2"><q-skeleton type="text" width="100px" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
             <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="rect" width="48px" height="20px" class="rounded-borders" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="rect" width="65px" height="22px" class="rounded-borders" animation="wave" /></div>
-            <div class="col-1 text-right">
-              <div class="row items-center justify-end">
-                <q-skeleton type="QAvatar" size="26px" animation="wave" />
-              </div>
+            <div class="col-1"><q-skeleton type="text" width="42px" height="16px" animation="wave" /></div>
+            <div class="col-2 text-center"><q-skeleton type="rect" width="72px" height="22px" class="rounded-borders q-mx-auto" animation="wave" /></div>
+            <div class="col-1 text-center">
+              <q-skeleton type="QAvatar" size="26px" class="q-mx-auto" animation="wave" />
             </div>
           </div>
         </div>
@@ -107,183 +100,269 @@
     <!-- REAL CONTENT SUITE                                        -->
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && employeeRows.length > 0 }">
-      <!-- 5 Summary KPI Stat Cards -->
+      <!-- Interactive Summary KPI Stat Cards (Click to Filter) -->
       <div class="row q-col-gutter-sm q-mb-md">
-        <!-- Total Roster -->
+        <!-- Total Personnel -->
         <div class="col-12 col-sm-6 col-md">
           <q-card
             flat
             bordered
-            class="rounded-borders bg-white stat-kpi-card"
+            role="button"
+            tabindex="0"
+            class="rounded-borders bg-white stat-card cursor-pointer"
+            :class="{ 'stat-card-active-all': selectedAttendanceStatus === 'ALL' }"
+            @click="setAttendanceStatusFilter('ALL')"
+            @keydown.enter.prevent="setAttendanceStatusFilter('ALL')"
+            @keydown.space.prevent="setAttendanceStatusFilter('ALL')"
           >
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <span class="stat-kpi-label">Total Personnel</span>
-                <div class="stat-icon-wrap bg-blue-1 text-blue-9">
-                  <q-icon name="groups" size="20px" />
+            <q-card-section class="q-py-md q-px-md">
+              <div class="row items-center no-wrap">
+                <q-avatar size="40px" color="blue-1" text-color="blue-9" class="q-mr-sm flex-shrink-0">
+                  <q-icon name="groups" size="21px" />
+                </q-avatar>
+                <div class="ellipsis">
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Total Personnel</div>
+                  <div class="text-h5 text-weight-bolder text-dark leading-tight">{{ stats.total }}</div>
                 </div>
               </div>
-              <div class="stat-kpi-value text-dark q-mt-xs">{{ stats.total }}</div>
             </q-card-section>
           </q-card>
         </div>
 
-        <!-- Present Today -->
+        <!-- Present -->
         <div class="col-12 col-sm-6 col-md">
           <q-card
             flat
             bordered
-            class="rounded-borders bg-white stat-kpi-card"
+            role="button"
+            tabindex="0"
+            class="rounded-borders bg-white stat-card cursor-pointer"
+            :class="{ 'stat-card-active-present': selectedAttendanceStatus === 'PRESENT' }"
+            @click="toggleAttendanceStatusFilter('PRESENT')"
+            @keydown.enter.prevent="toggleAttendanceStatusFilter('PRESENT')"
+            @keydown.space.prevent="toggleAttendanceStatusFilter('PRESENT')"
           >
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <span class="stat-kpi-label">Present</span>
-                <div class="stat-icon-wrap bg-green-1 text-green-9">
-                  <q-icon name="check_circle" size="20px" />
+            <q-card-section class="q-py-md q-px-md">
+              <div class="row items-center no-wrap">
+                <q-avatar size="40px" color="green-1" text-color="green-9" class="q-mr-sm flex-shrink-0">
+                  <q-icon name="check_circle" size="21px" />
+                </q-avatar>
+                <div class="ellipsis">
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Present</div>
+                  <div class="text-h5 text-weight-bolder text-positive leading-tight">{{ stats.present }}</div>
                 </div>
               </div>
-              <div class="stat-kpi-value text-positive q-mt-xs">{{ stats.present }}</div>
             </q-card-section>
           </q-card>
         </div>
 
-        <!-- Late Today -->
+        <!-- Tardy / Late -->
         <div class="col-12 col-sm-6 col-md">
           <q-card
             flat
             bordered
-            class="rounded-borders bg-white stat-kpi-card"
+            role="button"
+            tabindex="0"
+            class="rounded-borders bg-white stat-card cursor-pointer"
+            :class="{ 'stat-card-active-late': selectedAttendanceStatus === 'LATE' }"
+            @click="toggleAttendanceStatusFilter('LATE')"
+            @keydown.enter.prevent="toggleAttendanceStatusFilter('LATE')"
+            @keydown.space.prevent="toggleAttendanceStatusFilter('LATE')"
           >
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <span class="stat-kpi-label">Tardy / Late</span>
-                <div class="stat-icon-wrap bg-amber-1 text-amber-9">
-                  <q-icon name="history_toggle_off" size="20px" />
+            <q-card-section class="q-py-md q-px-md">
+              <div class="row items-center no-wrap">
+                <q-avatar size="40px" color="amber-1" text-color="amber-9" class="q-mr-sm flex-shrink-0">
+                  <q-icon name="history_toggle_off" size="21px" />
+                </q-avatar>
+                <div class="ellipsis">
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Tardy / Late</div>
+                  <div class="text-h5 text-weight-bolder text-amber-9 leading-tight">{{ stats.late }}</div>
                 </div>
               </div>
-              <div class="stat-kpi-value text-amber-9 q-mt-xs">{{ stats.late }}</div>
             </q-card-section>
           </q-card>
         </div>
 
-        <!-- On Leave Today -->
+        <!-- On Leave -->
         <div class="col-12 col-sm-6 col-md">
           <q-card
             flat
             bordered
-            class="rounded-borders bg-white stat-kpi-card"
+            role="button"
+            tabindex="0"
+            class="rounded-borders bg-white stat-card cursor-pointer"
+            :class="{ 'stat-card-active-leave': selectedAttendanceStatus === 'ON_LEAVE' }"
+            @click="toggleAttendanceStatusFilter('ON_LEAVE')"
+            @keydown.enter.prevent="toggleAttendanceStatusFilter('ON_LEAVE')"
+            @keydown.space.prevent="toggleAttendanceStatusFilter('ON_LEAVE')"
           >
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <span class="stat-kpi-label">On Leave</span>
-                <div class="stat-icon-wrap bg-indigo-1 text-indigo-9">
-                  <q-icon name="beach_access" size="20px" />
+            <q-card-section class="q-py-md q-px-md">
+              <div class="row items-center no-wrap">
+                <q-avatar size="40px" color="indigo-1" text-color="indigo-9" class="q-mr-sm flex-shrink-0">
+                  <q-icon name="beach_access" size="21px" />
+                </q-avatar>
+                <div class="ellipsis">
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">On Leave</div>
+                  <div class="text-h5 text-weight-bolder text-indigo-9 leading-tight">{{ stats.on_leave }}</div>
                 </div>
               </div>
-              <div class="stat-kpi-value text-indigo-9 q-mt-xs">{{ stats.on_leave }}</div>
             </q-card-section>
           </q-card>
         </div>
 
-        <!-- Absent Today -->
+        <!-- Absent -->
         <div class="col-12 col-sm-6 col-md">
           <q-card
             flat
             bordered
-            class="rounded-borders bg-white stat-kpi-card"
+            role="button"
+            tabindex="0"
+            class="rounded-borders bg-white stat-card cursor-pointer"
+            :class="{ 'stat-card-active-absent': selectedAttendanceStatus === 'ABSENT' }"
+            @click="toggleAttendanceStatusFilter('ABSENT')"
+            @keydown.enter.prevent="toggleAttendanceStatusFilter('ABSENT')"
+            @keydown.space.prevent="toggleAttendanceStatusFilter('ABSENT')"
           >
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <span class="stat-kpi-label">Absent</span>
-                <div class="stat-icon-wrap bg-red-1 text-red-9">
-                  <q-icon name="event_busy" size="20px" />
+            <q-card-section class="q-py-md q-px-md">
+              <div class="row items-center no-wrap">
+                <q-avatar size="40px" color="red-1" text-color="red-9" class="q-mr-sm flex-shrink-0">
+                  <q-icon name="event_busy" size="21px" />
+                </q-avatar>
+                <div class="ellipsis">
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Absent</div>
+                  <div class="text-h5 text-weight-bolder text-negative leading-tight">{{ stats.absent }}</div>
                 </div>
               </div>
-              <div class="stat-kpi-value text-negative q-mt-xs">{{ stats.absent }}</div>
             </q-card-section>
           </q-card>
         </div>
       </div>
 
       <!-- Main Attendance Management Card -->
-      <q-card flat bordered class="rounded-borders bg-white table-card shadow-1">
-        <!-- Toolbar Section: Filter Dropdown + Search + Date Navigator -->
-        <q-card-section class="q-pa-sm q-px-md border-bottom">
-          <div class="row items-center justify-end q-gutter-sm">
-            <!-- Employment Status Filter Dropdown -->
-            <q-select
-              v-model="selectedEmploymentStatus"
-              :options="employmentStatusOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              options-dense
-              class="status-filter-select"
-            >
-              <template #prepend>
-                <q-icon name="filter_list" size="18px" color="grey-6" />
-              </template>
-            </q-select>
+      <q-card flat bordered class="rounded-borders bg-white table-card">
+        <!-- Balanced Toolbar Section: Date Navigator + Filter + Search + Batch Print -->
+        <q-card-section class="q-py-sm q-px-md border-bottom">
+          <div class="row items-center q-col-gutter-sm">
+            <!-- Date Navigator + Quick Jump to Today -->
+            <div class="col-12 col-sm-auto row items-center no-wrap q-gutter-x-xs">
+              <div class="row items-center no-wrap rounded-borders q-px-xs date-nav-box">
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="chevron_left"
+                  size="sm"
+                  color="grey-8"
+                  @click="changeDate(-1)"
+                >
+                  <q-tooltip class="bg-dark">Previous Day</q-tooltip>
+                </q-btn>
 
-            <!-- Search Input -->
-            <q-input
-              v-model="searchTerm"
-              outlined
-              dense
-              placeholder="Search name, position, ID..."
-              class="search-employee-input"
-              clearable
-              @update:model-value="onSearchInput"
-            >
-              <template #prepend>
-                <q-icon name="search" size="18px" color="grey-6" />
-              </template>
-            </q-input>
+                <div class="row items-center no-wrap cursor-pointer q-px-sm date-display-trigger">
+                  <q-icon name="calendar_month" size="16px" color="green-9" class="q-mr-xs" />
+                  <span class="text-body2 text-weight-bold text-dark date-nav-text">
+                    {{ formatFullDate(selectedDate) }}
+                  </span>
 
-            <!-- Date Navigator Pill -->
-            <div class="row items-center no-wrap bg-grey-1 rounded-borders q-pa-xs border-light date-nav-box">
-              <q-btn
-                flat
-                dense
-                round
-                icon="chevron_left"
-                size="sm"
-                color="grey-7"
-                @click="changeDate(-1)"
-              >
-                <q-tooltip class="bg-dark">Previous Day</q-tooltip>
-              </q-btn>
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-date
+                      v-model="selectedDate"
+                      mask="YYYY-MM-DD"
+                      color="green-9"
+                      @update:model-value="fetchAttendanceOverview"
+                    >
+                      <div class="row items-center justify-between">
+                        <q-btn
+                          v-if="selectedDate !== todayStr"
+                          v-close-popup
+                          label="Today"
+                          color="green-9"
+                          flat
+                          no-caps
+                          @click="goToToday"
+                        />
+                        <q-space />
+                        <q-btn v-close-popup label="Close" color="grey-7" flat no-caps />
+                      </div>
+                    </q-date>
+                  </q-popup-proxy>
+                </div>
 
-              <div class="row items-center no-wrap cursor-pointer q-px-sm date-display-trigger">
-                <span class="text-caption text-weight-bold font-mono text-dark date-nav-text">
-                  {{ selectedDate }}
-                </span>
-                <q-icon name="calendar_month" size="16px" color="grey-7" class="q-ml-xs" />
-
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date
-                    v-model="selectedDate"
-                    mask="YYYY-MM-DD"
-                    @update:model-value="fetchAttendanceOverview"
-                  >
-                    <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Close" color="primary" flat />
-                    </div>
-                  </q-date>
-                </q-popup-proxy>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="chevron_right"
+                  size="sm"
+                  color="grey-8"
+                  @click="changeDate(1)"
+                >
+                  <q-tooltip class="bg-dark">Next Day</q-tooltip>
+                </q-btn>
               </div>
 
               <q-btn
-                flat
+                v-if="selectedDate !== todayStr"
+                outline
                 dense
-                round
-                icon="chevron_right"
-                size="sm"
-                color="grey-7"
-                @click="changeDate(1)"
+                no-caps
+                color="green-9"
+                label="Today"
+                class="q-px-sm text-weight-bold toolbar-action-btn"
+                @click="goToToday"
               >
-                <q-tooltip class="bg-dark">Next Day</q-tooltip>
+                <q-tooltip class="bg-dark">Jump back to today</q-tooltip>
+              </q-btn>
+            </div>
+
+            <!-- Employment Status Filter Dropdown -->
+            <div class="col-12 col-sm-auto">
+              <q-select
+                v-model="selectedEmploymentStatus"
+                :options="employmentStatusOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                options-dense
+                class="status-filter-select"
+              >
+                <template #prepend>
+                  <q-icon name="filter_list" size="18px" color="grey-6" />
+                </template>
+              </q-select>
+            </div>
+
+            <!-- Search Input -->
+            <div class="col-12 col-md">
+              <q-input
+                v-model="searchTerm"
+                outlined
+                dense
+                placeholder="Search by employee name, position, or ID..."
+                class="search-employee-input"
+                clearable
+                @update:model-value="onSearchInput"
+              >
+                <template #prepend>
+                  <q-icon name="search" size="18px" color="grey-6" />
+                </template>
+              </q-input>
+            </div>
+
+            <!-- Batch Print DTR Action -->
+            <div class="col-12 col-sm-auto row items-center justify-end no-wrap">
+              <q-btn
+                outline
+                color="green-9"
+                icon="print"
+                label="Batch Print DTR"
+                no-caps
+                class="text-weight-bold q-px-md toolbar-action-btn"
+                :disable="employeeRows.length === 0"
+                @click="openBatchPrintDialog"
+              >
+                <q-tooltip class="bg-dark">Open batch CS Form 48 print setup</q-tooltip>
               </q-btn>
             </div>
           </div>
@@ -296,10 +375,8 @@
           row-key="control_no"
           flat
           :loading="loading"
-          :rows-per-page-options="[10, 20, 50, 100]"
+          :rows-per-page-options="[10, 15, 25, 50, 100]"
           v-model:pagination="pagination"
-          v-model:selected="selectedEmployees"
-          selection="multiple"
           class="attendance-pro-table"
           @row-click="handleEmployeeRowClick"
         >
@@ -310,7 +387,7 @@
                 <div class="text-weight-bold text-dark employee-name-text">
                   {{ props.row.employee_name }}
                 </div>
-                <div class="text-caption text-grey-7 ellipsis" style="max-width: 250px;">
+                <div class="text-caption text-grey-7 ellipsis" style="max-width: 260px;">
                   {{ props.row.designation || 'Staff Member' }}
                   <q-tooltip v-if="props.row.designation" class="bg-dark text-caption">
                     {{ props.row.designation }}
@@ -322,35 +399,27 @@
 
           <!-- ControlNo(ID) Column -->
           <template #body-cell-control_no="props">
-            <q-td :props="props" class="text-left font-mono">
+            <q-td :props="props" class="text-left font-mono tabular-nums">
               <span class="text-weight-bold text-grey-9">{{ props.row.control_no }}</span>
             </q-td>
           </template>
 
           <!-- AM In (Morning Arrival) -->
           <template #body-cell-am_in="props">
-            <q-td :props="props" class="text-center font-mono">
-              <div v-if="props.row.dtr?.am_arrival" class="row items-center justify-center no-wrap q-gutter-x-xs">
-                <span :class="isRowLate(props.row) ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'">
-                  {{ formatPunchTime(props.row.dtr.am_arrival) }}
-                </span>
-                <q-badge
-                  v-if="isRowLate(props.row)"
-                  color="red-1"
-                  text-color="red-9"
-                  class="q-px-xs font-mono text-weight-bold"
-                  size="xs"
-                >
-                  +{{ props.row.dtr.late_minutes }}m
-                </q-badge>
-              </div>
+            <q-td :props="props" class="text-center font-mono tabular-nums">
+              <span
+                v-if="props.row.dtr?.am_arrival"
+                :class="getRowSlotLateMinutes(props.row, 'am_arrival') > 0 ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'"
+              >
+                {{ formatPunchTime(props.row.dtr.am_arrival) }}
+              </span>
               <span v-else class="text-grey-4">—</span>
             </q-td>
           </template>
 
           <!-- AM Out (Lunch Out) -->
           <template #body-cell-am_out="props">
-            <q-td :props="props" class="text-center font-mono">
+            <q-td :props="props" class="text-center font-mono tabular-nums">
               <span v-if="props.row.dtr?.am_departure" class="text-dark text-weight-medium">
                 {{ formatPunchTime(props.row.dtr.am_departure) }}
               </span>
@@ -360,8 +429,11 @@
 
           <!-- PM In (Lunch In) -->
           <template #body-cell-pm_in="props">
-            <q-td :props="props" class="text-center font-mono">
-              <span v-if="props.row.dtr?.pm_arrival" class="text-dark text-weight-medium">
+            <q-td :props="props" class="text-center font-mono tabular-nums">
+              <span
+                v-if="props.row.dtr?.pm_arrival"
+                :class="getRowSlotLateMinutes(props.row, 'pm_arrival') > 0 ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'"
+              >
                 {{ formatPunchTime(props.row.dtr.pm_arrival) }}
               </span>
               <span v-else class="text-grey-4">—</span>
@@ -370,7 +442,7 @@
 
           <!-- PM Out (Afternoon Departure) -->
           <template #body-cell-pm_out="props">
-            <q-td :props="props" class="text-center font-mono">
+            <q-td :props="props" class="text-center font-mono tabular-nums">
               <span v-if="props.row.dtr?.pm_departure" class="text-dark text-weight-medium">
                 {{ formatPunchTime(props.row.dtr.pm_departure) }}
               </span>
@@ -380,15 +452,13 @@
 
           <!-- Rendered Hours -->
           <template #body-cell-hours="props">
-            <q-td :props="props" class="text-center font-mono">
-              <q-badge
+            <q-td :props="props" class="text-center font-mono tabular-nums">
+              <span
                 v-if="Number(props.row.dtr?.rendered_hours || 0) > 0"
-                color="teal-1"
-                text-color="teal-9"
-                class="q-px-sm q-py-xs text-weight-bold"
+                class="text-weight-bold text-dark"
               >
-                {{ Number(props.row.dtr.rendered_hours).toFixed(1) }}
-              </q-badge>
+                {{ Number(props.row.dtr.rendered_hours).toFixed(1) }}h
+              </span>
               <span v-else class="text-grey-4">—</span>
             </q-td>
           </template>
@@ -412,15 +482,42 @@
             </q-td>
           </template>
 
+          <!-- DTR Action Column -->
+          <template #body-cell-actions="props">
+            <q-td :props="props" class="text-center" @click.stop>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="green-9"
+                icon="description"
+                class="dtr-row-action-btn"
+                @click="openEmployeeDtr(props.row)"
+              >
+                <q-tooltip class="bg-dark">View / Print CS Form 48</q-tooltip>
+              </q-btn>
+            </q-td>
+          </template>
 
           <!-- Empty State -->
           <template #no-data>
             <div class="full-width text-center q-py-xl text-grey-6">
               <q-icon name="person_off" size="48px" color="grey-4" />
-              <div class="text-subtitle1 text-weight-bold q-mt-sm">No Attendance Records Found</div>
-              <div class="text-caption">
+              <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">No Attendance Records Found</div>
+              <div class="text-caption q-mb-md">
                 No personnel attendance records match your filter criteria for {{ formatFullDate(selectedDate) }}.
               </div>
+              <q-btn
+                v-if="hasActiveFilters"
+                outline
+                dense
+                no-caps
+                color="green-9"
+                label="Reset Filters"
+                class="q-px-md text-weight-bold"
+                @click="resetAllFilters"
+              />
             </div>
           </template>
         </q-table>
@@ -433,49 +530,99 @@
       transition-show="scale"
       transition-hide="scale"
     >
-      <q-card style="width: 440px; max-width: 95vw;" class="column no-wrap rounded-borders shadow-10 bg-white">
+      <q-card class="dtr-setup-dialog column no-wrap bg-white">
         <!-- Dialog Header Toolbar -->
-        <q-toolbar class="bg-green-9 text-white q-py-xs shadow-1" style="height: 52px; min-height: 52px;">
-          <q-avatar size="32px" color="white" text-color="green-10" icon="date_range" class="q-mr-sm" />
-          <div class="text-subtitle1 text-weight-bold">Civil Service Form No. 48</div>
-          <q-space />
+        <div class="dtr-dialog-header bg-green-9 text-white row items-center no-wrap q-px-md">
+          <div class="dtr-header-icon-box row items-center justify-center q-mr-sm">
+            <q-icon name="event_note" size="20px" color="white" />
+          </div>
+          <div class="col ellipsis">
+            <div class="text-subtitle1 text-weight-bold leading-tight">Civil Service Form No. 48</div>
+            <div class="text-caption text-green-2 leading-tight">Daily Time Record Coverage Setup</div>
+          </div>
           <q-btn icon="close" flat round dense text-color="white" v-close-popup>
             <q-tooltip class="bg-dark">Close</q-tooltip>
           </q-btn>
-        </q-toolbar>
+        </div>
 
         <!-- Dialog Body -->
-        <q-card-section class="q-pa-md bg-grey-1 column q-gutter-y-sm">
-          <!-- Personnel Summary Chip/Card -->
-          <div class="bg-white q-pa-sm rounded-borders shadow-1 row items-center justify-between" style="border: 1px solid #e0e0e0;">
-            <div class="column">
-              <span class="text-weight-bold text-dark text-body2">
-                {{ singleDtrEmployee?.employee_name || 'Selected Personnel' }}
-              </span>
-              <span class="text-caption text-grey-7">
-                {{ singleDtrEmployee?.designation || 'Staff Member' }}
-              </span>
+        <q-card-section class="col scroll q-pa-md bg-grey-1 column no-wrap dtr-dialog-body">
+          <!-- Personnel Identity Card -->
+          <div class="dtr-employee-card bg-white q-py-xs q-px-sm rounded-borders row items-center no-wrap justify-between flex-shrink-0">
+            <div class="row items-center no-wrap col ellipsis q-pr-sm">
+              <q-avatar
+                size="36px"
+                class="dtr-employee-avatar text-weight-bolder q-mr-sm flex-shrink-0"
+              >
+                {{ getInitials(singleDtrEmployee?.employee_name) }}
+              </q-avatar>
+              <div class="column ellipsis">
+                <div class="row items-center no-wrap q-gutter-x-xs">
+                  <span class="text-weight-bolder text-dark text-body2 ellipsis">
+                    {{ singleDtrEmployee?.employee_name || 'Selected Personnel' }}
+                  </span>
+                  <q-badge
+                    v-if="singleDtrEmployee?.employment_status"
+                    :color="isEmployeeContractual(singleDtrEmployee) ? 'amber-1' : 'green-1'"
+                    :text-color="isEmployeeContractual(singleDtrEmployee) ? 'amber-10' : 'green-10'"
+                    class="text-weight-bold dtr-emp-status-pill"
+                  >
+                    {{ formatEmploymentStatus(singleDtrEmployee.employment_status) }}
+                  </q-badge>
+                </div>
+                <span class="text-caption text-grey-7 ellipsis">
+                  {{ singleDtrEmployee?.designation || 'Staff Member' }}
+                </span>
+              </div>
             </div>
-            <div class="text-right font-mono">
-              <span class="text-caption text-grey-6 block">Control No</span>
-              <span class="text-weight-bold text-green-9 text-caption">{{ singleDtrEmployee?.control_no || '—' }}</span>
+
+            <div class="dtr-control-badge text-right font-mono flex-shrink-0">
+              <span class="dtr-control-label block">Control No</span>
+              <span class="text-weight-bolder text-green-9 text-caption">{{ singleDtrEmployee?.control_no || '—' }}</span>
             </div>
           </div>
 
-          <!-- Date Range Selector -->
-          <div class="bg-white q-pa-sm rounded-borders shadow-1" style="border: 1px solid #e0e0e0;">
+          <!-- Coverage Date Range Card -->
+          <div class="dtr-coverage-card bg-white q-pa-sm rounded-borders flex-shrink-0">
+            <!-- Section Header + Active Calendar Month Label -->
             <div class="row items-center justify-between q-mb-xs q-px-xs">
-              <div class="row items-center text-weight-bold text-caption text-grey-9">
-                <q-icon name="event" color="green-9" size="18px" class="q-mr-xs" />
-                Coverage Date Range
-              </div>
               <div class="row items-center q-gutter-x-xs">
-                <q-badge
-                  :color="normalizedSingleDtrCustomRange ? 'green-9' : 'grey-6'"
-                  text-color="white"
-                  class="font-mono text-caption text-weight-bold q-px-xs q-py-xs"
+                <q-icon name="date_range" color="green-9" size="17px" />
+                <span class="text-weight-bold text-caption text-dark">Coverage Date Range</span>
+              </div>
+              <span class="text-caption text-weight-medium text-grey-6">
+                {{ singleDtrActiveCalendarLabel }}
+              </span>
+            </div>
+
+            <!-- Selected Range Summary Banner -->
+            <div
+              class="dtr-range-summary-bar row items-center justify-between no-wrap q-px-sm q-mb-xs rounded-borders"
+              :class="normalizedSingleDtrCustomRange ? 'is-active' : 'is-empty'"
+            >
+              <div class="row items-center no-wrap ellipsis">
+                <q-icon
+                  :name="normalizedSingleDtrCustomRange ? 'check_circle' : 'touch_app'"
+                  :color="normalizedSingleDtrCustomRange ? 'green-9' : 'grey-5'"
+                  size="15px"
+                  class="q-mr-xs flex-shrink-0"
+                />
+                <span
+                  class="font-mono text-caption text-weight-bold ellipsis"
+                  :class="normalizedSingleDtrCustomRange ? 'text-green-10' : 'text-grey-6'"
                 >
                   {{ singleDtrRangeDisplayLabel }}
+                </span>
+              </div>
+
+              <div class="row items-center no-wrap q-gutter-x-xs flex-shrink-0">
+                <q-badge
+                  v-if="singleDtrRangeDayCount > 0"
+                  color="green-9"
+                  text-color="white"
+                  class="text-weight-bold font-mono dtr-days-count-badge"
+                >
+                  {{ singleDtrRangeDayCount }} {{ singleDtrRangeDayCount === 1 ? 'day' : 'days' }}
                 </q-badge>
                 <q-btn
                   v-if="singleDtrDateRange"
@@ -484,7 +631,7 @@
                   round
                   icon="close"
                   size="xs"
-                  color="grey-6"
+                  color="grey-7"
                   @click="singleDtrDateRange = null"
                 >
                   <q-tooltip class="bg-dark">Clear date range</q-tooltip>
@@ -492,60 +639,54 @@
               </div>
             </div>
 
-            <!-- Quick Preset Cutoff Buttons -->
-            <div class="row items-center q-gutter-xs q-mb-xs q-px-xs">
-              <q-btn
-                size="xs"
-                dense
-                no-caps
-                :unelevated="isDateRangeMatchingPreset(singleDtrDateRange, 'month')"
-                :outline="!isDateRangeMatchingPreset(singleDtrDateRange, 'month')"
-                :color="isDateRangeMatchingPreset(singleDtrDateRange, 'month') ? 'green-9' : 'grey-8'"
-                :class="{ 'text-white': isDateRangeMatchingPreset(singleDtrDateRange, 'month') }"
-                class="q-px-xs text-weight-medium"
-                label="1 Month (Full)"
+            <!-- Segmented Quick Preset Cutoff Selector -->
+            <div class="dtr-preset-segmented row no-wrap items-center q-mb-xs">
+              <button
+                type="button"
+                class="dtr-preset-btn col"
+                :class="{ 'is-active': isDateRangeMatchingPreset(singleDtrDateRange, 'month') }"
                 @click="applySingleDtrPreset('month')"
-              />
-              <q-btn
-                size="xs"
-                dense
-                no-caps
-                :unelevated="isDateRangeMatchingPreset(singleDtrDateRange, '11-25')"
-                :outline="!isDateRangeMatchingPreset(singleDtrDateRange, '11-25')"
-                :color="isDateRangeMatchingPreset(singleDtrDateRange, '11-25') ? 'green-9' : 'grey-8'"
-                :class="{ 'text-white': isDateRangeMatchingPreset(singleDtrDateRange, '11-25') }"
-                class="q-px-xs text-weight-medium"
-                label="11th – 25th"
+              >
+                <span class="dtr-preset-title">Full Month</span>
+                <span class="dtr-preset-sub">1st – End</span>
+              </button>
+              <button
+                type="button"
+                class="dtr-preset-btn col"
+                :class="{ 'is-active': isDateRangeMatchingPreset(singleDtrDateRange, '11-25') }"
                 @click="applySingleDtrPreset('11-25')"
-              />
-              <q-btn
-                size="xs"
-                dense
-                no-caps
-                :unelevated="isDateRangeMatchingPreset(singleDtrDateRange, '26-9')"
-                :outline="!isDateRangeMatchingPreset(singleDtrDateRange, '26-9')"
-                :color="isDateRangeMatchingPreset(singleDtrDateRange, '26-9') ? 'green-9' : 'grey-8'"
-                :class="{ 'text-white': isDateRangeMatchingPreset(singleDtrDateRange, '26-9') }"
-                class="q-px-xs text-weight-medium"
-                label="26th – 9th"
-                @click="applySingleDtrPreset('26-9')"
-              />
+              >
+                <span class="dtr-preset-title">11th – 25th</span>
+                <span class="dtr-preset-sub">1st Cutoff</span>
+              </button>
+              <button
+                type="button"
+                class="dtr-preset-btn col"
+                :class="{ 'is-active': isDateRangeMatchingPreset(singleDtrDateRange, '26-10') }"
+                @click="applySingleDtrPreset('26-10')"
+              >
+                <span class="dtr-preset-title">26th – 10th</span>
+                <span class="dtr-preset-sub">2nd Cutoff</span>
+              </button>
             </div>
 
+            <!-- Refined Range Calendar -->
             <q-date
+              ref="singleDtrDateRef"
               v-model="singleDtrDatePickerModel"
               range
               mask="YYYY-MM-DD"
               color="green-9"
               minimal
-              class="full-width no-shadow bg-white rounded-borders"
-              style="border: 1px solid #e8f5e9;"
+              flat
+              class="full-width no-shadow bg-white dtr-range-calendar"
+              @navigation="onSingleDtrCalendarNav"
             />
           </div>
         </q-card-section>
 
         <!-- Dialog Footer Actions -->
-        <q-card-actions align="right" class="bg-white q-pa-md" style="border-top: 1px solid #e0e0e0;">
+        <q-card-actions align="right" class="bg-white q-px-md q-py-sm dtr-dialog-footer">
           <q-btn
             unelevated
             color="green-9"
@@ -553,7 +694,7 @@
             icon="description"
             label="Generate & View DTR"
             no-caps
-            class="text-weight-bolder q-px-md"
+            class="text-weight-bolder q-px-md dtr-generate-btn"
             :disable="!normalizedSingleDtrCustomRange"
             @click="confirmSingleDtrSetup"
           >
@@ -629,35 +770,65 @@
       transition-show="scale"
       transition-hide="scale"
     >
-      <q-card style="width: 780px; max-width: 96vw; max-height: 92vh;" class="column no-wrap rounded-borders shadow-10 bg-white">
-        <!-- Dialog Header Toolbar with balanced margins and vertical centering -->
-        <q-toolbar class="bg-green-9 text-white q-py-xs shadow-1" style="height: 52px; min-height: 52px;">
-          <q-avatar size="32px" color="white" text-color="green-10" icon="print" class="q-mr-sm" />
-          <div class="text-subtitle1 text-weight-bold">Batch Print DTR — Civil Service Form No. 48</div>
-          <q-space />
+      <q-card style="width: 820px; max-width: 96vw; max-height: 92vh;" class="dtr-setup-dialog column no-wrap bg-white">
+        <!-- Dialog Header Toolbar -->
+        <div class="dtr-dialog-header bg-green-9 text-white row items-center no-wrap q-px-md">
+          <div class="dtr-header-icon-box row items-center justify-center q-mr-sm">
+            <q-icon name="print" size="20px" color="white" />
+          </div>
+          <div class="col ellipsis">
+            <div class="text-subtitle1 text-weight-bold leading-tight">Batch Print DTR — Civil Service Form No. 48</div>
+            <div class="text-caption text-green-2 leading-tight">Configure coverage period and personnel roster</div>
+          </div>
           <q-btn icon="close" flat round dense text-color="white" v-close-popup>
             <q-tooltip class="bg-dark">Close</q-tooltip>
           </q-btn>
-        </q-toolbar>
+        </div>
 
         <!-- Dialog Body: Two-Column Layout -->
         <q-card-section class="col scroll q-pa-md bg-grey-1">
           <div class="row q-col-gutter-md">
             <!-- Left Column: Coverage Date Range -->
             <div class="col-12 col-sm-6">
-              <div class="bg-white q-pa-sm rounded-borders shadow-1" style="border: 1px solid #e0e0e0;">
-                <div class="row items-center justify-between q-mb-xs q-px-xs">
-                  <div class="row items-center text-weight-bold text-caption text-grey-9">
-                    <q-icon name="date_range" color="green-9" size="18px" class="q-mr-xs" />
-                    Coverage Date Range
-                  </div>
+              <div class="dtr-coverage-card bg-white q-pa-md rounded-borders full-height">
+                <div class="row items-center justify-between q-mb-sm">
                   <div class="row items-center q-gutter-x-xs">
-                    <q-badge
-                      :color="normalizedBatchCustomRange ? 'green-9' : 'grey-6'"
-                      text-color="white"
-                      class="font-mono text-caption text-weight-bold q-px-xs q-py-xs"
+                    <q-icon name="date_range" color="green-9" size="18px" />
+                    <span class="text-weight-bold text-body2 text-dark">Coverage Date Range</span>
+                  </div>
+                  <span class="text-caption text-grey-6">
+                    {{ batchActiveCalendarLabel }}
+                  </span>
+                </div>
+
+                <!-- Selected Range Summary Banner -->
+                <div
+                  class="dtr-range-summary-bar row items-center justify-between no-wrap q-px-sm q-py-xs q-mb-sm rounded-borders"
+                  :class="normalizedBatchCustomRange ? 'is-active' : 'is-empty'"
+                >
+                  <div class="row items-center no-wrap ellipsis">
+                    <q-icon
+                      :name="normalizedBatchCustomRange ? 'check_circle' : 'touch_app'"
+                      :color="normalizedBatchCustomRange ? 'green-9' : 'grey-5'"
+                      size="16px"
+                      class="q-mr-xs flex-shrink-0"
+                    />
+                    <span
+                      class="font-mono text-caption text-weight-bold ellipsis"
+                      :class="normalizedBatchCustomRange ? 'text-green-10' : 'text-grey-6'"
                     >
                       {{ batchRangeDisplayLabel }}
+                    </span>
+                  </div>
+
+                  <div class="row items-center no-wrap q-gutter-x-xs flex-shrink-0">
+                    <q-badge
+                      v-if="batchRangeDayCount > 0"
+                      color="green-9"
+                      text-color="white"
+                      class="text-weight-bold font-mono dtr-days-count-badge"
+                    >
+                      {{ batchRangeDayCount }} {{ batchRangeDayCount === 1 ? 'day' : 'days' }}
                     </q-badge>
                     <q-btn
                       v-if="batchDateRange"
@@ -666,7 +837,7 @@
                       round
                       icon="close"
                       size="xs"
-                      color="grey-6"
+                      color="grey-7"
                       @click="batchDateRange = null"
                     >
                       <q-tooltip class="bg-dark">Clear date range</q-tooltip>
@@ -674,79 +845,73 @@
                   </div>
                 </div>
 
-                <!-- Quick Preset Cutoff Buttons -->
-                <div class="row items-center q-gutter-xs q-mb-xs q-px-xs">
-                  <q-btn
-                    size="xs"
-                    dense
-                    no-caps
-                    :unelevated="isDateRangeMatchingPreset(batchDateRange, 'month')"
-                    :outline="!isDateRangeMatchingPreset(batchDateRange, 'month')"
-                    :color="isDateRangeMatchingPreset(batchDateRange, 'month') ? 'green-9' : 'grey-8'"
-                    :class="{ 'text-white': isDateRangeMatchingPreset(batchDateRange, 'month') }"
-                    class="q-px-xs text-weight-medium"
-                    label="1 Month (Full)"
+                <!-- Segmented Quick Preset Cutoff Selector -->
+                <div class="dtr-preset-segmented row no-wrap items-center q-mb-sm">
+                  <button
+                    type="button"
+                    class="dtr-preset-btn col"
+                    :class="{ 'is-active': isDateRangeMatchingPreset(batchDateRange, 'month') }"
                     @click="applyBatchPreset('month')"
-                  />
-                  <q-btn
-                    size="xs"
-                    dense
-                    no-caps
-                    :unelevated="isDateRangeMatchingPreset(batchDateRange, '11-25')"
-                    :outline="!isDateRangeMatchingPreset(batchDateRange, '11-25')"
-                    :color="isDateRangeMatchingPreset(batchDateRange, '11-25') ? 'green-9' : 'grey-8'"
-                    :class="{ 'text-white': isDateRangeMatchingPreset(batchDateRange, '11-25') }"
-                    class="q-px-xs text-weight-medium"
-                    label="11th – 25th"
+                  >
+                    <span class="dtr-preset-title">Full Month</span>
+                    <span class="dtr-preset-sub">1st – End</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="dtr-preset-btn col"
+                    :class="{ 'is-active': isDateRangeMatchingPreset(batchDateRange, '11-25') }"
                     @click="applyBatchPreset('11-25')"
-                  />
-                  <q-btn
-                    size="xs"
-                    dense
-                    no-caps
-                    :unelevated="isDateRangeMatchingPreset(batchDateRange, '26-9')"
-                    :outline="!isDateRangeMatchingPreset(batchDateRange, '26-9')"
-                    :color="isDateRangeMatchingPreset(batchDateRange, '26-9') ? 'green-9' : 'grey-8'"
-                    :class="{ 'text-white': isDateRangeMatchingPreset(batchDateRange, '26-9') }"
-                    class="q-px-xs text-weight-medium"
-                    label="26th – 9th"
-                    @click="applyBatchPreset('26-9')"
-                  />
+                  >
+                    <span class="dtr-preset-title">11th – 25th</span>
+                    <span class="dtr-preset-sub">1st Cutoff</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="dtr-preset-btn col"
+                    :class="{ 'is-active': isDateRangeMatchingPreset(batchDateRange, '26-10') }"
+                    @click="applyBatchPreset('26-10')"
+                  >
+                    <span class="dtr-preset-title">26th – 10th</span>
+                    <span class="dtr-preset-sub">2nd Cutoff</span>
+                  </button>
                 </div>
 
                 <q-date
+                  ref="batchDateRef"
                   v-model="batchDatePickerModel"
                   range
                   mask="YYYY-MM-DD"
                   color="green-9"
                   minimal
-                  class="full-width no-shadow bg-white rounded-borders"
-                  style="border: 1px solid #e8f5e9;"
+                  flat
+                  class="full-width no-shadow bg-white dtr-range-calendar"
+                  @navigation="onBatchCalendarNav"
                 />
               </div>
             </div>
 
             <!-- Right Column: Selected Personnel -->
             <div class="col-12 col-sm-6 column">
-              <div class="bg-white q-pa-sm rounded-borders shadow-1 column full-height" style="border: 1px solid #e0e0e0; min-height: 350px;">
-                <div class="row items-center justify-between q-mb-xs q-px-xs">
-                  <div class="row items-center text-weight-bold text-caption text-grey-9">
-                    <q-icon name="people" color="green-9" size="18px" class="q-mr-xs" />
-                    Selected Personnel
+              <div class="dtr-coverage-card bg-white q-pa-md rounded-borders column full-height" style="min-height: 380px;">
+                <div class="row items-center justify-between q-mb-sm">
+                  <div class="row items-center q-gutter-x-xs">
+                    <q-icon name="people" color="green-9" size="18px" />
+                    <span class="text-weight-bold text-body2 text-dark">Selected Personnel</span>
                     <q-badge color="green-1" text-color="green-9" class="q-ml-xs text-weight-bold">
                       {{ selectedEmployees.length }}
                     </q-badge>
                   </div>
                   <div class="row items-center q-gutter-x-xs">
                     <q-btn
-                      v-if="selectedEmployees.length < filteredEmployeeRows.length"
+                      v-if="selectedEmployees.length < employeeRows.length"
                       flat
                       dense
                       no-caps
                       size="xs"
                       color="green-9"
+                      class="text-weight-bold"
                       label="Select All"
-                      @click="selectAllFilteredEmployees"
+                      @click="selectAllBatchEmployees"
                     />
                     <q-btn
                       v-if="selectedEmployees.length > 0"
@@ -755,49 +920,92 @@
                       no-caps
                       size="xs"
                       color="negative"
+                      class="text-weight-bold"
                       label="Clear"
                       @click="selectedEmployees = []"
                     />
                   </div>
                 </div>
 
+                <!-- Multi-Select Employment Status Selector -->
+                <div
+                  v-if="batchEmploymentStatusOptions.length > 0"
+                  class="batch-status-selector q-mb-sm"
+                >
+                  <div class="row items-center justify-between q-mb-xs">
+                    <span class="batch-status-label">Select by Status</span>
+                    <span class="batch-status-hint">Multi-select</span>
+                  </div>
+                  <div class="batch-status-chips-wrap">
+                    <button
+                      v-for="opt in batchEmploymentStatusOptions"
+                      :key="opt.value"
+                      type="button"
+                      class="batch-status-chip"
+                      :class="{
+                        'is-selected': opt.isAllSelected,
+                        'is-partial': opt.isPartial,
+                      }"
+                      @click="toggleBatchStatusSelection(opt.value)"
+                    >
+                      <q-icon
+                        :name="
+                          opt.isAllSelected
+                            ? 'check_box'
+                            : opt.isPartial
+                              ? 'indeterminate_check_box'
+                              : 'check_box_outline_blank'
+                        "
+                        size="15px"
+                        class="batch-status-chip-icon"
+                      />
+                      <span class="batch-status-chip-text">{{ opt.label }}</span>
+                      <span class="batch-status-chip-count font-mono tabular-nums">
+                        {{ opt.isPartial ? `${opt.selectedCount}/${opt.total}` : opt.total }}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
                 <!-- Empty State -->
                 <div
                   v-if="selectedEmployees.length === 0"
-                  class="col column items-center justify-center text-center q-pa-lg text-grey-6"
+                  class="col column items-center justify-center text-center q-pa-md text-grey-6"
                 >
-                  <q-icon name="touch_app" size="36px" color="grey-4" class="q-mb-sm" />
+                  <q-icon name="touch_app" size="34px" color="grey-4" class="q-mb-xs" />
                   <div class="text-subtitle2 text-weight-bold text-grey-8">No Personnel Selected</div>
-                  <div class="text-caption text-grey-6 q-mb-md">Check personnel in the table to include them.</div>
+                  <div class="text-caption text-grey-6 q-mb-sm">
+                    Select one or more statuses above to include personnel.
+                  </div>
                   <q-btn
                     outline
                     dense
                     color="green-9"
-                    label="Select All Filtered"
+                    label="Select All Personnel"
                     no-caps
                     size="sm"
                     class="q-px-sm"
-                    @click="selectAllFilteredEmployees"
+                    @click="selectAllBatchEmployees"
                   />
                 </div>
 
                 <!-- List of Selected Employees -->
-                <q-list v-else separator dense class="col scroll rounded-borders" style="max-height: 310px;">
+                <q-list v-else separator dense class="col scroll rounded-borders" style="max-height: 290px;">
                   <q-item
                     v-for="emp in selectedEmployees"
                     :key="emp.control_no"
                     class="q-py-xs q-px-xs items-center"
                   >
-                    <q-item-section avatar style="min-width: 32px;">
-                      <q-avatar size="26px" color="green-8" text-color="white" class="text-caption text-weight-bold">
+                    <q-item-section avatar style="min-width: 34px;">
+                      <q-avatar size="28px" class="dtr-employee-avatar text-caption text-weight-bold">
                         {{ getInitials(emp.employee_name) }}
                       </q-avatar>
                     </q-item-section>
                     <q-item-section>
-                      <q-item-label class="text-caption text-weight-bold ellipsis" style="max-width: 200px;">
+                      <q-item-label class="text-caption text-weight-bold ellipsis" style="max-width: 210px;">
                         {{ emp.employee_name }}
                       </q-item-label>
-                      <q-item-label caption class="ellipsis text-grey-6" style="max-width: 200px;">
+                      <q-item-label caption class="ellipsis text-grey-6" style="max-width: 210px;">
                         {{ emp.designation || `ID: ${emp.control_no}` }}
                       </q-item-label>
                     </q-item-section>
@@ -822,7 +1030,15 @@
         </q-card-section>
 
         <!-- Dialog Footer Actions -->
-        <q-card-actions align="right" class="bg-white q-pa-md no-print" style="border-top: 1px solid #e0e0e0;">
+        <q-card-actions align="between" class="bg-white q-px-md q-py-sm no-print dtr-dialog-footer">
+          <q-btn
+            flat
+            no-caps
+            color="grey-7"
+            label="Cancel"
+            class="text-weight-bold q-px-md"
+            v-close-popup
+          />
           <q-btn
             unelevated
             color="green-9"
@@ -830,7 +1046,7 @@
             icon="print"
             :label="`Generate & Preview (${selectedEmployees.length})`"
             no-caps
-            class="text-weight-bolder q-px-md"
+            class="text-weight-bolder q-px-md dtr-generate-btn"
             :loading="batchLoading"
             :disable="selectedEmployees.length === 0 || !normalizedBatchCustomRange"
             @click="openBatchPrintModal"
@@ -842,33 +1058,6 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-
-    <!-- Floating Re-open Button when Dialog is closed but personnel are selected -->
-    <transition
-      appear
-      enter-active-class="animated fadeInRight"
-      leave-active-class="animated fadeOutRight"
-    >
-      <div
-        v-if="!showBulkDialog && selectedEmployees.length > 0"
-        class="fixed-bottom-right q-ma-lg no-print"
-        style="z-index: 1999;"
-      >
-        <q-btn
-          elevated
-          rounded
-          color="green-9"
-          text-color="white"
-          icon="print"
-          :label="`Print Selected DTR (${selectedEmployees.length})`"
-          class="text-weight-bold shadow-6 q-px-md q-py-sm"
-          no-caps
-          @click="openBatchPrintDialog"
-        >
-          <q-tooltip class="bg-dark">Open batch print configuration</q-tooltip>
-        </q-btn>
-      </div>
-    </transition>
 
     <!-- Batch Civil Service Form No. 48 Print Preview Modal Dialog -->
     <q-dialog
@@ -968,6 +1157,7 @@
                   :department-heads="batchDepartmentHeads"
                   :custom-date-range="normalizedBatchCustomRange"
                   :hide-toolbar="true"
+                  @adjust-saved="onBatchDtrOverrideSaved(item)"
                 />
               </div>
             </div>
@@ -979,16 +1169,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { api } from 'boot/axios'
+import { useAttendanceStore } from 'stores/attendance-store'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
 import { printBatchCscForm48 } from 'src/utils/csc-form-48-print'
 
 const route = useRoute()
 const router = useRouter()
 const $q = useQuasar()
+const attendanceStore = useAttendanceStore()
 
 function getLocalTodayStr() {
   const d = new Date()
@@ -1027,11 +1218,82 @@ const columns = [
   { name: 'am_out', label: 'AM Out', align: 'center' },
   { name: 'pm_in', label: 'PM In', align: 'center' },
   { name: 'pm_out', label: 'PM Out', align: 'center' },
-  { name: 'hours', label: 'Hours', align: 'center' },
+  {
+    name: 'hours',
+    label: 'Hours',
+    field: (row) => Number(row.dtr?.rendered_hours || 0),
+    align: 'center',
+    sortable: true,
+  },
   { name: 'status', label: 'Status', field: 'attendance_status', align: 'center', sortable: true },
+  { name: 'actions', label: 'Action', align: 'center' },
 ]
 
+const selectedAttendanceStatus = ref('ALL')
 const selectedEmploymentStatus = ref('ALL')
+
+function setAttendanceStatusFilter(statusKey) {
+  selectedAttendanceStatus.value = statusKey || 'ALL'
+  pagination.value.page = 1
+}
+
+function toggleAttendanceStatusFilter(statusKey) {
+  selectedAttendanceStatus.value =
+    selectedAttendanceStatus.value === statusKey ? 'ALL' : statusKey
+  pagination.value.page = 1
+}
+
+watch(selectedEmploymentStatus, () => {
+  pagination.value.page = 1
+})
+
+const hasActiveFilters = computed(() => {
+  return (
+    selectedAttendanceStatus.value !== 'ALL' ||
+    selectedEmploymentStatus.value !== 'ALL' ||
+    Boolean(searchTerm.value && String(searchTerm.value).trim() !== '')
+  )
+})
+
+function resetAllFilters() {
+  selectedAttendanceStatus.value = 'ALL'
+  selectedEmploymentStatus.value = 'ALL'
+  const hadSearch = Boolean(searchTerm.value && String(searchTerm.value).trim() !== '')
+  searchTerm.value = ''
+  pagination.value.page = 1
+  if (hadSearch) {
+    fetchAttendanceOverview()
+  }
+}
+
+function matchesAttendanceStatusFilter(row, filterKey) {
+  if (!filterKey || filterKey === 'ALL') return true
+  const norm = String(row.attendance_status || '').toLowerCase().trim()
+  const rawDtrStatus = String(row.dtr?.status || '').toLowerCase().trim()
+
+  if (filterKey === 'PRESENT') {
+    return (
+      rawDtrStatus === 'present' ||
+      norm === 'present' ||
+      norm === 'on time' ||
+      norm === 'late'
+    )
+  }
+  if (filterKey === 'LATE') {
+    return norm === 'late' || isRowLate(row)
+  }
+  if (filterKey === 'ON_LEAVE') {
+    return (
+      norm.startsWith('on leave') ||
+      norm.startsWith('on_leave') ||
+      norm === 'half day'
+    )
+  }
+  if (filterKey === 'ABSENT') {
+    return norm === 'absent'
+  }
+  return true
+}
 
 function formatEmploymentStatus(status) {
   if (!status) return ''
@@ -1081,13 +1343,21 @@ const employmentStatusOptions = computed(() => {
 })
 
 const filteredEmployeeRows = computed(() => {
-  if (!selectedEmploymentStatus.value || selectedEmploymentStatus.value === 'ALL') {
-    return employeeRows.value
-  }
-  const target = selectedEmploymentStatus.value.toUpperCase().trim()
+  const empTarget =
+    selectedEmploymentStatus.value && selectedEmploymentStatus.value !== 'ALL'
+      ? selectedEmploymentStatus.value.toUpperCase().trim()
+      : null
+  const attTarget = selectedAttendanceStatus.value
+
   return employeeRows.value.filter((row) => {
-    const s = String(row.employment_status || '').toUpperCase().trim()
-    return s === target
+    if (empTarget) {
+      const s = String(row.employment_status || '').toUpperCase().trim()
+      if (s !== empTarget) return false
+    }
+    if (!matchesAttendanceStatusFilter(row, attTarget)) {
+      return false
+    }
+    return true
   })
 })
 
@@ -1124,7 +1394,40 @@ function formatPunchTime(timeStr) {
 }
 
 function isRowLate(row) {
-  return Number(row.dtr?.late_minutes || 0) > 0
+  return Number(row?.dtr?.late_minutes || 0) > 0
+}
+
+function parsePunchMinutes(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null
+  const parts = timeStr.trim().split(':')
+  if (parts.length < 2) return null
+  const hours = parseInt(parts[0], 10)
+  const minutes = parseInt(parts[1], 10)
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+  return hours * 60 + minutes
+}
+
+function getRowSlotLateMinutes(row, slotKey) {
+  if (!row?.dtr || Number(row.dtr.late_minutes || 0) <= 0) return 0
+  const rawStatus = String(row.dtr.status || '').toUpperCase().trim()
+  if (rawStatus === 'ON_LEAVE' || rawStatus === 'HOLIDAY' || rawStatus === 'ABSENT') return 0
+
+  const actualMinutes = parsePunchMinutes(row.dtr[slotKey])
+  if (actualMinutes === null) return 0
+
+  if (slotKey === 'am_arrival') {
+    if (rawStatus === 'ON_LEAVE_AM') return 0
+    const scheduleStart = parsePunchMinutes(row.schedule?.work_start_time) ?? 480
+    return actualMinutes > scheduleStart ? actualMinutes - scheduleStart : 0
+  }
+
+  if (slotKey === 'pm_arrival') {
+    if (rawStatus === 'ON_LEAVE_PM') return 0
+    const scheduleBreakEnd = parsePunchMinutes(row.schedule?.break_end_time) ?? 780
+    return actualMinutes > scheduleBreakEnd ? actualMinutes - scheduleBreakEnd : 0
+  }
+
+  return 0
 }
 
 function formatStatusText(status) {
@@ -1167,6 +1470,15 @@ function changeDate(deltaDays) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   selectedDate.value = `${y}-${m}-${day}`
+  pagination.value.page = 1
+  fetchAttendanceOverview()
+}
+
+function goToToday() {
+  const currentToday = getLocalTodayStr()
+  if (selectedDate.value === currentToday) return
+  selectedDate.value = currentToday
+  pagination.value.page = 1
   fetchAttendanceOverview()
 }
 
@@ -1184,15 +1496,10 @@ function onSearchInput() {
 async function fetchAttendanceOverview() {
   loading.value = true
   try {
-    const params = {
+    const data = await attendanceStore.fetchAttendanceOverview({
       date: selectedDate.value,
-    }
-    if (searchTerm.value) {
-      params.search = searchTerm.value
-    }
-
-    const response = await api.get('/attendance/dtr', { params })
-    const data = response.data
+      search: searchTerm.value,
+    })
 
     employeeRows.value = data.employees || []
     stats.total = data.stats?.total || 0
@@ -1258,22 +1565,22 @@ function getCutoffRange(type, baseDateStr) {
     }
   }
 
-  if (type === '26-9') {
+  if (type === '26-10') {
     if (day <= 15) {
       const prevD = new Date(year, month - 2, 26)
       const prevY = prevD.getFullYear()
       const prevM = String(prevD.getMonth() + 1).padStart(2, '0')
       return {
         from: `${prevY}-${prevM}-26`,
-        to: `${year}-${curMStr}-09`,
+        to: `${year}-${curMStr}-10`,
       }
     } else {
-      const nextD = new Date(year, month, 9)
+      const nextD = new Date(year, month, 10)
       const nextY = nextD.getFullYear()
       const nextM = String(nextD.getMonth() + 1).padStart(2, '0')
       return {
         from: `${year}-${curMStr}-26`,
-        to: `${nextY}-${nextM}-09`,
+        to: `${nextY}-${nextM}-10`,
       }
     }
   }
@@ -1293,24 +1600,134 @@ function computeDefaultRange(isContractual, baseDateStr) {
     return getCutoffRange('11-25', baseDateStr)
   }
 
-  return getCutoffRange('26-9', baseDateStr)
+  return getCutoffRange('26-10', baseDateStr)
 }
 
-function isDateRangeMatchingPreset(rangeVal, type, baseDateStr = selectedDate.value) {
+function isDateRangeMatchingPreset(rangeVal, type) {
   if (!rangeVal) return false
-  const target = getCutoffRange(type, baseDateStr)
-  if (!target) return false
   const from = typeof rangeVal === 'string' ? rangeVal : rangeVal.from
   const to = typeof rangeVal === 'string' ? rangeVal : (rangeVal.to || from)
-  return from === target.from && to === target.to
+  if (!from || !to) return false
+
+  const [fromY, fromM, fromD] = from.split('-').map(Number)
+  const [toY, toM, toD] = to.split('-').map(Number)
+  if (!fromY || !fromM || !fromD || !toY || !toM || !toD) return false
+
+  if (type === 'month') {
+    const lastDay = new Date(fromY, fromM, 0).getDate()
+    return fromY === toY && fromM === toM && fromD === 1 && toD === lastDay
+  }
+
+  if (type === '11-25') {
+    return fromY === toY && fromM === toM && fromD === 11 && toD === 25
+  }
+
+  if (type === '26-10') {
+    if (fromD !== 26 || toD !== 10) return false
+    const nextD = new Date(fromY, fromM, 10)
+    return nextD.getFullYear() === toY && nextD.getMonth() + 1 === toM
+  }
+
+  return false
+}
+
+function getRangeDayCount(rangeVal) {
+  if (!rangeVal?.from || !rangeVal?.to) return 0
+  try {
+    const d1 = new Date(`${rangeVal.from}T00:00:00`)
+    const d2 = new Date(`${rangeVal.to}T00:00:00`)
+    const diff = Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1
+    return diff > 0 ? diff : 0
+  } catch {
+    return 0
+  }
+}
+
+function parseYearMonthFromDate(dateStr) {
+  const parts = (dateStr || getLocalTodayStr()).split('-').map(Number)
+  return {
+    year: parts[0] || new Date().getFullYear(),
+    month: parts[1] || new Date().getMonth() + 1,
+    day: parts[2] || new Date().getDate(),
+  }
+}
+
+function buildPresetRangeForCalendarView(type, calVm, currentRange, baseDateStr) {
+  const baseParts = parseYearMonthFromDate(baseDateStr)
+  const year = calVm?.year || baseParts.year
+  const month = calVm?.month || baseParts.month
+  const curMStr = String(month).padStart(2, '0')
+
+  if (type === 'month') {
+    const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0')
+    return {
+      from: `${year}-${curMStr}-01`,
+      to: `${year}-${curMStr}-${lastDay}`,
+    }
+  }
+
+  if (type === '11-25') {
+    return {
+      from: `${year}-${curMStr}-11`,
+      to: `${year}-${curMStr}-25`,
+    }
+  }
+
+  if (type === '26-10') {
+    const prevD = new Date(year, month - 2, 26)
+    const prevY = prevD.getFullYear()
+    const prevM = String(prevD.getMonth() + 1).padStart(2, '0')
+    const firstOption = {
+      from: `${prevY}-${prevM}-26`,
+      to: `${year}-${curMStr}-10`,
+    }
+
+    const nextD = new Date(year, month, 10)
+    const nextY = nextD.getFullYear()
+    const nextM = String(nextD.getMonth() + 1).padStart(2, '0')
+    const secondOption = {
+      from: `${year}-${curMStr}-26`,
+      to: `${nextY}-${nextM}-10`,
+    }
+
+    const curFrom = typeof currentRange === 'string' ? currentRange : currentRange?.from
+    const curTo = typeof currentRange === 'string' ? currentRange : currentRange?.to
+
+    if (curFrom === firstOption.from && curTo === firstOption.to) {
+      return secondOption
+    }
+    if (curFrom === secondOption.from && curTo === secondOption.to) {
+      return firstOption
+    }
+
+    const isSameAsBaseMonth = year === baseParts.year && month === baseParts.month
+    if (isSameAsBaseMonth && baseParts.day <= 15) {
+      return firstOption
+    }
+    return secondOption
+  }
+
+  return null
 }
 
 function applySingleDtrPreset(type) {
-  singleDtrDateRange.value = getCutoffRange(type, selectedDate.value)
+  const targetYm = { ...singleDtrCalendarYm.value }
+  singleDtrDateRange.value = buildPresetRangeForCalendarView(
+    type,
+    targetYm,
+    singleDtrDateRange.value,
+    selectedDate.value
+  )
 }
 
 function applyBatchPreset(type) {
-  batchDateRange.value = getCutoffRange(type, selectedDate.value)
+  const targetYm = { ...batchCalendarYm.value }
+  batchDateRange.value = buildPresetRangeForCalendarView(
+    type,
+    targetYm,
+    batchDateRange.value,
+    selectedDate.value
+  )
 }
 
 // =========================================================
@@ -1319,6 +1736,19 @@ function applyBatchPreset(type) {
 const showSingleDtrSetupDialog = ref(false)
 const singleDtrEmployee = ref(null)
 const singleDtrDateRange = ref(null)
+const singleDtrDateRef = ref(null)
+const singleDtrCalendarYm = ref(parseYearMonthFromDate(todayStr))
+
+function onSingleDtrCalendarNav(view) {
+  if (view?.year && view?.month) {
+    singleDtrCalendarYm.value = { year: view.year, month: view.month }
+  }
+}
+
+const singleDtrActiveCalendarLabel = computed(() => {
+  const { year, month } = singleDtrCalendarYm.value
+  return `${getMonthName(month)} ${year}`
+})
 
 const singleDtrDatePickerModel = computed({
   get() {
@@ -1345,9 +1775,13 @@ const normalizedSingleDtrCustomRange = computed(() => {
   return from <= to ? { from, to } : { from: to, to: from }
 })
 
+const singleDtrRangeDayCount = computed(() => {
+  return getRangeDayCount(normalizedSingleDtrCustomRange.value)
+})
+
 const singleDtrRangeDisplayLabel = computed(() => {
   const range = normalizedSingleDtrCustomRange.value
-  if (!range) return 'Select Date Range'
+  if (!range) return 'Select start & end date below'
   const { from, to } = range
   try {
     const d1 = new Date(`${from}T00:00:00`)
@@ -1458,10 +1892,13 @@ const dtrModalHeaderTitle = computed(() => {
   return `${formTitle} — ${dtrModalEmployeeName.value} (${dtrCustomRangeLabel.value})`
 })
 
+let isOpeningSingleDtr = false
+
 watch(
   () => [normalizedDtrCustomRange.value.from, normalizedDtrCustomRange.value.to],
   () => {
-    if (showDtrModal.value && selectedDtrEmployee.value?.control_no) {
+    if (isOpeningSingleDtr) return
+    if (showDtrModal.value && selectedDtrEmployee.value?.control_no && !dtrLoading.value) {
       fetchEmployeeDtr(selectedDtrEmployee.value.control_no)
     }
   }
@@ -1476,36 +1913,22 @@ async function fetchEmployeeDtr(controlNo) {
   dtrErrorMessage.value = ''
 
   try {
-    const { from, to } = normalizedDtrCustomRange.value
+    const { from } = normalizedDtrCustomRange.value
     const [fromY, fromM] = from.split('-').map(Number)
-    const [toY, toM] = to.split('-').map(Number)
 
     const year = fromY || new Date().getFullYear()
     const month = fromM || new Date().getMonth() + 1
 
-    const params = {
-      month,
-      year,
+    const res = await attendanceStore.fetchEmployeeDtr(controlNo, normalizedDtrCustomRange.value)
+
+    if (res?.period) {
+      res.period.year = year
+      res.period.month = month
+      res.period.month_name = getMonthName(month)
+      res.period.days_in_month = new Date(year, month, 0).getDate()
     }
 
-    if (fromY && fromM && toY && toM) {
-      const startPadM = String(fromM).padStart(2, '0')
-      const endPadM = String(toM).padStart(2, '0')
-      const endMaxDay = String(new Date(toY, toM, 0).getDate()).padStart(2, '0')
-      params.start_date = `${fromY}-${startPadM}-01`
-      params.end_date = `${toY}-${endPadM}-${endMaxDay}`
-    }
-
-    const res = await api.get(`/attendance/dtr/employee/${controlNo}`, { params })
-
-    if (res.data?.period) {
-      res.data.period.year = year
-      res.data.period.month = month
-      res.data.period.month_name = getMonthName(month)
-      res.data.period.days_in_month = new Date(year, month, 0).getDate()
-    }
-
-    dtrData.value = res.data
+    dtrData.value = res
   } catch (err) {
     console.error('Failed to fetch employee DTR:', err)
     dtrErrorMessage.value = err.response?.data?.message || 'Failed to load employee Daily Time Record.'
@@ -1526,6 +1949,7 @@ function openEmployeeDtr(employee) {
   if (!employee || !employee.control_no) return
   singleDtrEmployee.value = employee
   const isContractual = isEmployeeContractual(employee)
+  singleDtrCalendarYm.value = parseYearMonthFromDate(selectedDate.value)
   singleDtrDateRange.value = computeDefaultRange(isContractual, selectedDate.value)
   showSingleDtrSetupDialog.value = true
 }
@@ -1533,15 +1957,22 @@ function openEmployeeDtr(employee) {
 /**
  * Confirm Single DTR Date Range & Open Preview Modal (Step 2: Generate DTR)
  */
-function confirmSingleDtrSetup() {
+async function confirmSingleDtrSetup() {
   if (!singleDtrEmployee.value || !normalizedSingleDtrCustomRange.value) return
   const range = normalizedSingleDtrCustomRange.value
   selectedDtrEmployee.value = singleDtrEmployee.value
+  isOpeningSingleDtr = true
   dtrCustomRange.value = { from: range.from, to: range.to }
   dtrData.value = null
   showSingleDtrSetupDialog.value = false
   showDtrModal.value = true
-  fetchEmployeeDtr(singleDtrEmployee.value.control_no)
+
+  try {
+    await fetchEmployeeDtr(singleDtrEmployee.value.control_no)
+  } finally {
+    await nextTick()
+    isOpeningSingleDtr = false
+  }
 }
 
 /**
@@ -1563,11 +1994,6 @@ function handleEmployeeRowClick(evt, row) {
  * Callback when DTR Override is Saved
  */
 function onDtrOverrideSaved() {
-  $q.notify({
-    type: 'positive',
-    message: 'Attendance time override saved successfully.',
-    position: 'top',
-  })
   if (selectedDtrEmployee.value?.control_no) {
     fetchEmployeeDtr(selectedDtrEmployee.value.control_no)
   }
@@ -1596,19 +2022,23 @@ const batchEmployeesDtr = ref([])
 const batchPeriod = ref({})
 const batchDepartmentHeads = ref([])
 const batchPrintContainerRef = ref(null)
+const batchDateRef = ref(null)
+const batchCalendarYm = ref(parseYearMonthFromDate(todayStr))
 
-// Close bulk dialog if selection is cleared
-watch(
-  () => selectedEmployees.value.length,
-  (newLen) => {
-    if (newLen === 0) {
-      showBulkDialog.value = false
-    }
+function onBatchCalendarNav(view) {
+  if (view?.year && view?.month) {
+    batchCalendarYm.value = { year: view.year, month: view.month }
   }
-)
+}
+
+const batchActiveCalendarLabel = computed(() => {
+  const { year, month } = batchCalendarYm.value
+  return `${getMonthName(month)} ${year}`
+})
 
 function initBatchDateRange() {
   const isContractual = areSelectedEmployeesContractual()
+  batchCalendarYm.value = parseYearMonthFromDate(selectedDate.value)
   batchDateRange.value = computeDefaultRange(isContractual, selectedDate.value)
 }
 
@@ -1651,9 +2081,13 @@ const normalizedBatchCustomRange = computed(() => {
   return from <= to ? { from, to } : { from: to, to: from }
 })
 
+const batchRangeDayCount = computed(() => {
+  return getRangeDayCount(normalizedBatchCustomRange.value)
+})
+
 const batchRangeDisplayLabel = computed(() => {
   const range = normalizedBatchCustomRange.value
-  if (!range) return 'Select Date Range'
+  if (!range) return 'Select start & end date below'
   const { from, to } = range
   try {
     const d1 = new Date(`${from}T00:00:00`)
@@ -1675,8 +2109,101 @@ const batchRangeDisplayLabel = computed(() => {
   }
 })
 
-function selectAllFilteredEmployees() {
-  selectedEmployees.value = [...filteredEmployeeRows.value]
+const selectedControlNoSet = computed(() => {
+  return new Set(selectedEmployees.value.map((e) => e.control_no))
+})
+
+function getEmployeeStatusKey(emp) {
+  const raw = String(emp?.employment_status || '').toUpperCase().trim()
+  if (raw) return raw
+  if (isEmployeeContractual(emp)) return 'CONTRACTUAL'
+  return 'OTHER'
+}
+
+const batchEmploymentStatusOptions = computed(() => {
+  const buckets = new Map()
+  employeeRows.value.forEach((row) => {
+    const key = getEmployeeStatusKey(row)
+    if (!buckets.has(key)) {
+      buckets.set(key, [])
+    }
+    buckets.get(key).push(row)
+  })
+
+  const priorityOrder = [
+    'REGULAR',
+    'CASUAL',
+    'CONTRACTUAL',
+    'CO-TERMINOUS',
+    'ELECTIVE',
+    'HONORARIUM',
+  ]
+
+  const orderedKeys = [
+    ...priorityOrder.filter((k) => buckets.has(k)),
+    ...Array.from(buckets.keys()).filter((k) => !priorityOrder.includes(k) && k !== 'OTHER'),
+    ...(buckets.has('OTHER') ? ['OTHER'] : []),
+  ]
+
+  const selectedSet = selectedControlNoSet.value
+
+  return orderedKeys.map((key) => {
+    const rows = buckets.get(key) || []
+    const selectedCount = rows.reduce(
+      (acc, r) => acc + (selectedSet.has(r.control_no) ? 1 : 0),
+      0
+    )
+    const total = rows.length
+    return {
+      value: key,
+      label: key === 'OTHER' ? 'Unspecified' : formatEmploymentStatus(key),
+      total,
+      selectedCount,
+      isAllSelected: total > 0 && selectedCount === total,
+      isPartial: selectedCount > 0 && selectedCount < total,
+    }
+  })
+})
+
+function syncBatchCutoffIfStandardPreset() {
+  if (selectedEmployees.value.length === 0) return
+  const currentRange = batchDateRange.value
+  const isOnStandardPreset =
+    isDateRangeMatchingPreset(currentRange, 'month') ||
+    isDateRangeMatchingPreset(currentRange, '11-25') ||
+    isDateRangeMatchingPreset(currentRange, '26-10')
+
+  if (!isOnStandardPreset) return
+
+  const allContractual = selectedEmployees.value.every((emp) => isEmployeeContractual(emp))
+  batchDateRange.value = computeDefaultRange(allContractual, selectedDate.value)
+}
+
+function toggleBatchStatusSelection(statusKey) {
+  const matchingRows = employeeRows.value.filter(
+    (row) => getEmployeeStatusKey(row) === statusKey
+  )
+  if (matchingRows.length === 0) return
+
+  const selectedSet = selectedControlNoSet.value
+  const allCurrentlySelected = matchingRows.every((r) => selectedSet.has(r.control_no))
+
+  if (allCurrentlySelected) {
+    const removeSet = new Set(matchingRows.map((r) => r.control_no))
+    selectedEmployees.value = selectedEmployees.value.filter(
+      (e) => !removeSet.has(e.control_no)
+    )
+  } else {
+    const toAdd = matchingRows.filter((r) => !selectedSet.has(r.control_no))
+    selectedEmployees.value = [...selectedEmployees.value, ...toAdd]
+  }
+
+  syncBatchCutoffIfStandardPreset()
+}
+
+function selectAllBatchEmployees() {
+  selectedEmployees.value = [...employeeRows.value]
+  syncBatchCutoffIfStandardPreset()
 }
 
 function removeEmployeeFromBatch(emp) {
@@ -1685,6 +2212,36 @@ function removeEmployeeFromBatch(emp) {
   )
 }
 
+
+async function onBatchDtrOverrideSaved(item) {
+  const controlNo = item?.employee?.control_no
+  if (controlNo && normalizedBatchCustomRange.value) {
+    try {
+      const { from, to } = normalizedBatchCustomRange.value
+      const [fromY, fromM] = from.split('-').map(Number)
+      const res = await attendanceStore.fetchBulkDtr({
+        controlNos: [controlNo],
+        startDate: from,
+        endDate: to,
+        year: fromY,
+        month: fromM,
+      })
+      const updatedEntry = res?.employees_dtr?.[0]
+      if (updatedEntry) {
+        const idx = batchEmployeesDtr.value.findIndex(
+          (e) => e.employee?.control_no === controlNo
+        )
+        if (idx !== -1) {
+          batchEmployeesDtr.value[idx] = updatedEntry
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh employee DTR in batch preview:', err)
+    }
+  }
+
+  fetchAttendanceOverview()
+}
 
 async function openBatchPrintModal() {
   if (selectedEmployees.value.length === 0) {
@@ -1713,18 +2270,16 @@ async function openBatchPrintModal() {
     const { from, to } = normalizedBatchCustomRange.value
     const [fromY, fromM] = from.split('-').map(Number)
 
-    const payload = {
-      control_nos: selectedEmployees.value.map((e) => e.control_no),
-      start_date: from,
-      end_date: to,
+    const res = await attendanceStore.fetchBulkDtr({
+      controlNos: selectedEmployees.value.map((e) => e.control_no),
+      startDate: from,
+      endDate: to,
       year: fromY,
       month: fromM,
-    }
-
-    const res = await api.post('/attendance/dtr/bulk-print', payload)
-    batchPeriod.value = res.data?.period || {}
-    batchDepartmentHeads.value = res.data?.department_heads || []
-    batchEmployeesDtr.value = res.data?.employees_dtr || []
+    })
+    batchPeriod.value = res?.period || {}
+    batchDepartmentHeads.value = res?.department_heads || []
+    batchEmployeesDtr.value = res?.employees_dtr || []
   } catch (err) {
     console.error('Failed to load batch DTR records:', err)
     $q.notify({
@@ -1768,18 +2323,6 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.executive-header {
-  padding-bottom: 4px;
-}
-
-.header-icon-avatar {
-  border-radius: 8px;
-}
-
-.page-title {
-  letter-spacing: -0.02em;
-}
-
 .top-reload-bar {
   box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
 }
@@ -1799,39 +2342,51 @@ onMounted(() => {
   to { opacity: 1; }
 }
 
-/* KPI Cards */
-.stat-kpi-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+/* Interactive KPI Stat Cards */
+.stat-card {
+  border-color: #e5e7eb;
+  transition: all 0.18s ease;
+  user-select: none;
 }
 
-.stat-kpi-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
-.stat-icon-wrap {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.stat-card:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 2px;
 }
 
-.stat-kpi-value {
-  font-size: 1.75rem;
-  font-weight: 800;
-  line-height: 1.2;
-  font-family: inherit;
+.stat-card-active-all {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
 }
 
-/* Main Table Card */
+.stat-card-active-present {
+  border-color: #10b981;
+  box-shadow: 0 0 0 1px #10b981;
+}
+
+.stat-card-active-late {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+
+.stat-card-active-leave {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.stat-card-active-absent {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+/* Main Table Card & Toolbar */
 .table-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e5e7eb;
   overflow: hidden;
 }
 
@@ -1844,11 +2399,11 @@ onMounted(() => {
 }
 
 .status-filter-select {
-  min-width: 180px;
+  min-width: 185px;
 }
 
-.status-filter-select :deep(.q-field__control) {
-  height: 34px;
+.status-filter-select :deep(.q-field__control),
+.search-employee-input :deep(.q-field__control) {
   border-radius: 6px;
 }
 
@@ -1856,47 +2411,57 @@ onMounted(() => {
   min-width: 220px;
 }
 
-.search-employee-input :deep(.q-field__control) {
-  height: 34px;
+.date-nav-box {
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  height: 40px;
   border-radius: 6px;
 }
 
-.date-nav-box {
-  border: 1px solid #e2e8f0;
-  height: 34px;
-}
-
 .date-display-trigger {
-  height: 26px;
-  line-height: 26px;
+  height: 30px;
+  line-height: 30px;
   border-radius: 4px;
   transition: background-color 0.15s ease;
   user-select: none;
 }
 
 .date-display-trigger:hover {
-  background-color: #e2e8f0;
+  background-color: #f1f5f9;
 }
 
 .date-nav-text {
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   letter-spacing: -0.01em;
+}
+
+.toolbar-action-btn {
+  height: 40px;
+  border-radius: 6px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.font-mono {
+  font-family: monospace;
 }
 
 /* Table Styling */
 .attendance-pro-table :deep(thead tr th) {
   background-color: #f8fafc;
-  color: #334155;
+  color: #475569;
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 12px 14px;
-  border-bottom: 1.5px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .attendance-pro-table :deep(tbody tr td) {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   color: #1e293b;
   padding: 10px 14px;
   border-bottom: 1px solid #f1f5f9;
@@ -1908,34 +2473,383 @@ onMounted(() => {
 }
 
 .attendance-pro-table :deep(tbody tr:hover td) {
-  background-color: #f0fdf4 !important;
-}
-
-.employee-row-avatar {
-  border-radius: 8px;
+  background-color: #f8fafc !important;
 }
 
 .employee-name-text {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   line-height: 1.25;
-}
-
-.position-text {
-  font-size: 0.85rem;
 }
 
 .status-badge {
   padding: 2px 8px;
 }
 
-.action-icon-btn {
-  background-color: #f8fafc;
-  transition: all 0.2s ease;
+.dtr-row-action-btn {
+  opacity: 0.78;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
-.action-icon-btn:hover {
-  background-color: #e2e8f0;
-  transform: scale(1.08);
+.attendance-pro-table :deep(tbody tr:hover) .dtr-row-action-btn,
+.dtr-row-action-btn:hover {
+  opacity: 1;
+  background-color: #ecfdf5;
+}
+
+/* ========================================================= */
+/* CS FORM NO. 48 COVERAGE DATE RANGE DIALOG UI/UX           */
+/* ========================================================= */
+.dtr-setup-dialog {
+  width: 460px;
+  max-width: 95vw;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.28), 0 8px 18px -6px rgba(15, 23, 42, 0.14) !important;
+}
+
+.dtr-dialog-header {
+  min-height: 58px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dtr-dialog-body {
+  gap: 12px;
+  margin-top: 0 !important;
+}
+
+.dtr-header-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  flex-shrink: 0;
+}
+
+.leading-tight {
+  line-height: 1.25;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.dtr-employee-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.dtr-employee-avatar {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+  font-size: 0.85rem;
+}
+
+.dtr-emp-status-pill {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.dtr-control-badge {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.dtr-control-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  line-height: 1.1;
+}
+
+.dtr-coverage-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* Selected Range Summary Banner */
+.dtr-range-summary-bar {
+  min-height: 32px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-radius: 8px;
+  transition: all 0.18s ease;
+}
+
+.dtr-range-summary-bar.is-active {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.dtr-range-summary-bar.is-empty {
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+
+.dtr-days-count-badge {
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+/* Segmented Cutoff Preset Bar */
+.dtr-preset-segmented {
+  background-color: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  gap: 4px;
+}
+
+.dtr-preset-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.16s ease;
+  color: #475569;
+  user-select: none;
+}
+
+.dtr-preset-btn:hover:not(.is-active) {
+  background-color: rgba(255, 255, 255, 0.65);
+  color: #0f172a;
+}
+
+.dtr-preset-btn.is-active {
+  background-color: #1b5e20;
+  color: #ffffff;
+  box-shadow: 0 2px 5px rgba(27, 94, 32, 0.25);
+}
+
+.dtr-preset-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.dtr-preset-sub {
+  font-size: 0.62rem;
+  font-weight: 500;
+  opacity: 0.78;
+  line-height: 1.1;
+  margin-top: 1px;
+}
+
+/* High-Contrast QDate Range Calendar */
+.dtr-range-calendar {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.dtr-range-calendar :deep(.q-date__view) {
+  padding: 6px 8px 6px;
+  min-height: 224px;
+}
+
+.dtr-range-calendar :deep(.q-date__calendar-days-container) {
+  min-height: 168px;
+}
+
+.dtr-range-calendar :deep(.q-date__navigation) {
+  margin-bottom: 4px;
+}
+
+.dtr-range-calendar :deep(.q-date__navigation .q-btn) {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.85rem;
+}
+
+.dtr-range-calendar :deep(.q-date__calendar-weekdays > div) {
+  opacity: 1;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Soft emerald track for in-range days with high-contrast forest green text */
+.dtr-range-calendar :deep(.q-date__range:before),
+.dtr-range-calendar :deep(.q-date__range-from:before),
+.dtr-range-calendar :deep(.q-date__range-to:before) {
+  background-color: #dcfce7 !important;
+  opacity: 1 !important;
+  top: 2px;
+  bottom: 2px;
+}
+
+.dtr-range-calendar :deep(.q-date__range .q-btn) {
+  color: #14532d !important;
+  font-weight: 700 !important;
+}
+
+.dtr-range-calendar :deep(.q-date__range .q-btn:hover) {
+  background-color: rgba(21, 128, 61, 0.14) !important;
+}
+
+/* Solid dark green endpoints (Start & End dates) */
+.dtr-range-calendar :deep(.q-date__range-from .q-btn),
+.dtr-range-calendar :deep(.q-date__range-to .q-btn) {
+  background-color: #1b5e20 !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 6px rgba(27, 94, 32, 0.3);
+}
+
+/* Interactive range selection preview (when picking start -> end date) */
+.dtr-range-calendar :deep(.q-date__edit-range-from .q-btn),
+.dtr-range-calendar :deep(.q-date__edit-range-from-to .q-btn),
+.dtr-range-calendar :deep(.q-date__edit-range-to .q-btn) {
+  background-color: #dcfce7 !important;
+  color: #1b5e20 !important;
+  font-weight: 800 !important;
+}
+
+/* Today indicator ring */
+.dtr-range-calendar :deep(.q-date__today) {
+  box-shadow: inset 0 0 0 1.5px #15803d !important;
+  font-weight: 800 !important;
+}
+
+.dtr-dialog-footer {
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.dtr-generate-btn {
+  border-radius: 8px;
+  height: 36px;
+  box-shadow: 0 2px 6px rgba(27, 94, 32, 0.22);
+}
+
+/* Batch Multi-Select Status Bar */
+.batch-status-selector {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  flex-shrink: 0;
+}
+
+.batch-status-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+}
+
+.batch-status-hint {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.batch-status-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.batch-status-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.batch-status-chip:hover:not(.is-selected) {
+  border-color: #86efac;
+  background-color: #f0fdf4;
+  color: #14532d;
+}
+
+.batch-status-chip:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 1px;
+}
+
+.batch-status-chip-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.batch-status-chip:hover:not(.is-selected) .batch-status-chip-icon {
+  color: #15803d;
+}
+
+.batch-status-chip-text {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.batch-status-chip-count {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+
+.batch-status-chip.is-partial {
+  background-color: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.batch-status-chip.is-partial .batch-status-chip-icon {
+  color: #15803d;
+}
+
+.batch-status-chip.is-partial .batch-status-chip-count {
+  background-color: #dcfce7;
+  color: #14532d;
+}
+
+.batch-status-chip.is-selected {
+  background-color: #1b5e20;
+  border-color: #1b5e20;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(27, 94, 32, 0.22);
+}
+
+.batch-status-chip.is-selected .batch-status-chip-icon {
+  color: #ffffff;
+}
+
+.batch-status-chip.is-selected .batch-status-chip-count {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 </style>

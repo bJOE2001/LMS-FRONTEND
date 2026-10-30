@@ -2,7 +2,7 @@
   <q-page class="q-pa-sm hr-dashboard-page">
     <div class="row justify-between items-center q-col-gutter-sm q-mb-sm">
       <div class="col-auto">
-        <h1 class="text-h5 text-weight-bold q-mt-none q-mb-none">HR Dashboard</h1>
+        <h1 class="text-h5 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
       </div>
       <div class="col-12 col-sm-auto">
         <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
@@ -216,7 +216,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
-import { api } from 'src/boot/axios'
+import { useHrDashboardStore } from 'stores/hr-dashboard-store'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import HrCalendarPanel from 'components/hr/HrCalendarPanel.vue'
@@ -229,6 +229,7 @@ const $q = useQuasar()
 const router = useRouter()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const hrDashboardStore = useHrDashboardStore()
 const PENDING_REMINDER_SESSION_PREFIX = 'lms_pending_reminder_seen:'
 
 function emptyEmploymentBreakdown() {
@@ -741,7 +742,7 @@ function resetKpiDateRangeToToday() {
 async function fetchDashboard() {
   loading.value = true
   try {
-    const { data } = await api.get('/hr/dashboard')
+    const data = await hrDashboardStore.fetchDashboard()
     const applications = Array.isArray(data.applications) ? data.applications : []
     const visibleApplications = applications.filter((application) => !isCancelledApplication(application))
     dashboardApplications.value = visibleApplications

@@ -26,6 +26,7 @@
           />
         </div>
         <q-separator class="sidebar-divider" />
+
         <!-- HR Navigation List -->
         <q-list v-if="leaveStore.userRole === 'hr'" class="flex-grow scroll nav-list">
           <!-- Overview -->
@@ -33,87 +34,84 @@
             v-if="canAccessHrModule('dashboard')"
             clickable
             :active="route.path === '/hr/dashboard'"
-            active-class="bg-primary-dark text-white text-weight-bold"
+            active-class="nav-item-active text-white text-weight-bold"
             to="/hr/dashboard"
-            class="q-mx-sm q-mb-xs rounded-borders"
+            class="nav-item q-mx-sm q-mb-xs rounded-borders"
           >
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
+            <q-item-section avatar class="nav-item-avatar">
+              <q-icon name="dashboard" size="20px" />
             </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
+            <q-item-section class="nav-item-label">Dashboard</q-item-section>
           </q-item>
 
-          <!-- Leave Management (Collapsible Submenu) -->
-          <q-expansion-item
-            v-if="visibleHrLeaveNav.length > 0"
-            v-model="hrLeaveMenuExpanded"
-            icon="assignment"
-            label="Leave"
-            header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
-            expand-icon-class="text-white opacity-80"
-            :class="{ 'group-active': isHrLeaveRouteActive }"
-            dense-toggle
-          >
-            <q-list class="q-pl-sm q-mb-xs">
-              <q-item
-                v-for="item in visibleHrLeaveNav"
-                :key="item.path"
-                clickable
-                :active="route.path === item.path"
-                active-class="bg-primary-dark text-white text-weight-bold"
-                :to="item.path"
-                class="q-mx-sm q-mb-xs rounded-borders nav-sub-item"
-                dense
-              >
-                <q-item-section avatar class="min-avatar">
-                  <q-icon :name="item.icon" size="19px" />
-                </q-item-section>
-                <q-item-section>{{ item.label }}</q-item-section>
-              </q-item>
-            </q-list>
-          </q-expansion-item>
+          <!-- LEAVE MANAGEMENT (Collapsible Submenu with Tree Rail) -->
+          <template v-if="visibleHrLeaveNav.length > 0">
+
+
+            <q-expansion-item
+              v-model="hrLeaveMenuExpanded"
+              icon="event_note"
+              label="Leave Management"
+              header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
+              expand-icon-class="text-white opacity-80"
+              :class="{ 'group-active': isHrLeaveRouteActive }"
+              dense-toggle
+            >
+              <q-list class="nav-sub-tree q-mb-xs">
+                <q-item
+                  v-for="item in visibleHrLeaveNav"
+                  :key="item.path"
+                  clickable
+                  :active="route.path === item.path"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  :to="item.path"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon :name="item.icon" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">{{ item.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-expansion-item>
+          </template>
 
           <!-- BIOMETRICS & TIME -->
           <template v-if="canAccessHrModule('employee_management')">
-            <div class="nav-section-divider-wrapper">
-              <q-separator class="nav-section-divider" />
-              <div class="nav-section-label">BIOMETRICS & TIME</div>
-            </div>
+
 
             <q-item
               clickable
               :active="route.path === '/hr/biometric-devices'"
-              active-class="bg-primary-dark text-white text-weight-bold"
+              active-class="nav-item-active text-white text-weight-bold"
               to="/hr/biometric-devices"
-              class="q-mx-sm q-mb-xs rounded-borders"
+              class="nav-item q-mx-sm q-mb-xs rounded-borders"
             >
-              <q-item-section avatar>
-                <q-icon name="devices" />
+              <q-item-section avatar class="nav-item-avatar">
+                <q-icon name="devices" size="20px" />
               </q-item-section>
-              <q-item-section>Biometric Devices</q-item-section>
+              <q-item-section class="nav-item-label">Biometric Devices</q-item-section>
             </q-item>
           </template>
 
           <!-- ADMINISTRATION -->
           <template v-if="visibleHrAdminNav.length > 0">
-            <div class="nav-section-divider-wrapper">
-              <q-separator class="nav-section-divider" />
-              <div class="nav-section-label">ADMINISTRATION</div>
-            </div>
+
 
             <q-item
               v-for="item in visibleHrAdminNav"
               :key="item.path"
               clickable
-              :active="route.path === item.path"
-              active-class="bg-primary-dark text-white text-weight-bold"
+              :active="route.path.startsWith(item.path)"
+              active-class="nav-item-active text-white text-weight-bold"
               :to="item.path"
-              class="q-mx-sm q-mb-xs rounded-borders"
+              class="nav-item q-mx-sm q-mb-xs rounded-borders"
             >
-              <q-item-section avatar>
-                <q-icon :name="item.icon" />
+              <q-item-section avatar class="nav-item-avatar">
+                <q-icon :name="item.icon" size="20px" />
               </q-item-section>
-              <q-item-section>{{ item.label }}</q-item-section>
+              <q-item-section class="nav-item-label">{{ item.label }}</q-item-section>
             </q-item>
           </template>
         </q-list>
@@ -127,72 +125,64 @@
           <q-item
             clickable
             :active="route.path === '/admin/dashboard'"
-            active-class="bg-primary-dark text-white text-weight-bold"
+            active-class="nav-item-active text-white text-weight-bold"
             to="/admin/dashboard"
-            class="q-mx-sm q-mb-xs rounded-borders"
+            class="nav-item q-mx-sm q-mb-xs rounded-borders"
           >
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
+            <q-item-section avatar class="nav-item-avatar">
+              <q-icon name="dashboard" size="20px" />
             </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
+            <q-item-section class="nav-item-label">Dashboard</q-item-section>
           </q-item>
 
-          <!-- LEAVE MANAGEMENT -->
-          <div class="nav-section-divider-wrapper">
-            <q-separator class="nav-section-divider" />
-            <div class="nav-section-label">LEAVE MANAGEMENT</div>
-          </div>
+
           <q-item
             clickable
             :active="route.path === '/admin/applications'"
-            active-class="bg-primary-dark text-white text-weight-bold"
+            active-class="nav-item-active text-white text-weight-bold"
             to="/admin/applications"
-            class="q-mx-sm q-mb-xs rounded-borders"
+            class="nav-item q-mx-sm q-mb-xs rounded-borders"
           >
-            <q-item-section avatar>
-              <q-icon name="assignment" />
+            <q-item-section avatar class="nav-item-avatar">
+              <q-icon name="assignment" size="20px" />
             </q-item-section>
-            <q-item-section>Applications</q-item-section>
+            <q-item-section class="nav-item-label">Applications</q-item-section>
           </q-item>
 
-          <!-- TIME & ATTENDANCE -->
-          <div class="nav-section-divider-wrapper">
-            <q-separator class="nav-section-divider" />
-            <div class="nav-section-label">TIME & ATTENDANCE</div>
-          </div>
+
           <q-item
             clickable
             :active="route.path === '/admin/attendance'"
-            active-class="bg-primary-dark text-white text-weight-bold"
+            active-class="nav-item-active text-white text-weight-bold"
             to="/admin/attendance"
-            class="q-mx-sm q-mb-xs rounded-borders"
+            class="nav-item q-mx-sm q-mb-xs rounded-borders"
           >
-            <q-item-section avatar>
-              <q-icon name="co_present" />
+            <q-item-section avatar class="nav-item-avatar">
+              <q-icon name="co_present" size="20px" />
             </q-item-section>
-            <q-item-section>Attendance</q-item-section>
+            <q-item-section class="nav-item-label">Attendance</q-item-section>
           </q-item>
 
-          <!-- ADMINISTRATION -->
-          <div class="nav-section-divider-wrapper">
-            <q-separator class="nav-section-divider" />
-            <div class="nav-section-label">ADMINISTRATION</div>
-          </div>
+
           <q-item
             clickable
             :active="route.path === '/admin/employees'"
-            active-class="bg-primary-dark text-white text-weight-bold"
+            active-class="nav-item-active text-white text-weight-bold"
             to="/admin/employees"
-            class="q-mx-sm q-mb-xs rounded-borders"
+            class="nav-item q-mx-sm q-mb-xs rounded-borders"
           >
-            <q-item-section avatar>
-              <q-icon name="groups" />
+            <q-item-section avatar class="nav-item-avatar">
+              <q-icon name="groups" size="20px" />
             </q-item-section>
-            <q-item-section>Employee Management</q-item-section>
+            <q-item-section class="nav-item-label">Employee Management</q-item-section>
           </q-item>
         </q-list>
-        <div class="q-pa-md side-panel-footer">
-          <div class="text-caption opacity-80">© LMS - 2026</div>
+
+        <div class="q-px-md q-py-sm side-panel-footer row items-center justify-between">
+          <span class="text-caption opacity-80">© ALMS - 2026</span>
+          <span class="sidebar-role-pill">
+            {{ leaveStore.userRole === 'hr' ? 'HR Portal' : 'Dept. Admin' }}
+          </span>
         </div>
       </div>
     </q-drawer>
@@ -392,17 +382,30 @@ onBeforeUnmount(() => {
 
 const hrLeaveNav = [
   { path: '/hr/applications', label: 'Applications', icon: 'assignment', moduleKey: 'applications' },
-  { path: '/hr/receiving', label: 'Receiving Application', icon: 'move_to_inbox', moduleKey: 'receiving' },
-  { path: '/hr/releasing', label: 'Releasing Application', icon: 'outbox', moduleKey: 'releasing' },
+  { path: '/hr/receiving', label: 'Receiving', icon: 'move_to_inbox', moduleKey: 'receiving' },
+  { path: '/hr/releasing', label: 'Releasing', icon: 'outbox', moduleKey: 'releasing' },
   { path: '/hr/application-edit-requests', label: 'Edit Requests', icon: 'edit_note', moduleKey: 'applications', ownerOnly: true },
   { path: '/hr/cancelled-applications', label: 'Cancelled Applications', icon: 'event_busy', moduleKey: 'cancelled_applications' },
   { path: '/hr/coc-applications', label: 'COC Applications', icon: 'assignment_turned_in', moduleKey: 'coc_applications' },
 ]
 
+const LIBRARY_MODULE_KEYS = [
+  'leave_types',
+  'office_library',
+  'illness_library',
+  'work_schedules',
+  'signatories',
+]
+
+function canAccessAnyLibrary() {
+  return LIBRARY_MODULE_KEYS.some((key) => canAccessHrModule(key))
+}
+
 const hrAdminNav = [
   { path: '/hr/employees', label: 'Employee Management', icon: 'groups', moduleKey: 'employee_management' },
   { path: '/hr/user-management', label: 'User Management', icon: 'manage_accounts', moduleKey: 'user_management' },
   { path: '/hr/reports', label: 'Reports & Monitoring', icon: 'bar_chart', moduleKey: 'reports_monitoring' },
+  { path: '/hr/libraries', label: 'Libraries & Schedules', icon: 'collections_bookmark', customCheck: canAccessAnyLibrary },
 ]
 
 function canAccessHrModule(moduleKey) {
@@ -419,6 +422,7 @@ const visibleHrLeaveNav = computed(() => {
 const visibleHrAdminNav = computed(() => {
   return hrAdminNav.filter((item) => {
     if (item.ownerOnly && !authStore.user?.is_access_control_owner) return false
+    if (typeof item.customCheck === 'function') return item.customCheck()
     if (!item.moduleKey) return true
     return canAccessHrModule(item.moduleKey)
   })
@@ -553,6 +557,17 @@ async function doLogout() {
 .side-panel-footer {
   flex-shrink: 0;
   margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+.sidebar-role-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
 }
 .sidebar-header {
   display: flex;
@@ -564,13 +579,11 @@ async function doLogout() {
   flex-shrink: 0;
 }
 .sidebar-divider {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.2);
   margin: 0 0 8px 0;
 }
 .sidebar-logo {
   width: 150px;
-  /* max-width: 200px;
-  max-height: 36px; */
   height: auto;
 }
 .logout-card {
@@ -588,13 +601,54 @@ async function doLogout() {
 
 /* Sidebar Navigation Enhancements */
 .nav-list {
-  padding-top: 2px;
-  padding-bottom: 8px;
+  padding-top: 4px;
+  padding-bottom: 10px;
+}
+
+.nav-item {
+  position: relative;
+  min-height: 40px;
+  padding: 0 14px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.18s ease;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.nav-item-avatar,
+:deep(.nav-expansion-header .q-item__section--avatar) {
+  min-width: 34px !important;
+  padding-right: 10px !important;
+}
+
+.nav-item-active {
+  background: rgba(255, 255, 255, 0.17) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.nav-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3.5px;
+  border-radius: 0 4px 4px 0;
+  background: #ffffff;
 }
 
 :deep(.nav-expansion-header) {
   min-height: 40px;
-  padding: 0 16px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
   transition: background-color 0.2s ease;
 }
 
@@ -603,23 +657,51 @@ async function doLogout() {
 }
 
 .group-active :deep(.nav-expansion-header) {
-  background: rgba(255, 255, 255, 0.14);
-  font-weight: 600;
+  background: rgba(255, 255, 255, 0.13);
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.nav-sub-tree {
+  margin-left: 24px;
+  margin-right: 8px;
+  padding-left: 10px;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.22);
 }
 
 .nav-sub-item {
-  min-height: 36px;
-  font-size: 0.86rem;
-  transition: background-color 0.15s ease;
+  position: relative;
+  min-height: 35px;
+  padding: 0 10px;
+  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.84);
+  transition: all 0.15s ease;
 }
 
 .nav-sub-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.nav-sub-item-active {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+.nav-sub-item-active::before {
+  content: '';
+  position: absolute;
+  left: -11.5px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: #ffffff;
 }
 
 .min-avatar {
-  min-width: 32px;
-  padding-right: 8px;
+  min-width: 28px !important;
+  padding-right: 8px !important;
 }
 
 .nav-section-divider-wrapper {
@@ -627,12 +709,12 @@ async function doLogout() {
 }
 
 .nav-section-divider {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   margin-bottom: 6px;
 }
 
 .nav-section-label {
-  font-size: 0.68rem;
+  font-size: 0.67rem;
   letter-spacing: 0.08em;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.65);

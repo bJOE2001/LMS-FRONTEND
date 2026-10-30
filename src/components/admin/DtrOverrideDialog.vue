@@ -355,7 +355,7 @@ async function submitOverride() {
     $q.notify({
       type: 'warning',
       message: 'Reason / Remarks is required.',
-      position: 'top-right',
+      position: 'top',
     })
     selectRemarkRef.value?.validate?.()
     return
@@ -365,7 +365,7 @@ async function submitOverride() {
     $q.notify({
       type: 'warning',
       message: 'Please specify the remark description.',
-      position: 'top-right',
+      position: 'top',
     })
     customRemarkRef.value?.validate?.()
     return
@@ -434,7 +434,7 @@ async function submitOverride() {
     $q.notify({
       type: 'positive',
       message: 'Override saved successfully.',
-      position: 'top-right',
+      position: 'top',
       timeout: 1500,
     })
 
@@ -445,7 +445,7 @@ async function submitOverride() {
     $q.notify({
       type: 'negative',
       message: msg,
-      position: 'top-right',
+      position: 'top',
     })
   } finally {
     submitting.value = false
