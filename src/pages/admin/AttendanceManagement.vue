@@ -1446,6 +1446,7 @@ function getStatusBadgeColor(status) {
   if (norm.startsWith('on leave') || norm.startsWith('on_leave')) return 'blue-1'
   if (norm === 'half day') return 'orange-1'
   if (norm === 'rest day') return 'grey-2'
+  if (norm === 'pending') return 'grey-3'
   return 'red-1'
 }
 
@@ -1457,6 +1458,7 @@ function getStatusBadgeTextColor(status) {
   if (norm.startsWith('on leave') || norm.startsWith('on_leave')) return 'blue-9'
   if (norm === 'half day') return 'orange-9'
   if (norm === 'rest day') return 'grey-8'
+  if (norm === 'pending') return 'grey-8'
   return 'red-9'
 }
 

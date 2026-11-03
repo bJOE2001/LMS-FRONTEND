@@ -8,6 +8,27 @@
           Monitor connected ZKTeco devices and office assignments
         </div>
       </div>
+      <div class="row items-center q-gutter-x-sm">
+        <q-btn
+          flat
+          dense
+          round
+          color="grey-7"
+          icon="refresh"
+          :loading="loading"
+          @click="fetchDevices(false)"
+        >
+          <q-tooltip>Refresh device list</q-tooltip>
+        </q-btn>
+        <q-btn
+          unelevated
+          color="primary"
+          icon="add"
+          label="Add Device"
+          class="text-weight-bold q-px-md"
+          @click="openAddDeviceDialog"
+        />
+      </div>
     </div>
 
     <!-- Interactive Summary Stat Cards (Click to Filter) -->
@@ -154,18 +175,29 @@
         {{
           hasActiveFilters
             ? 'Try adjusting your search query or status filter.'
-            : 'Biometric terminals will automatically appear here once connected to the network.'
+            : 'ADMS devices appear automatically when connected. For LAN devices, click below to register them.'
         }}
       </div>
-      <q-btn
-        v-if="hasActiveFilters"
-        outline
-        no-caps
-        color="primary"
-        icon="filter_alt_off"
-        label="Reset Filters"
-        @click="resetFilters"
-      />
+      <div class="row justify-center items-center q-gutter-sm">
+        <q-btn
+          v-if="hasActiveFilters"
+          outline
+          no-caps
+          color="primary"
+          icon="filter_alt_off"
+          label="Reset Filters"
+          @click="resetFilters"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          color="primary"
+          icon="add"
+          label="Register Biometric Device"
+          class="text-weight-bold q-px-md"
+          @click="openAddDeviceDialog"
+        />
+      </div>
     </div>
 
     <!-- Table View -->
@@ -230,9 +262,16 @@
         <template #body-cell-network="props">
           <q-td :props="props">
             <div class="column">
-              <code class="text-caption font-mono text-weight-medium text-dark">
-                {{ props.row.ip_address || 'Dynamic / DHCP' }}
-              </code>
+              <div class="row items-center no-wrap q-gutter-x-xs">
+                <code class="text-caption font-mono text-weight-medium text-dark">
+                  {{ props.row.ip_address ? `${props.row.ip_address}:${props.row.port || 4370}` : 'Dynamic / DHCP' }}
+                </code>
+                <q-badge
+                  dense
+                  :color="props.row.communication_mode === 'LAN_POLL' ? 'blue-8' : props.row.communication_mode === 'OFFLINE_USB' ? 'grey-7' : 'purple-8'"
+                  :label="props.row.communication_mode === 'LAN_POLL' ? 'LAN Poll' : props.row.communication_mode === 'OFFLINE_USB' ? 'USB' : 'ADMS'"
+                />
+              </div>
               <span class="text-caption text-grey-6" style="font-size: 11px;">
                 Seen: {{ formatDeviceTime(getDeviceLastSeen(props.row)) }}
               </span>
@@ -256,6 +295,36 @@
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-right">
             <div class="row inline no-wrap items-center q-gutter-x-xs">
+              <!-- Test Ping Button for LAN devices -->
+              <q-btn
+                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.id"
+                flat
+                round
+                dense
+                size="sm"
+                color="teal-8"
+                icon="wifi_find"
+                :loading="testingConnectionId === props.row.id"
+                @click="testDeviceConnection(props.row)"
+              >
+                <q-tooltip>Test LAN Connection (Ping Port 4370)</q-tooltip>
+              </q-btn>
+
+              <!-- Manual Sync Button for LAN devices -->
+              <q-btn
+                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.id"
+                flat
+                round
+                dense
+                size="sm"
+                color="indigo-8"
+                icon="sync"
+                :loading="syncingDeviceId === props.row.id"
+                @click="syncLanDeviceNow(props.row)"
+              >
+                <q-tooltip>Pull Punches from Terminal Now</q-tooltip>
+              </q-btn>
+
               <q-btn
                 flat
                 round
@@ -294,7 +363,7 @@
               <q-icon name="devices" size="20px" color="white" />
             </div>
             <div class="text-subtitle1 text-weight-bold">
-              Edit Biometric Device
+              {{ isCreatingDevice ? 'Register Biometric Device' : 'Edit Biometric Device' }}
             </div>
           </div>
           <q-btn icon="close" flat round dense text-color="white" @click="showDeviceDialog = false" />
@@ -319,9 +388,39 @@
                 v-model="deviceForm.serial_number"
                 outlined
                 dense
-                disable
-                label="Serial Number"
+                :disable="!isCreatingDevice"
+                :label="isCreatingDevice ? 'Serial Number *' : 'Serial Number'"
+                placeholder="e.g. KMY2252000112"
                 class="font-mono"
+                :rules="[val => !!val || 'Serial Number is required']"
+                hide-bottom-space
+              />
+            </div>
+          </div>
+
+          <!-- Connection Mode & Port -->
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-sm-8">
+              <q-select
+                v-model="deviceForm.communication_mode"
+                :options="communicationModeOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                options-dense
+                label="Connection Mode *"
+                hide-bottom-space
+              />
+            </div>
+            <div class="col-12 col-sm-4">
+              <q-input
+                v-model.number="deviceForm.port"
+                type="number"
+                outlined
+                dense
+                label="Port"
+                placeholder="4370"
                 hide-bottom-space
               />
             </div>
@@ -334,8 +433,9 @@
                 v-model="deviceForm.ip_address"
                 outlined
                 dense
-                label="IP Address"
+                :label="deviceForm.communication_mode === 'LAN_POLL' ? 'IP Address (Static LAN) *' : 'IP Address'"
                 placeholder="e.g. 192.168.8.230"
+                :rules="deviceForm.communication_mode === 'LAN_POLL' ? [val => !!val || 'IP Address is required for LAN poll'] : []"
                 hide-bottom-space
               />
             </div>
@@ -425,7 +525,7 @@
           <q-btn
             unelevated
             no-caps
-            label="Save Changes"
+            :label="isCreatingDevice ? 'Register Device' : 'Save Changes'"
             color="primary"
             class="text-weight-bold q-px-md"
             :loading="submittingDevice"
@@ -667,35 +767,121 @@ function onOfficeSelected(val) {
 
 // Edit Device Dialog
 const showDeviceDialog = ref(false)
+const isCreatingDevice = ref(false)
 const activeDevice = ref(null)
+const testingConnectionId = ref(null)
+const syncingDeviceId = ref(null)
+
+const communicationModeOptions = [
+  { label: 'ADMS (Cloud / Push Protocol)', value: 'ADMS' },
+  { label: 'LAN Direct Poll (Port 4370)', value: 'LAN_POLL' },
+  { label: 'Offline (USB Flash Drive)', value: 'OFFLINE_USB' },
+]
 
 const deviceForm = reactive({
   device_name: '',
   serial_number: '',
   model_name: 'MB360',
   department_id: null,
+  communication_mode: 'LAN_POLL',
   zkbio_area_id: null,
   is_primary: true,
   comm_key: '0',
   ip_address: '',
+  port: 4370,
 })
 
+function openAddDeviceDialog() {
+  isCreatingDevice.value = true
+  activeDevice.value = null
+  deviceForm.device_name = ''
+  deviceForm.serial_number = ''
+  deviceForm.model_name = 'MB360'
+  deviceForm.department_id = null
+  deviceForm.communication_mode = 'LAN_POLL'
+  deviceForm.zkbio_area_id = null
+  deviceForm.is_primary = true
+  deviceForm.comm_key = '0'
+  deviceForm.ip_address = ''
+  deviceForm.port = 4370
+  showDeviceDialog.value = true
+}
+
 function openEditDeviceDialog(dev) {
+  isCreatingDevice.value = false
   activeDevice.value = dev
   deviceForm.device_name = dev.device_name || ''
   deviceForm.serial_number = dev.serial_number || ''
   deviceForm.model_name = dev.model || dev.model_name || 'MB360'
   deviceForm.department_id = dev.department_id ? Number(dev.department_id) : null
+  deviceForm.communication_mode = dev.communication_mode || 'ADMS'
   deviceForm.zkbio_area_id = dev.zkbio_area_id ? Number(dev.zkbio_area_id) : null
   deviceForm.is_primary = dev.is_primary !== undefined ? Boolean(dev.is_primary) : true
   deviceForm.comm_key = dev.comm_key || '0'
   deviceForm.ip_address = dev.ip_address || ''
+  deviceForm.port = dev.port ? Number(dev.port) : 4370
   showDeviceDialog.value = true
 }
 
-async function submitDeviceForm() {
-  if (!activeDevice.value?.id) return
+async function testDeviceConnection(dev) {
+  if (!dev?.id) return
+  testingConnectionId.value = dev.id
+  try {
+    const res = await deviceStore.testConnection(dev.id)
+    if (res.success) {
+      $q.notify({
+        type: 'positive',
+        message: `Terminal '${dev.device_name}' reachable! Latency: ${res.latency_ms}ms`,
+        position: 'top',
+      })
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: res.message || `Terminal '${dev.device_name}' unreachable.`,
+        position: 'top',
+      })
+    }
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Connection test failed.',
+      position: 'top',
+    })
+  } finally {
+    testingConnectionId.value = null
+  }
+}
 
+async function syncLanDeviceNow(dev) {
+  if (!dev?.id) return
+  syncingDeviceId.value = dev.id
+  try {
+    const res = await deviceStore.syncLanDevice(dev.id)
+    if (res.success) {
+      $q.notify({
+        type: 'positive',
+        message: res.message || `Synchronized punches from '${dev.device_name}'.`,
+        position: 'top',
+      })
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: res.message || 'Sync failed.',
+        position: 'top',
+      })
+    }
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Sync failed.',
+      position: 'top',
+    })
+  } finally {
+    syncingDeviceId.value = null
+  }
+}
+
+async function submitDeviceForm() {
   if (!deviceForm.device_name || !deviceForm.serial_number || !deviceForm.department_id) {
     $q.notify({
       type: 'warning',
@@ -705,11 +891,27 @@ async function submitDeviceForm() {
     return
   }
 
+  if (deviceForm.communication_mode === 'LAN_POLL' && !deviceForm.ip_address) {
+    $q.notify({
+      type: 'warning',
+      message: 'IP Address is required for LAN Direct Poll devices.',
+      position: 'top',
+    })
+    return
+  }
+
   try {
-    const data = await deviceStore.updateDevice(activeDevice.value.id, deviceForm)
+    let data
+    if (isCreatingDevice.value) {
+      data = await deviceStore.createDevice(deviceForm)
+    } else {
+      if (!activeDevice.value?.id) return
+      data = await deviceStore.updateDevice(activeDevice.value.id, deviceForm)
+    }
+
     $q.notify({
       type: 'positive',
-      message: data?.message || 'Device updated successfully.',
+      message: data?.message || (isCreatingDevice.value ? 'Device registered successfully.' : 'Device updated successfully.'),
       position: 'top',
     })
     showDeviceDialog.value = false

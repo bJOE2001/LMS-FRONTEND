@@ -795,8 +795,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { storeToRefs } from 'pinia'
 import { useAuthStore } from 'stores/auth-store'
-import { api } from 'src/boot/axios'
+import { useAdminEmployeeStore } from 'stores/admin-employee-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
@@ -804,6 +805,25 @@ import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
+const adminEmployeeStore = useAdminEmployeeStore()
+
+const {
+  employees,
+  fullEmployeeRows,
+  fullEmployeeRowsCacheKey,
+  totalEmployees,
+  statusCounts,
+  departmentHeadId,
+  loading,
+  loadingDepartmentHead,
+  savingDepartmentHead,
+  submitting,
+  pagination,
+  leaveHistory,
+  leaveHistoryLoading,
+  employeePickerOptions,
+  employeePickerLoading,
+} = storeToRefs(adminEmployeeStore)
 
 const search = ref('')
 const showApplyLeaveDialog = ref(false)
@@ -811,42 +831,19 @@ const showApplyCocDialog = ref(false)
 const showViewDialog = ref(false)
 const showDepartmentHeadDialog = ref(false)
 const showFormDialog = ref(false)
-const submitting = ref(false)
 const departmentHeadFormRef = ref(null)
 const formRef = ref(null)
 const selectedEmployeeOption = ref(null)
-const employeePickerOptions = ref([])
-const employeePickerLoading = ref(false)
 const employeePickerSearchTerm = ref('')
 let employeePickerRequestId = 0
 const EMPLOYEE_PICKER_MIN_CHARS = 2
 
 const selectedEmployee = ref(null)
-const leaveHistory = ref([])
-const leaveHistoryLoading = ref(false)
-const leaveBalanceRowsByControlNo = ref(new Map())
-const employees = ref([])
-const fullEmployeeRows = ref([])
-const fullEmployeeRowsCacheKey = ref('')
-const loading = ref(false)
-const totalEmployees = ref(0)
-const statusCounts = ref({})
 const activeStatusFilter = ref('')
-const loadingDepartmentHead = ref(false)
-const savingDepartmentHead = ref(false)
-const departmentHeadId = ref(null)
 const departmentHeadDialogMode = ref('add')
 const applyLeaveEmployee = ref(null)
 const applyLeaveDialogKey = ref(0)
 const applyCocEmployee = ref(null)
-
-const pagination = ref({
-  page: 1,
-  rowsPerPage: 10,
-  rowsNumber: 0,
-  sortBy: null,
-  descending: false,
-})
 
 const createDefaultEmployeeForm = () => ({
   control_no: '',
@@ -1738,13 +1735,8 @@ function confirmAssignDepartmentHead(employee) {
       label: 'Cancel',
     },
   }).onOk(async () => {
-    savingDepartmentHead.value = true
     try {
-      if (departmentHeadId.value) {
-        await api.post('/admin/department-head/update', nextPayload)
-      } else {
-        await api.post('/admin/department-head', nextPayload)
-      }
+      await adminEmployeeStore.saveDepartmentHead(nextPayload, !!departmentHeadId.value)
 
       $q.notify({
         type: 'positive',
@@ -1753,8 +1745,7 @@ function confirmAssignDepartmentHead(employee) {
           : 'Department head assigned successfully.',
         position: 'top',
       })
-      invalidateEmployeeCollectionCache()
-      await fetchEmployees(1)
+      await fetchEmployees(1, true)
     } catch (err) {
       const msg = resolveApiErrorMessage(err, 'Unable to assign department head right now.')
       $q.notify({
@@ -1763,8 +1754,6 @@ function confirmAssignDepartmentHead(employee) {
         position: 'top',
         caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
       })
-    } finally {
-      savingDepartmentHead.value = false
     }
   })
 }
@@ -1855,20 +1844,18 @@ async function fetchEmployeePickerOptions(searchTerm = '', force = false) {
   if (!force && employeePickerLoading.value) return
 
   const requestId = ++employeePickerRequestId
-  employeePickerLoading.value = true
 
   try {
-    const { data } = await api.get('/admin/employee-options', {
-      params: {
-        search: normalizedSearchTerm,
-        limit: 20,
-      },
-    })
+    const rawOptions = await adminEmployeeStore.fetchEmployeePickerOptions(
+      normalizedSearchTerm,
+      20,
+      force,
+    )
 
     if (requestId !== employeePickerRequestId) return
 
-    employeePickerOptions.value = Array.isArray(data?.employees)
-      ? data.employees.map((employee) => toEmployeePickerOption(employee)).filter(Boolean)
+    employeePickerOptions.value = Array.isArray(rawOptions)
+      ? rawOptions.map((employee) => toEmployeePickerOption(employee)).filter(Boolean)
       : []
   } catch (err) {
     if (requestId !== employeePickerRequestId) return
@@ -1880,10 +1867,6 @@ async function fetchEmployeePickerOptions(searchTerm = '', force = false) {
       position: 'top',
       caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
     })
-  } finally {
-    if (requestId === employeePickerRequestId) {
-      employeePickerLoading.value = false
-    }
   }
 }
 
@@ -1946,18 +1929,17 @@ async function saveDepartmentHead() {
   }
 
   const payload = buildDepartmentHeadPayload()
+  const isEdit = departmentHeadDialogMode.value === 'edit'
 
-  savingDepartmentHead.value = true
   try {
-    if (departmentHeadDialogMode.value === 'edit') {
-      await api.post('/admin/department-head/update', payload)
-      $q.notify({ type: 'positive', message: 'Department head updated successfully.' })
-    } else {
-      await api.post('/admin/department-head', payload)
-      $q.notify({ type: 'positive', message: 'Department head added successfully.' })
-    }
-    invalidateEmployeeCollectionCache()
-    await fetchEmployees(1)
+    await adminEmployeeStore.saveDepartmentHead(payload, isEdit)
+    $q.notify({
+      type: 'positive',
+      message: isEdit
+        ? 'Department head updated successfully.'
+        : 'Department head added successfully.',
+    })
+    await fetchEmployees(1, true)
     showDepartmentHeadDialog.value = false
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to save department head right now.')
@@ -1967,8 +1949,6 @@ async function saveDepartmentHead() {
       position: 'top',
       caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
     })
-  } finally {
-    savingDepartmentHead.value = false
   }
 }
 
@@ -1976,10 +1956,9 @@ async function saveEmployee() {
   const valid = await formRef.value?.validate?.()
   if (!valid) return
 
-  submitting.value = true
   try {
     const payload = buildEmployeePayload()
-    const { data } = await api.post('/admin/employees', payload)
+    const data = await adminEmployeeStore.addEmployee(payload)
 
     $q.notify({
       type: 'positive',
@@ -1989,8 +1968,7 @@ async function saveEmployee() {
     })
 
     showFormDialog.value = false
-    invalidateEmployeeCollectionCache()
-    await fetchEmployees(1)
+    await fetchEmployees(1, true)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to save employee right now.')
     $q.notify({
@@ -1999,8 +1977,6 @@ async function saveEmployee() {
       position: 'top',
       caption: err.response ? `HTTP ${err.response.status}` : 'Network error',
     })
-  } finally {
-    submitting.value = false
   }
 }
 
@@ -2028,10 +2004,9 @@ function confirmDelete(employee) {
       },
     }).onOk(async () => {
       try {
-        await api.post('/admin/department-head/delete')
+        await adminEmployeeStore.removeDepartmentHead()
         $q.notify({ type: 'positive', message: 'Department head removed successfully.' })
-        invalidateEmployeeCollectionCache()
-        await fetchEmployees(1)
+        await fetchEmployees(1, true)
       } catch (err) {
         const msg = resolveApiErrorMessage(err, 'Unable to remove department head right now.')
         $q.notify({ type: 'negative', message: msg, position: 'top' })
@@ -2059,14 +2034,13 @@ function confirmDelete(employee) {
     },
   }).onOk(async () => {
     try {
-      await api.post(`/admin/employees/${encodeURIComponent(employee.control_no)}/delete`)
+      await adminEmployeeStore.removeEmployee(employee.control_no)
       $q.notify({
         type: 'positive',
         message: 'Employee removed from this department successfully.',
         position: 'top',
       })
-      invalidateEmployeeCollectionCache()
-      await fetchEmployees(1)
+      await fetchEmployees(1, true)
     } catch (err) {
       const msg = resolveApiErrorMessage(
         err,
@@ -2077,35 +2051,7 @@ function confirmDelete(employee) {
   })
 }
 
-async function fetchEmployeeCollection(baseParams = {}) {
-  const collectedRows = []
-  let page = 1
-  let lastPage = 1
-
-  do {
-    const { data } = await api.get('/employees', {
-      params: {
-        ...baseParams,
-        per_page: 100,
-        page,
-      },
-    })
-
-    const pageData = data?.employees ?? {}
-    const pageRows = Array.isArray(pageData?.data) ? pageData.data : []
-    collectedRows.push(...pageRows)
-
-    const currentPage = Number(pageData?.current_page ?? page)
-    const resolvedLastPage = Number(pageData?.last_page ?? currentPage)
-    lastPage =
-      Number.isFinite(resolvedLastPage) && resolvedLastPage > 0 ? resolvedLastPage : currentPage
-    page = currentPage + 1
-  } while (page <= lastPage)
-
-  return collectedRows
-}
-
-async function fetchEmployees(page = 1) {
+async function fetchEmployees(page = 1, force = false) {
   if (!adminDepartmentId.value) {
     employees.value = []
     invalidateEmployeeCollectionCache()
@@ -2116,37 +2062,25 @@ async function fetchEmployees(page = 1) {
     return
   }
 
-  loading.value = true
-  loadingDepartmentHead.value = true
   const pageNum = Math.max(1, parseInt(page, 10) || 1)
   try {
     const baseParams = {
       department_id: adminDepartmentId.value,
       search: search.value || undefined,
     }
-    const summaryParams = {
-      department_id: adminDepartmentId.value,
-      per_page: 1,
-      page: 1,
-    }
 
     if (useClientSideRows.value) {
       const collectionCacheKey = buildEmployeeCollectionCacheKey()
       const needsCollectionRefresh = fullEmployeeRowsCacheKey.value !== collectionCacheKey
 
-      const summaryRequest = api
-        .get('/employees', {
-          params: summaryParams,
-        })
-        .catch(() => null)
-
-      const collectionRequest = needsCollectionRefresh
-        ? fetchEmployeeCollection(baseParams)
+      const summaryPromise = adminEmployeeStore.fetchDepartmentSummary(adminDepartmentId.value, force)
+      const collectionPromise = needsCollectionRefresh
+        ? adminEmployeeStore.fetchEmployeeCollection(baseParams)
         : Promise.resolve(fullEmployeeRows.value)
 
-      const [summaryResponse, collectionRows] = await Promise.all([
-        summaryRequest,
-        collectionRequest,
+      const [summaryData, collectionRows] = await Promise.all([
+        summaryPromise,
+        collectionPromise,
       ])
 
       if (needsCollectionRefresh) {
@@ -2155,7 +2089,6 @@ async function fetchEmployees(page = 1) {
       }
 
       const filteredRows = buildClientPreparedRows(fullEmployeeRows.value)
-      const summaryData = summaryResponse?.data ?? {}
       const perPage = Number(pagination.value.rowsPerPage)
       const maxPage =
         Number.isFinite(perPage) && perPage > 0
@@ -2166,38 +2099,25 @@ async function fetchEmployees(page = 1) {
       pagination.value.page = Math.min(pageNum, maxPage)
       pagination.value.rowsNumber = filteredRows.length
       totalEmployees.value =
-        summaryData.total_employees ??
+        summaryData?.total_employees ??
         prependSyntheticDepartmentHeadRow(fullEmployeeRows.value).length
-      statusCounts.value = summaryData.status_counts ?? countStatusRows(fullEmployeeRows.value)
-      applyDepartmentHeadState(summaryData.department_head ?? null)
+      statusCounts.value = summaryData?.status_counts ?? countStatusRows(fullEmployeeRows.value)
+      applyDepartmentHeadState(summaryData?.department_head ?? null)
       return
     }
 
-    const tableRequest = api.get('/employees', {
-      params: {
-        ...baseParams,
+    await adminEmployeeStore.fetchEmployees(
+      {
+        department_id: adminDepartmentId.value,
+        search: search.value || undefined,
         status: activeStatusFilter.value || undefined,
         per_page: pagination.value.rowsPerPage,
         page: pageNum,
       },
-    })
-    const summaryRequest = api
-      .get('/employees', {
-        params: summaryParams,
-      })
-      .catch(() => null)
+      force,
+    )
 
-    const [tableResponse, summaryResponse] = await Promise.all([tableRequest, summaryRequest])
-    const data = tableResponse?.data ?? {}
-    const summaryData = summaryResponse?.data ?? {}
-
-    invalidateEmployeeCollectionCache()
-    employees.value = data.employees?.data ?? []
-    totalEmployees.value = summaryData.total_employees ?? data.total_employees ?? 0
-    statusCounts.value = summaryData.status_counts ?? data.status_counts ?? {}
-    pagination.value.page = data.employees?.current_page ?? 1
-    pagination.value.rowsNumber = data.employees?.total ?? 0
-    applyDepartmentHeadState(data.department_head ?? summaryData.department_head ?? null)
+    applyDepartmentHeadState(adminEmployeeStore.departmentHead)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load employee records right now.')
     $q.notify({
@@ -2212,9 +2132,6 @@ async function fetchEmployees(page = 1) {
     statusCounts.value = {}
     pagination.value.rowsNumber = 0
     resetDepartmentHeadForm()
-  } finally {
-    loading.value = false
-    loadingDepartmentHead.value = false
   }
 }
 
@@ -2239,46 +2156,24 @@ async function fetchEmployeeLeaveHistory(controlNo) {
     return
   }
 
-  leaveHistoryLoading.value = true
   try {
-    const { data } = await api.get(
-      `/admin/employees/${encodeURIComponent(normalizedControlNo)}/leave-history`,
-    )
-    leaveHistory.value = Array.isArray(data?.applications) ? data.applications : []
-    if (data?.employee) {
+    const res = await adminEmployeeStore.fetchEmployeeLeaveHistory(normalizedControlNo)
+    if (res?.employee) {
       selectedEmployee.value = {
         ...selectedEmployee.value,
-        ...data.employee,
+        ...res.employee,
       }
     }
   } catch (err) {
-    leaveHistory.value = []
     const statusCode = Number(err?.response?.status || 0)
     if (statusCode === 404) return
     const msg = resolveApiErrorMessage(err, 'Unable to load employee leave history right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    leaveHistoryLoading.value = false
   }
 }
 
 async function fetchDepartmentLeaveBalanceRows() {
-  if (leaveBalanceRowsByControlNo.value.size > 0) {
-    return leaveBalanceRowsByControlNo.value
-  }
-
-  const { data } = await api.get('/admin/employees-for-leave')
-  const rows = Array.isArray(data?.employees) ? data.employees : []
-  const nextLookup = new Map()
-
-  for (const row of rows) {
-    const rowControlNo = normalizeControlNo(row?.control_no)
-    if (!rowControlNo) continue
-    nextLookup.set(rowControlNo, row)
-  }
-
-  leaveBalanceRowsByControlNo.value = nextLookup
-  return leaveBalanceRowsByControlNo.value
+  return adminEmployeeStore.fetchDepartmentLeaveBalanceRows()
 }
 
 async function hydrateSelectedEmployeeLeaveBalances(controlNo) {
@@ -2347,8 +2242,7 @@ async function submitAdminEmployeeCocApplication(payload) {
     employee_control_no: targetControlNo,
   }
 
-  const { data } = await api.post('/admin/coc-applications', requestPayload)
-  return data
+  return adminEmployeeStore.submitCocApplication(requestPayload)
 }
 
 function closeApplyLeaveDialog() {

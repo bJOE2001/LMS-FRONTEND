@@ -138,6 +138,22 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
   }
 
   /**
+   * Register a new biometric device (e.g. LAN terminal)
+   */
+  async function createDevice(payload) {
+    submittingDevice.value = true
+    try {
+      const response = await api.post('/attendance/devices', payload)
+      if (response.data?.device) {
+        devicesList.value.unshift(response.data.device)
+      }
+      return response.data
+    } finally {
+      submittingDevice.value = false
+    }
+  }
+
+  /**
    * Update an existing device configuration
    */
   async function updateDevice(deviceId, payload) {
@@ -192,6 +208,30 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
     return response.data
   }
 
+  /**
+   * Test TCP connection to a LAN biometric terminal
+   */
+  async function testConnection(deviceId) {
+    const response = await api.post(`/attendance/devices/${deviceId}/test-connection`)
+    const index = devicesList.value.findIndex((d) => d.id === deviceId)
+    if (index !== -1 && response.data?.device) {
+      devicesList.value[index] = { ...devicesList.value[index], ...response.data.device }
+    }
+    return response.data
+  }
+
+  /**
+   * Trigger immediate manual sync for a City Hall LAN terminal
+   */
+  async function syncLanDevice(deviceId) {
+    const response = await api.post(`/attendance/devices/${deviceId}/sync-lan`)
+    const index = devicesList.value.findIndex((d) => d.id === deviceId)
+    if (index !== -1 && response.data?.device) {
+      devicesList.value[index] = { ...devicesList.value[index], ...response.data.device }
+    }
+    return response.data
+  }
+
   return {
     // State
     loading,
@@ -212,10 +252,13 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
     // Actions
     fetchDevices,
     fetchOffices,
+    createDevice,
     updateDevice,
     deleteDevice,
     toggleDeviceStatus,
     authorizeDevice,
+    testConnection,
+    syncLanDevice,
   }
 })
 
