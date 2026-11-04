@@ -1410,10 +1410,7 @@ const informationalLeaveDateStates = computed(() => {
 })
 
 const lockedLeaveDates = computed(() => new Set(lockedLeaveDateStates.value.keys()))
-const unavailableLeaveDates = computed(() => new Set([
-  ...lockedLeaveDateStates.value.keys(),
-  ...informationalLeaveDateStates.value.keys(),
-]))
+const unavailableLeaveDates = computed(() => new Set(lockedLeaveDateStates.value.keys()))
 const calendarWarningState = computed(() =>
   getLockedDateState(calendarDateWarningDate.value) ||
   getInformationalDateState(calendarDateWarningDate.value) ||
@@ -2334,7 +2331,7 @@ function getInformationalDateConflict(dateStr) {
 }
 
 function isLockedDateSelection(dateStr) {
-  return Boolean(getLockedDateConflict(dateStr) || getInformationalDateConflict(dateStr))
+  return Boolean(getLockedDateConflict(dateStr))
 }
 
 function getSelectionLimitWarningForDates(dates) {
@@ -2358,7 +2355,6 @@ function getSelectionLimitWarningForDate(dateStr) {
 function getCalendarSelectionWarning(dateStr) {
   return (
     buildLockedDateWarningMessage(dateStr) ||
-    buildInformationalDateMessage(dateStr) ||
     getSelectionLimitWarningForDate(dateStr)
   )
 }
