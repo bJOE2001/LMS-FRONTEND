@@ -350,8 +350,20 @@
               </q-input>
             </div>
 
-            <!-- Batch Print DTR Action -->
-            <div class="col-12 col-sm-auto row items-center justify-end no-wrap">
+            <!-- Actions: Pull Punches & Batch Print DTR -->
+            <div class="col-12 col-sm-auto row items-center justify-end no-wrap q-gutter-x-sm">
+              <q-btn
+                unelevated
+                color="green-9"
+                icon="sync"
+                label="Pull Punches"
+                no-caps
+                class="text-weight-bold q-px-md toolbar-action-btn"
+                :loading="syncingBiometrics"
+                @click="handleSyncOfficeBiometrics"
+              >
+                <q-tooltip class="bg-dark">Pull latest attendance logs from office biometric terminal</q-tooltip>
+              </q-btn>
               <q-btn
                 outline
                 color="green-9"
@@ -1190,6 +1202,7 @@ function getLocalTodayStr() {
 }
 
 const loading = ref(false)
+const syncingBiometrics = ref(false)
 const todayStr = getLocalTodayStr()
 const selectedDate = ref(todayStr)
 const searchTerm = ref('')
@@ -1522,6 +1535,34 @@ async function fetchAttendanceOverview() {
 }
 
 // =========================================================
+async function handleSyncOfficeBiometrics() {
+  if (syncingBiometrics.value) return
+  syncingBiometrics.value = true
+
+  try {
+    const res = await attendanceStore.syncOfficeBiometrics()
+    $q.notify({
+      type: res.success ? 'positive' : 'warning',
+      message: res.message || 'Biometric punches pulled successfully.',
+      position: 'top',
+      icon: res.success ? 'check_circle' : 'warning',
+      timeout: 5000,
+    })
+    await fetchAttendanceOverview()
+  } catch (err) {
+    console.error('Failed to sync office biometrics:', err)
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to pull punches from office biometric terminal.',
+      position: 'top',
+      icon: 'error',
+      timeout: 6000,
+    })
+  } finally {
+    syncingBiometrics.value = false
+  }
+}
+
 // CUTOFF DATE RANGE HELPERS (CONTRACTUAL VS OTHERS)
 // =========================================================
 function isEmployeeContractual(emp) {

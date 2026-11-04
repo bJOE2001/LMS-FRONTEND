@@ -10,17 +10,6 @@
       </div>
       <div class="row items-center q-gutter-x-sm">
         <q-btn
-          flat
-          dense
-          round
-          color="grey-7"
-          icon="refresh"
-          :loading="loading"
-          @click="fetchDevices(false)"
-        >
-          <q-tooltip>Refresh device list</q-tooltip>
-        </q-btn>
-        <q-btn
           unelevated
           color="primary"
           icon="add"
@@ -112,6 +101,7 @@
               <span v-if="statusFilter === 'offline'" class="text-caption text-weight-bold text-grey-7">
                 Filtered
               </span>
+
             </div>
           </q-card-section>
         </q-card>
@@ -258,23 +248,18 @@
           </q-td>
         </template>
 
-        <!-- Network & Heartbeat Column -->
+        <!-- Network Column -->
         <template #body-cell-network="props">
           <q-td :props="props">
-            <div class="column">
-              <div class="row items-center no-wrap q-gutter-x-xs">
-                <code class="text-caption font-mono text-weight-medium text-dark">
-                  {{ props.row.ip_address ? `${props.row.ip_address}:${props.row.port || 4370}` : 'Dynamic / DHCP' }}
-                </code>
-                <q-badge
-                  dense
-                  :color="props.row.communication_mode === 'LAN_POLL' ? 'blue-8' : props.row.communication_mode === 'OFFLINE_USB' ? 'grey-7' : 'purple-8'"
-                  :label="props.row.communication_mode === 'LAN_POLL' ? 'LAN Poll' : props.row.communication_mode === 'OFFLINE_USB' ? 'USB' : 'ADMS'"
-                />
-              </div>
-              <span class="text-caption text-grey-6" style="font-size: 11px;">
-                Seen: {{ formatDeviceTime(getDeviceLastSeen(props.row)) }}
-              </span>
+            <div class="row items-center no-wrap q-gutter-x-xs">
+              <code class="text-caption font-mono text-weight-medium text-dark">
+                {{ props.row.ip_address ? `${props.row.ip_address}:${props.row.port || 4370}` : 'Dynamic / DHCP' }}
+              </code>
+              <q-badge
+                dense
+                :color="props.row.communication_mode === 'LAN_POLL' ? 'blue-8' : props.row.communication_mode === 'OFFLINE_USB' ? 'grey-7' : 'purple-8'"
+                :label="props.row.communication_mode === 'LAN_POLL' ? 'LAN' : props.row.communication_mode === 'OFFLINE_USB' ? 'USB' : 'ADMS'"
+              />
             </div>
           </q-td>
         </template>
@@ -287,6 +272,7 @@
               <span class="status-text text-weight-bold">
                 {{ isDeviceOnline(props.row) ? 'Online' : 'Offline' }}
               </span>
+
             </span>
           </q-td>
         </template>
@@ -297,7 +283,7 @@
             <div class="row inline no-wrap items-center q-gutter-x-xs">
               <!-- Test Ping Button for LAN devices -->
               <q-btn
-                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.id"
+                v-if="(props.row.communication_mode === 'LAN_POLL' || props.row.ip_address) && props.row.id"
                 flat
                 round
                 dense
@@ -312,7 +298,7 @@
 
               <!-- Manual Sync Button for LAN devices -->
               <q-btn
-                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.id"
+                v-if="(props.row.communication_mode === 'LAN_POLL' || props.row.ip_address) && props.row.id"
                 flat
                 round
                 dense
@@ -591,7 +577,7 @@ const {
   deviceStats,
   allOfficeOptions,
 } = storeToRefs(deviceStore)
-const { isDeviceOnline, getDeviceLastSeen } = deviceStore
+const { isDeviceOnline } = deviceStore
 
 const searchTerm = ref('')
 const statusFilter = ref('all')
@@ -602,20 +588,6 @@ const statusOptions = [
   { label: 'Offline Only', value: 'offline' },
 ]
 
-function formatDeviceTime(val) {
-  if (!val) return 'Never'
-  try {
-    const d = new Date(val)
-    return d.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return String(val)
-  }
-}
 
 function formatDeviceName(dev) {
   if (!dev) return 'Biometric Device'
@@ -680,7 +652,7 @@ const columns = [
   },
   {
     name: 'network',
-    label: 'IP & Heartbeat',
+    label: 'IP Address',
     align: 'left',
     field: (row) => row.ip_address || '',
     sortable: true,
