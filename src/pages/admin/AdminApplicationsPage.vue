@@ -1133,19 +1133,13 @@ import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplica
 import PrintLeaveApplicationSignatoryDialog from 'src/components/admin/PrintLeaveApplicationSignatoryDialog.vue'
 import { api } from 'src/boot/axios'
 import { useAdminApplicationsPage } from 'src/composables/useAdminApplicationsPage'
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from 'stores/auth-store'
 
 const showApplyCocDialog = ref(false)
 const authStore = useAuthStore()
-const adminEmploymentStatus = ref(
-  String(authStore.user?.status || '')
-    .trim()
-    .toUpperCase(),
-)
-
 const canAdminApplySelfCoc = computed(() => {
-  const status = String(adminEmploymentStatus.value || authStore.user?.status || '')
+  const status = String(authStore.user?.status || '')
     .trim()
     .toUpperCase()
   if (!status) return true
@@ -1528,29 +1522,6 @@ async function submitAdminSelfCocApplication(payload) {
   const { data } = await api.post('/admin/coc-applications/self', payload)
   return data
 }
-
-onMounted(async () => {
-  try {
-    const { data } = await api.get('/admin/leave-credits')
-    const resolvedStatus = String(data?.employment_status || '')
-      .trim()
-      .toUpperCase()
-    if (resolvedStatus) {
-      adminEmploymentStatus.value = resolvedStatus
-      if (authStore.user) {
-        authStore.setAuth({
-          token: authStore.token,
-          user: {
-            ...authStore.user,
-            status: resolvedStatus,
-          },
-        })
-      }
-    }
-  } catch {
-    // Keep fallback status from auth store.
-  }
-})
 </script>
 
 <style scoped>

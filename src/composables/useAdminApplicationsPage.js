@@ -393,78 +393,23 @@ export function useAdminApplicationsPage() {
     await fetchApplications()
   }
 
-  async function fetchWorkflowDetailSnapshotsForStageSensitiveRows(applications = []) {
-    const stageSensitiveRows = (Array.isArray(applications) ? applications : []).filter(
-      (application) => {
-        if (!application || typeof application !== 'object') return false
-        if (isCocApplication(application)) return false
-        if (!hasAdminEditRequestSignal(application)) return false
-
-        const rawStatus = getApplicationRawStatus(application)
-        if (rawStatus !== 'PENDING_HR' && rawStatus !== 'APPROVED') return false
-
-        const id = String(
-          application?.id ?? application?.application_id ?? application?.leave_application_id ?? '',
-        ).trim()
-
-        return Boolean(id)
-      },
-    )
-
-    if (!stageSensitiveRows.length) return []
-
-    const detailRequests = stageSensitiveRows.map(async (application) => {
-      const id = String(
-        application?.id ?? application?.application_id ?? application?.leave_application_id ?? '',
-      ).trim()
-      if (!id) return null
-
-      try {
-        const response = await api.get(`/admin/leave-applications/${id}`)
-        const detailedApplication = extractSingleApplicationFromPayload(response?.data)
-        if (!detailedApplication || typeof detailedApplication !== 'object') return null
-        return normalizeAdminApplicationForDisplay(detailedApplication)
-      } catch {
-        return null
-      }
-    })
-
-    const detailRows = await Promise.all(detailRequests)
-    return detailRows.filter((application) => application && typeof application === 'object')
-  }
-
   async function fetchApplications() {
     loading.value = true
     try {
-      const [dashboardResponse, leaveApplicationsResponse, cocApplicationsResponse] =
+      const [leaveApplicationsResponse, cocApplicationsResponse] =
         await Promise.all([
-          api.get('/admin/dashboard').catch(() => null),
           api.get('/admin/leave-applications').catch(() => null),
           api.get('/admin/coc-applications', { params: { include_imported: 1 } }).catch(() => null),
         ])
 
       const mergedApplications = mergeApplications(
-        extractApplicationsFromPayload(dashboardResponse?.data),
         extractApplicationsFromPayload(leaveApplicationsResponse?.data),
         extractApplicationsFromPayload(cocApplicationsResponse?.data),
         localSubmittedApplicationOverrides.value,
       )
 
-      const normalizedMergedApplications = mergedApplications.map((application) =>
-        normalizeAdminApplicationForDisplay(application),
-      )
-
-      const workflowDetailSnapshots = await fetchWorkflowDetailSnapshotsForStageSensitiveRows(
-        normalizedMergedApplications,
-      )
-
-      const mergedApplicationsWithWorkflowSnapshots =
-        workflowDetailSnapshots.length > 0
-          ? mergeApplications(normalizedMergedApplications, workflowDetailSnapshots)
-          : normalizedMergedApplications
-
       applicationRows.value = expandApplicationsForDisplay(
-        mergedApplicationsWithWorkflowSnapshots.map((application) =>
+        mergedApplications.map((application) =>
           normalizeAdminApplicationForDisplay(application),
         ),
       )
