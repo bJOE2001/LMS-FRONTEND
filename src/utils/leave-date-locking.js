@@ -342,24 +342,30 @@ export function getApplicationBlockingDates(application) {
   const selectedDates = Object.entries(resolveApplicationDateOccupancy(application))
     .filter(([, occupiedSlots]) => occupiedSlots?.AM === true && occupiedSlots?.PM === true)
     .map(([date]) => date)
-  if (!rawStatus.includes('RECALLED')) {
-    return selectedDates
-  }
 
   const recalledDateSet = new Set(getApplicationRecalledDates(application))
-  if (!recalledDateSet.size) {
+  if (recalledDateSet.size > 0) {
+    return selectedDates.filter((date) => !recalledDateSet.has(date))
+  }
+
+  if (rawStatus.includes('RECALLED')) {
     return []
   }
 
-  return selectedDates.filter((date) => !recalledDateSet.has(date))
+  return selectedDates
 }
 
 export function getApplicationInformationalDates(application) {
   if (!application || application.is_monetization === true) return []
-  if (!getApplicationRawStatus(application).includes('RECALLED')) return []
 
   const recalledDates = getApplicationRecalledDates(application)
-  return recalledDates.length > 0 ? recalledDates : getApplicationSelectedDates(application)
+  if (recalledDates.length > 0) {
+    return recalledDates
+  }
+
+  if (!getApplicationRawStatus(application).includes('RECALLED')) return []
+
+  return getApplicationSelectedDates(application)
 }
 
 function normalizeSelectedDateDurations(value) {
@@ -523,11 +529,10 @@ export function getBlockingLeaveApplicationState(application) {
   const remarks = String(application?.remarks || '').trim().toLowerCase()
   if (remarks.includes('cancel')) return false
 
-  if (rawStatus.includes('RECALLED')) {
+  if (rawStatus.includes('RECALLED') || rawStatus.includes('APPROVED')) {
     return blockingDates.length > 0 ? 'approved' : false
   }
 
-  if (rawStatus.includes('APPROVED')) return 'approved'
   return 'pending'
 }
 
@@ -535,8 +540,11 @@ export function getInformationalLeaveApplicationState(application) {
   if (!application || application.is_monetization === true) return false
 
   const rawStatus = getApplicationRawStatus(application)
+  const informationalDates = getApplicationInformationalDates(application)
 
-  if (rawStatus.includes('RECALLED') && getApplicationInformationalDates(application).length > 0) return 'recalled'
+  if ((rawStatus.includes('RECALLED') || informationalDates.length > 0) && informationalDates.length > 0) {
+    return 'recalled'
+  }
   return false
 }
 
