@@ -13,11 +13,16 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
   const officesLoaded = ref(false)
   const officesList = ref([])
 
+  const loadingAreas = ref(false)
+  const areasLoaded = ref(false)
+  const zkbioAreasList = ref([])
+
   const submittingDevice = ref(false)
 
   // In-flight promise tracking to prevent duplicate parallel requests
   let activeDevicesPromise = null
   let activeOfficesPromise = null
+  let activeAreasPromise = null
 
   // ─── Helpers & Computed ────────────────────────────────────────────
 
@@ -59,7 +64,7 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
   const allOfficeOptions = computed(() => {
     return officesList.value.map((d) => ({
       label: d.name,
-      value: d.id,
+      value: Number(d.id),
       acronym: d.acronym,
       name: d.name,
     }))
@@ -138,6 +143,40 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
   }
 
   /**
+   * Fetch active ZKBio Time areas for device assignment
+   * @param {boolean} force - Whether to force a fresh fetch instead of using cached areas
+   */
+  async function fetchZkBioAreas(force = false) {
+    if (!force && areasLoaded.value && zkbioAreasList.value.length > 0) {
+      return zkbioAreasList.value
+    }
+
+    if (!force && activeAreasPromise) {
+      return activeAreasPromise
+    }
+
+    loadingAreas.value = true
+
+    activeAreasPromise = (async () => {
+      try {
+        const { data } = await api.get('/attendance/zkbio-areas')
+        const areas = Array.isArray(data?.areas) ? data.areas : (Array.isArray(data) ? data : [])
+        zkbioAreasList.value = areas
+        areasLoaded.value = true
+        return areas
+      } catch (err) {
+        console.error('BiometricDeviceStore: Failed to fetch ZKBio areas', err)
+        throw err
+      } finally {
+        loadingAreas.value = false
+        activeAreasPromise = null
+      }
+    })()
+
+    return activeAreasPromise
+  }
+
+  /**
    * Register a new biometric device (e.g. LAN terminal)
    */
   async function createDevice(payload) {
@@ -173,11 +212,15 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
   /**
    * Delete a biometric device record
    */
-  async function deleteDevice(deviceId) {
+  async function deleteDevice(deviceId, serialNumber = null) {
     submittingDevice.value = true
     try {
-      const response = await api.post(`/attendance/devices/${deviceId}/delete`)
-      devicesList.value = devicesList.value.filter((d) => d.id !== deviceId)
+      const targetId = deviceId || 0
+      const body = !deviceId && serialNumber ? { serial_number: serialNumber } : {}
+      const response = await api.post(`/attendance/devices/${targetId}/delete`, body)
+      devicesList.value = devicesList.value.filter((d) =>
+        deviceId ? d.id !== deviceId : d.serial_number !== serialNumber
+      )
       return response.data
     } finally {
       submittingDevice.value = false
@@ -241,6 +284,9 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
     loadingOffices,
     officesLoaded,
     officesList,
+    loadingAreas,
+    areasLoaded,
+    zkbioAreasList,
     submittingDevice,
 
     // Getters & Helpers
@@ -252,6 +298,7 @@ export const useBiometricDeviceStore = defineStore('biometricDevices', () => {
     // Actions
     fetchDevices,
     fetchOffices,
+    fetchZkBioAreas,
     createDevice,
     updateDevice,
     deleteDevice,
