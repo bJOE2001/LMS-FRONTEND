@@ -242,10 +242,7 @@
               {{ props.row.department_name }}
               <q-tooltip>{{ props.row.department_name }}</q-tooltip>
             </div>
-            <div v-if="props.row.zkbio_area_name" class="text-caption text-grey-6">
-              {{ props.row.zkbio_area_name }}
-            </div>
-            <span v-else-if="!props.row.department_id" class="text-grey-5 text-italic text-caption">
+            <span v-else class="text-grey-5 text-italic text-caption">
               Unassigned
             </span>
           </q-td>
@@ -502,37 +499,6 @@
               </template>
             </q-select>
           </div>
-
-          <!-- ZKBio Sync Area Selection (Visible for ADMS devices) -->
-          <div v-if="deviceForm.communication_mode === 'ADMS'">
-            <q-select
-              v-model="deviceForm.zkbio_area_id"
-              :options="zkbioAreaOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              options-dense
-              label="ZKBio Sync Area *"
-              :loading="loadingAreas"
-              :rules="[val => (val !== null && val !== undefined && val !== '') || 'ZKBio Area is required for ADMS']"
-              hide-bottom-space
-            >
-              <template #prepend>
-                <q-icon name="hub" color="primary" />
-              </template>
-              <template #no-option>
-                <q-item>
-                  <q-item-section class="text-grey-6 text-caption">
-                    No active ZKBio Areas found
-                  </q-item-section>
-                </q-item>
-              </template>
-            </q-select>
-            <div class="text-caption text-grey-6 q-mt-xs q-ml-xs">
-              Automatically registers the terminal and syncs office area in ZKBio Time.
-            </div>
-          </div>
         </q-card-section>
 
         <!-- Dialog Footer -->
@@ -568,7 +534,7 @@
             (<code class="font-mono">{{ activeDeleteDevice?.serial_number }}</code>)?
           </div>
           <div class="text-caption text-grey-7 q-mt-sm">
-            The device record will be removed from both ALMS and ZKBio Time.
+            The device record will be removed from ALMS.
           </div>
         </q-card-section>
 
@@ -604,8 +570,6 @@ const {
   submittingDevice,
   devicesList,
   loadingOffices,
-  loadingAreas,
-  zkbioAreasList,
   deviceStats,
   allOfficeOptions,
 } = storeToRefs(deviceStore)
@@ -759,98 +723,26 @@ async function fetchOffices() {
   }
 }
 
-const selectedOfficeObj = computed(() => {
-  if (!deviceForm.department_id) return null
-  return deviceStore.officesList.find((d) => Number(d.id) === Number(deviceForm.department_id)) || null
-})
-
-const zkbioAreaOptions = computed(() => {
-  const existing = (zkbioAreasList.value || [])
-    .filter((a) => !a.is_prohibited && a.id !== 1)
-    .map((a) => {
-      const code = a.area_code || a.id
-      return {
-        label: `Area ${code} (${a.area_name})`,
-        value: a.id,
-        area_code: code,
-        area_name: a.area_name,
-        is_auto: false,
-      }
-    })
-
-  const officeLabel = selectedOfficeObj.value
-    ? (selectedOfficeObj.value.acronym || selectedOfficeObj.value.name)
-    : null
-
-  const autoOption = {
-    label: officeLabel
-      ? `Auto-create ZKBio Area (${officeLabel})`
-      : 'Auto-create ZKBio Area from Assigned Office',
-    value: 0,
-    area_code: null,
-    area_name: '',
-    is_auto: true,
-  }
-
-  return [autoOption, ...existing]
-})
-
 function autoMatchOfficeForUnassignedDevice(dev) {
   if (!dev || deviceForm.department_id || !deviceStore.officesList.length) return
-  const areaHint = (dev.zkbio_area_name || '')
-    .replace(/^Area\s+\S+\s*\((.*)\)$/i, '$1')
-    .trim()
-    .toLowerCase()
   const labelHint = (dev.device_name || '').trim().toLowerCase()
-  const candidates = [areaHint, labelHint].filter((h) => h && h !== 'default')
+  if (!labelHint || labelHint === 'default') return
 
-  for (const hint of candidates) {
-    const exactAcronym = deviceStore.officesList.find(
-      (d) => (d.acronym || '').trim().toLowerCase() === hint
-    )
-    if (exactAcronym) {
-      deviceForm.department_id = Number(exactAcronym.id)
-      return
-    }
-    const partial = deviceStore.officesList.find((d) => {
-      const acr = (d.acronym || '').trim().toLowerCase()
-      const nm = (d.name || '').trim().toLowerCase()
-      return (acr && hint.includes(acr)) || (nm && (nm.includes(hint) || hint.includes(nm)))
-    })
-    if (partial) {
-      deviceForm.department_id = Number(partial.id)
-      return
-    }
+  const exactAcronym = deviceStore.officesList.find(
+    (d) => (d.acronym || '').trim().toLowerCase() === labelHint
+  )
+  if (exactAcronym) {
+    deviceForm.department_id = Number(exactAcronym.id)
+    return
   }
-}
-
-function autoMatchAreaForOffice(deptId) {
-  if (!deptId) return
-  const office = deviceStore.officesList.find((d) => Number(d.id) === Number(deptId))
-  if (!office) return
-
-  const existingOpts = zkbioAreaOptions.value.filter((opt) => !opt.is_auto)
-  const acronym = (office.acronym || '').trim().toLowerCase()
-  const name = (office.name || '').trim().toLowerCase()
-
-  // 1. Try matching area_name with office acronym (e.g. CICTMO, CHRMO)
-  let matched = null
-  if (acronym) {
-    matched = existingOpts.find((opt) => {
-      const aName = (opt.area_name || '').toLowerCase()
-      return aName && (aName === acronym || aName.includes(acronym) || acronym.includes(aName))
-    })
+  const partial = deviceStore.officesList.find((d) => {
+    const acr = (d.acronym || '').trim().toLowerCase()
+    const nm = (d.name || '').trim().toLowerCase()
+    return (acr && labelHint.includes(acr)) || (nm && (nm.includes(labelHint) || labelHint.includes(nm)))
+  })
+  if (partial) {
+    deviceForm.department_id = Number(partial.id)
   }
-
-  // 2. Try matching with full office name
-  if (!matched && name) {
-    matched = existingOpts.find((opt) => {
-      const aName = (opt.area_name || '').toLowerCase()
-      return aName && (name.includes(aName) || aName.includes(name))
-    })
-  }
-
-  deviceForm.zkbio_area_id = matched ? matched.value : 0
 }
 
 function onOfficeSelected(val) {
@@ -860,17 +752,13 @@ function onOfficeSelected(val) {
     if (!deviceForm.device_name && match.acronym) {
       deviceForm.device_name = match.acronym
     }
-    autoMatchAreaForOffice(match.id)
   }
 }
 
 function onCommunicationModeChange(mode) {
   if (mode === 'ADMS') {
-    if ((deviceForm.zkbio_area_id === null || deviceForm.zkbio_area_id === undefined) && deviceForm.department_id) {
-      autoMatchAreaForOffice(deviceForm.department_id)
-    } else if (deviceForm.zkbio_area_id === null || deviceForm.zkbio_area_id === undefined) {
-      deviceForm.zkbio_area_id = 0
-    }
+    deviceForm.ip_address = ''
+    deviceForm.port = 4370
   }
 }
 
@@ -892,7 +780,6 @@ const deviceForm = reactive({
   model_name: 'MB360',
   department_id: null,
   communication_mode: 'ADMS',
-  zkbio_area_id: null,
   is_primary: true,
   comm_key: '0',
   ip_address: '',
@@ -907,18 +794,12 @@ function openAddDeviceDialog() {
   deviceForm.model_name = 'MB360'
   deviceForm.department_id = null
   deviceForm.communication_mode = 'ADMS'
-  deviceForm.zkbio_area_id = null
   deviceForm.is_primary = true
   deviceForm.comm_key = '0'
   deviceForm.ip_address = ''
   deviceForm.port = 4370
   showDeviceDialog.value = true
   fetchOffices()
-  deviceStore.fetchZkBioAreas().then(() => {
-    if (deviceForm.department_id && !deviceForm.zkbio_area_id) {
-      autoMatchAreaForOffice(deviceForm.department_id)
-    }
-  }).catch(() => {})
 }
 
 function openEditDeviceDialog(dev) {
@@ -929,7 +810,6 @@ function openEditDeviceDialog(dev) {
   deviceForm.model_name = dev.model || dev.model_name || 'MB360'
   deviceForm.department_id = dev.department_id ? Number(dev.department_id) : null
   deviceForm.communication_mode = dev.communication_mode || 'ADMS'
-  deviceForm.zkbio_area_id = dev.zkbio_area_id ? Number(dev.zkbio_area_id) : null
   deviceForm.is_primary = dev.is_primary !== undefined ? Boolean(dev.is_primary) : true
   deviceForm.comm_key = dev.comm_key || '0'
   deviceForm.ip_address = dev.ip_address || ''
@@ -943,11 +823,6 @@ function openEditDeviceDialog(dev) {
       autoMatchOfficeForUnassignedDevice(dev)
     }
   })
-  deviceStore.fetchZkBioAreas().then(() => {
-    if (deviceForm.communication_mode === 'ADMS' && !deviceForm.zkbio_area_id && deviceForm.department_id) {
-      autoMatchAreaForOffice(deviceForm.department_id)
-    }
-  }).catch(() => {})
 }
 
 async function testDeviceConnection(dev) {
@@ -1027,18 +902,6 @@ async function submitDeviceForm() {
     return
   }
 
-  if (
-    deviceForm.communication_mode === 'ADMS' &&
-    (deviceForm.zkbio_area_id === null || deviceForm.zkbio_area_id === undefined || deviceForm.zkbio_area_id === '')
-  ) {
-    $q.notify({
-      type: 'warning',
-      message: 'Please select a ZKBio Sync Area for ADMS devices.',
-      position: 'top',
-    })
-    return
-  }
-
   const payload = {
     ...deviceForm,
     ip_address:
@@ -1046,10 +909,6 @@ async function submitDeviceForm() {
         ? (deviceForm.ip_address || '').trim() || null
         : null,
     port: deviceForm.communication_mode === 'LAN_POLL' ? Number(deviceForm.port) || 4370 : 4370,
-    zkbio_area_id:
-      deviceForm.communication_mode === 'ADMS' && Number(deviceForm.zkbio_area_id) > 0
-        ? Number(deviceForm.zkbio_area_id)
-        : null,
   }
 
   try {
@@ -1066,10 +925,7 @@ async function submitDeviceForm() {
       position: 'top',
     })
     showDeviceDialog.value = false
-    await Promise.all([
-      fetchDevices(),
-      deviceStore.fetchZkBioAreas(true).catch(() => {}),
-    ])
+    await fetchDevices()
   } catch (err) {
     console.error('Failed to save device:', err)
     $q.notify({
@@ -1118,7 +974,6 @@ let pollTimer = null
 onMounted(() => {
   fetchDevices()
   fetchOffices()
-  deviceStore.fetchZkBioAreas().catch(() => {})
   pollTimer = setInterval(() => {
     fetchDevices(true)
   }, 10000)
