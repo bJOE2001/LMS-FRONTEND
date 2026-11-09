@@ -95,13 +95,17 @@
                 </q-avatar>
                 <div>
                   <div class="text-caption text-weight-medium text-grey-7">Offline</div>
-                  <div class="text-h5 text-weight-bolder text-grey-8">{{ deviceStats.offline }}</div>
+                  <div class="text-h5 text-weight-bolder text-grey-8">
+                    {{ deviceStats.offline }}
+                  </div>
                 </div>
               </div>
-              <span v-if="statusFilter === 'offline'" class="text-caption text-weight-bold text-grey-7">
+              <span
+                v-if="statusFilter === 'offline'"
+                class="text-caption text-weight-bold text-grey-7"
+              >
                 Filtered
               </span>
-
             </div>
           </q-card-section>
         </q-card>
@@ -151,7 +155,7 @@
     <div
       v-else-if="filteredDevices.length === 0"
       class="text-center q-py-xl text-grey-6 bg-white rounded-borders q-pa-xl"
-      style="border: 1px dashed #cbd5e1;"
+      style="border: 1px dashed #cbd5e1"
     >
       <q-icon
         :name="hasActiveFilters ? 'search_off' : 'developer_board_off'"
@@ -234,17 +238,11 @@
         <!-- Assigned Office Column -->
         <template #body-cell-assigned_office="props">
           <q-td :props="props">
-            <div
-              v-if="props.row.department_id"
-              class="text-dark ellipsis"
-              style="max-width: 260px;"
-            >
+            <div v-if="props.row.department_id" class="text-dark ellipsis" style="max-width: 260px">
               {{ props.row.department_name }}
               <q-tooltip>{{ props.row.department_name }}</q-tooltip>
             </div>
-            <span v-else class="text-grey-5 text-italic text-caption">
-              Unassigned
-            </span>
+            <span v-else class="text-grey-5 text-italic text-caption"> Unassigned </span>
           </q-td>
         </template>
 
@@ -252,19 +250,39 @@
         <template #body-cell-network="props">
           <q-td :props="props">
             <div class="row items-center no-wrap q-gutter-x-xs">
-              <span v-if="props.row.communication_mode === 'ADMS'" class="text-caption text-grey-8 font-mono">
+              <span
+                v-if="props.row.communication_mode === 'ADMS'"
+                class="text-caption text-grey-8 font-mono"
+              >
                 Cloud / Push
               </span>
-              <code v-else-if="props.row.communication_mode === 'LAN_POLL'" class="text-caption font-mono text-weight-medium text-dark">
-                {{ props.row.ip_address ? `${props.row.ip_address}:${props.row.port || 4370}` : 'No Static IP' }}
+              <code
+                v-else-if="props.row.communication_mode === 'LAN_POLL'"
+                class="text-caption font-mono text-weight-medium text-dark"
+              >
+                {{
+                  props.row.ip_address
+                    ? `${props.row.ip_address}:${props.row.port || 4370}`
+                    : 'No Static IP'
+                }}
               </code>
-              <span v-else class="text-caption text-grey-6 font-mono">
-                Offline
-              </span>
+              <span v-else class="text-caption text-grey-6 font-mono"> Offline </span>
               <q-badge
                 dense
-                :color="props.row.communication_mode === 'LAN_POLL' ? 'blue-8' : props.row.communication_mode === 'OFFLINE_USB' ? 'grey-7' : 'purple-8'"
-                :label="props.row.communication_mode === 'LAN_POLL' ? 'LAN' : props.row.communication_mode === 'OFFLINE_USB' ? 'USB' : 'ADMS'"
+                :color="
+                  props.row.communication_mode === 'LAN_POLL'
+                    ? 'blue-8'
+                    : props.row.communication_mode === 'OFFLINE_USB'
+                      ? 'grey-7'
+                      : 'purple-8'
+                "
+                :label="
+                  props.row.communication_mode === 'LAN_POLL'
+                    ? 'LAN'
+                    : props.row.communication_mode === 'OFFLINE_USB'
+                      ? 'USB'
+                      : 'ADMS'
+                "
               />
             </div>
           </q-td>
@@ -278,7 +296,6 @@
               <span class="status-text text-weight-bold">
                 {{ isDeviceOnline(props.row) ? 'Online' : 'Offline' }}
               </span>
-
             </span>
           </q-td>
         </template>
@@ -289,7 +306,11 @@
             <div class="row inline no-wrap items-center q-gutter-x-xs">
               <!-- Test Ping Button (Only for LAN Socket devices) -->
               <q-btn
-                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.ip_address && props.row.id"
+                v-if="
+                  props.row.communication_mode === 'LAN_POLL' &&
+                  props.row.ip_address &&
+                  props.row.id
+                "
                 flat
                 round
                 dense
@@ -304,7 +325,11 @@
 
               <!-- Manual Sync Button (Only for LAN Socket devices) -->
               <q-btn
-                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.ip_address && props.row.id"
+                v-if="
+                  props.row.communication_mode === 'LAN_POLL' &&
+                  props.row.ip_address &&
+                  props.row.id
+                "
                 flat
                 round
                 dense
@@ -347,9 +372,11 @@
 
     <!-- Edit Biometric Device Dialog -->
     <q-dialog v-model="showDeviceDialog" persistent>
-      <q-card style="width: 520px; max-width: 95vw;" class="rounded-borders overflow-hidden">
+      <q-card style="width: 520px; max-width: 95vw" class="rounded-borders overflow-hidden">
         <!-- Dialog Header -->
-        <div class="dialog-header bg-primary text-white row items-center justify-between no-wrap q-px-md q-py-sm">
+        <div
+          class="dialog-header bg-primary text-white row items-center justify-between no-wrap q-px-md q-py-sm"
+        >
           <div class="row items-center no-wrap q-gutter-x-sm">
             <div class="dialog-header-icon row items-center justify-center">
               <q-icon name="devices" size="20px" color="white" />
@@ -358,7 +385,14 @@
               {{ isCreatingDevice ? 'Register Biometric Device' : 'Edit Biometric Device' }}
             </div>
           </div>
-          <q-btn icon="close" flat round dense text-color="white" @click="showDeviceDialog = false" />
+          <q-btn
+            icon="close"
+            flat
+            round
+            dense
+            text-color="white"
+            @click="showDeviceDialog = false"
+          />
         </div>
 
         <!-- Dialog Body -->
@@ -371,7 +405,7 @@
                 dense
                 label="Device Label *"
                 placeholder="e.g. CHRMO, CICTMO"
-                :rules="[val => !!val || 'Device name is required']"
+                :rules="[(val) => !!val || 'Device name is required']"
                 hide-bottom-space
               />
             </div>
@@ -384,7 +418,7 @@
                 :label="isCreatingDevice ? 'Serial Number *' : 'Serial Number'"
                 placeholder="e.g. KMY2252000112"
                 class="font-mono"
-                :rules="[val => !!val || 'Serial Number is required']"
+                :rules="[(val) => !!val || 'Serial Number is required']"
                 hide-bottom-space
               />
             </div>
@@ -392,7 +426,9 @@
 
           <!-- Connection Mode & Port (Port only needed for LAN socket polling) -->
           <div class="row q-col-gutter-sm">
-            <div :class="deviceForm.communication_mode === 'LAN_POLL' ? 'col-12 col-sm-8' : 'col-12'">
+            <div
+              :class="deviceForm.communication_mode === 'LAN_POLL' ? 'col-12 col-sm-8' : 'col-12'"
+            >
               <q-select
                 v-model="deviceForm.communication_mode"
                 :options="communicationModeOptions"
@@ -414,7 +450,7 @@
                 dense
                 label="LAN Port *"
                 placeholder="4370"
-                :rules="[val => !!val || 'Port is required for LAN']"
+                :rules="[(val) => !!val || 'Port is required for LAN']"
                 hide-bottom-space
               />
             </div>
@@ -428,7 +464,7 @@
               dense
               label="IP Address (Static LAN) *"
               placeholder="e.g. 192.168.1.100"
-              :rules="[val => !!val || 'IP Address is required for LAN poll']"
+              :rules="[(val) => !!val || 'IP Address is required for LAN poll']"
               hide-bottom-space
             />
           </div>
@@ -445,7 +481,7 @@
               options-dense
               label="Assigned Office *"
               :loading="loadingOffices"
-              :rules="[val => !!val || 'Assigned office is required']"
+              :rules="[(val) => !!val || 'Assigned office is required']"
               hide-bottom-space
               @popup-show="officeSearchQuery = ''"
               @update:model-value="onOfficeSelected"
@@ -519,19 +555,31 @@
 
     <!-- Delete Confirmation Dialog -->
     <q-dialog v-model="showDeleteDialog" persistent>
-      <q-card style="width: 440px; max-width: 95vw;" class="rounded-borders overflow-hidden">
-        <q-card-section class="row items-center justify-between bg-negative text-white q-py-sm q-px-md">
+      <q-card style="width: 440px; max-width: 95vw" class="rounded-borders overflow-hidden">
+        <q-card-section
+          class="row items-center justify-between bg-negative text-white q-py-sm q-px-md"
+        >
           <div class="row items-center q-gutter-x-sm">
             <q-icon name="warning" size="22px" />
             <span class="text-subtitle1 text-weight-bold">Delete Biometric Device?</span>
           </div>
-          <q-btn icon="close" flat round dense text-color="white" @click="showDeleteDialog = false" />
+          <q-btn
+            icon="close"
+            flat
+            round
+            dense
+            text-color="white"
+            @click="showDeleteDialog = false"
+          />
         </q-card-section>
 
         <q-card-section class="q-pa-md">
           <div class="text-body2 text-grey-9">
-            Are you sure you want to remove <strong>{{ activeDeleteDevice?.device_name }}</strong>
-            (<code class="font-mono">{{ activeDeleteDevice?.serial_number }}</code>)?
+            Are you sure you want to remove
+            <strong>{{ activeDeleteDevice?.device_name }}</strong> (<code class="font-mono">{{
+              activeDeleteDevice?.serial_number
+            }}</code
+            >)?
           </div>
           <div class="text-caption text-grey-7 q-mt-sm">
             The device record will be removed from ALMS.
@@ -565,14 +613,8 @@ import { useBiometricDeviceStore } from 'stores/biometric-device-store'
 const $q = useQuasar()
 const deviceStore = useBiometricDeviceStore()
 
-const {
-  loading,
-  submittingDevice,
-  devicesList,
-  loadingOffices,
-  deviceStats,
-  allOfficeOptions,
-} = storeToRefs(deviceStore)
+const { loading, submittingDevice, devicesList, loadingOffices, deviceStats, allOfficeOptions } =
+  storeToRefs(deviceStore)
 const { isDeviceOnline } = deviceStore
 
 const searchTerm = ref('')
@@ -584,14 +626,15 @@ const statusOptions = [
   { label: 'Offline Only', value: 'offline' },
 ]
 
-
 function formatDeviceName(dev) {
   if (!dev) return 'Biometric Device'
   return dev.device_name || `Terminal ${dev.serial_number}` || 'Biometric Device'
 }
 
 const hasActiveFilters = computed(() => {
-  return Boolean((searchTerm.value && searchTerm.value.trim() !== '') || statusFilter.value !== 'all')
+  return Boolean(
+    (searchTerm.value && searchTerm.value.trim() !== '') || statusFilter.value !== 'all',
+  )
 })
 
 const filteredDevices = computed(() => {
@@ -650,7 +693,7 @@ const columns = [
     name: 'network',
     label: 'Connection / IP',
     align: 'left',
-    field: (row) => (row.communication_mode === 'ADMS' ? 'ADMS' : (row.ip_address || '')),
+    field: (row) => (row.communication_mode === 'ADMS' ? 'ADMS' : row.ip_address || ''),
     sortable: true,
   },
   {
@@ -711,7 +754,7 @@ const filteredOfficeOptions = computed(() => {
   return allOfficeOptions.value.filter(
     (opt) =>
       (opt.name || '').toLowerCase().includes(needle) ||
-      (opt.acronym || '').toLowerCase().includes(needle)
+      (opt.acronym || '').toLowerCase().includes(needle),
   )
 })
 
@@ -729,7 +772,7 @@ function autoMatchOfficeForUnassignedDevice(dev) {
   if (!labelHint || labelHint === 'default') return
 
   const exactAcronym = deviceStore.officesList.find(
-    (d) => (d.acronym || '').trim().toLowerCase() === labelHint
+    (d) => (d.acronym || '').trim().toLowerCase() === labelHint,
   )
   if (exactAcronym) {
     deviceForm.department_id = Number(exactAcronym.id)
@@ -738,7 +781,9 @@ function autoMatchOfficeForUnassignedDevice(dev) {
   const partial = deviceStore.officesList.find((d) => {
     const acr = (d.acronym || '').trim().toLowerCase()
     const nm = (d.name || '').trim().toLowerCase()
-    return (acr && labelHint.includes(acr)) || (nm && (nm.includes(labelHint) || labelHint.includes(nm)))
+    return (
+      (acr && labelHint.includes(acr)) || (nm && (nm.includes(labelHint) || labelHint.includes(nm)))
+    )
   })
   if (partial) {
     deviceForm.department_id = Number(partial.id)
@@ -777,7 +822,6 @@ const communicationModeOptions = [
 const deviceForm = reactive({
   device_name: '',
   serial_number: '',
-  model_name: 'MB360',
   department_id: null,
   communication_mode: 'ADMS',
   is_primary: true,
@@ -791,7 +835,6 @@ function openAddDeviceDialog() {
   activeDevice.value = null
   deviceForm.device_name = ''
   deviceForm.serial_number = ''
-  deviceForm.model_name = 'MB360'
   deviceForm.department_id = null
   deviceForm.communication_mode = 'ADMS'
   deviceForm.is_primary = true
@@ -807,7 +850,6 @@ function openEditDeviceDialog(dev) {
   activeDevice.value = dev
   deviceForm.device_name = dev.device_name || ''
   deviceForm.serial_number = dev.serial_number || ''
-  deviceForm.model_name = dev.model || dev.model_name || 'MB360'
   deviceForm.department_id = dev.department_id ? Number(dev.department_id) : null
   deviceForm.communication_mode = dev.communication_mode || 'ADMS'
   deviceForm.is_primary = dev.is_primary !== undefined ? Boolean(dev.is_primary) : true
@@ -921,7 +963,11 @@ async function submitDeviceForm() {
 
     $q.notify({
       type: 'positive',
-      message: data?.message || (isCreatingDevice.value ? 'Device registered successfully.' : 'Device updated successfully.'),
+      message:
+        data?.message ||
+        (isCreatingDevice.value
+          ? 'Device registered successfully.'
+          : 'Device updated successfully.'),
       position: 'top',
     })
     showDeviceDialog.value = false
@@ -950,7 +996,7 @@ async function submitDeleteDevice() {
   try {
     const data = await deviceStore.deleteDevice(
       activeDeleteDevice.value.id,
-      activeDeleteDevice.value.serial_number
+      activeDeleteDevice.value.serial_number,
     )
     $q.notify({
       type: 'positive',
@@ -1096,7 +1142,8 @@ onUnmounted(() => {
     transform: scale(0.8);
     opacity: 0.9;
   }
-  80%, 100% {
+  80%,
+  100% {
     transform: scale(2.2);
     opacity: 0;
   }
