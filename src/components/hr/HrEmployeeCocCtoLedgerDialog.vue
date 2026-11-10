@@ -533,7 +533,7 @@ const normalizedRows = computed(() => {
       ? formatDecimalHours(entry.used_hours_wop, entry.used_minutes_wop)
       : ''
 
-    const actionTaken = entry.action_taken || ''
+    const actionTaken = resolveLedgerActionTaken(entry)
 
     return {
       key: entry.id || ('coc-row-' + index),
@@ -624,74 +624,167 @@ function onStageScroll(e) {
   }
 }
 
+function parseDateParts(d) {
+  if (!d) return null
+  const raw = String(d).trim()
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) {
+    const year = Number(isoMatch[1])
+    const month = Number(isoMatch[2])
+    const day = Number(isoMatch[3])
+    const localDate = new Date(year, month - 1, day)
+    if (!Number.isNaN(localDate.getTime())) {
+      return {
+        date: localDate,
+        year,
+        month,
+        day,
+        monthLabel: localDate.toLocaleDateString('en-US', { month: 'long' }),
+      }
+    }
+  }
+  const dateObj = new Date(raw)
+  if (Number.isNaN(dateObj.getTime())) return null
+  return {
+    date: dateObj,
+    year: dateObj.getFullYear(),
+    month: dateObj.getMonth() + 1,
+    day: dateObj.getDate(),
+    monthLabel: dateObj.toLocaleDateString('en-US', { month: 'long' }),
+  }
+}
+
 function formatInclusiveDates(row) {
   if (!row) return ''
   const rawDates = row.inclusive_dates || row.selected_dates || []
   if (Array.isArray(rawDates) && rawDates.length > 0) {
     const parsedList = rawDates
-      .map((d) => {
-        if (!d) return null
-        const dateObj = new Date(d)
-        if (Number.isNaN(dateObj.getTime())) return null
-        return {
-          date: dateObj,
-          year: dateObj.getFullYear(),
-          month: dateObj.getMonth() + 1,
-          day: dateObj.getDate(),
-          monthLabel: dateObj.toLocaleDateString('en-US', { month: 'long' }),
-        }
-      })
+      .map(parseDateParts)
       .filter(Boolean)
       .sort((a, b) => a.date.getTime() - b.date.getTime())
 
     if (parsedList.length > 0) {
-      if (parsedList.length === 1) {
-        return parsedList[0].monthLabel + ' ' + parsedList[0].day + ', ' + parsedList[0].year
-      }
-      const allSameMonthYear = parsedList.every(
-        (p) => p.year === parsedList[0].year && p.month === parsedList[0].month
-      )
-      if (allSameMonthYear) {
-        const startDay = parsedList[0].day
-        const endDay = parsedList[parsedList.length - 1].day
-        if (startDay === endDay) {
-          return parsedList[0].monthLabel + ' ' + startDay + ', ' + parsedList[0].year
+      // Group by year and month
+      const groups = new Map()
+      for (const p of parsedList) {
+        const groupKey = `${p.year}-${String(p.month).padStart(2, '0')}`
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, {
+            monthLabel: p.monthLabel,
+            year: p.year,
+            days: [],
+          })
         }
-        return parsedList[0].monthLabel + ' ' + startDay + '-' + endDay + ', ' + parsedList[0].year
+        if (!groups.get(groupKey).days.includes(p.day)) {
+          groups.get(groupKey).days.push(p.day)
+        }
       }
-      const first = parsedList[0]
-      const last = parsedList[parsedList.length - 1]
-      return first.monthLabel + ' ' + first.day + ', ' + first.year + ' - ' + last.monthLabel + ' ' + last.day + ', ' + last.year
+
+      const formattedGroups = Array.from(groups.values()).map((group) => {
+        const sortedDays = group.days.sort((a, b) => a - b)
+        if (sortedDays.length === 0) return null
+
+        const ranges = []
+        let rangeStart = sortedDays[0]
+        let rangeEnd = sortedDays[0]
+
+        for (let i = 1; i < sortedDays.length; i++) {
+          const currentDay = sortedDays[i]
+          if (currentDay === rangeEnd + 1) {
+            rangeEnd = currentDay
+            continue
+          }
+          ranges.push([rangeStart, rangeEnd])
+          rangeStart = currentDay
+          rangeEnd = currentDay
+        }
+        ranges.push([rangeStart, rangeEnd])
+
+        const dayLabels = ranges.map(([start, end]) => {
+          if (start === end) return `${start}`
+          if (end === start + 1) return `${start}, ${end}`
+          return `${start}-${end}`
+        })
+
+        return {
+          monthLabel: group.monthLabel,
+          year: group.year,
+          dayText: dayLabels.join(', '),
+        }
+      }).filter(Boolean)
+
+      if (formattedGroups.length === 1) {
+        const g = formattedGroups[0]
+        return `${g.monthLabel} ${g.dayText}, ${g.year}`
+      }
+
+      if (formattedGroups.length > 1) {
+        const allSameYear = formattedGroups.every((g) => g.year === formattedGroups[0].year)
+        if (allSameYear) {
+          const parts = formattedGroups.map((g) => `${g.monthLabel} ${g.dayText}`)
+          return `${parts.join(' - ')}, ${formattedGroups[0].year}`
+        }
+        const parts = formattedGroups.map((g) => `${g.monthLabel} ${g.dayText}, ${g.year}`)
+        return parts.join(' - ')
+      }
     }
   }
 
   if (row.inclusive_start_date && row.inclusive_end_date) {
-    const s = new Date(row.inclusive_start_date)
-    const e = new Date(row.inclusive_end_date)
-    if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
-      const sMonth = s.toLocaleDateString('en-US', { month: 'long' })
-      const eMonth = e.toLocaleDateString('en-US', { month: 'long' })
-      if (s.getFullYear() === e.getFullYear()) {
-        if (s.getMonth() === e.getMonth()) {
-          if (s.getDate() === e.getDate()) {
-            return sMonth + ' ' + s.getDate() + ', ' + s.getFullYear()
+    const sParts = parseDateParts(row.inclusive_start_date)
+    const eParts = parseDateParts(row.inclusive_end_date)
+    if (sParts && eParts) {
+      if (sParts.year === eParts.year) {
+        if (sParts.month === eParts.month) {
+          if (sParts.day === eParts.day) {
+            return `${sParts.monthLabel} ${sParts.day}, ${sParts.year}`
           }
-          return sMonth + ' ' + s.getDate() + '-' + e.getDate() + ', ' + s.getFullYear()
+          const diffDays = eParts.day - sParts.day
+          const sep = diffDays === 1 ? ', ' : '-'
+          return `${sParts.monthLabel} ${sParts.day}${sep}${eParts.day}, ${sParts.year}`
         }
-        return sMonth + ' ' + s.getDate() + ' - ' + eMonth + ' ' + e.getDate() + ', ' + s.getFullYear()
+        return `${sParts.monthLabel} ${sParts.day} - ${eParts.monthLabel} ${eParts.day}, ${sParts.year}`
       }
-      return sMonth + ' ' + s.getDate() + ', ' + s.getFullYear() + ' - ' + eMonth + ' ' + e.getDate() + ', ' + s.getFullYear()
+      return `${sParts.monthLabel} ${sParts.day}, ${sParts.year} - ${eParts.monthLabel} ${eParts.day}, ${eParts.year}`
     }
   }
 
   if (row.period) return row.period
   if (row.action_date) {
-    const d = new Date(row.action_date)
-    if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const dParts = parseDateParts(row.action_date)
+    if (dParts) {
+      return `${dParts.monthLabel} ${dParts.day}, ${dParts.year}`
     }
   }
   return ''
+}
+
+function formatLedgerActionDate(value) {
+  if (!value) return ''
+  const parsed = parseDateParts(value)
+  if (parsed) {
+    return `${parsed.monthLabel} ${parsed.day}, ${parsed.year}`
+  }
+  const d = new Date(value)
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
+  return ''
+}
+
+function resolveLedgerActionTaken(entry) {
+  if (!entry) return ''
+  const rawAction = String(entry.action_taken || '').trim()
+  // If action_taken is an application reference (e.g. "Application #7707"), format the action_date instead (Option A)
+  if (!rawAction || /^application\s*#\d+$/i.test(rawAction)) {
+    const formattedDate = formatLedgerActionDate(entry.action_date || entry.transaction_date)
+    if (formattedDate) return formattedDate
+  }
+  return rawAction
 }
 
 function printLedger() {
