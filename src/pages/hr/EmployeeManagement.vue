@@ -1118,7 +1118,8 @@ watch(search, () => {
   fetchData(1)
 })
 
-watch(activityFilter, () => {
+watch(activityFilter, (val) => {
+  void employeeStore.fetchTotalEmployeesSummary(val || 'ACTIVE', true)
   fetchData(1)
 })
 
@@ -1172,6 +1173,7 @@ watch(calendarPreviewDateStates, () => {
 
 onMounted(() => {
   void fetchDepartments()
+  void employeeStore.fetchTotalEmployeesSummary(activityFilter.value || 'ACTIVE')
   void fetchData()
 })
 
