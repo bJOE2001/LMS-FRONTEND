@@ -2,7 +2,7 @@
   <q-page class="report-page q-pa-md">
     <div class="page-header q-mb-lg">
       <div>
-        <div class="text-h4 text-weight-bold">Office Leave Applications Report</div>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Office Leave Applications Report</h1>
         <div class="text-body2 text-grey-7 q-mt-xs">
           View and monitor leave applications submitted within your office.
         </div>

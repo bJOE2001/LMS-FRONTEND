@@ -1,41 +1,10 @@
 <template>
   <q-page class="q-pa-md biometric-logs-page">
     <!-- Page Header -->
-    <div class="row items-center justify-between q-mb-md">
-      <div class="row items-center no-wrap">
-        <q-avatar size="42px" color="blue-1" text-color="primary" class="q-mr-md">
-          <q-icon name="receipt_long" size="24px" />
-        </q-avatar>
-        <div>
-          <h1 class="text-h5 text-weight-bold text-dark q-my-none">
-            Biometric Transfer &amp; Registration Logs
-          </h1>
-          <div class="text-caption text-grey-7 q-mt-xs">
-            Audit trail of biometric registrations, transfers, assignments and removals
-          </div>
-        </div>
-      </div>
-      <div class="row items-center q-gutter-x-sm">
-        <q-btn
-          outline
-          no-caps
-          color="primary"
-          icon="refresh"
-          label="Refresh"
-          :loading="loading"
-          @click="fetchLogs"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          color="primary"
-          icon="download"
-          label="Export CSV"
-          class="text-weight-bold"
-          :loading="exporting"
-          @click="exportCsv"
-        />
-      </div>
+    <div class="q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">
+        Biometric Logs
+      </h1>
     </div>
 
     <!-- Filter Bar -->
@@ -215,7 +184,6 @@ const $q = useQuasar()
 
 const rows = ref([])
 const loading = ref(false)
-const exporting = ref(false)
 
 const searchTerm = ref('')
 const actionTypeOptions = ['ALL', 'TRANSFER', 'REGISTRATION', 'ASSIGN', 'REMOVE']
@@ -357,91 +325,6 @@ watch([actionTypeFilter, statusFilter, startDate, endDate], () => {
   pagination.value.page = 1
   fetchLogs()
 })
-
-function csvCell(value) {
-  const text = value === null || value === undefined ? '' : String(value)
-  return `"${text.replace(/"/g, '""')}"`
-}
-
-async function exportCsv() {
-  exporting.value = true
-  try {
-    const perPage = 100
-    const maxPages = 100
-    let page = 1
-    let lastPage = 1
-    const all = []
-    do {
-      const { data } = await api.get('/biometric/transfer-logs', {
-        params: buildParams(page, perPage),
-      })
-      all.push(...(data.logs || []))
-      lastPage = data.last_page || 1
-      page += 1
-    } while (page <= lastPage && page <= maxPages)
-
-    if (all.length === 0) {
-      $q.notify({ type: 'warning', message: 'No logs to export.', position: 'top' })
-      return
-    }
-
-    const headers = [
-      'Control No',
-      'Employee Name',
-      'Action Type',
-      'Source Office',
-      'Source Device SN',
-      'Target Office',
-      'Target Device SN',
-      'Status',
-      'Date/Time',
-      'Performed By',
-      'Remarks',
-    ]
-    const lines = all.map((r) =>
-      [
-        r.employee_control_no,
-        r.employee_name,
-        r.action_type,
-        formatOfficeAbbreviation(r.source_office_name),
-        r.source_device_sn,
-        formatOfficeAbbreviation(r.target_office_name),
-        r.target_device_sn,
-        r.status,
-        formatDateTime(r.created_at),
-        r.performed_by_name,
-        simplifyRemarks(r.remarks),
-      ]
-        .map(csvCell)
-        .join(','),
-    )
-    const csv = '\uFEFF' + [headers.map(csvCell).join(','), ...lines].join('\r\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `biometric-logs-${qDate.formatDate(new Date(), 'YYYYMMDD-HHmmss')}.csv`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    $q.notify({
-      type: 'positive',
-      message: `Exported ${all.length} log${all.length === 1 ? '' : 's'}.`,
-      position: 'top',
-    })
-  } catch (err) {
-    console.error('Failed to export biometric logs:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to export biometric logs.',
-      position: 'top',
-    })
-  } finally {
-    exporting.value = false
-  }
-}
 
 onMounted(fetchLogs)
 </script>

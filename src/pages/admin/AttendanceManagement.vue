@@ -1,12 +1,9 @@
 <template>
   <q-page class="q-pa-md attendance-overview-page">
     <!-- Page Header -->
-    <div class="row items-center justify-between q-mb-md">
+    <div class="row items-center justify-between q-mb-lg">
       <div>
-        <h1 class="text-h5 text-weight-bold text-dark q-my-none">Attendance Management</h1>
-        <div class="text-caption text-grey-7 q-mt-xs">
-          Monitor daily time records, biometric punches, and Civil Service Form No. 48
-        </div>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Attendance Management</h1>
       </div>
     </div>
 

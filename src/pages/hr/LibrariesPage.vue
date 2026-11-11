@@ -1,8 +1,8 @@
 <template>
   <q-page class="q-pa-md libraries-page">
     <!-- Top Header Banner -->
-    <div class="q-mb-md">
-      <h1 class="text-h5 text-weight-bolder text-dark q-my-none">System Libraries</h1>
+    <div class="q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">System Libraries</h1>
     </div>
 
     <!-- Navigation Tabs -->
@@ -840,8 +840,4 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.libraries-page {
-  max-width: 1300px;
-  margin: 0 auto;
-}
 </style>

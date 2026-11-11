@@ -2,7 +2,7 @@
   <q-page class="q-pa-sm hr-dashboard-page">
     <div class="row justify-between items-center q-col-gutter-sm q-mb-sm">
       <div class="col-auto">
-        <h1 class="text-h5 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
       </div>
       <div class="col-12 col-sm-auto">
         <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
