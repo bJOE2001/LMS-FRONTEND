@@ -568,7 +568,15 @@ const LEDGER_LEAVE_TYPE_COLORS = Object.freeze({
   WL: '#1e5fbf',
   MCO6: '#1b8f3a',
 })
-const LEDGER_BALANCE_BADGE_ORDER = Object.freeze(['VL', 'SL', 'WL', 'MCO6'])
+const LEDGER_BALANCE_BADGE_ORDER = Object.freeze([
+  'VL',
+  'SL',
+  'FL',
+  'MC06',
+  'SPL',
+  'CL',
+  'WL',
+])
 const LEDGER_BALANCE_BADGE_UNIFORM_PALETTE = Object.freeze({
   accent: '#475569',
   background: '#f1f5f9',
@@ -580,11 +588,23 @@ const LEDGER_BALANCE_BADGE_META = Object.freeze({
   SL: {
     label: 'SL',
   },
-  WL: {
-    label: 'WL',
+  FL: {
+    label: 'FL',
+  },
+  MC06: {
+    label: 'MC06',
   },
   MCO6: {
-    label: 'MCO6',
+    label: 'MC06',
+  },
+  SPL: {
+    label: 'SPL',
+  },
+  CL: {
+    label: 'CL',
+  },
+  WL: {
+    label: 'WL',
   },
   DEFAULT: {
     accent: LEDGER_BALANCE_BADGE_UNIFORM_PALETTE.accent,
@@ -1098,7 +1118,8 @@ watch(search, () => {
   fetchData(1)
 })
 
-watch(activityFilter, () => {
+watch(activityFilter, (val) => {
+  void employeeStore.fetchTotalEmployeesSummary(val || 'ACTIVE', true)
   fetchData(1)
 })
 
@@ -1152,6 +1173,7 @@ watch(calendarPreviewDateStates, () => {
 
 onMounted(() => {
   void fetchDepartments()
+  void employeeStore.fetchTotalEmployeesSummary(activityFilter.value || 'ACTIVE')
   void fetchData()
 })
 
@@ -1319,8 +1341,11 @@ function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
   const coreBalancesByCode = {
     VL: 0,
     SL: 0,
+    FL: 0,
+    MC06: 0,
+    SPL: 0,
+    CL: 0,
     WL: 0,
-    MCO6: 0,
   }
   const customBadges = []
   const customBadgeCodes = new Set()
@@ -1369,13 +1394,9 @@ function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
         return
       }
 
-      if (
-        normalizedCode === 'VL' ||
-        normalizedCode === 'SL' ||
-        normalizedCode === 'WL' ||
-        normalizedCode === 'MCO6'
-      ) {
-        coreBalancesByCode[normalizedCode] = roundedBalance
+      const targetCode = normalizedCode === 'MCO6' ? 'MC06' : normalizedCode
+      if (targetCode in coreBalancesByCode) {
+        coreBalancesByCode[targetCode] = roundedBalance
         return
       }
 
@@ -1403,8 +1424,8 @@ function buildLedgerBalanceBadgesFromLeaveTypes(leaveTypes) {
     const meta = LEDGER_BALANCE_BADGE_META[code]
     return buildLedgerBalanceBadgeItem(
       code,
-      meta.label,
-      coreBalancesByCode[code],
+      meta?.label || code,
+      coreBalancesByCode[code] ?? 0,
       LEDGER_BALANCE_BADGE_UNIFORM_PALETTE,
     )
   })
@@ -1775,6 +1796,27 @@ function normalizeLedgerLeaveCode(value) {
     return 'WL'
   }
 
+  if (
+    compact === 'fl' ||
+    compact === 'forcedleave' ||
+    compact === 'mandatoryforcedleave' ||
+    compact === 'mandatoryleave' ||
+    compact.startsWith('forced') ||
+    compact.startsWith('mandatory')
+  ) {
+    return 'FL'
+  }
+
+  if (
+    compact === 'cl' ||
+    compact === 'calamityleave' ||
+    compact === 'specialemergencycalamityleave' ||
+    compact === 'calamity' ||
+    compact.includes('calamity')
+  ) {
+    return 'CL'
+  }
+
   if (compact === 'spl' || compact === 'soloparentleave' || compact === 'soloparent') {
     return 'SPL'
   }
@@ -1788,7 +1830,7 @@ function normalizeLedgerLeaveCode(value) {
     compact.startsWith('mco6') ||
     compact.startsWith('mc06')
   ) {
-    return 'MCO6'
+    return 'MC06'
   }
 
   const codeToken = String(raw).split(/\s+/)[0] ?? ''
@@ -3717,7 +3759,35 @@ function normalizeLedgerRow(entry, index) {
 
 function orderLedgerRowsOldestFirst(rows) {
   if (!Array.isArray(rows) || rows.length <= 1) return Array.isArray(rows) ? rows : []
-  return [...rows].reverse()
+  const reversed = [...rows].reverse()
+
+  const cscOrderMap = {
+    VL: 1,
+    SL: 2,
+    FL: 3,
+    MC06: 4,
+    MCO6: 4,
+    SPL: 5,
+    CL: 6,
+    WL: 7,
+  }
+
+  return reversed.sort((a, b) => {
+    const isInitialA = String(a?.actionTaken || a?.action_taken || '').toLowerCase().includes('initial')
+    const isInitialB = String(b?.actionTaken || b?.action_taken || '').toLowerCase().includes('initial')
+    const periodA = String(a?.period || '')
+    const periodB = String(b?.period || '')
+
+    if (isInitialA && isInitialB && periodA === periodB) {
+      const codeA = String(a?.leaveTypeCode || a?.leave_type_code || '').toUpperCase().trim()
+      const codeB = String(b?.leaveTypeCode || b?.leave_type_code || '').toUpperCase().trim()
+      const pA = cscOrderMap[codeA] || 99
+      const pB = cscOrderMap[codeB] || 99
+      if (pA !== pB) return pA - pB
+    }
+
+    return 0
+  })
 }
 
 function extractLedgerRows(payload) {

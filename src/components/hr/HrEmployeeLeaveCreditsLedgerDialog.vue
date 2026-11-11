@@ -660,10 +660,36 @@ const paperSizeClass = computed(
 
 const filteredLeaveBalanceBadges = computed(() => {
   const badges = Array.isArray(props.leaveBalanceBadges) ? props.leaveBalanceBadges : []
-  return badges.filter((b) => {
+  const filtered = badges.filter((b) => {
     const code = String(b?.code || '').toUpperCase()
     const label = String(b?.label || '').toUpperCase()
-    return !code.includes('CTO') && !code.includes('COC') && !label.includes('CTO') && !label.includes('COC') && !label.includes('COMPENSATORY')
+    return (
+      !code.includes('CTO') &&
+      !code.includes('COC') &&
+      !label.includes('CTO') &&
+      !label.includes('COC') &&
+      !label.includes('COMPENSATORY')
+    )
+  })
+
+  const cscOrderMap = {
+    VL: 1,
+    SL: 2,
+    FL: 3,
+    MC06: 4,
+    MCO6: 4,
+    SPL: 5,
+    CL: 6,
+    WL: 7,
+  }
+
+  return [...filtered].sort((a, b) => {
+    const keyA = String(a?.label || a?.code || '').toUpperCase().trim()
+    const keyB = String(b?.label || b?.code || '').toUpperCase().trim()
+    const pA = cscOrderMap[keyA] || 99
+    const pB = cscOrderMap[keyB] || 99
+    if (pA !== pB) return pA - pB
+    return keyA.localeCompare(keyB)
   })
 })
 

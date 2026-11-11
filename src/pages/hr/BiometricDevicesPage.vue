@@ -1,16 +1,12 @@
 <template>
   <q-page class="q-pa-md biometric-devices-page">
     <!-- Page Header -->
-    <div class="row items-center justify-between q-mb-md">
-      <div>
-        <h1 class="text-h5 text-weight-bold text-dark q-my-none">Biometric Devices</h1>
-        <div class="text-caption text-grey-7 q-mt-xs">
-          Monitor connected ZKTeco devices and office assignments
-        </div>
-      </div>
+    <div class="row items-center justify-between q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-ma-none">Biometric Devices</h1>
       <div class="row items-center q-gutter-x-sm">
         <q-btn
           unelevated
+          no-caps
           color="primary"
           icon="add"
           label="Add Device"
@@ -239,7 +235,7 @@
         <template #body-cell-assigned_office="props">
           <q-td :props="props">
             <div v-if="props.row.department_id" class="text-dark ellipsis" style="max-width: 260px">
-              {{ props.row.department_name }}
+              {{ props.row.office_acronym || formatOfficeAbbreviation(props.row.department_name) }}
               <q-tooltip>{{ props.row.department_name }}</q-tooltip>
             </div>
             <span v-else class="text-grey-5 text-italic text-caption"> Unassigned </span>
@@ -609,6 +605,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useQuasar, copyToClipboard } from 'quasar'
 import { storeToRefs } from 'pinia'
 import { useBiometricDeviceStore } from 'stores/biometric-device-store'
+import { formatOfficeAbbreviation } from 'src/utils/office-acronym'
 
 const $q = useQuasar()
 const deviceStore = useBiometricDeviceStore()
@@ -1034,11 +1031,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.biometric-devices-page {
-  max-width: 1300px;
-  margin: 0 auto;
-}
-
 .stat-card {
   border-color: #e5e7eb;
   transition: all 0.18s ease;

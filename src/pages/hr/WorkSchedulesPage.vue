@@ -1,9 +1,7 @@
 <template>
   <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'work-schedules-panel' : 'work-schedules-page q-pa-md'">
-    <div v-if="!embedded" class="page-header q-mb-md">
-      <div>
-        <div class="text-h4 text-weight-bold">Work Schedule</div>
-      </div>
+    <div v-if="!embedded" class="page-header q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Work Schedule</h1>
     </div>
 
     <div class="row q-col-gutter-md">

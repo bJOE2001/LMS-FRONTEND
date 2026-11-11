@@ -649,14 +649,12 @@
                   outlined
                   dense
                   use-input
-                  fill-input
-                  hide-selected
                   clearable
                   input-debounce="250"
                   label="Select Employee *"
                   hint="Type at least 2 characters to search employees."
                   persistent-hint
-                  option-label="label"
+                  :option-label="(opt) => (opt ? (opt.label || opt.full_name || opt.control_no || '') : '')"
                   :loading="employeePickerLoading"
                   :rules="[() => !!employeeForm.control_no || 'Employee is required.']"
                   @filter="filterEmployeeOptions"
@@ -664,6 +662,9 @@
                   @update:model-value="handleSelectedEmployeeOption"
                   @clear="clearSelectedEmployeeOption"
                 >
+                  <template #selected-item="scope">
+                    <span class="ellipsis">{{ scope.opt.label || scope.opt.full_name }}</span>
+                  </template>
                   <template #option="scope">
                     <q-item v-bind="scope.itemProps">
                       <q-item-section>
@@ -1792,7 +1793,9 @@ function toEmployeePickerOption(employee) {
   const hrisOffice = String(employee.hris_office || employee.office || '').trim()
   const officeAcronym = resolveOfficeAcronymLabel(employee)
   const designation = String(employee.designation || '').trim()
-  const fullName = [surname, firstname, middlename].filter(Boolean).join(', ').replace(', ,', ',')
+  const middleInitial = middlename ? `${middlename.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase()}.` : ''
+  const givenName = [firstname, middleInitial].filter(Boolean).join(' ')
+  const fullName = surname && givenName ? `${surname}, ${givenName}` : (surname || givenName || controlNo)
 
   return {
     ...employee,
