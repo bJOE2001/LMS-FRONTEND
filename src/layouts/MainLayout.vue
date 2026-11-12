@@ -110,6 +110,10 @@
                 <q-item-section avatar><q-icon name="apartment" /></q-item-section>
                 <q-item-section>Office Library</q-item-section>
               </q-item>
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('office_library')" clickable to="/hr/office-divisions">
+                <q-item-section avatar><q-icon name="lan" /></q-item-section>
+                <q-item-section>Office Divisions</q-item-section>
+              </q-item>
               <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('illness_library')" clickable to="/hr/illness-library">
                 <q-item-section avatar><q-icon name="medical_services" /></q-item-section>
                 <q-item-section>Illness Library</q-item-section>
