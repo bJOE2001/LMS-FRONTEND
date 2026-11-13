@@ -115,9 +115,13 @@
       <template #body-cell-source="props">
         <q-td :props="props">
           <div class="text-dark text-weight-medium">
-            {{ formatOfficeAbbreviation(props.row.source_office_name) }}
+            {{ props.row.source_office_acronym || formatOfficeAbbreviation(props.row.source_office_name) }}
             <q-tooltip
-              v-if="props.row.source_office_name && props.row.source_office_name !== formatOfficeAbbreviation(props.row.source_office_name)"
+              v-if="
+                props.row.source_office_name &&
+                props.row.source_office_name !==
+                  (props.row.source_office_acronym || formatOfficeAbbreviation(props.row.source_office_name))
+              "
               anchor="top middle"
               self="bottom middle"
             >
@@ -133,9 +137,13 @@
       <template #body-cell-target="props">
         <q-td :props="props">
           <div class="text-dark text-weight-medium">
-            {{ formatOfficeAbbreviation(props.row.target_office_name) }}
+            {{ props.row.target_office_acronym || formatOfficeAbbreviation(props.row.target_office_name) }}
             <q-tooltip
-              v-if="props.row.target_office_name && props.row.target_office_name !== formatOfficeAbbreviation(props.row.target_office_name)"
+              v-if="
+                props.row.target_office_name &&
+                props.row.target_office_name !==
+                  (props.row.target_office_acronym || formatOfficeAbbreviation(props.row.target_office_name))
+              "
               anchor="top middle"
               self="bottom middle"
             >
