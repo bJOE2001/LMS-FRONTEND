@@ -282,6 +282,10 @@
                 <q-item-section avatar><q-icon name="collections_bookmark" /></q-item-section>
                 <q-item-section>Libraries</q-item-section>
               </q-item>
+              <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('office_library')" clickable to="/hr/office-divisions">
+                <q-item-section avatar><q-icon name="lan" /></q-item-section>
+                <q-item-section>Office Divisions</q-item-section>
+              </q-item>
               <q-item v-if="leaveStore.userRole === 'hr' && canAccessHrModule('access_control')" clickable to="/hr/access-control">
                 <q-item-section avatar><q-icon name="admin_panel_settings" /></q-item-section>
                 <q-item-section>Access Control</q-item-section>
