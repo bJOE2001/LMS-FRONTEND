@@ -169,40 +169,33 @@
       </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders employee-records-card">
-      <q-card-section class="employee-records-card__section">
-        <div class="row justify-between items-center employee-records-toolbar">
-          <div class="row items-center q-gutter-sm">
-            <div class="text-h6">Employee Records</div>
-          </div>
-          <q-input
-            v-model="search"
-            outlined
-            dense
-            debounce="400"
-            placeholder="Search employees..."
-            clearable
-            class="employee-records-search"
-            @update:model-value="fetchEmployees(1)"
-          >
-            <template #prepend>
-              <q-icon name="search" size="sm" color="grey-6" />
-            </template>
-          </q-input>
-        </div>
-      </q-card-section>
+    <DataFilterBar
+      v-model:search="search"
+      :debounce="400"
+      search-placeholder="Search employees..."
+      search-class="col-12 col-sm-6 col-md-4"
+      @update:search="fetchEmployees(1)"
+    />
 
-      <q-table
-        :rows="tableRows"
-        :columns="visibleColumns"
-        row-key="control_no"
-        flat
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-        v-model:pagination="pagination"
-        class="employee-records-table"
-        @request="onRequest"
-      >
+    <DataTableCard
+      :rows="tableRows"
+      :columns="visibleColumns"
+      row-key="control_no"
+      :loading="loading"
+      v-model:pagination="pagination"
+      :rows-per-page-options="[10, 20, 50]"
+      card-class="employee-records-card"
+      table-class="employee-records-table"
+      empty-icon="search_off"
+      :no-data-label="noDataMessage"
+      loading-text="Loading employees..."
+      @request="onRequest"
+    >
+      <template #before-table>
+        <q-card-section class="q-pb-sm">
+          <div class="text-h6">Employee Records</div>
+        </q-card-section>
+      </template>
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap cursor-pointer" @click="viewEmployee(props.row)">
@@ -317,21 +310,7 @@
             </div>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width text-center q-pa-lg">
-            <template v-if="loading">
-              <q-spinner color="primary" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading employees...</div>
-            </template>
-            <template v-else>
-              <q-icon name="search_off" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">{{ noDataMessage }}</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
   </div>
 
     <q-dialog
@@ -801,6 +780,8 @@ import { useAuthStore } from 'stores/auth-store'
 import { useAdminEmployeeStore } from 'stores/admin-employee-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 

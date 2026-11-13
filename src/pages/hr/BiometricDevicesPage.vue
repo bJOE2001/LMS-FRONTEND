@@ -24,8 +24,8 @@
           flat
           bordered
           class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-all': statusFilter === 'all' }"
-          @click="statusFilter = 'all'"
+          :class="{ 'stat-card-active-all': filters.status === 'all' }"
+          @click="filters.status = 'all'"
         >
           <q-card-section class="q-py-md">
             <div class="row items-center justify-between no-wrap">
@@ -57,8 +57,8 @@
           flat
           bordered
           class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-online': statusFilter === 'online' }"
-          @click="statusFilter = statusFilter === 'online' ? 'all' : 'online'"
+          :class="{ 'stat-card-active-online': filters.status === 'online' }"
+          @click="filters.status = filters.status === 'online' ? 'all' : 'online'"
         >
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
@@ -80,8 +80,8 @@
           flat
           bordered
           class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-offline': statusFilter === 'offline' }"
-          @click="statusFilter = statusFilter === 'offline' ? 'all' : 'offline'"
+          :class="{ 'stat-card-active-offline': filters.status === 'offline' }"
+          @click="filters.status = filters.status === 'offline' ? 'all' : 'offline'"
         >
           <q-card-section class="q-py-md">
             <div class="row items-center justify-between no-wrap">
@@ -97,7 +97,7 @@
                 </div>
               </div>
               <span
-                v-if="statusFilter === 'offline'"
+                v-if="filters.status === 'offline'"
                 class="text-caption text-weight-bold text-grey-7"
               >
                 Filtered
@@ -109,66 +109,48 @@
     </div>
 
     <!-- Filter & Search Toolbar -->
-    <q-card flat bordered class="rounded-borders bg-white q-mb-md">
-      <q-card-section class="q-py-sm">
-        <div class="row items-center justify-between q-col-gutter-sm">
-          <div class="col-12 col-sm-auto">
-            <q-select
-              v-model="statusFilter"
-              :options="statusOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              label="Device Status"
-              style="min-width: 180px"
-            />
-          </div>
-
-          <div class="col-12 col-sm">
-            <q-input
-              v-model="searchTerm"
-              outlined
-              dense
-              clearable
-              placeholder="Search by device label, serial number, office, or IP address..."
-            >
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <!-- Loading State (Initial Fetch) -->
-    <div v-if="loading && devicesList.length === 0" class="row justify-center q-py-xl">
-      <q-spinner-dots color="primary" size="48px" />
-    </div>
-
-    <!-- Empty State -->
-    <div
-      v-else-if="filteredDevices.length === 0"
-      class="text-center q-py-xl text-grey-6 bg-white rounded-borders q-pa-xl"
-      style="border: 1px dashed #cbd5e1"
+    <DataFilterBar
+      v-model:search="searchTerm"
+      search-class="col-12 col-sm"
+      search-placeholder="Search by device label, serial number, office, or IP address..."
+      :show-reset="hasActiveFilters"
+      @reset="resetFilters"
     >
-      <q-icon
-        :name="hasActiveFilters ? 'search_off' : 'developer_board_off'"
-        size="56px"
-        color="grey-4"
-      />
-      <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">
-        {{ hasActiveFilters ? 'No matching biometric devices' : 'No biometric devices found' }}
-      </div>
-      <div class="text-caption text-grey-6 q-mb-md">
-        {{
-          hasActiveFilters
-            ? 'Try adjusting your search query or status filter.'
-            : 'ADMS devices appear automatically when connected. For LAN devices, click below to register them.'
-        }}
-      </div>
-      <div class="row justify-center items-center q-gutter-sm">
+      <template #prepend>
+        <div class="col-12 col-sm-auto">
+          <q-select
+            v-model="filters.status"
+            :options="statusOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Device Status"
+            style="min-width: 180px"
+          />
+        </div>
+      </template>
+    </DataFilterBar>
+
+    <!-- Table View -->
+    <DataTableCard
+      v-model:pagination="pagination"
+      :rows="filteredDevices"
+      :columns="columns"
+      row-key="id"
+      :loading="loading"
+      :rows-per-page-options="[10, 20, 50, 0]"
+      table-class="biometric-table"
+      :empty-icon="hasActiveFilters ? 'search_off' : 'developer_board_off'"
+      :no-data-label="hasActiveFilters ? 'No matching biometric devices' : 'No biometric devices found'"
+      :empty-subtext="
+        hasActiveFilters
+          ? 'Try adjusting your search query or status filter.'
+          : 'ADMS devices appear automatically when connected. For LAN devices, click below to register them.'
+      "
+      loading-text="Loading biometric devices..."
+    >
+      <template #empty-actions>
         <q-btn
           v-if="hasActiveFilters"
           outline
@@ -187,22 +169,7 @@
           class="text-weight-bold q-px-md"
           @click="openAddDeviceDialog"
         />
-      </div>
-    </div>
-
-    <!-- Table View -->
-    <div v-else>
-      <q-table
-        v-model:pagination="pagination"
-        :rows="filteredDevices"
-        :columns="columns"
-        row-key="id"
-        flat
-        bordered
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50, 0]"
-        class="biometric-table"
-      >
+      </template>
         <!-- Device Info Column -->
         <template #body-cell-device_info="props">
           <q-td :props="props">
@@ -363,8 +330,7 @@
             </div>
           </q-td>
         </template>
-      </q-table>
-    </div>
+    </DataTableCard>
 
     <!-- Edit Biometric Device Dialog -->
     <q-dialog v-model="showDeviceDialog" persistent>
@@ -606,6 +572,9 @@ import { useQuasar, copyToClipboard } from 'quasar'
 import { storeToRefs } from 'pinia'
 import { useBiometricDeviceStore } from 'stores/biometric-device-store'
 import { formatOfficeAbbreviation } from 'src/utils/office-acronym'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
 const deviceStore = useBiometricDeviceStore()
@@ -614,8 +583,23 @@ const { loading, submittingDevice, devicesList, loadingOffices, deviceStats, all
   storeToRefs(deviceStore)
 const { isDeviceOnline } = deviceStore
 
-const searchTerm = ref('')
-const statusFilter = ref('all')
+const {
+  search: searchTerm,
+  filters,
+  pagination,
+  hasActiveFilters,
+  resetFilters,
+} = useDataTable({
+  initialFilters: {
+    status: 'all',
+  },
+  initialPagination: {
+    sortBy: 'status',
+    descending: true,
+    page: 1,
+    rowsPerPage: 10,
+  },
+})
 
 const statusOptions = [
   { label: 'All Devices', value: 'all' },
@@ -628,18 +612,12 @@ function formatDeviceName(dev) {
   return dev.device_name || `Terminal ${dev.serial_number}` || 'Biometric Device'
 }
 
-const hasActiveFilters = computed(() => {
-  return Boolean(
-    (searchTerm.value && searchTerm.value.trim() !== '') || statusFilter.value !== 'all',
-  )
-})
-
 const filteredDevices = computed(() => {
   let list = devicesList.value
 
-  if (statusFilter.value === 'online') {
+  if (filters.status === 'online') {
     list = list.filter((d) => isDeviceOnline(d))
-  } else if (statusFilter.value === 'offline') {
+  } else if (filters.status === 'offline') {
     list = list.filter((d) => !isDeviceOnline(d))
   }
 
@@ -655,13 +633,6 @@ const filteredDevices = computed(() => {
   }
 
   return list
-})
-
-const pagination = ref({
-  sortBy: 'status',
-  descending: true,
-  page: 1,
-  rowsPerPage: 10,
 })
 
 const columns = [
@@ -708,11 +679,6 @@ const columns = [
     sortable: false,
   },
 ]
-
-function resetFilters() {
-  searchTerm.value = ''
-  statusFilter.value = 'all'
-}
 
 async function fetchDevices(silent = false) {
   try {
@@ -1054,10 +1020,6 @@ onUnmounted(() => {
 .stat-card-active-offline {
   border-color: #64748b;
   box-shadow: 0 0 0 1px #64748b;
-}
-
-.font-mono {
-  font-family: monospace;
 }
 
 .biometric-table {

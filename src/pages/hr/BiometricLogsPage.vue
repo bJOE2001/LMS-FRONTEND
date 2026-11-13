@@ -8,85 +8,70 @@
     </div>
 
     <!-- Filter Bar -->
-    <q-card flat bordered class="rounded-borders bg-white q-mb-md">
-      <q-card-section class="q-py-sm">
-        <div class="row items-center q-col-gutter-sm">
-          <div class="col-12 col-md-4">
-            <q-input
-              v-model="searchTerm"
-              outlined
-              dense
-              clearable
-              placeholder="Search employee, control no, office, device SN, performed by..."
-            >
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
-          <div class="col-6 col-md-2">
-            <q-select
-              v-model="actionTypeFilter"
-              :options="actionTypeOptions"
-              outlined
-              dense
-              options-dense
-              label="Action Type"
-            />
-          </div>
-          <div class="col-6 col-md-2">
-            <q-select
-              v-model="statusFilter"
-              :options="statusOptions"
-              outlined
-              dense
-              options-dense
-              label="Status"
-            />
-          </div>
-          <div class="col-6 col-md-2">
-            <q-input v-model="startDate" outlined dense type="date" label="Start Date" stack-label />
-          </div>
-          <div class="col-6 col-md-2">
-            <div class="row items-center no-wrap">
-              <q-input
-                v-model="endDate"
-                outlined
-                dense
-                type="date"
-                label="End Date"
-                stack-label
-                class="col"
-              />
-              <q-btn
-                v-if="startDate || endDate"
-                flat
-                round
-                dense
-                icon="clear"
-                color="grey-7"
-                class="q-ml-xs"
-                @click="clearDates"
-              >
-                <q-tooltip>Clear date range</q-tooltip>
-              </q-btn>
-            </div>
-          </div>
+    <DataFilterBar
+      v-model:search="searchTerm"
+      search-placeholder="Search employee, control no, office, device SN, performed by..."
+      :show-reset="hasActiveFilters"
+      @reset="resetFilters"
+    >
+      <div class="col-6 col-md-2">
+        <q-select
+          v-model="filters.action_type"
+          :options="actionTypeOptions"
+          outlined
+          dense
+          options-dense
+          label="Action Type"
+        />
+      </div>
+      <div class="col-6 col-md-2">
+        <q-select
+          v-model="filters.status"
+          :options="statusOptions"
+          outlined
+          dense
+          options-dense
+          label="Status"
+        />
+      </div>
+      <div class="col-6 col-md-2">
+        <q-input v-model="filters.start_date" outlined dense type="date" label="Start Date" stack-label />
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="row items-center no-wrap">
+          <q-input
+            v-model="filters.end_date"
+            outlined
+            dense
+            type="date"
+            label="End Date"
+            stack-label
+            class="col"
+          />
+          <q-btn
+            v-if="filters.start_date || filters.end_date"
+            flat
+            round
+            dense
+            icon="clear"
+            color="grey-7"
+            class="q-ml-xs"
+            @click="clearDates"
+          >
+            <q-tooltip>Clear date range</q-tooltip>
+          </q-btn>
         </div>
-      </q-card-section>
-    </q-card>
+      </div>
+    </DataFilterBar>
 
     <!-- Logs Table -->
-    <q-table
+    <DataTableCard
       v-model:pagination="pagination"
       :rows="rows"
       :columns="columns"
       row-key="id"
-      flat
-      bordered
       :loading="loading"
-      :rows-per-page-options="[10, 20, 50, 100]"
-      binary-state-sort
+      empty-icon="history"
       no-data-label="No biometric logs found"
       @request="onRequest"
     >
@@ -178,33 +163,73 @@
           </div>
         </q-td>
       </template>
-    </q-table>
+    </DataTableCard>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { onMounted } from 'vue'
 import { useQuasar, date as qDate } from 'quasar'
 import { api } from 'src/boot/axios'
 import { formatOfficeAbbreviation } from 'src/utils/office-acronym'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
 
-const rows = ref([])
-const loading = ref(false)
-
-const searchTerm = ref('')
 const actionTypeOptions = ['ALL', 'TRANSFER', 'REGISTRATION', 'ASSIGN', 'REMOVE']
 const statusOptions = ['ALL', 'SUCCESS', 'FAILED', 'PENDING']
-const actionTypeFilter = ref('ALL')
-const statusFilter = ref('ALL')
-const startDate = ref('')
-const endDate = ref('')
 
-const pagination = ref({
-  page: 1,
-  rowsPerPage: 20,
-  rowsNumber: 0,
+const {
+  search: searchTerm,
+  filters,
+  rows,
+  loading,
+  pagination,
+  hasActiveFilters,
+  fetch: fetchLogs,
+  onRequest,
+  resetFilters,
+} = useDataTable({
+  server: true,
+  debounceMs: 400,
+  initialFilters: {
+    action_type: 'ALL',
+    status: 'ALL',
+    start_date: '',
+    end_date: '',
+  },
+  initialPagination: {
+    page: 1,
+    rowsPerPage: 20,
+    rowsNumber: 0,
+  },
+  onFetch: async ({ page, rowsPerPage, search, filters: activeFilters }) => {
+    const params = { page, per_page: rowsPerPage }
+    if (search) params.search = search
+    if (activeFilters.action_type !== 'ALL') params.action_type = activeFilters.action_type
+    if (activeFilters.status !== 'ALL') params.status = activeFilters.status
+    if (activeFilters.start_date) params.start_date = activeFilters.start_date
+    if (activeFilters.end_date) params.end_date = activeFilters.end_date
+
+    try {
+      const { data } = await api.get('/biometric/transfer-logs', { params })
+      return {
+        rows: data.logs || [],
+        total: data.total ?? 0,
+        currentPage: data.current_page ?? page,
+      }
+    } catch (err) {
+      console.error('Failed to load biometric logs:', err)
+      $q.notify({
+        type: 'negative',
+        message: err.response?.data?.message || 'Failed to load biometric logs.',
+        position: 'top',
+      })
+      return { rows: [], total: 0, currentPage: page }
+    }
+  },
 })
 
 const columns = [
@@ -276,63 +301,10 @@ function simplifyRemarks(text) {
   return trimmed
 }
 
-function buildParams(page, perPage) {
-  const params = { page, per_page: perPage }
-  const search = (searchTerm.value || '').trim()
-  if (search) params.search = search
-  if (actionTypeFilter.value !== 'ALL') params.action_type = actionTypeFilter.value
-  if (statusFilter.value !== 'ALL') params.status = statusFilter.value
-  if (startDate.value) params.start_date = startDate.value
-  if (endDate.value) params.end_date = endDate.value
-  return params
-}
-
-async function fetchLogs() {
-  loading.value = true
-  try {
-    const { page, rowsPerPage } = pagination.value
-    const { data } = await api.get('/biometric/transfer-logs', {
-      params: buildParams(page, rowsPerPage),
-    })
-    rows.value = data.logs || []
-    pagination.value.rowsNumber = data.total ?? rows.value.length
-    pagination.value.page = data.current_page ?? page
-  } catch (err) {
-    console.error('Failed to load biometric logs:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to load biometric logs.',
-      position: 'top',
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
-function onRequest(props) {
-  pagination.value.page = props.pagination.page
-  pagination.value.rowsPerPage = props.pagination.rowsPerPage
-  fetchLogs()
-}
-
 function clearDates() {
-  startDate.value = ''
-  endDate.value = ''
+  filters.start_date = ''
+  filters.end_date = ''
 }
-
-let searchTimer = null
-watch(searchTerm, () => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    pagination.value.page = 1
-    fetchLogs()
-  }, 400)
-})
-
-watch([actionTypeFilter, statusFilter, startDate, endDate], () => {
-  pagination.value.page = 1
-  fetchLogs()
-})
 
 onMounted(fetchLogs)
 </script>

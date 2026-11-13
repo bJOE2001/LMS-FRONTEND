@@ -235,160 +235,149 @@
         </div>
       </div>
 
-      <!-- Main Attendance Management Card -->
-      <q-card flat bordered class="rounded-borders bg-white table-card">
-        <!-- Balanced Toolbar Section: Date Navigator + Filter + Search + Batch Print -->
-        <q-card-section class="q-py-sm q-px-md border-bottom">
-          <div class="row items-center q-col-gutter-sm">
-            <!-- Date Navigator + Quick Jump to Today -->
-            <div class="col-12 col-sm-auto row items-center no-wrap q-gutter-x-xs">
-              <div class="row items-center no-wrap rounded-borders q-px-xs date-nav-box">
-                <q-btn
-                  flat
-                  dense
-                  round
-                  icon="chevron_left"
-                  size="sm"
-                  color="grey-8"
-                  @click="changeDate(-1)"
-                >
-                  <q-tooltip class="bg-dark">Previous Day</q-tooltip>
-                </q-btn>
+      <!-- Filters Bar Card: Date Navigator + Filter + Search + Actions -->
+      <DataFilterBar
+        v-model:search="searchTerm"
+        search-placeholder="Search by employee name, position, or ID..."
+        search-class="col-12 col-md"
+        actions-class="col-12 col-sm-auto q-ml-auto"
+        @update:search="onSearchInput"
+      >
+        <template #prepend>
+          <!-- Date Navigator + Quick Jump to Today -->
+          <div class="col-12 col-sm-auto row items-center no-wrap q-gutter-x-xs">
+            <div class="row items-center no-wrap rounded-borders q-px-xs date-nav-box">
+              <q-btn
+                flat
+                dense
+                round
+                icon="chevron_left"
+                size="sm"
+                color="grey-8"
+                @click="changeDate(-1)"
+              >
+                <q-tooltip class="bg-dark">Previous Day</q-tooltip>
+              </q-btn>
 
-                <div class="row items-center no-wrap cursor-pointer q-px-sm date-display-trigger">
-                  <q-icon name="calendar_month" size="16px" color="green-9" class="q-mr-xs" />
-                  <span class="text-body2 text-weight-bold text-dark date-nav-text">
-                    {{ formatFullDate(selectedDate) }}
-                  </span>
+              <div class="row items-center no-wrap cursor-pointer q-px-sm date-display-trigger">
+                <q-icon name="calendar_month" size="16px" color="green-9" class="q-mr-xs" />
+                <span class="text-body2 text-weight-bold text-dark date-nav-text">
+                  {{ formatFullDate(selectedDate) }}
+                </span>
 
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-date
-                      v-model="selectedDate"
-                      mask="YYYY-MM-DD"
-                      color="green-9"
-                      @update:model-value="fetchAttendanceOverview"
-                    >
-                      <div class="row items-center justify-between">
-                        <q-btn
-                          v-if="selectedDate !== todayStr"
-                          v-close-popup
-                          label="Today"
-                          color="green-9"
-                          flat
-                          no-caps
-                          @click="goToToday"
-                        />
-                        <q-space />
-                        <q-btn v-close-popup label="Close" color="grey-7" flat no-caps />
-                      </div>
-                    </q-date>
-                  </q-popup-proxy>
-                </div>
-
-                <q-btn
-                  flat
-                  dense
-                  round
-                  icon="chevron_right"
-                  size="sm"
-                  color="grey-8"
-                  @click="changeDate(1)"
-                >
-                  <q-tooltip class="bg-dark">Next Day</q-tooltip>
-                </q-btn>
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date
+                    v-model="selectedDate"
+                    mask="YYYY-MM-DD"
+                    color="green-9"
+                    @update:model-value="fetchAttendanceOverview"
+                  >
+                    <div class="row items-center justify-between">
+                      <q-btn
+                        v-if="selectedDate !== todayStr"
+                        v-close-popup
+                        label="Today"
+                        color="green-9"
+                        flat
+                        no-caps
+                        @click="goToToday"
+                      />
+                      <q-space />
+                      <q-btn v-close-popup label="Close" color="grey-7" flat no-caps />
+                    </div>
+                  </q-date>
+                </q-popup-proxy>
               </div>
 
               <q-btn
-                v-if="selectedDate !== todayStr"
-                outline
+                flat
                 dense
-                no-caps
-                color="green-9"
-                label="Today"
-                class="q-px-sm text-weight-bold toolbar-action-btn"
-                @click="goToToday"
+                round
+                icon="chevron_right"
+                size="sm"
+                color="grey-8"
+                @click="changeDate(1)"
               >
-                <q-tooltip class="bg-dark">Jump back to today</q-tooltip>
+                <q-tooltip class="bg-dark">Next Day</q-tooltip>
               </q-btn>
             </div>
 
-            <!-- Employment Status Filter Dropdown -->
-            <div class="col-12 col-sm-auto">
-              <q-select
-                v-model="selectedEmploymentStatus"
-                :options="employmentStatusOptions"
-                emit-value
-                map-options
-                outlined
-                dense
-                options-dense
-                class="status-filter-select"
-              >
-                <template #prepend>
-                  <q-icon name="filter_list" size="18px" color="grey-6" />
-                </template>
-              </q-select>
-            </div>
-
-            <!-- Search Input -->
-            <div class="col-12 col-md">
-              <q-input
-                v-model="searchTerm"
-                outlined
-                dense
-                placeholder="Search by employee name, position, or ID..."
-                class="search-employee-input"
-                clearable
-                @update:model-value="onSearchInput"
-              >
-                <template #prepend>
-                  <q-icon name="search" size="18px" color="grey-6" />
-                </template>
-              </q-input>
-            </div>
-
-            <!-- Actions: Pull Punches & Batch Print DTR -->
-            <div class="col-12 col-sm-auto row items-center justify-end no-wrap q-gutter-x-sm">
-              <q-btn
-                unelevated
-                color="green-9"
-                icon="sync"
-                label="Pull Punches"
-                no-caps
-                class="text-weight-bold q-px-md toolbar-action-btn"
-                :loading="syncingBiometrics"
-                @click="handleSyncOfficeBiometrics"
-              >
-                <q-tooltip class="bg-dark">Pull latest attendance logs from office biometric terminal</q-tooltip>
-              </q-btn>
-              <q-btn
-                outline
-                color="green-9"
-                icon="print"
-                label="Batch Print DTR"
-                no-caps
-                class="text-weight-bold q-px-md toolbar-action-btn"
-                :disable="employeeRows.length === 0"
-                @click="openBatchPrintDialog"
-              >
-                <q-tooltip class="bg-dark">Open batch CS Form 48 print setup</q-tooltip>
-              </q-btn>
-            </div>
+            <q-btn
+              v-if="selectedDate !== todayStr"
+              outline
+              dense
+              no-caps
+              color="green-9"
+              label="Today"
+              class="q-px-sm text-weight-bold toolbar-action-btn"
+              @click="goToToday"
+            >
+              <q-tooltip class="bg-dark">Jump back to today</q-tooltip>
+            </q-btn>
           </div>
-        </q-card-section>
+        </template>
 
-        <!-- Attendance Data Table with Detailed Punch Sessions -->
-        <q-table
-          :rows="filteredEmployeeRows"
-          :columns="columns"
-          row-key="control_no"
-          flat
-          :loading="loading"
-          :rows-per-page-options="[10, 15, 25, 50, 100]"
-          v-model:pagination="pagination"
-          class="attendance-pro-table"
-          @row-click="handleEmployeeRowClick"
-        >
+        <!-- Employment Status Filter Dropdown -->
+        <div class="col-12 col-sm-auto">
+          <q-select
+            v-model="selectedEmploymentStatus"
+            :options="employmentStatusOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            options-dense
+            class="status-filter-select"
+          >
+            <template #prepend>
+              <q-icon name="filter_list" size="18px" color="grey-6" />
+            </template>
+          </q-select>
+        </div>
+
+        <template #actions>
+          <q-btn
+            unelevated
+            color="green-9"
+            icon="sync"
+            label="Pull Punches"
+            no-caps
+            class="text-weight-bold q-px-md toolbar-action-btn"
+            :loading="syncingBiometrics"
+            @click="handleSyncOfficeBiometrics"
+          >
+            <q-tooltip class="bg-dark">Pull latest attendance logs from office biometric terminal</q-tooltip>
+          </q-btn>
+          <q-btn
+            outline
+            color="green-9"
+            icon="print"
+            label="Batch Print DTR"
+            no-caps
+            class="text-weight-bold q-px-md toolbar-action-btn"
+            :disable="employeeRows.length === 0"
+            @click="openBatchPrintDialog"
+          >
+            <q-tooltip class="bg-dark">Open batch CS Form 48 print setup</q-tooltip>
+          </q-btn>
+        </template>
+      </DataFilterBar>
+
+      <!-- Main Attendance Table Card -->
+      <DataTableCard
+        :rows="filteredEmployeeRows"
+        :columns="columns"
+        row-key="control_no"
+        :loading="loading"
+        v-model:pagination="pagination"
+        :rows-per-page-options="[10, 15, 25, 50, 100]"
+        card-class="table-card"
+        table-class="attendance-pro-table"
+        empty-icon="person_off"
+        no-data-label="No Attendance Records Found"
+        :empty-subtext="`No personnel attendance records match your filter criteria for ${formatFullDate(selectedDate)}.`"
+        @row-click="handleEmployeeRowClick"
+      >
           <!-- Employee Column: Full Name + Position -->
           <template #body-cell-employee="props">
             <q-td :props="props" class="text-left">
@@ -509,28 +498,19 @@
             </q-td>
           </template>
 
-          <!-- Empty State -->
-          <template #no-data>
-            <div class="full-width text-center q-py-xl text-grey-6">
-              <q-icon name="person_off" size="48px" color="grey-4" />
-              <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">No Attendance Records Found</div>
-              <div class="text-caption q-mb-md">
-                No personnel attendance records match your filter criteria for {{ formatFullDate(selectedDate) }}.
-              </div>
-              <q-btn
-                v-if="hasActiveFilters"
-                outline
-                dense
-                no-caps
-                color="green-9"
-                label="Reset Filters"
-                class="q-px-md text-weight-bold"
-                @click="resetAllFilters"
-              />
-            </div>
+          <template #empty-actions>
+            <q-btn
+              v-if="hasActiveFilters"
+              outline
+              dense
+              no-caps
+              color="green-9"
+              label="Reset Filters"
+              class="q-px-md text-weight-bold"
+              @click="resetAllFilters"
+            />
           </template>
-        </q-table>
-      </q-card>
+      </DataTableCard>
     </div>
 
     <!-- Step 1: Quick Date Setup Dialog for Individual Employee DTR -->
@@ -1182,6 +1162,8 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAttendanceStore } from 'stores/attendance-store'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
 import { printBatchCscForm48 } from 'src/utils/csc-form-48-print'
 
@@ -2478,14 +2460,6 @@ onMounted(() => {
 .toolbar-action-btn {
   height: 40px;
   border-radius: 6px;
-}
-
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-.font-mono {
-  font-family: monospace;
 }
 
 /* Table Styling */

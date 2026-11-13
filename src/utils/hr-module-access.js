@@ -26,6 +26,7 @@ const HR_MODULE_ROUTE_REQUIREMENTS = [
   { prefix: '/hr/application-edit-requests', moduleKey: HR_MODULE_KEYS.applications },
   { prefix: '/hr/applications', moduleKey: HR_MODULE_KEYS.applications },
   { prefix: '/hr/employees', moduleKey: HR_MODULE_KEYS.employeeManagement },
+  { prefix: '/hr/attendance-logs', moduleKey: HR_MODULE_KEYS.employeeManagement },
   { prefix: '/hr/reports', moduleKey: HR_MODULE_KEYS.reportsMonitoring },
   { prefix: '/hr/work-schedules', moduleKey: HR_MODULE_KEYS.workSchedules },
   { prefix: '/hr/leave-types', moduleKey: HR_MODULE_KEYS.leaveTypes },

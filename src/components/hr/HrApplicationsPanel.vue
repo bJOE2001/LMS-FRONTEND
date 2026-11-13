@@ -1,141 +1,129 @@
 <template>
-  <q-card
-    flat
-    bordered
+  <div
     :class="[
-      'hr-applications-panel rounded-borders q-mb-lg',
+      'hr-applications-panel q-mb-lg',
       { 'hr-applications-panel--coc-only': isCocOnlyView },
     ]"
   >
-    <q-card-section>
-      <div
-        class="row items-center justify-between q-mb-md q-col-gutter-sm applications-panel-toolbar"
-      >
-        <div class="col applications-panel-toolbar__search">
-          <q-input
-            v-model="statusSearch"
-            :debounce="350"
-            dense
-            outlined
-            clearable
-            placeholder="Search all applications columns"
-            class="application-status-search application-status-search--left"
-          >
-            <template #prepend>
-              <q-icon name="search" />
-            </template>
-          </q-input>
-        </div>
-        <div class="col-auto row items-center q-gutter-sm applications-panel-toolbar__actions">
-          <q-btn
-            v-if="!isCocOnlyView && eligibleActionableRowsOnPage.length > 0 && selectedApplications.length === 0"
-            outline
-            dense
-            no-caps
-            size="sm"
-            color="primary"
-            icon="checklist"
-            :label="`Select All on Page (${eligibleActionableRowsOnPage.length})`"
-            @click="selectAllEligibleOnPage"
-          />
-          <q-chip
-            v-if="employmentTypeFilterLabel"
-            dense
-            removable
-            color="primary"
-            text-color="white"
-            icon="filter_alt"
-            @remove="clearEmploymentTypeFilter"
-          >
-            {{ employmentTypeFilterLabel }}
-          </q-chip>
-        </div>
-      </div>
-
-      <!-- Bulk Selection Action Bar -->
-      <transition name="q-transition--slide-down">
-        <div
-          v-if="!isCocOnlyView && selectedApplications.length > 0"
-          class="bulk-action-bar row items-center justify-between q-pa-sm q-mt-xs bg-indigo-1 rounded-borders border-indigo-3"
+    <DataFilterBar
+      v-model:search="statusSearch"
+      :debounce="350"
+      search-placeholder="Search all applications columns"
+      search-class="col-12 col-md-5"
+      actions-class="col-12 col-md-auto q-ml-auto"
+    >
+      <template #actions>
+        <q-btn
+          v-if="!isCocOnlyView && eligibleActionableRowsOnPage.length > 0 && selectedApplications.length === 0"
+          outline
+          dense
+          no-caps
+          size="sm"
+          color="primary"
+          icon="checklist"
+          :label="`Select All on Page (${eligibleActionableRowsOnPage.length})`"
+          @click="selectAllEligibleOnPage"
+        />
+        <q-chip
+          v-if="employmentTypeFilterLabel"
+          dense
+          removable
+          color="primary"
+          text-color="white"
+          icon="filter_alt"
+          @remove="clearEmploymentTypeFilter"
         >
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="checklist" color="primary" size="sm" />
-            <span class="text-subtitle2 text-grey-9 text-weight-bold">
-              {{ selectedApplications.length }} application{{ selectedApplications.length === 1 ? '' : 's' }} selected
-            </span>
-          </div>
+          {{ employmentTypeFilterLabel }}
+        </q-chip>
+      </template>
+    </DataFilterBar>
 
-          <div class="row items-center q-gutter-x-xs">
-            <q-btn
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="grey-8"
-              icon="clear_all"
-              label="Deselect All"
-              @click="selectedApplications = []"
-            />
-            <q-btn
-              v-if="eligibleActionableRowsOnPage.length > 0 && selectedApplications.length < eligibleActionableRowsOnPage.length"
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="primary"
-              icon="select_all"
-              label="Select All on Page"
-              @click="selectAllEligibleOnPage"
-            />
-            <!-- Bulk CMO/CVMO Review Action -->
-            <q-btn
-              v-if="selectedCmoCbmoApplications.length > 0"
-              unelevated
-              dense
-              no-caps
-              color="deep-purple-7"
-              text-color="white"
-              icon="check_circle"
-              class="q-px-sm"
-              :loading="bulkCmoCbmoReviewLoading"
-              :label="`Approve CMO/CVMO Review (${selectedCmoCbmoApplications.length})`"
-              @click="openBulkCmoCbmoConfirmDialog"
-            />
-            <!-- Bulk Release Action -->
-            <q-btn
-              v-if="selectedReleaseApplications.length > 0"
-              unelevated
-              dense
-              no-caps
-              color="secondary"
-              text-color="white"
-              icon="assignment_turned_in"
-              class="q-px-sm"
-              :loading="bulkReleaseLoading"
-              :label="`Release Applications (${selectedReleaseApplications.length})`"
-              @click="openBulkReleaseConfirmDialog"
-            />
-          </div>
-        </div>
-      </transition>
-    </q-card-section>
-    <q-table
+    <DataTableCard
       :rows="applicationsForTable"
       :columns="applicationTableColumns"
       row-key="application_uid"
-      flat
       :selection="isCocOnlyView ? 'none' : 'multiple'"
       v-model:selected="selectedApplications"
       v-model:pagination="tablePagination"
       :rows-per-page-options="isServerPaginatedLeaveView ? [10, 25, 50] : [10]"
       :loading="loading"
-      :class="[
+      :table-class="[
         'applications-table applications-table--interactive',
         { 'applications-table--coc-only': isCocOnlyView },
       ]"
       @request="handleTableRequest"
       @row-click="handleApplicationRowClick"
     >
+      <template #before-table>
+        <!-- Bulk Selection Action Bar -->
+        <transition name="q-transition--slide-down">
+          <div
+            v-if="!isCocOnlyView && selectedApplications.length > 0"
+            class="q-pa-sm"
+          >
+            <div class="bulk-action-bar row items-center justify-between q-pa-sm bg-indigo-1 rounded-borders border-indigo-3">
+              <div class="row items-center q-gutter-x-sm">
+                <q-icon name="checklist" color="primary" size="sm" />
+                <span class="text-subtitle2 text-grey-9 text-weight-bold">
+                  {{ selectedApplications.length }} application{{ selectedApplications.length === 1 ? '' : 's' }} selected
+                </span>
+              </div>
+
+              <div class="row items-center q-gutter-x-xs">
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  color="grey-8"
+                  icon="clear_all"
+                  label="Deselect All"
+                  @click="selectedApplications = []"
+                />
+                <q-btn
+                  v-if="eligibleActionableRowsOnPage.length > 0 && selectedApplications.length < eligibleActionableRowsOnPage.length"
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  color="primary"
+                  icon="select_all"
+                  label="Select All on Page"
+                  @click="selectAllEligibleOnPage"
+                />
+                <!-- Bulk CMO/CVMO Review Action -->
+                <q-btn
+                  v-if="selectedCmoCbmoApplications.length > 0"
+                  unelevated
+                  dense
+                  no-caps
+                  color="deep-purple-7"
+                  text-color="white"
+                  icon="check_circle"
+                  class="q-px-sm"
+                  :loading="bulkCmoCbmoReviewLoading"
+                  :label="`Approve CMO/CVMO Review (${selectedCmoCbmoApplications.length})`"
+                  @click="openBulkCmoCbmoConfirmDialog"
+                />
+                <!-- Bulk Release Action -->
+                <q-btn
+                  v-if="selectedReleaseApplications.length > 0"
+                  unelevated
+                  dense
+                  no-caps
+                  color="secondary"
+                  text-color="white"
+                  icon="assignment_turned_in"
+                  class="q-px-sm"
+                  :loading="bulkReleaseLoading"
+                  :label="`Release Applications (${selectedReleaseApplications.length})`"
+                  @click="openBulkReleaseConfirmDialog"
+                />
+              </div>
+            </div>
+          </div>
+        </transition>
+      </template>
       <template #header-selection>
         <q-checkbox
           v-if="!isCocOnlyView && eligibleActionableRowsOnPage.length > 0"
@@ -443,8 +431,8 @@
           </div>
         </q-td>
       </template>
-    </q-table>
-  </q-card>
+    </DataTableCard>
+  </div>
 
   <HrApplicationTimelineDialog
     v-model="showTimelineDialog"
@@ -745,6 +733,8 @@ import HrApplicationConfirmActionDialog from 'components/hr/HrApplicationConfirm
 import HrApplicationEditDialog from 'components/hr/HrApplicationEditDialog.vue'
 import HrApplicationRejectDialog from 'components/hr/HrApplicationRejectDialog.vue'
 import HrApplicationRecallDialog from 'components/hr/HrApplicationRecallDialog.vue'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import { useHrApplicationsPanel } from 'src/composables/useHrApplicationsPanel'
 
 export default defineComponent({
@@ -768,6 +758,8 @@ export default defineComponent({
     },
   },
   components: {
+    DataFilterBar,
+    DataTableCard,
     AdminApplicationCalendarDialog,
     StatusBadge,
     HrApplicationTimelineDialog,

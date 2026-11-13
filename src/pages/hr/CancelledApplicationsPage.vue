@@ -5,96 +5,66 @@
       <h1 class="text-h4 text-weight-bold q-ma-none text-grey-9">Cancelled Applications</h1>
     </div>
 
-    <!-- Main Container Card -->
-    <q-card flat bordered class="rounded-borders bg-white">
-      <!-- Filters Toolbar -->
-      <q-card-section class="q-pb-sm">
-        <div class="row items-center q-col-gutter-sm">
-          <!-- Search -->
-          <div class="col-12 col-sm-4 col-md-4">
-            <q-input
-              v-model="search"
-              dense
-              outlined
-              clearable
-              debounce="350"
-              placeholder="Search employee, ID, remarks..."
-              @update:model-value="onFilterChange"
-            >
-              <template #prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-            </q-input>
-          </div>
+    <!-- Filters Card -->
+    <DataFilterBar
+      v-model:search="search"
+      search-placeholder="Search employee, ID, remarks..."
+      search-class="col-12 col-sm-4 col-md-4"
+      :show-reset="hasActiveFilters"
+      @reset="resetFilters"
+    >
+      <!-- Cancellation Type Dropdown Filter -->
+      <div class="col-12 col-sm-4 col-md-3">
+        <q-select
+          v-model="filters.activeTab"
+          dense
+          outlined
+          emit-value
+          map-options
+          options-dense
+          :options="cancellationTypeOptions"
+          label="Cancellation Type"
+        >
+          <template #prepend>
+            <q-icon name="filter_list" color="grey-6" />
+          </template>
+        </q-select>
+      </div>
 
-          <!-- Cancellation Type Dropdown Filter -->
-          <div class="col-12 col-sm-4 col-md-3">
-            <q-select
-              v-model="activeTab"
-              dense
-              outlined
-              emit-value
-              map-options
-              options-dense
-              :options="cancellationTypeOptions"
-              label="Cancellation Type"
-              @update:model-value="onFilterChange"
-            >
-              <template #prepend>
-                <q-icon name="filter_list" color="grey-6" />
-              </template>
-            </q-select>
-          </div>
+      <!-- Office / Department Filter -->
+      <div class="col-12 col-sm-4 col-md-3">
+        <q-select
+          v-model="filters.selectedDepartment"
+          dense
+          outlined
+          clearable
+          options-dense
+          emit-value
+          map-options
+          :options="departmentOptions"
+          label="Department / Office"
+        >
+          <template #prepend>
+            <q-icon name="business" color="grey-6" />
+          </template>
+        </q-select>
+      </div>
+    </DataFilterBar>
 
-          <!-- Office / Department Filter -->
-          <div class="col-12 col-sm-4 col-md-3">
-            <q-select
-              v-model="selectedDepartment"
-              dense
-              outlined
-              clearable
-              options-dense
-              emit-value
-              map-options
-              :options="departmentOptions"
-              label="Department / Office"
-              @update:model-value="onFilterChange"
-            >
-              <template #prepend>
-                <q-icon name="business" color="grey-6" />
-              </template>
-            </q-select>
-          </div>
-
-          <!-- Reset Filter Button -->
-          <div v-if="hasActiveFilters" class="col-12 col-sm-auto col-md-2">
-            <q-btn
-              flat
-              dense
-              no-caps
-              color="grey-7"
-              icon="clear"
-              label="Reset Filters"
-              @click="resetFilters"
-            />
-          </div>
-        </div>
-      </q-card-section>
-
-      <!-- Data Table -->
-      <q-table
-        :rows="applications"
-        :columns="columns"
-        row-key="id"
-        flat
-        binary-state-sort
-        separator="horizontal"
-        :loading="loading"
-        v-model:pagination="pagination"
-        :rows-per-page-options="[10, 25, 50]"
-        @request="onRequest"
-        @row-click="(_, row) => openTimeline(row)"
-      >
+    <!-- Data Table -->
+    <DataTableCard
+      :rows="applications"
+      :columns="columns"
+      row-key="id"
+      :loading="loading"
+      v-model:pagination="pagination"
+      :rows-per-page-options="[10, 25, 50]"
+      empty-icon="event_busy"
+      no-data-label="No Cancelled Applications Found"
+      empty-subtext="There are no cancelled applications matching the selected criteria."
+      @request="onRequest"
+      @row-click="(_, row) => openTimeline(row)"
+    >
         <!-- Custom Employee column -->
         <template #body-cell-employee="props">
           <q-td :props="props">
@@ -198,19 +168,7 @@
             </div>
           </q-td>
         </template>
-
-        <!-- Empty state -->
-        <template #no-data>
-          <div class="full-width column items-center justify-center q-pa-xl text-grey-6">
-            <q-icon name="event_busy" size="48px" class="q-mb-sm text-grey-4" />
-            <div class="text-subtitle1 text-weight-bold text-grey-8">No Cancelled Applications Found</div>
-            <div class="text-caption text-grey-6">
-              There are no cancelled applications matching the selected criteria.
-            </div>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <!-- Timeline Dialog -->
     <HrApplicationTimelineDialog
@@ -226,17 +184,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 import HrApplicationTimelineDialog from 'components/hr/HrApplicationTimelineDialog.vue'
 
 const $q = useQuasar()
 
 // State
-const loading = ref(false)
 const timelineLoading = ref(false)
-const applications = ref([])
-const activeTab = ref('ALL')
-const search = ref('')
-const selectedDepartment = ref(null)
 const departmentOptions = ref([])
 
 const counts = ref({
@@ -251,20 +207,64 @@ const cancellationTypeOptions = computed(() => [
   { label: `Cancelled While Pending (${counts.value.employee_cancelled})`, value: 'EMPLOYEE_CANCELLED' },
 ])
 
-const pagination = ref({
-  page: 1,
-  rowsPerPage: 10,
-  rowsNumber: 0,
-  sortBy: 'id',
-  descending: true,
-})
-
 // Modals
 const showTimelineDialog = ref(false)
 const selectedApp = ref(null)
 
-const hasActiveFilters = computed(() => {
-  return Boolean(search.value || selectedDepartment.value || activeTab.value !== 'ALL')
+const {
+  search,
+  filters,
+  rows: applications,
+  loading,
+  pagination,
+  hasActiveFilters,
+  fetch: fetchApplications,
+  onRequest,
+  resetFilters,
+} = useDataTable({
+  initialFilters: {
+    activeTab: 'ALL',
+    selectedDepartment: null,
+  },
+  initialPagination: {
+    page: 1,
+    rowsPerPage: 10,
+    rowsNumber: 0,
+    sortBy: 'id',
+    descending: true,
+  },
+  server: true,
+  debounceMs: 350,
+  onFetch: async ({ page, rowsPerPage, search: searchTerm, filters: activeFilters }) => {
+    try {
+      const { data } = await api.get('/hr/cancelled-applications', {
+        params: {
+          tab: activeFilters.activeTab,
+          search: searchTerm || undefined,
+          department: activeFilters.selectedDepartment || undefined,
+          page,
+          per_page: rowsPerPage,
+        },
+      })
+
+      if (data.counts) {
+        counts.value = data.counts
+      }
+
+      return {
+        rows: data.applications || [],
+        total: data.pagination?.total ?? 0,
+        currentPage: data.pagination?.current_page ?? page,
+      }
+    } catch {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to load cancelled applications. Please try again.',
+        position: 'top',
+      })
+      return { rows: [], total: 0, currentPage: page }
+    }
+  },
 })
 
 // Table Columns without App ID column
@@ -587,58 +587,6 @@ async function fetchDepartments() {
   } catch {
     // Graceful fallback
   }
-}
-
-async function fetchApplications() {
-  loading.value = true
-  try {
-    const params = {
-      tab: activeTab.value,
-      search: search.value || undefined,
-      department: selectedDepartment.value || undefined,
-      page: pagination.value.page,
-      per_page: pagination.value.rowsPerPage,
-    }
-
-    const { data } = await api.get('/hr/cancelled-applications', { params })
-
-    applications.value = data.applications || []
-    if (data.counts) {
-      counts.value = data.counts
-    }
-    if (data.pagination) {
-      pagination.value.rowsNumber = data.pagination.total
-      pagination.value.page = data.pagination.current_page
-      pagination.value.rowsPerPage = data.pagination.per_page
-    }
-  } catch {
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to load cancelled applications. Please try again.',
-      position: 'top',
-    })
-  } finally {
-    loading.value = false
-  }
-}
-
-function onFilterChange() {
-  pagination.value.page = 1
-  fetchApplications()
-}
-
-function resetFilters() {
-  search.value = ''
-  selectedDepartment.value = null
-  activeTab.value = 'ALL'
-  pagination.value.page = 1
-  fetchApplications()
-}
-
-function onRequest(props) {
-  pagination.value.page = props.pagination.page
-  pagination.value.rowsPerPage = props.pagination.rowsPerPage
-  fetchApplications()
 }
 
 async function openTimeline(app) {

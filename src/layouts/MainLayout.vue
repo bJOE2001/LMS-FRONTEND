@@ -94,7 +94,7 @@
               label="Bio Management"
               header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
               expand-icon-class="text-white opacity-80"
-              :class="{ 'group-active': route.path.startsWith('/hr/biometric-') }"
+              :class="{ 'group-active': isBioManagementRoute(route.path) }"
               dense-toggle
             >
               <q-list class="nav-sub-tree q-mb-xs">
@@ -123,6 +123,19 @@
                     <q-icon name="receipt_long" size="18px" />
                   </q-item-section>
                   <q-item-section class="nav-sub-label">Bio Logs</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/attendance-logs'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/attendance-logs"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="schedule" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Attendance Logs</q-item-section>
                 </q-item>
               </q-list>
             </q-expansion-item>
@@ -465,13 +478,16 @@ const isHrLeaveRouteActive = computed(() => {
   return hrLeaveNav.some((item) => route.path.startsWith(item.path))
 })
 
+const isBioManagementRoute = (path) =>
+  path.startsWith('/hr/biometric-') || path.startsWith('/hr/attendance-logs')
+
 const hrLeaveMenuExpanded = ref(false)
-const biometricMenuExpanded = ref(route.path.startsWith('/hr/biometric-'))
+const biometricMenuExpanded = ref(isBioManagementRoute(route.path))
 
 watch(
   () => route.path,
   (newPath) => {
-    if (newPath.startsWith('/hr/biometric-')) {
+    if (isBioManagementRoute(newPath)) {
       biometricMenuExpanded.value = true
     }
   }

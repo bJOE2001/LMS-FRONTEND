@@ -18,50 +18,38 @@
     </div>
 
     <!-- Search Bar Card -->
-    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
-      <q-card-section class="q-pa-sm">
-        <div class="row items-center justify-between q-col-gutter-sm">
-          <div class="col-12" :class="embedded ? 'col-md-6' : ''">
-            <q-input
-              v-model="search"
-              outlined
-              dense
-              clearable
-              debounce="250"
-              label="Search main offices or divisions"
-              placeholder="Type office or division name..."
-            >
-              <template #prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-            </q-input>
-          </div>
-          <div v-if="embedded" class="col-12 col-md-auto">
-            <q-btn
-              unelevated
-              no-caps
-              color="primary"
-              icon="add_link"
-              label="Assign Divisions"
-              @click="openAssignDialog"
-            />
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
+    <DataFilterBar
+      v-model:search="search"
+      :search-class="embedded ? 'col-12 col-md-6' : 'col-12'"
+      :debounce="250"
+      search-label="Search main offices or divisions"
+      search-placeholder="Type office or division name..."
+    >
+      <template v-if="embedded" #actions>
+        <q-btn
+          unelevated
+          no-caps
+          color="primary"
+          icon="add_link"
+          label="Assign Divisions"
+          @click="openAssignDialog"
+        />
+      </template>
+    </DataFilterBar>
 
     <!-- Master-Detail Office & Division Table -->
-    <q-card flat bordered class="rounded-borders">
-      <q-table
-        v-model:expanded="expandedRows"
-        :rows="filteredOffices"
-        :columns="columns"
-        row-key="id"
-        flat
-        :loading="loading"
-        :pagination="pagination"
-        :rows-per-page-options="[10, 20, 50, 0]"
-      >
+    <DataTableCard
+      v-model:expanded="expandedRows"
+      :rows="filteredOffices"
+      :columns="columns"
+      row-key="id"
+      :loading="loading"
+      :pagination="pagination"
+      :rows-per-page-options="[10, 20, 50, 0]"
+      empty-icon="lan"
+      no-data-label="No offices found matching your criteria."
+      loading-text="Loading offices and divisions..."
+    >
         <!-- Custom Body Rendering with Master-Detail Subtable -->
         <template #body="props">
           <q-tr :props="props" :class="{ 'bg-blue-1 text-grey-9': props.expand }">
@@ -174,22 +162,7 @@
             </q-td>
           </q-tr>
         </template>
-
-        <!-- No Data Template -->
-        <template #no-data>
-          <div class="full-width text-center q-pa-xl">
-            <template v-if="loading">
-              <q-spinner color="primary" size="44px" />
-              <div class="text-grey-6 q-mt-sm">Loading offices and divisions...</div>
-            </template>
-            <template v-else>
-              <q-icon name="lan" size="48px" color="grey-4" />
-              <div class="text-h6 text-grey-6 q-mt-sm">No offices found matching your criteria.</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <!-- Assign Divisions Dialog -->
     <q-dialog v-model="showAssignDialog" persistent>
@@ -275,6 +248,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 defineProps({
   embedded: {
@@ -285,17 +261,16 @@ defineProps({
 
 const $q = useQuasar()
 
-const loading = ref(false)
+const { search, loading, pagination } = useDataTable({
+  initialPagination: {
+    rowsPerPage: 20,
+    sortBy: 'name',
+    descending: false,
+  },
+})
 const saving = ref(false)
 const detachingId = ref(null)
-const search = ref('')
 const expandedRows = ref([])
-
-const pagination = ref({
-  rowsPerPage: 20,
-  sortBy: 'name',
-  descending: false,
-})
 
 const columns = [
   {

@@ -130,46 +130,37 @@
     <!-- REAL CONTENT SUITE                                        -->
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && leaveApplicationRows.length > 0 }">
-      <q-card flat bordered class="rounded-borders">
-      <q-card-section>
-        <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
-          <div class="col application-toolbar__search">
-            <q-input
-              v-model="statusSearch"
-              dense
-              outlined
-              clearable
-              placeholder="Search all application columns"
-              class="application-status-search application-status-search--left"
-            >
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
-          <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
-            <q-btn
-              unelevated
-              no-caps
-              color="blue-grey-7"
-              icon="print"
-              label="Print Applications"
-              size="sm"
-              @click="showPrintDialog = true"
-            />
-          </div>
-        </div>
-      </q-card-section>
-      <q-table
+      <DataFilterBar
+        v-model:search="statusSearch"
+        search-placeholder="Search all application columns"
+        search-class="col-12 col-md-5"
+        actions-class="col-12 col-md-auto q-ml-auto"
+      >
+        <template #actions>
+          <q-btn
+            unelevated
+            no-caps
+            color="blue-grey-7"
+            icon="print"
+            label="Print Applications"
+            size="sm"
+            @click="showPrintDialog = true"
+          />
+        </template>
+      </DataFilterBar>
+
+      <DataTableCard
         :rows="applicationsForTable"
         :columns="applicationTableColumns"
         row-key="application_uid"
-        flat
         v-model:pagination="applicationsPagination"
         :rows-per-page-options="[5, 10, 15, 20]"
         :loading="loading"
-        class="applications-table applications-table--interactive"
+        table-class="applications-table applications-table--interactive"
         table-style="table-layout: fixed; width: 100%"
+        empty-icon="inbox"
+        no-data-label="No Applications Submitted"
+        loading-text="Loading applications..."
         @row-click="handleApplicationRowClick"
       >
         <template #body-cell-employee="tableProps">
@@ -393,21 +384,8 @@
             </div>
           </q-td>
         </template>
-        <template #no-data>
-          <div class="full-width row flex-center q-pa-md text-grey-7">
-            <template v-if="loading">
-              <q-spinner color="primary" size="24px" class="q-mr-sm" />
-              <span>Loading applications...</span>
-            </template>
-            <template v-else>
-              <q-icon name="inbox" size="24px" class="q-mr-sm" />
-              <span>No Applications Submitted</span>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
-  </div>
+      </DataTableCard>
+    </div>
 
     <AdminApplicationTimelineDialog
       v-model="showTimelineDialog"
@@ -1121,6 +1099,8 @@
 
 <script setup>
 import StatusBadge from 'components/StatusBadge.vue'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import AdminApplyLeaveDialog from 'src/components/admin/AdminApplyLeaveDialog.vue'
 import AdminApplicationTimelineDialog from 'src/components/admin/AdminApplicationTimelineDialog.vue'
 import AdminApplicationCalendarDialog from 'src/components/admin/AdminApplicationCalendarDialog.vue'

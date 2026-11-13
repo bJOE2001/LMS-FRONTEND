@@ -1,6 +1,37 @@
 // app global css in SCSS form
 
 // ============================================================
+// TYPOGRAPHY TOKENS & GLOBAL CONSISTENCY
+// ============================================================
+
+:root {
+  --app-font-sans: 'Roboto', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --app-font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Menlo, Monaco, Consolas, monospace;
+}
+
+html,
+body,
+#q-app,
+input,
+button,
+textarea,
+select {
+  font-family: var(--app-font-sans);
+}
+
+.font-mono,
+code,
+pre,
+kbd {
+  font-family: var(--app-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+// ============================================================
 // DARK MODE — Global overrides for Quasar's body.body--dark
 // ============================================================
 

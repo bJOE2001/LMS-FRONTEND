@@ -182,46 +182,40 @@
       </div>
 
       <div class="col-12 col-xl-7">
-        <q-card flat bordered class="settings-card full-height">
-          <q-card-section class="row items-center q-col-gutter-sm">
-            <div class="col-12 col-md">
+        <DataFilterBar
+          v-model:search="overrideSearch"
+          search-label="Search custom schedule"
+          search-placeholder=""
+          :debounce="250"
+          search-class="col-12 col-md"
+          actions-class="col-12 col-md-auto q-ml-auto"
+        >
+          <template #actions>
+            <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="person_add" label="Add Custom Schedule" @click="openCreateOverrideDialog" />
+          </template>
+        </DataFilterBar>
+
+        <DataTableCard
+          :rows="filteredOverrides"
+          :columns="overrideColumns"
+          row-key="id"
+          :loading="loading"
+          v-model:pagination="overridePagination"
+          :rows-per-page-options="[10, 25, 50]"
+          separator="none"
+          card-class="settings-card"
+          empty-icon="schedule"
+          no-data-label="No custom work schedules yet."
+        >
+          <template #before-table>
+            <q-card-section class="q-pb-sm">
               <div class="text-h6">Custom Work Schedules</div>
               <div class="text-caption text-grey-7">
                 Assign a custom work schedule and deduction rule for a specific employee.
               </div>
-            </div>
-            <div class="col-12 col-md-auto">
-              <q-input
-                v-model="overrideSearch"
-                outlined
-                dense
-                clearable
-                debounce="250"
-                label="Search custom schedule"
-                style="min-width: 220px"
-              >
-                <template #prepend>
-                  <q-icon name="search" />
-                </template>
-              </q-input>
-            </div>
-            <div class="col-12 col-md-auto">
-              <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="person_add" label="Add Custom Schedule" @click="openCreateOverrideDialog" />
-            </div>
-          </q-card-section>
-
-          <q-separator />
-
-          <q-card-section class="q-pa-none">
-            <q-table
-              flat
-              :rows="filteredOverrides"
-              :columns="overrideColumns"
-              row-key="id"
-              :loading="loading"
-              :pagination="{ rowsPerPage: 10 }"
-              no-data-label="No custom work schedules yet."
-            >
+            </q-card-section>
+            <q-separator />
+          </template>
               <template #body-cell-employee="props">
                 <q-td :props="props">
                   <div class="text-weight-medium">{{ props.row.employee_name || 'Unknown employee' }}</div>
@@ -275,9 +269,7 @@
                   </q-btn>
                 </q-td>
               </template>
-            </q-table>
-          </q-card-section>
-        </q-card>
+        </DataTableCard>
       </div>
     </div>
 
@@ -520,6 +512,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 defineProps({
@@ -543,6 +537,7 @@ const editingOverrideId = ref(null)
 const isViewingOverride = ref(false)
 const viewingOverrideMeta = ref({ updated_at: null, updated_by_hr: null })
 const overrideSearch = ref('')
+const overridePagination = ref({ page: 1, rowsPerPage: 10 })
 const employeeSearch = ref('')
 
 const defaultScheduleForm = ref(defaultSchedulePayload())

@@ -1261,10 +1261,6 @@ onMounted(() => {
   letter-spacing: -0.01em;
 }
 
-.font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
 .action-btn {
   height: 38px;
   border-radius: 6px;

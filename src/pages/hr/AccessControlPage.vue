@@ -87,83 +87,71 @@
     </div>
 
     <!-- Filters & Search Toolbar -->
-    <q-card flat bordered class="rounded-borders q-mb-md filter-toolbar">
-      <q-card-section class="q-py-sm">
-        <div class="row items-center q-col-gutter-sm">
-          <!-- Search box -->
-          <div class="col-12 col-sm-6 col-md-4">
-            <q-input
-              v-model="searchQuery"
-              dense
-              outlined
-              placeholder="Search by name or username..."
-              clearable
-              class="bg-white"
-            >
-              <template #prepend>
-                <q-icon name="search" size="20px" color="grey-6" />
-              </template>
-            </q-input>
-          </div>
+    <DataFilterBar
+      v-model:search="searchQuery"
+      search-class="col-12 col-sm-6 col-md-4"
+      search-placeholder="Search by name or username..."
+      :show-reset="hasActiveFilters"
+      @reset="resetFilters"
+    >
+      <!-- Role Filter -->
+      <div class="col-6 col-sm-3 col-md-3">
+        <q-select
+          v-model="filters.role"
+          dense
+          outlined
+          emit-value
+          map-options
+          :options="roleFilterOptions"
+          label="Role"
+          class="bg-white"
+        />
+      </div>
 
-          <!-- Role Filter -->
-          <div class="col-6 col-sm-3 col-md-3">
-            <q-select
-              v-model="roleFilter"
-              dense
-              outlined
-              emit-value
-              map-options
-              :options="roleFilterOptions"
-              label="Role"
-              class="bg-white"
-            />
-          </div>
+      <!-- Scope Filter -->
+      <div class="col-6 col-sm-3 col-md-3">
+        <q-select
+          v-model="filters.scope"
+          dense
+          outlined
+          emit-value
+          map-options
+          :options="scopeFilterOptions"
+          label="Scope"
+          class="bg-white"
+        />
+      </div>
 
-          <!-- Scope Filter -->
-          <div class="col-6 col-sm-3 col-md-3">
-            <q-select
-              v-model="scopeFilter"
-              dense
-              outlined
-              emit-value
-              map-options
-              :options="scopeFilterOptions"
-              label="Scope"
-              class="bg-white"
-            />
-          </div>
-
-          <!-- Filter Summary / Reset -->
-          <div class="col-12 col-md-2 text-right">
-            <q-btn
-              v-if="hasActiveFilters"
-              flat
-              dense
-              color="grey-7"
-              icon="clear_all"
-              label="Reset Filters"
-              @click="resetFilters"
-            />
-            <div v-else class="text-caption text-grey-6 text-right">
-              Showing {{ filteredAccounts.length }} of {{ accounts.length }}
-            </div>
-          </div>
+      <template #actions>
+        <div v-if="!hasActiveFilters" class="text-caption text-grey-6 text-right">
+          Showing {{ filteredAccounts.length }} of {{ accounts.length }}
         </div>
-      </q-card-section>
-    </q-card>
+      </template>
+    </DataFilterBar>
 
     <!-- Main Accounts Table -->
-    <q-card flat bordered class="rounded-borders main-table-card">
-      <q-table
-        :rows="filteredAccounts"
-        :columns="columns"
-        row-key="id"
-        flat
-        :loading="loading"
-        :pagination="{ rowsPerPage: 10 }"
-        class="access-table"
-      >
+    <DataTableCard
+      v-model:pagination="pagination"
+      :rows="filteredAccounts"
+      :columns="columns"
+      row-key="id"
+      :loading="loading"
+      card-class="main-table-card"
+      table-class="access-table"
+      empty-icon="search_off"
+      no-data-label="No HR Accounts Found"
+      empty-subtext="No accounts match the current filter criteria."
+    >
+      <template #empty-actions>
+        <q-btn
+          v-if="hasActiveFilters"
+          flat
+          dense
+          color="primary"
+          label="Clear Filters"
+          @click="resetFilters"
+        />
+      </template>
         <!-- Personnel Column -->
         <template #body-cell-full_name="props">
           <q-td :props="props">
@@ -351,27 +339,7 @@
             </q-btn>
           </q-td>
         </template>
-
-        <!-- No Data State -->
-        <template #no-data>
-          <div class="full-width text-center q-pa-xl text-grey-6">
-            <q-icon name="search_off" size="48px" class="q-mb-sm text-grey-4" />
-            <div class="text-subtitle1 text-weight-medium">No HR Accounts Found</div>
-            <div class="text-caption text-grey-5 q-mb-md">
-              No accounts match the current filter criteria.
-            </div>
-            <q-btn
-              v-if="hasActiveFilters"
-              flat
-              dense
-              color="primary"
-              label="Clear Filters"
-              @click="resetFilters"
-            />
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <!-- Polished Edit Module Access Dialog -->
     <q-dialog v-model="showEditDialog" persistent transition-show="scale" transition-hide="scale">
@@ -678,11 +646,29 @@ import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/auth-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
 const authStore = useAuthStore()
 
-const loading = ref(false)
+const {
+  search: searchQuery,
+  filters,
+  loading,
+  pagination,
+  hasActiveFilters,
+  resetFilters,
+} = useDataTable({
+  initialFilters: {
+    role: 'all',
+    scope: 'all',
+  },
+  initialPagination: {
+    rowsPerPage: 10,
+  },
+})
 const saving = ref(false)
 const showEditDialog = ref(false)
 const modules = ref([])
@@ -690,11 +676,6 @@ const accounts = ref([])
 const selectedAccount = ref(null)
 const selectedModuleKeys = ref([])
 const initialModuleKeys = ref([])
-
-// Filtering state
-const searchQuery = ref('')
-const roleFilter = ref('all')
-const scopeFilter = ref('all')
 
 const roleFilterOptions = [
   { label: 'All Roles', value: 'all' },
@@ -872,11 +853,6 @@ const stats = computed(() => {
   return { total, fullAccess, customScope, protectedOwners }
 })
 
-// Filtered Accounts
-const hasActiveFilters = computed(() => {
-  return searchQuery.value !== '' || roleFilter.value !== 'all' || scopeFilter.value !== 'all'
-})
-
 const filteredAccounts = computed(() => {
   return accounts.value.filter((account) => {
     if (searchQuery.value) {
@@ -886,13 +862,13 @@ const filteredAccounts = computed(() => {
       if (!name.includes(q) && !uname.includes(q)) return false
     }
 
-    if (roleFilter.value === 'owner' && !account.is_access_control_owner) return false
-    if (roleFilter.value === 'staff' && account.is_access_control_owner) return false
+    if (filters.role === 'owner' && !account.is_access_control_owner) return false
+    if (filters.role === 'staff' && account.is_access_control_owner) return false
 
     const accModCount = Array.isArray(account.module_keys) ? account.module_keys.length : 0
     const totalModCount = moduleKeys.value.length
-    if (scopeFilter.value === 'full' && (totalModCount === 0 || accModCount < totalModCount)) return false
-    if (scopeFilter.value === 'custom' && totalModCount > 0 && accModCount >= totalModCount) return false
+    if (filters.scope === 'full' && (totalModCount === 0 || accModCount < totalModCount)) return false
+    if (filters.scope === 'custom' && totalModCount > 0 && accModCount >= totalModCount) return false
 
     return true
   })
@@ -945,12 +921,6 @@ function getModuleIcon(moduleKey) {
 
 function getModuleDescription(moduleKey) {
   return MODULE_DESCRIPTIONS[moduleKey] || 'Module permission access.'
-}
-
-function resetFilters() {
-  searchQuery.value = ''
-  roleFilter.value = 'all'
-  scopeFilter.value = 'all'
 }
 
 // Category selection helpers

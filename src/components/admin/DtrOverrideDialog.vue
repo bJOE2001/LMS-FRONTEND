@@ -510,7 +510,8 @@ async function submitOverride() {
 .popup-time-input :deep(.q-field__native) {
   font-size: 1.05rem;
   font-weight: 600;
-  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-family: var(--app-font-mono);
+  font-variant-numeric: tabular-nums;
   color: #1e293b;
 }
 

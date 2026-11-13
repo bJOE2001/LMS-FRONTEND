@@ -85,62 +85,65 @@
     <!-- REAL CONTENT SUITE                                        -->
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && rows.length > 0 }">
-      <q-card flat bordered class="filter-card q-mb-md">
       <q-banner rounded class="bg-blue-1 text-primary q-mb-md">
         <q-icon name="apartment" class="q-mr-sm" />
         This report page is for office admin monitoring only. HR review and HR actions are not shown here.
       </q-banner>
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-md">Filters</div>
 
-        <div class="row q-col-gutter-md">
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filters.office"
-              :options="officeOptions"
-              label="Office"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-            />
-          </div>
+      <DataFilterBar
+        v-model:search="filters.search"
+        search-label="Search employee"
+        search-placeholder=""
+        search-class="col-12 col-md-3"
+        actions-class="col-12 col-md-auto q-ml-auto"
+        :show-reset="true"
+        reset-label="Reset"
+        @reset="resetFilters"
+      >
+        <div class="col-12 col-md-3">
+          <q-select
+            v-model="filters.office"
+            :options="officeOptions"
+            label="Office"
+            outlined
+            dense
+            emit-value
+            map-options
+            clearable
+          />
+        </div>
 
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filters.status"
-              :options="statusOptions"
-              label="Status"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-            />
-          </div>
+        <div class="col-12 col-md-2">
+          <q-select
+            v-model="filters.status"
+            :options="statusOptions"
+            label="Status"
+            outlined
+            dense
+            emit-value
+            map-options
+            clearable
+          />
+        </div>
 
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filters.leaveType"
-              :options="leaveTypeOptions"
-              label="Leave Type"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-            />
-          </div>
+        <div class="col-12 col-md-2">
+          <q-select
+            v-model="filters.leaveType"
+            :options="leaveTypeOptions"
+            label="Leave Type"
+            outlined
+            dense
+            emit-value
+            map-options
+            clearable
+          />
+        </div>
 
-          <div class="col-12 col-md-3">
-            <q-input v-model="filters.search" label="Search employee" outlined dense clearable>
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
+        <template #actions>
+          <q-btn color="primary" label="Apply Filters" icon="filter_alt" no-caps />
+        </template>
 
+        <template #secondary>
           <div class="col-12 col-md-3">
             <q-input v-model="filters.dateFrom" label="Date From" outlined dense>
               <template #append>
@@ -172,14 +175,8 @@
               </template>
             </q-input>
           </div>
-
-          <div class="col-12 col-md-6 flex items-end justify-end q-gutter-sm">
-            <q-btn flat color="grey-7" label="Reset" no-caps @click="resetFilters" />
-            <q-btn color="primary" label="Apply Filters" icon="filter_alt" no-caps />
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
+        </template>
+      </DataFilterBar>
 
     <div class="row q-col-gutter-md q-mb-md">
       <div class="col-12 col-sm-6 col-lg-3" v-for="card in summaryCards" :key="card.title">
@@ -195,38 +192,40 @@
       </div>
     </div>
 
-    <q-card flat bordered>
-      <q-card-section class="row items-center justify-between q-pb-sm">
-        <div>
-          <div class="text-subtitle1 text-weight-medium">Leave Application Records</div>
-          <div class="text-caption text-grey-7">Office admin monitoring table layout</div>
-        </div>
+    <DataTableCard
+      :rows="rows"
+      :columns="columns"
+      row-key="id"
+      :visible-columns="visibleColumns"
+      v-model:pagination="pagination"
+      card-class="report-table"
+      table-class="report-table"
+      empty-icon="assignment"
+      no-data-label="No leave applications found."
+    >
+      <template #before-table>
+        <q-card-section class="row items-center justify-between q-pb-sm">
+          <div>
+            <div class="text-subtitle1 text-weight-medium">Leave Application Records</div>
+            <div class="text-caption text-grey-7">Office admin monitoring table layout</div>
+          </div>
 
-        <div class="row q-gutter-sm">
-          <q-btn-dropdown outline color="primary" label="Columns" no-caps>
-            <q-list dense style="min-width: 200px">
-              <q-item v-for="column in toggleableColumns" :key="column.name" tag="label">
-                <q-item-section avatar>
-                  <q-checkbox v-model="visibleColumns" :val="column.name" />
-                </q-item-section>
-                <q-item-section>{{ column.label }}</q-item-section>
-              </q-item>
-            </q-list>
-          </q-btn-dropdown>
-        </div>
-      </q-card-section>
+          <div class="row q-gutter-sm">
+            <q-btn-dropdown outline color="primary" label="Columns" no-caps>
+              <q-list dense style="min-width: 200px">
+                <q-item v-for="column in toggleableColumns" :key="column.name" tag="label">
+                  <q-item-section avatar>
+                    <q-checkbox v-model="visibleColumns" :val="column.name" />
+                  </q-item-section>
+                  <q-item-section>{{ column.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+          </div>
+        </q-card-section>
 
-      <q-separator />
-
-      <q-table
-        flat
-        :rows="rows"
-        :columns="columns"
-        row-key="id"
-        :visible-columns="visibleColumns"
-        :pagination="pagination"
-        class="report-table"
-      >
+        <q-separator />
+      </template>
         <template #body-cell-status="props">
           <q-td :props="props">
             <q-badge :color="statusColor(props.value)" rounded>
@@ -243,21 +242,15 @@
             </div>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width row flex-center q-gutter-sm text-grey-7 q-pa-lg">
-            <q-icon name="assignment" size="28px" />
-            <span>No leave applications found.</span>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
   </div>
   </q-page>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 
 const loading = ref(false)
 

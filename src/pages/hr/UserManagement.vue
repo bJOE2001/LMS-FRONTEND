@@ -58,33 +58,24 @@
       </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders q-mb-md">
-      <q-card-section>
-        <q-input
-          v-model="search"
-          outlined
-          dense
-          clearable
-          debounce="250"
-          label="Search accounts"
-          placeholder="Name, username, role, office, position..."
-        >
-          <template #prepend>
-            <q-icon name="search" color="grey-6" />
-          </template>
-        </q-input>
-      </q-card-section>
-    </q-card>
+    <DataFilterBar
+      v-model:search="search"
+      search-class="col-12"
+      :debounce="250"
+      search-label="Search accounts"
+      search-placeholder="Name, username, role, office, position..."
+    />
 
-    <q-card flat bordered class="rounded-borders">
-      <q-table
-        :rows="filteredRows"
-        :columns="columns"
-        row-key="row_key"
-        flat
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-      >
+    <DataTableCard
+      :rows="filteredRows"
+      :columns="columns"
+      row-key="row_key"
+      :loading="loading"
+      :rows-per-page-options="[10, 20, 50]"
+      empty-icon="manage_accounts"
+      no-data-label="No accounts found."
+      loading-text="Loading accounts..."
+    >
         <template #body-cell-role_label="props">
           <q-td :props="props" class="text-center">
             <q-badge :color="roleColor(props.row.role)" :label="props.row.role_label" rounded />
@@ -146,21 +137,7 @@
             {{ props.row.position || '-' }}
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width text-center q-pa-lg">
-            <template v-if="loading">
-              <q-spinner color="primary" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading accounts...</div>
-            </template>
-            <template v-else>
-              <q-icon name="manage_accounts" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">No accounts found.</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <q-dialog v-model="showCreateDialog" persistent>
       <q-card style="width: 95vw; max-width: 720px" class="rounded-borders">
@@ -400,10 +377,15 @@ import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
 
-const loading = ref(false)
+const { search, loading } = useDataTable({
+  initialPagination: { rowsPerPage: 10 },
+})
 const deletingRowKey = ref('')
 const reactivatingRowKey = ref('')
 const resettingRowKey = ref('')
@@ -418,7 +400,6 @@ const reactivateFormRef = ref(null)
 const showGuestPassword = ref(false)
 const MIN_ELIGIBLE_EMPLOYEE_SEARCH_LENGTH = 2
 
-const search = ref('')
 const accounts = ref([])
 const departments = ref([])
 const departmentOptions = ref([])
