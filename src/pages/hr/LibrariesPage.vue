@@ -21,6 +21,7 @@
         <q-tab name="holidays" icon="event" label="Holiday Library" />
         <q-tab name="leave_types" icon="playlist_add" label="Leave Types" />
         <q-tab name="offices" icon="apartment" label="Office Library" />
+        <q-tab name="office_divisions" icon="lan" label="Office Divisions" />
         <q-tab name="illnesses" icon="medical_services" label="Illness Library" />
         <q-tab name="work_schedules" icon="schedule" label="Work Schedules" />
         <q-tab name="signatories" icon="draw" label="Signatories" />
@@ -303,6 +304,13 @@
       </q-tab-panel>
 
       <!-- ========================================================= -->
+      <!-- TAB 5: OFFICE DIVISIONS                                   -->
+      <!-- ========================================================= -->
+      <q-tab-panel name="office_divisions" class="q-pa-none">
+        <OfficeDivisionsView :embedded="true" />
+      </q-tab-panel>
+
+      <!-- ========================================================= -->
       <!-- TAB 5: ILLNESS LIBRARY                                    -->
       <!-- ========================================================= -->
       <q-tab-panel name="illnesses" class="q-pa-none">
@@ -489,6 +497,7 @@ import { api } from 'src/boot/axios'
 // Embedded Existing Library Views
 import LeaveTypesView from 'pages/hr/LeaveTypesPage.vue'
 import DepartmentsLibraryView from 'pages/hr/DepartmentsLibraryPage.vue'
+import OfficeDivisionsView from 'pages/hr/OfficeDivisionsPage.vue'
 import IllnessLibraryView from 'pages/hr/IllnessLibraryPage.vue'
 import WorkSchedulesView from 'pages/hr/WorkSchedulesPage.vue'
 import SignatoriesView from 'pages/hr/SignatoriesPage.vue'

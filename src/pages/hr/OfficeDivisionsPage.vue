@@ -1,7 +1,7 @@
 <template>
-  <q-page class="q-pa-md">
+  <component :is="embedded ? 'div' : 'q-page'" :class="embedded ? 'office-divisions-panel' : 'q-pa-md'">
     <!-- Header Section -->
-    <div class="q-mb-md">
+    <div v-if="!embedded" class="q-mb-md">
       <div class="row items-center justify-between q-gutter-sm">
         <div>
           <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Office Divisions</h1>
@@ -18,21 +18,35 @@
     </div>
 
     <!-- Search Bar Card -->
-    <q-card flat bordered class="rounded-borders q-mb-md">
-      <q-card-section class="q-py-sm">
-        <q-input
-          v-model="search"
-          outlined
-          dense
-          clearable
-          debounce="250"
-          label="Search main offices or divisions"
-          placeholder="Type office or division name..."
-        >
-          <template #prepend>
-            <q-icon name="search" color="grey-6" />
-          </template>
-        </q-input>
+    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
+      <q-card-section class="q-pa-sm">
+        <div class="row items-center justify-between q-col-gutter-sm">
+          <div class="col-12" :class="embedded ? 'col-md-6' : ''">
+            <q-input
+              v-model="search"
+              outlined
+              dense
+              clearable
+              debounce="250"
+              label="Search main offices or divisions"
+              placeholder="Type office or division name..."
+            >
+              <template #prepend>
+                <q-icon name="search" color="grey-6" />
+              </template>
+            </q-input>
+          </div>
+          <div v-if="embedded" class="col-12 col-md-auto">
+            <q-btn
+              unelevated
+              no-caps
+              color="primary"
+              icon="add_link"
+              label="Assign Divisions"
+              @click="openAssignDialog"
+            />
+          </div>
+        </div>
       </q-card-section>
     </q-card>
 
@@ -254,13 +268,20 @@
         </q-form>
       </q-card>
     </q-dialog>
-  </q-page>
+  </component>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const $q = useQuasar()
 
