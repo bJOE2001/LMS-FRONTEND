@@ -2,7 +2,19 @@
   <q-card flat bordered :class="['rounded-borders bg-white data-table-card', cardClass]">
     <slot name="before-table" />
 
+    <TableSkeletonCard
+      v-if="showTableSkeleton"
+      :card="false"
+      :columns="columns.length > 0 ? columns : skeletonColumns"
+      :rows="skeletonRows"
+      :dense="dense"
+      :show-header-labels="skeletonHeaderLabels"
+      :show-avatar-column="skeletonAvatar"
+      :show-subtitle-on-first-column="skeletonSubtitle"
+    />
+
     <q-table
+      v-else
       v-bind="tableBindings"
       :rows="rows"
       :columns="columns"
@@ -50,6 +62,7 @@
 
 <script setup>
 import { computed, useAttrs, useSlots } from 'vue'
+import TableSkeletonCard from 'src/components/common/TableSkeletonCard.vue'
 
 defineOptions({
   inheritAttrs: false,
@@ -130,12 +143,42 @@ const props = defineProps({
     type: [String, Object],
     default: undefined,
   },
+  disableSkeleton: {
+    type: Boolean,
+    default: false,
+  },
+  skeletonRows: {
+    type: Number,
+    default: 8,
+  },
+  skeletonColumns: {
+    type: Number,
+    default: 6,
+  },
+  skeletonHeaderLabels: {
+    type: Boolean,
+    default: false,
+  },
+  skeletonAvatar: {
+    type: Boolean,
+    default: false,
+  },
+  skeletonSubtitle: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['update:pagination', 'update:expanded', 'request', 'row-click'])
 
 const attrs = useAttrs()
 const slots = useSlots()
+
+const showTableSkeleton = computed(() =>
+  props.loading &&
+  props.rows.length === 0 &&
+  !props.disableSkeleton
+)
 
 const passThroughSlotNames = computed(() =>
   Object.keys(slots).filter((name) => !RESERVED_SLOTS.has(name))

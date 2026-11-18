@@ -16,8 +16,16 @@
       </div>
     </div>
 
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <AppReloadBar :loading="loading && devicesList.length > 0" />
+
     <!-- Interactive Summary Stat Cards (Click to Filter) -->
-    <div class="row q-col-gutter-sm q-mb-md">
+    <KpiCardsSkeleton
+      v-if="loading && devicesList.length === 0"
+      :count="3"
+      row-class="row q-col-gutter-sm q-mb-md"
+    />
+    <div v-else class="row q-col-gutter-sm q-mb-md" :class="{ 'content-reloading': loading && devicesList.length > 0 }">
       <!-- Total Devices -->
       <div class="col-12 col-sm-4">
         <q-card
@@ -114,6 +122,9 @@
       search-class="col-12 col-sm"
       search-placeholder="Search by device label, serial number, office, or IP address..."
       :show-reset="hasActiveFilters"
+      :loading="loading && devicesList.length === 0"
+      :skeleton-filter-count="1"
+      :skeleton-has-action="false"
       @reset="resetFilters"
     >
       <template #prepend>

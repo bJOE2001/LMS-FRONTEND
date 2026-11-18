@@ -27,8 +27,15 @@
       </div>
     </div>
 
+    <AppReloadBar :loading="loading && accounts.length > 0" />
+
     <!-- Top KPI Metrics Row -->
-    <div class="row q-col-gutter-md q-mb-lg">
+    <KpiCardsSkeleton
+      v-if="loading && accounts.length === 0"
+      :count="4"
+      row-class="row q-col-gutter-md q-mb-lg"
+    />
+    <div v-else class="row q-col-gutter-md q-mb-lg" :class="{ 'content-reloading': loading && accounts.length > 0 }">
       <div class="col-12 col-sm-6 col-md-3">
         <q-card flat bordered class="kpi-card rounded-borders">
           <q-card-section class="row items-center no-wrap">
@@ -92,6 +99,9 @@
       search-class="col-12 col-sm-6 col-md-4"
       search-placeholder="Search by name or username..."
       :show-reset="hasActiveFilters"
+      :loading="loading && accounts.length === 0"
+      :skeleton-filter-count="2"
+      :skeleton-has-action="false"
       @reset="resetFilters"
     >
       <!-- Role Filter -->

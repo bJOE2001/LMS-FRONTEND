@@ -137,6 +137,19 @@
                   </q-item-section>
                   <q-item-section class="nav-sub-label">Attendance Logs</q-item-section>
                 </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/dtr'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/dtr"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="event_note" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Employee DTR</q-item-section>
+                </q-item>
               </q-list>
             </q-expansion-item>
           </template>
@@ -479,7 +492,9 @@ const isHrLeaveRouteActive = computed(() => {
 })
 
 const isBioManagementRoute = (path) =>
-  path.startsWith('/hr/biometric-') || path.startsWith('/hr/attendance-logs')
+  path.startsWith('/hr/biometric-') ||
+  path.startsWith('/hr/attendance-logs') ||
+  path.startsWith('/hr/dtr')
 
 const hrLeaveMenuExpanded = ref(false)
 const biometricMenuExpanded = ref(isBioManagementRoute(route.path))

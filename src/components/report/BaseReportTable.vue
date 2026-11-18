@@ -1,6 +1,16 @@
 <template>
   <div class="report-table-container">
+    <TableSkeletonCard
+      v-if="loading && normalizedRows.length === 0"
+      :columns="columns.length > 0 ? columns : 6"
+      :rows="6"
+      :show-footer="false"
+      :show-avatar-column="false"
+      :show-subtitle-on-first-column="false"
+    />
+
     <q-table
+      v-else
       :rows="normalizedRows"
       :columns="columns"
       row-key="__rowKey"

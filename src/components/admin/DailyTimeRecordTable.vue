@@ -1,5 +1,5 @@
 <template>
-  <div class="dtr-container">
+  <div class="dtr-container" :class="{ 'is-readonly': readonly }">
     <!-- Screen View Toolbar & Controls (Hidden on Print) -->
     <q-card v-if="!hideToolbar" flat bordered class="q-mb-md no-print bg-white rounded-borders">
       <q-card-section class="q-pa-sm">
@@ -7,7 +7,7 @@
           <!-- Left: Title & Quick Info -->
           <div class="col-12 col-md-auto">
             <div class="row items-center q-gutter-x-sm">
-              <q-icon name="print" color="green-9" size="22px" />
+              <q-icon :name="showPrint ? 'print' : 'description'" color="green-9" size="22px" />
               <div>
                 <div class="text-subtitle2 text-weight-bold text-dark row items-center q-gutter-x-xs">
                   <span>{{ isContractual ? 'CSC Form 48 & Accomplishment Report' : 'CSC Form 48 (Daily Time Record)' }}</span>
@@ -59,6 +59,7 @@
               </div>
 
               <q-btn
+                v-if="showPrint"
                 unelevated
                 no-caps
                 color="green-9"
@@ -194,13 +195,14 @@
                 </template>
                 <template v-else>
                   <div
-                    class="csc-prn-line cursor-pointer"
+                    class="csc-prn-line"
+                    :class="{ 'cursor-pointer': !readonly }"
                     @click="openPrnDialog"
                   >
                     <span>PRN:</span>
                     <span class="csc-prn-underline">{{ prnNumber || '' }}</span>
-                    <q-icon name="edit" size="11px" class="q-ml-xs text-grey-5 no-print" />
-                    <q-tooltip class="bg-dark text-white no-print">Click to edit PRN Number</q-tooltip>
+                    <q-icon v-if="!readonly" name="edit" size="11px" class="q-ml-xs text-grey-5 no-print" />
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to edit PRN Number</q-tooltip>
                   </div>
                 </template>
               </div>
@@ -277,12 +279,13 @@
                   </template>
                   <template v-else>
                     <th
-                      class="th-boxed clickable-workload-header"
+                      class="th-boxed"
+                      :class="{ 'clickable-workload-header': !readonly }"
                       @click="openBulkWorkloadDialog"
                     >
                       <span>WORKLOAD UNDERTAKEN</span>
-                      <q-icon name="edit" size="11px" class="q-ml-xs no-print text-grey-4" />
-                      <q-tooltip class="bg-dark text-white no-print">Click to edit workload for all work days</q-tooltip>
+                      <q-icon v-if="!readonly" name="edit" size="11px" class="q-ml-xs no-print text-grey-4" />
+                      <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to edit workload for all work days</q-tooltip>
                     </th>
                     <th class="th-boxed">QUANTITY</th>
                   </template>
@@ -336,7 +339,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     SATURDAY
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ row.dayNumber }})</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ row.dayNumber }})</q-tooltip>
                   </td>
                 </template>
 
@@ -348,7 +351,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     SUNDAY
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ row.dayNumber }})</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ row.dayNumber }})</q-tooltip>
                   </td>
                 </template>
 
@@ -360,7 +363,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.customRemark }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
                   </td>
                 </template>
 
@@ -372,7 +375,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     ABSENT
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
                   </td>
                 </template>
 
@@ -384,7 +387,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.holidayName || 'HOLIDAY' }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ row.dayNumber }})</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ row.dayNumber }})</q-tooltip>
                   </td>
                 </template>
 
@@ -396,7 +399,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
                   </td>
                 </template>
 
@@ -408,7 +411,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (AM Leave)</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (AM Leave)</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -420,7 +423,7 @@
                     @click="openTimeOverride(row, 'pm_arrival')"
                   >
                     {{ row.pmArrival }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -431,7 +434,7 @@
                     @click="openTimeOverride(row, 'pm_departure')"
                   >
                     {{ row.pmDeparture }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
                   </td>
                 </template>
 
@@ -447,7 +450,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.amArrival }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -458,7 +461,7 @@
                     @click="openTimeOverride(row, 'am_departure')"
                   >
                     {{ row.amDeparture }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
                   </td>
                   <td
                     colspan="2"
@@ -466,7 +469,7 @@
                     @click="openTimeOverride(row, 'pm_arrival')"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
-                    <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (PM Leave)</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (PM Leave)</q-tooltip>
                   </td>
                 </template>
 
@@ -482,7 +485,7 @@
                     @click="openTimeOverride(row, 'am_arrival')"
                   >
                     {{ row.amArrival }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -493,7 +496,7 @@
                     @click="openTimeOverride(row, 'am_departure')"
                   >
                     {{ row.amDeparture }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -505,7 +508,7 @@
                     @click="openTimeOverride(row, 'pm_arrival')"
                   >
                     {{ row.pmArrival }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -516,7 +519,7 @@
                     @click="openTimeOverride(row, 'pm_departure')"
                   >
                     {{ row.pmDeparture }}
-                    <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
+                    <q-tooltip v-if="getSlotTooltip(row, 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
                   </td>
                 </template>
 
@@ -562,7 +565,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         SATURDAY
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
                       </td>
                     </template>
 
@@ -574,7 +577,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         SUNDAY
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
                       </td>
                     </template>
 
@@ -586,7 +589,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].customRemark }}
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
                       </td>
                     </template>
 
@@ -598,7 +601,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         ABSENT
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
                       </td>
                     </template>
 
@@ -610,7 +613,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].holidayName || 'HOLIDAY' }}
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
                       </td>
                     </template>
 
@@ -622,7 +625,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
                       </td>
                     </template>
 
@@ -634,7 +637,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (AM Leave)</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (AM Leave)</q-tooltip>
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
@@ -646,7 +649,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmArrival }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
@@ -657,7 +660,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmDeparture }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
                       </td>
                     </template>
 
@@ -673,7 +676,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amArrival }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
@@ -684,7 +687,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amDeparture }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
                       </td>
                       <td
                         colspan="2"
@@ -692,7 +695,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
-                        <q-tooltip class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (PM Leave)</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (PM Leave)</q-tooltip>
                       </td>
                     </template>
 
@@ -708,7 +711,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amArrival }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
@@ -719,7 +722,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].amDeparture }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
@@ -731,7 +734,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmArrival }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
@@ -742,7 +745,7 @@
                         @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmDeparture }}
-                        <q-tooltip class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
+                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
                       </td>
                     </template>
                   </template>
@@ -752,9 +755,9 @@
                     <td
                       class="td-workload"
                       :class="{
-                        'td-workload-clickable cursor-pointer': row.hasWork,
+                        'td-workload-clickable cursor-pointer': !readonly && row.hasWork,
                       }"
-                      @click="row.hasWork ? openDayWorkloadDialog(row) : null"
+                      @click="!readonly && row.hasWork ? openDayWorkloadDialog(row) : null"
                     >
                       <template v-if="row.isNonExistentDay || !row.isInCutoff"></template>
                       <span v-else-if="row.isSaturday" class="td-spaced-day">SATURDAY</span>
@@ -767,17 +770,17 @@
                       <span v-else-if="row.hasWork" class="workload-text-span">
                         {{ getRowWorkload(row) }}
                       </span>
-                      <q-tooltip v-if="row.hasWork" class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
+                      <q-tooltip v-if="!readonly && row.hasWork" class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
                     </td>
                     <td
                       class="td-quantity"
                       :class="{
-                        'td-quantity-clickable cursor-pointer': row.hasWork,
+                        'td-quantity-clickable cursor-pointer': !readonly && row.hasWork,
                       }"
-                      @click="row.hasWork ? openDayWorkloadDialog(row) : null"
+                      @click="!readonly && row.hasWork ? openDayWorkloadDialog(row) : null"
                     >
                       <span v-if="row.hasWork">{{ getRowQuantity(row) }}</span>
-                      <q-tooltip v-if="row.hasWork" class="bg-dark text-white no-print">Click to edit quantity</q-tooltip>
+                      <q-tooltip v-if="!readonly && row.hasWork" class="bg-dark text-white no-print">Click to edit quantity</q-tooltip>
                     </td>
                   </template>
                 </template>
@@ -831,32 +834,34 @@
           <!-- Band 3: Signatory Name, Title & IN-CHARGE Line (Clickable to change) -->
           <div class="csc-footer-band csc-incharge-band">
             <div
-              class="csc-panel-col text-center csc-incharge-col cursor-pointer"
+              class="csc-panel-col text-center csc-incharge-col"
+              :class="{ 'cursor-pointer': !readonly }"
               @click="openInChargeDialog"
             >
               <div class="csc-sig-name-wrap">
                 <div class="csc-sig-name">{{ inChargeName }}</div>
-                <q-icon name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
+                <q-icon v-if="!readonly" name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
               </div>
               <div class="csc-sig-title">{{ inChargeTitle }}</div>
               <div class="csc-sig-line csc-incharge-line"></div>
               <div class="csc-sig-sub">IN-CHARGE</div>
-              <q-tooltip class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
+              <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
             </div>
             <template v-if="pair.mode !== 'single-centered'">
               <div class="csc-panel-gutter"></div>
               <div
-                class="csc-panel-col text-center csc-incharge-col cursor-pointer"
+                class="csc-panel-col text-center csc-incharge-col"
+                :class="{ 'cursor-pointer': !readonly }"
                 @click="openInChargeDialog"
               >
                 <div class="csc-sig-name-wrap">
                   <div class="csc-sig-name">{{ inChargeName }}</div>
-                  <q-icon name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
+                  <q-icon v-if="!readonly" name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
                 </div>
                 <div class="csc-sig-title">{{ inChargeTitle }}</div>
                 <div class="csc-sig-line csc-incharge-line"></div>
                 <div class="csc-sig-sub">IN-CHARGE</div>
-                <q-tooltip class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
+                <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
               </div>
             </template>
           </div>
@@ -1150,6 +1155,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
+  showPrint: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['update:customDateRange', 'adjust', 'adjust-saved'])
@@ -1161,6 +1174,7 @@ const activeOverrideDtr = ref(null)
 const activeOverrideSlot = ref('am_arrival')
 
 function openTimeOverride(row, slotKey = 'am_arrival') {
+  if (props.readonly) return
   if (!row || row.isNonExistentDay || !row.isInCutoff) return
   activeOverrideDate.value = row.dateString
   activeOverrideDtr.value = row.record || null
@@ -1227,6 +1241,7 @@ function formatDialogDate(row) {
 }
 
 function openDayWorkloadDialog(row) {
+  if (props.readonly) return
   activeWorkloadRow.value = row
   workloadForm.value = {
     text: getRowWorkload(row),
@@ -1237,6 +1252,7 @@ function openDayWorkloadDialog(row) {
 }
 
 function openBulkWorkloadDialog() {
+  if (props.readonly) return
   activeWorkloadRow.value = null
   workloadForm.value = {
     text: defaultWorkload.value,
@@ -1287,6 +1303,7 @@ const showPrnDialog = ref(false)
 const tempPrnNumber = ref('')
 
 function openPrnDialog() {
+  if (props.readonly) return
   tempPrnNumber.value = prnNumber.value
   showPrnDialog.value = true
 }
@@ -1331,6 +1348,7 @@ const departmentHeadsList = computed(() => {
 })
 
 function openInChargeDialog() {
+  if (props.readonly) return
   tempInChargeName.value = inChargeName.value
   tempInChargeTitle.value = inChargeTitle.value
   selectedHeadModel.value = null
@@ -1643,22 +1661,31 @@ function isRowSlotLate(row, slotKey) {
 }
 
 function getSlotTooltip(row, slotKey, slotLabel) {
+  const isReadonly = props.readonly
   if (isRowSlotMissing(row, slotKey)) {
-    return `MISSING PUNCH — Day ${row.dayNumber} (${slotLabel}) is empty. Click to input time or remark (O.B. / O.F.) before printing.`
+    return isReadonly
+      ? `MISSING PUNCH — Day ${row.dayNumber} (${slotLabel}) is empty.`
+      : `MISSING PUNCH — Day ${row.dayNumber} (${slotLabel}) is empty. Click to input time or remark (O.B. / O.F.) before printing.`
   }
   const lateMins = getSlotLateMinutes(row, slotKey)
   if (lateMins > 0) {
-    return `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}). Click to override.`
+    return isReadonly
+      ? `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}).`
+      : `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}). Click to override.`
   }
   const slotText = getSlotOverrideText(row?.record, slotKey)
   if (slotText) {
-    return `Day ${row.dayNumber} ${slotLabel}: ${slotText} (Click to override)`
+    return isReadonly
+      ? `Day ${row.dayNumber} ${slotLabel}: ${slotText}`
+      : `Day ${row.dayNumber} ${slotLabel}: ${slotText} (Click to override)`
   }
   if (isRecordSlotAdjusted(row?.record, slotKey)) {
     const reason = row.record?.adjustment_remarks || row.record?.adjustment_reason || 'Manually Adjusted'
-    return `Day ${row.dayNumber} ${slotLabel}: ${reason} (Click to edit)`
+    return isReadonly
+      ? `Day ${row.dayNumber} ${slotLabel}: ${reason}`
+      : `Day ${row.dayNumber} ${slotLabel}: ${reason} (Click to edit)`
   }
-  return `Click to override time for Day ${row.dayNumber} (${slotLabel})`
+  return isReadonly ? '' : `Click to override time for Day ${row.dayNumber} (${slotLabel})`
 }
 
 /**
@@ -1924,6 +1951,7 @@ const barcodeSvg = computed(() => {
 })
 
 function triggerPrint() {
+  if (!props.showPrint) return
   printCscForm48({
     element: printAreaRef.value,
     employeeName: employeeDisplayName.value,
@@ -2475,5 +2503,23 @@ defineExpose({
 .td-missing-slot:hover {
   background-color: #ffe4e6 !important;
   outline: 1.5px solid #e11d48 !important;
+}
+
+.dtr-container.is-readonly .td-time-clickable,
+.dtr-container.is-readonly .td-time-clickable:hover,
+.dtr-container.is-readonly .csc-incharge-col,
+.dtr-container.is-readonly .csc-prn-line {
+  cursor: default !important;
+}
+
+.dtr-container.is-readonly .td-time-clickable:hover {
+  background-color: transparent !important;
+  color: inherit !important;
+  outline: none !important;
+}
+
+.dtr-container.is-readonly .td-missing-slot:hover {
+  background-color: #fff1f2 !important;
+  outline: none !important;
 }
 </style>

@@ -189,6 +189,8 @@
           :debounce="250"
           search-class="col-12 col-md"
           actions-class="col-12 col-md-auto q-ml-auto"
+          :loading="loading && !hasLoadedSchedules"
+          :skeleton-filter-count="0"
         >
           <template #actions>
             <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="person_add" label="Add Custom Schedule" @click="openCreateOverrideDialog" />

@@ -16,69 +16,21 @@
     </div>
 
     <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && rows.length > 0"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders top-reload-bar"
-    />
+    <AppReloadBar :loading="loading && rows.length > 0" />
 
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && rows.length === 0" class="skeleton-suite">
-      <!-- 4 Skeleton Summary Cards -->
-      <div class="row q-col-gutter-md q-mb-md">
-        <div v-for="i in 4" :key="'sk-rep-card-' + i" class="col-12 col-sm-6 col-lg-3">
-          <q-card flat bordered class="summary-card">
-            <q-card-section class="row items-center justify-between">
-              <div>
-                <q-skeleton type="text" width="110px" height="14px" animation="wave" />
-                <q-skeleton type="text" width="45px" height="28px" class="q-mt-xs" animation="wave" />
-              </div>
-              <q-skeleton type="QAvatar" size="48px" animation="wave" />
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Skeleton Report Table -->
-      <q-card flat bordered class="rounded-borders">
-        <q-card-section class="row items-center justify-between q-pb-sm">
-          <div>
-            <q-skeleton type="text" width="180px" height="20px" animation="wave" />
-            <q-skeleton type="text" width="130px" height="14px" class="q-mt-xs" animation="wave" />
-          </div>
-          <q-skeleton type="rect" width="100px" height="36px" class="rounded-borders" animation="wave" />
-        </q-card-section>
-        <q-separator />
-        <div class="q-pa-md">
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-          </div>
-          <div
-            v-for="r in 6"
-            :key="'sk-rep-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <div class="col-2"><q-skeleton type="text" width="120px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="100px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="85px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="85px" height="16px" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="40px" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="rect" width="65px" height="20px" class="rounded-borders q-mx-auto" animation="wave" /></div>
-          </div>
-        </div>
-      </q-card>
+      <KpiCardsSkeleton :count="4" col-class="col-12 col-sm-6 col-lg-3" />
+      <TableSkeletonCard
+        :columns="7"
+        :rows="6"
+        :show-toolbar="true"
+        :toolbar-filter-count="0"
+        :show-avatar-column="false"
+        :show-subtitle-on-first-column="false"
+      />
     </div>
 
     <!-- ========================================================= -->

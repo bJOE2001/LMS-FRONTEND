@@ -7,11 +7,16 @@
       </h1>
     </div>
 
+    <AppReloadBar :loading="loading && rows.length > 0" />
+
     <!-- Filter Bar -->
     <DataFilterBar
       v-model:search="searchTerm"
       search-placeholder="Search employee, control no, office, device SN, performed by..."
       :show-reset="hasActiveFilters"
+      :loading="loading && rows.length === 0"
+      :skeleton-filter-count="4"
+      :skeleton-has-action="false"
       @reset="resetFilters"
     >
       <div class="col-6 col-md-2">

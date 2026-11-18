@@ -16,7 +16,15 @@
       </div>
     </div>
 
-    <div class="row q-col-gutter-md q-mb-lg">
+    <AppReloadBar :loading="loading && filteredRows.length > 0" />
+
+    <KpiCardsSkeleton
+      v-if="loading && filteredRows.length === 0"
+      :count="3"
+      row-class="row q-col-gutter-md q-mb-lg"
+      col-class="col-12 col-sm-6 col-md-4"
+    />
+    <div v-else class="row q-col-gutter-md q-mb-lg" :class="{ 'content-reloading': loading && filteredRows.length > 0 }">
       <div class="col-12 col-sm-6 col-md-4">
         <q-card flat bordered class="rounded-borders">
           <q-card-section>
@@ -64,6 +72,9 @@
       :debounce="250"
       search-label="Search accounts"
       search-placeholder="Name, username, role, office, position..."
+      :loading="loading && filteredRows.length === 0"
+      :skeleton-filter-count="0"
+      :skeleton-has-action="false"
     />
 
     <DataTableCard

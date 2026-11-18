@@ -5,12 +5,17 @@
       <h1 class="text-h4 text-weight-bold q-ma-none text-grey-9">Cancelled Applications</h1>
     </div>
 
+    <AppReloadBar :loading="loading && applications.length > 0" />
+
     <!-- Filters Card -->
     <DataFilterBar
       v-model:search="search"
       search-placeholder="Search employee, ID, remarks..."
       search-class="col-12 col-sm-4 col-md-4"
       :show-reset="hasActiveFilters"
+      :loading="loading && applications.length === 0"
+      :skeleton-filter-count="2"
+      :skeleton-has-action="false"
       @reset="resetFilters"
     >
       <!-- Cancellation Type Dropdown Filter -->

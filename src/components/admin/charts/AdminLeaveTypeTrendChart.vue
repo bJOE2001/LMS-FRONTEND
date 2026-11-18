@@ -29,15 +29,20 @@
             :series="leaveTypeTrendSeries"
           />
         </q-no-ssr>
-        <q-inner-loading :showing="loading" :class="['chart-loading', { 'chart-loading--dark': isDark }]">
-          <q-spinner color="primary" size="34px" />
-        </q-inner-loading>
+        <ChartSkeleton
+          :loading="loading"
+          :has-data="hasChartData"
+          variant="line"
+          height="220px"
+          label="Updating leave types..."
+        />
       </div>
     </q-card-section>
   </q-card>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 import { useApexChartTitleCleanup } from 'src/composables/useApexChartTitleCleanup'
 import { useAdminLeaveTypeTrendChart } from 'src/composables/useAdminLeaveTypeTrendChart'
@@ -57,8 +62,9 @@ const props = defineProps({
   },
 })
 
+const hasChartData = computed(() => (props.applications?.length || 0) > 0 || Boolean(props.analytics))
+
 const {
-  isDark,
   leaveTypeFilter,
   leaveTypeFilterOptions,
   trendYearLabel,

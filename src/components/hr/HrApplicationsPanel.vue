@@ -5,12 +5,17 @@
       { 'hr-applications-panel--coc-only': isCocOnlyView },
     ]"
   >
+    <AppReloadBar :loading="loading && applicationsForTable.length > 0" />
+
     <DataFilterBar
       v-model:search="statusSearch"
       :debounce="350"
       search-placeholder="Search all applications columns"
       search-class="col-12 col-md-5"
       actions-class="col-12 col-md-auto q-ml-auto"
+      :loading="loading && applicationsForTable.length === 0"
+      :skeleton-filter-count="0"
+      :skeleton-has-action="false"
     >
       <template #actions>
         <q-btn
@@ -148,14 +153,8 @@
       </template>
       <template #no-data>
         <div class="full-width row flex-center q-pa-lg text-grey-7">
-          <template v-if="loading">
-            <q-spinner color="primary" size="24px" class="q-mr-sm" />
-            <span>Loading applications...</span>
-          </template>
-          <template v-else>
-            <q-icon name="inbox" size="md" class="q-mr-sm" />
-            <span>No applications available</span>
-          </template>
+          <q-icon name="inbox" size="md" class="q-mr-sm" />
+          <span>No applications available</span>
         </div>
       </template>
       <template #body-cell-employee="props">

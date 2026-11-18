@@ -20,8 +20,16 @@
       </div>
     </div>
 
+    <AppReloadBar :loading="loading && employees.length > 0" />
+
     <!-- Summary Cards -->
-    <div class="row q-col-gutter-md q-mb-lg summary-strip">
+    <KpiCardsSkeleton
+      v-if="loadingTotalEmployees || loadingDepartments"
+      :count="2"
+      row-class="row q-col-gutter-md q-mb-lg summary-strip"
+      col-class="col-12 col-sm-6 col-md-6 summary-strip__item"
+    />
+    <div v-else class="row q-col-gutter-md q-mb-lg summary-strip">
       <div class="col-12 col-sm-6 col-md-6 summary-strip__item">
         <q-card class="bg-white rounded-borders summary-strip__card" flat bordered>
           <q-card-section class="summary-strip__card-section">
@@ -32,8 +40,7 @@
                   Total Employees
                 </div>
                 <div class="text-h4 text-primary summary-strip__value">
-                  <q-spinner v-if="loadingTotalEmployees" size="32px" color="primary" />
-                  <template v-else>{{ totalEmployees }}</template>
+                  {{ totalEmployees }}
                 </div>
               </div>
             </div>
@@ -53,8 +60,7 @@
               <div class="summary-strip__text">
                 <div class="text-caption text-weight-medium summary-strip__label">Offices</div>
                 <div class="text-h4 text-green-8 summary-strip__value">
-                  <q-spinner v-if="loadingDepartments" size="32px" color="green-8" />
-                  <template v-else>{{ allDepartments.length }}</template>
+                  {{ allDepartments.length }}
                 </div>
               </div>
             </div>
@@ -69,6 +75,9 @@
       :debounce="400"
       search-placeholder="Search name, ID, status, office..."
       search-class="col-12 col-md-4"
+      :loading="loading && employees.length === 0"
+      :skeleton-filter-count="2"
+      :skeleton-has-action="false"
     >
       <div class="col-12 col-sm-6 col-md-3">
         <q-select

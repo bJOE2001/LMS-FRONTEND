@@ -29,10 +29,15 @@
       </div>
     </div>
 
+    <AppReloadBar :loading="loading && rows.length > 0" />
+
     <!-- Filter Bar -->
     <DataFilterBar
       v-model:search="searchTerm"
       search-placeholder="Search employee, control no, PIN, device, office..."
+      :loading="loading && rows.length === 0"
+      :skeleton-filter-count="4"
+      :skeleton-has-action="false"
     >
       <div class="col-6 col-md-2">
         <q-select

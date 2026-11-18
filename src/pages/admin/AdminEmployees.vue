@@ -20,97 +20,20 @@
     </div>
 
     <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && (employees.length > 0 || fullEmployeeRows.length > 0)"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders top-reload-bar"
-    />
+    <AppReloadBar :loading="loading && (employees.length > 0 || fullEmployeeRows.length > 0)" />
 
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && employees.length === 0 && fullEmployeeRows.length === 0" class="skeleton-suite">
-      <!-- 5 Skeleton KPI Status Cards -->
-      <div class="row q-col-gutter-sm q-mb-md status-cards-row">
-        <div v-for="i in 5" :key="'sk-card-' + i" class="col-6 col-sm-6 col-md status-cards-row__item">
-          <q-card flat bordered class="rounded-borders bg-white stat-card">
-            <q-card-section class="q-py-md status-card__section">
-              <div class="row items-center no-wrap status-card__content">
-                <q-skeleton type="QAvatar" size="44px" class="q-mr-md" animation="wave" />
-                <q-skeleton type="text" width="70px" height="16px" animation="wave" />
-                <q-skeleton type="text" width="36px" height="26px" class="q-ml-auto" animation="wave" />
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Skeleton Employee Records Table Card -->
-      <q-card flat bordered class="rounded-borders employee-records-card">
-        <q-card-section class="employee-records-card__section">
-          <div class="row justify-between items-center employee-records-toolbar">
-            <div class="row items-center q-gutter-sm">
-              <div class="text-h6">Employee Records</div>
-            </div>
-            <q-skeleton type="rect" width="220px" height="36px" class="rounded-borders" animation="wave" />
-          </div>
-        </q-card-section>
-
-        <div class="q-pa-md">
-          <!-- Columns Header Placeholder -->
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-5"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-3 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-
-          <!-- 8 Skeleton Rows -->
-          <div
-            v-for="r in 8"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <!-- Control No -->
-            <div class="col-2">
-              <q-skeleton type="text" width="70px" height="16px" animation="wave" />
-            </div>
-
-            <!-- Employee Avatar + Name + Designation -->
-            <div class="col-5">
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-skeleton type="QAvatar" size="32px" animation="wave" />
-                <div>
-                  <q-skeleton type="text" width="140px" height="18px" animation="wave" />
-                  <q-skeleton type="text" width="90px" height="14px" class="q-mt-xs" animation="wave" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Status Badge -->
-            <div class="col-3 text-center">
-              <q-skeleton type="rect" width="75px" height="22px" class="rounded-borders q-mx-auto" animation="wave" />
-            </div>
-
-            <!-- Actions -->
-            <div class="col-2 text-right">
-              <div class="row items-center justify-end q-gutter-xs">
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Skeleton Table Footer -->
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
-        </div>
-      </q-card>
+      <KpiCardsSkeleton :count="5" row-class="row q-col-gutter-sm q-mb-md status-cards-row" col-class="col-6 col-sm-6 col-md status-cards-row__item" />
+      <TableSkeletonCard
+        :columns="4"
+        :rows="8"
+        :show-toolbar="true"
+        :toolbar-filter-count="0"
+        :show-toolbar-action="false"
+      />
     </div>
 
     <!-- ========================================================= -->

@@ -23,9 +23,13 @@
             :series="manpowerChartSeries"
           />
         </q-no-ssr>
-        <q-inner-loading :showing="loading" :class="['chart-loading', { 'chart-loading--dark': isDark }]">
-          <q-spinner color="primary" size="34px" />
-        </q-inner-loading>
+        <ChartSkeleton
+          :loading="loading"
+          :has-data="hasChartData"
+          variant="pie"
+          height="220px"
+          label="Refreshing snapshot..."
+        />
       </div>
     </q-card-section>
   </q-card>
@@ -58,6 +62,11 @@ const props = defineProps({
       onLeavePercentage: 0,
     }),
   },
+})
+
+const hasChartData = computed(() => {
+  const s = props.snapshot || {}
+  return Number(props.activeEmployeeCount || 0) > 0 || Number(s.availableCount || 0) + Number(s.onLeaveCount || 0) > 0
 })
 
 const chartRoot = ref(null)
