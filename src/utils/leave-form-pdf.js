@@ -481,29 +481,55 @@ function fmtDateLong(dateStr) {
   })
 }
 
-/** Parse name into last, first, middle. Prefer app.surname/firstname/middlename; else parse employee_name. */
+/** Read last, first, and middle name directly from structured fields without parsing employee_name. */
 function parseName(app) {
-  const s = (app.surname ?? '').trim()
-  const f = (app.firstname ?? '').trim()
-  const m = (app.middlename ?? '').trim()
-  if (s || f || m) {
-    const full = (app.employee_name || '').trim() || [f, m, s].filter(Boolean).join(' ')
-    return { last: s, first: f, middle: m, full }
-  }
-  const raw = (app.employee_name || '').trim()
-  if (!raw) return { last: '', first: '', middle: '', full: '' }
-  if (raw.includes(',')) {
-    const parts = raw.split(',').map((p) => p.trim())
-    const last = parts[0] ?? ''
-    const first = parts[1] ?? ''
-    const middle = parts[2] ?? ''
-    return { last, first, middle, full: raw }
-  }
-  const words = raw.split(/\s+/).filter(Boolean)
-  if (words.length <= 1) return { last: words[0] ?? '', first: '', middle: '', full: raw }
-  const last = words[words.length - 1]
-  const first = words.slice(0, -1).join(' ')
-  return { last, first, middle: '', full: raw }
+  const last = String(
+    app?.surname ??
+      app?.last_name ??
+      app?.lastName ??
+      app?.employee?.surname ??
+      app?.employee?.last_name ??
+      app?.employee?.lastName ??
+      app?.raw?.surname ??
+      app?.raw?.last_name ??
+      app?.raw?.lastName ??
+      app?.raw?.employee?.surname ??
+      app?.raw?.employee?.last_name ??
+      app?.raw?.employee?.lastName ??
+      '',
+  ).trim()
+  const first = String(
+    app?.firstname ??
+      app?.first_name ??
+      app?.firstName ??
+      app?.employee?.firstname ??
+      app?.employee?.first_name ??
+      app?.employee?.firstName ??
+      app?.raw?.firstname ??
+      app?.raw?.first_name ??
+      app?.raw?.firstName ??
+      app?.raw?.employee?.firstname ??
+      app?.raw?.employee?.first_name ??
+      app?.raw?.employee?.firstName ??
+      '',
+  ).trim()
+  const middle = String(
+    app?.middlename ??
+      app?.middle_name ??
+      app?.middleName ??
+      app?.employee?.middlename ??
+      app?.employee?.middle_name ??
+      app?.employee?.middleName ??
+      app?.raw?.middlename ??
+      app?.raw?.middle_name ??
+      app?.raw?.middleName ??
+      app?.raw?.employee?.middlename ??
+      app?.raw?.employee?.middle_name ??
+      app?.raw?.employee?.middleName ??
+      '',
+  ).trim()
+  const full = [first, middle, last].filter(Boolean).join(' ')
+  return { last, first, middle, full }
 }
 
 function formatEmployeeStatusForReceiptStamp(app) {
