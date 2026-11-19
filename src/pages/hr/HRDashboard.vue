@@ -2,7 +2,7 @@
   <q-page class="q-pa-sm hr-dashboard-page">
     <div class="row justify-between items-center q-col-gutter-sm q-mb-sm">
       <div class="col-auto">
-        <h1 class="text-h5 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
       </div>
       <div class="col-12 col-sm-auto">
         <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
@@ -36,7 +36,23 @@
       </div>
     </div>
 
-    <div class="row q-col-gutter-sm q-mb-sm stat-cards-row">
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <AppReloadBar :loading="loading && hasLoadedOnce" />
+
+    <KpiCardsSkeleton
+      v-if="loading && !hasLoadedOnce"
+      :count="5"
+      variant="dashboard"
+      :has-first-card-breakdown="true"
+      row-class="row q-col-gutter-sm q-mb-sm stat-cards-row"
+      col-class="col-12 col-sm-6 col-md stat-card-col"
+    />
+
+    <div
+      v-else
+      class="row q-col-gutter-sm q-mb-sm stat-cards-row"
+      :class="{ 'content-reloading': loading && hasLoadedOnce }"
+    >
       <div class="col-12 col-sm-6 col-md stat-card-col">
         <q-card
           class="stat-card stat-card--applications bg-white rounded-borders"
@@ -53,8 +69,7 @@
                 <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
               </div>
               <div class="stat-value text-primary">
-                <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ kpiCardMetrics.total_count }}</template>
+                {{ kpiCardMetrics.total_count }}
               </div>
             </div>
             <div class="stat-breakdown">
@@ -65,7 +80,7 @@
                 :style="getEmploymentTypeCardStyle(card)"
               >
                 <span class="stat-mini-label">{{ card.label }}</span>
-                <span class="stat-mini-value">{{ loading ? '-' : card.value }}</span>
+                <span class="stat-mini-value">{{ card.value }}</span>
               </div>
             </div>
           </q-card-section>
@@ -94,8 +109,7 @@
                 <div class="text-caption text-weight-medium q-mt-sm">Pending Applications</div>
               </div>
               <div class="stat-value text-warning">
-                <q-spinner v-if="loading" size="32px" color="warning" />
-                <template v-else>{{ kpiCardMetrics.pending_count }}</template>
+                {{ kpiCardMetrics.pending_count }}
               </div>
             </div>
           </q-card-section>
@@ -117,8 +131,7 @@
                 <div class="text-caption text-weight-medium q-mt-sm">Total Approved</div>
               </div>
               <div class="stat-value text-primary">
-                <q-spinner v-if="loading" size="32px" color="primary" />
-                <template v-else>{{ kpiCardMetrics.approved_count }}</template>
+                {{ kpiCardMetrics.approved_count }}
               </div>
             </div>
           </q-card-section>
@@ -140,8 +153,7 @@
                 <div class="text-caption text-weight-medium q-mt-sm">Disapproved Applications</div>
               </div>
               <div class="stat-value text-negative">
-                <q-spinner v-if="loading" size="32px" color="negative" />
-                <template v-else>{{ kpiCardMetrics.rejected_count }}</template>
+                {{ kpiCardMetrics.rejected_count }}
               </div>
             </div>
           </q-card-section>
@@ -163,8 +175,7 @@
                 <div class="text-caption text-weight-medium q-mt-sm">Recalled Applications</div>
               </div>
               <div class="stat-value text-blue-grey-7">
-                <q-spinner v-if="loading" size="32px" color="blue-grey-7" />
-                <template v-else>{{ kpiCardMetrics.recalled_count }}</template>
+                {{ kpiCardMetrics.recalled_count }}
               </div>
             </div>
           </q-card-section>
@@ -351,6 +362,7 @@ function buildEmploymentBreakdown(applications) {
 }
 
 const loading = ref(true)
+const hasLoadedOnce = ref(false)
 const kpiDateRangeModel = ref(null)
 const dashboardData = ref({
   total_count: 0,
@@ -774,6 +786,7 @@ async function fetchDashboard() {
     const msg = resolveApiErrorMessage(err, 'Unable to load HR dashboard data right now.')
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   } finally {
+    hasLoadedOnce.value = true
     loading.value = false
   }
 }

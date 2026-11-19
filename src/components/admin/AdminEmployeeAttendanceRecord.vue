@@ -116,34 +116,14 @@
     </q-card>
 
     <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && dtrData"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders no-print top-reload-bar"
+    <AppReloadBar
+      :loading="Boolean(loading && dtrData)"
+      bar-class="q-mb-md rounded-borders no-print top-reload-bar"
     />
 
     <!-- Initial Loading State: Realistic Skeleton Screen Suite -->
     <div v-if="loading && !dtrData" class="skeleton-suite no-print">
-      <!-- 5 Skeleton KPI Stat Cards -->
-      <div class="row q-col-gutter-md q-mb-md">
-        <div v-for="i in 5" :key="'sk-kpi-' + i" class="col-12 col-sm-6 col-md">
-          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <q-skeleton type="text" width="75px" height="16px" animation="wave" />
-                <q-skeleton type="QAvatar" size="32px" animation="wave" />
-              </div>
-              <div class="row items-baseline q-gutter-x-xs q-my-xs">
-                <q-skeleton type="text" width="55px" height="34px" animation="wave" />
-                <q-skeleton type="text" width="28px" height="16px" animation="wave" />
-              </div>
-              <q-skeleton type="text" width="120px" height="14px" animation="wave" />
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
+      <KpiCardsSkeleton :count="5" />
 
       <!-- Skeleton Tab Navigation Bar -->
       <div class="q-mb-md">
@@ -155,57 +135,7 @@
         </q-card>
       </div>
 
-      <!-- Skeleton Table Card -->
-      <q-card flat bordered class="rounded-borders bg-white table-card">
-        <q-card-section class="q-pa-md row items-center justify-between border-bottom">
-          <div>
-            <q-skeleton type="text" width="180px" height="24px" animation="wave" />
-            <q-skeleton type="text" width="240px" height="14px" class="q-mt-xs" animation="wave" />
-          </div>
-          <q-skeleton type="text" width="130px" height="16px" animation="wave" />
-        </q-card-section>
-
-        <!-- Skeleton Table Body -->
-        <div class="q-pa-md">
-          <!-- Table Columns Header Placeholder -->
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="55%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-right"><q-skeleton type="text" width="70%" height="16px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-
-          <!-- 8 Realistic Skeleton Rows -->
-          <div
-            v-for="r in 8"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <div class="col-2">
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-skeleton type="rect" width="34px" height="22px" class="rounded-borders" animation="wave" />
-                <q-skeleton type="text" width="60px" height="18px" animation="wave" />
-              </div>
-            </div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="rect" width="50px" height="22px" class="rounded-borders" animation="wave" /></div>
-            <div class="col-1 text-right"><q-skeleton type="QAvatar" size="26px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-        </div>
-
-        <!-- Skeleton Pagination Bar -->
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="110px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="140px" height="30px" class="rounded-borders" animation="wave" />
-        </div>
-      </q-card>
+      <TableSkeletonCard :columns="7" :rows="8" :show-avatar-column="false" :show-subtitle-on-first-column="false" />
     </div>
 
     <!-- Error State -->
@@ -1259,10 +1189,6 @@ onMounted(() => {
 .employee-name-title {
   max-width: 420px;
   letter-spacing: -0.01em;
-}
-
-.font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .action-btn {

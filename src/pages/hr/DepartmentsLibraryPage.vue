@@ -18,54 +18,40 @@
     </div>
 
     <!-- Unified Toolbar -->
-    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
-      <q-card-section class="q-pa-sm">
-        <div class="row items-center justify-between q-col-gutter-sm">
-          <div class="col-12 col-md-6">
-            <q-input
-              v-model="search"
-              outlined
-              dense
-              clearable
-              debounce="250"
-              placeholder="Search offices..."
-              style="min-width: 260px;"
-            >
-              <template #prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-            </q-input>
-          </div>
-          <div class="col-12 col-md-auto">
-            <div class="row items-center q-gutter-x-sm">
-              <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
-                {{ totalDepartments }} Total Offices
-              </q-badge>
-              <q-btn
-                unelevated
-                no-caps
-                color="green-9"
-                icon="add"
-                label="Add Office"
-                class="text-weight-bold q-px-md"
-                @click="openCreateDialog"
-              />
-            </div>
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
+    <DataFilterBar
+      v-model:search="search"
+      search-class="col-12 col-md-6"
+      :debounce="250"
+      search-placeholder="Search offices..."
+    >
+      <template #actions>
+        <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
+          {{ totalDepartments }} Total Offices
+        </q-badge>
+        <q-btn
+          unelevated
+          no-caps
+          color="green-9"
+          icon="add"
+          label="Add Office"
+          class="text-weight-bold q-px-md"
+          @click="openCreateDialog"
+        />
+      </template>
+    </DataFilterBar>
 
-    <q-card flat bordered class="rounded-borders bg-white">
-      <q-table
-        :rows="filteredRows"
-        :columns="columns"
-        row-key="id"
-        flat
-        dense
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-      >
+    <DataTableCard
+      :rows="filteredRows"
+      :columns="columns"
+      row-key="id"
+      dense
+      :loading="loading"
+      :rows-per-page-options="[10, 20, 50]"
+      empty-icon="apartment"
+      no-data-label="No offices found."
+      loading-text="Loading offices..."
+      spinner-color="green-9"
+    >
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="text-weight-medium">{{ props.row.name }}</div>
@@ -104,21 +90,7 @@
             </q-btn>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width text-center q-pa-lg">
-            <template v-if="loading">
-              <q-spinner color="green-9" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading offices...</div>
-            </template>
-            <template v-else>
-              <q-icon name="apartment" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">No offices found.</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <q-dialog v-model="showDialog" persistent>
       <q-card style="width: 95vw; max-width: 520px" class="rounded-borders">
@@ -163,6 +135,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 defineProps({
   embedded: {
@@ -173,11 +148,9 @@ defineProps({
 
 const $q = useQuasar()
 
-const loading = ref(false)
+const { search, rows, loading } = useDataTable()
 const saving = ref(false)
 const deletingId = ref(null)
-const search = ref('')
-const rows = ref([])
 
 const showDialog = ref(false)
 const dialogMode = ref('create')

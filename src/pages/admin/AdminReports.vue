@@ -2,7 +2,7 @@
   <q-page class="report-page q-pa-md">
     <div class="page-header q-mb-lg">
       <div>
-        <div class="text-h4 text-weight-bold">Office Leave Applications Report</div>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Office Leave Applications Report</h1>
         <div class="text-body2 text-grey-7 q-mt-xs">
           View and monitor leave applications submitted within your office.
         </div>
@@ -16,131 +16,86 @@
     </div>
 
     <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && rows.length > 0"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders top-reload-bar"
-    />
+    <AppReloadBar :loading="loading && rows.length > 0" />
 
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && rows.length === 0" class="skeleton-suite">
-      <!-- 4 Skeleton Summary Cards -->
-      <div class="row q-col-gutter-md q-mb-md">
-        <div v-for="i in 4" :key="'sk-rep-card-' + i" class="col-12 col-sm-6 col-lg-3">
-          <q-card flat bordered class="summary-card">
-            <q-card-section class="row items-center justify-between">
-              <div>
-                <q-skeleton type="text" width="110px" height="14px" animation="wave" />
-                <q-skeleton type="text" width="45px" height="28px" class="q-mt-xs" animation="wave" />
-              </div>
-              <q-skeleton type="QAvatar" size="48px" animation="wave" />
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Skeleton Report Table -->
-      <q-card flat bordered class="rounded-borders">
-        <q-card-section class="row items-center justify-between q-pb-sm">
-          <div>
-            <q-skeleton type="text" width="180px" height="20px" animation="wave" />
-            <q-skeleton type="text" width="130px" height="14px" class="q-mt-xs" animation="wave" />
-          </div>
-          <q-skeleton type="rect" width="100px" height="36px" class="rounded-borders" animation="wave" />
-        </q-card-section>
-        <q-separator />
-        <div class="q-pa-md">
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-          </div>
-          <div
-            v-for="r in 6"
-            :key="'sk-rep-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <div class="col-2"><q-skeleton type="text" width="120px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="100px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="85px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="85px" height="16px" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="40px" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="rect" width="65px" height="20px" class="rounded-borders q-mx-auto" animation="wave" /></div>
-          </div>
-        </div>
-      </q-card>
+      <KpiCardsSkeleton :count="4" col-class="col-12 col-sm-6 col-lg-3" />
+      <TableSkeletonCard
+        :columns="7"
+        :rows="6"
+        :show-toolbar="true"
+        :toolbar-filter-count="0"
+        :show-avatar-column="false"
+        :show-subtitle-on-first-column="false"
+      />
     </div>
 
     <!-- ========================================================= -->
     <!-- REAL CONTENT SUITE                                        -->
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && rows.length > 0 }">
-      <q-card flat bordered class="filter-card q-mb-md">
       <q-banner rounded class="bg-blue-1 text-primary q-mb-md">
         <q-icon name="apartment" class="q-mr-sm" />
         This report page is for office admin monitoring only. HR review and HR actions are not shown here.
       </q-banner>
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-md">Filters</div>
 
-        <div class="row q-col-gutter-md">
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filters.office"
-              :options="officeOptions"
-              label="Office"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-            />
-          </div>
+      <DataFilterBar
+        v-model:search="filters.search"
+        search-label="Search employee"
+        search-placeholder=""
+        search-class="col-12 col-md-3"
+        actions-class="col-12 col-md-auto q-ml-auto"
+        :show-reset="true"
+        reset-label="Reset"
+        @reset="resetFilters"
+      >
+        <div class="col-12 col-md-3">
+          <q-select
+            v-model="filters.office"
+            :options="officeOptions"
+            label="Office"
+            outlined
+            dense
+            emit-value
+            map-options
+            clearable
+          />
+        </div>
 
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filters.status"
-              :options="statusOptions"
-              label="Status"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-            />
-          </div>
+        <div class="col-12 col-md-2">
+          <q-select
+            v-model="filters.status"
+            :options="statusOptions"
+            label="Status"
+            outlined
+            dense
+            emit-value
+            map-options
+            clearable
+          />
+        </div>
 
-          <div class="col-12 col-md-3">
-            <q-select
-              v-model="filters.leaveType"
-              :options="leaveTypeOptions"
-              label="Leave Type"
-              outlined
-              dense
-              emit-value
-              map-options
-              clearable
-            />
-          </div>
+        <div class="col-12 col-md-2">
+          <q-select
+            v-model="filters.leaveType"
+            :options="leaveTypeOptions"
+            label="Leave Type"
+            outlined
+            dense
+            emit-value
+            map-options
+            clearable
+          />
+        </div>
 
-          <div class="col-12 col-md-3">
-            <q-input v-model="filters.search" label="Search employee" outlined dense clearable>
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
+        <template #actions>
+          <q-btn color="primary" label="Apply Filters" icon="filter_alt" no-caps />
+        </template>
 
+        <template #secondary>
           <div class="col-12 col-md-3">
             <q-input v-model="filters.dateFrom" label="Date From" outlined dense>
               <template #append>
@@ -172,14 +127,8 @@
               </template>
             </q-input>
           </div>
-
-          <div class="col-12 col-md-6 flex items-end justify-end q-gutter-sm">
-            <q-btn flat color="grey-7" label="Reset" no-caps @click="resetFilters" />
-            <q-btn color="primary" label="Apply Filters" icon="filter_alt" no-caps />
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
+        </template>
+      </DataFilterBar>
 
     <div class="row q-col-gutter-md q-mb-md">
       <div class="col-12 col-sm-6 col-lg-3" v-for="card in summaryCards" :key="card.title">
@@ -195,38 +144,40 @@
       </div>
     </div>
 
-    <q-card flat bordered>
-      <q-card-section class="row items-center justify-between q-pb-sm">
-        <div>
-          <div class="text-subtitle1 text-weight-medium">Leave Application Records</div>
-          <div class="text-caption text-grey-7">Office admin monitoring table layout</div>
-        </div>
+    <DataTableCard
+      :rows="rows"
+      :columns="columns"
+      row-key="id"
+      :visible-columns="visibleColumns"
+      v-model:pagination="pagination"
+      card-class="report-table"
+      table-class="report-table"
+      empty-icon="assignment"
+      no-data-label="No leave applications found."
+    >
+      <template #before-table>
+        <q-card-section class="row items-center justify-between q-pb-sm">
+          <div>
+            <div class="text-subtitle1 text-weight-medium">Leave Application Records</div>
+            <div class="text-caption text-grey-7">Office admin monitoring table layout</div>
+          </div>
 
-        <div class="row q-gutter-sm">
-          <q-btn-dropdown outline color="primary" label="Columns" no-caps>
-            <q-list dense style="min-width: 200px">
-              <q-item v-for="column in toggleableColumns" :key="column.name" tag="label">
-                <q-item-section avatar>
-                  <q-checkbox v-model="visibleColumns" :val="column.name" />
-                </q-item-section>
-                <q-item-section>{{ column.label }}</q-item-section>
-              </q-item>
-            </q-list>
-          </q-btn-dropdown>
-        </div>
-      </q-card-section>
+          <div class="row q-gutter-sm">
+            <q-btn-dropdown outline color="primary" label="Columns" no-caps>
+              <q-list dense style="min-width: 200px">
+                <q-item v-for="column in toggleableColumns" :key="column.name" tag="label">
+                  <q-item-section avatar>
+                    <q-checkbox v-model="visibleColumns" :val="column.name" />
+                  </q-item-section>
+                  <q-item-section>{{ column.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+          </div>
+        </q-card-section>
 
-      <q-separator />
-
-      <q-table
-        flat
-        :rows="rows"
-        :columns="columns"
-        row-key="id"
-        :visible-columns="visibleColumns"
-        :pagination="pagination"
-        class="report-table"
-      >
+        <q-separator />
+      </template>
         <template #body-cell-status="props">
           <q-td :props="props">
             <q-badge :color="statusColor(props.value)" rounded>
@@ -243,21 +194,15 @@
             </div>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width row flex-center q-gutter-sm text-grey-7 q-pa-lg">
-            <q-icon name="assignment" size="28px" />
-            <span>No leave applications found.</span>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
   </div>
   </q-page>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 
 const loading = ref(false)
 

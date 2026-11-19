@@ -1,16 +1,12 @@
 <template>
   <q-page class="q-pa-md biometric-devices-page">
     <!-- Page Header -->
-    <div class="row items-center justify-between q-mb-md">
-      <div>
-        <h1 class="text-h5 text-weight-bold text-dark q-my-none">Biometric Devices</h1>
-        <div class="text-caption text-grey-7 q-mt-xs">
-          Monitor connected ZKTeco devices and office assignments
-        </div>
-      </div>
+    <div class="row items-center justify-between q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-ma-none">Biometric Devices</h1>
       <div class="row items-center q-gutter-x-sm">
         <q-btn
           unelevated
+          no-caps
           color="primary"
           icon="add"
           label="Add Device"
@@ -20,16 +16,24 @@
       </div>
     </div>
 
+    <!-- Indeterminate Top Progress Bar for Background Reloads -->
+    <AppReloadBar :loading="loading && devicesList.length > 0" />
+
     <!-- Interactive Summary Stat Cards (Click to Filter) -->
-    <div class="row q-col-gutter-sm q-mb-md">
+    <KpiCardsSkeleton
+      v-if="loading && devicesList.length === 0"
+      :count="3"
+      row-class="row q-col-gutter-sm q-mb-md"
+    />
+    <div v-else class="row q-col-gutter-sm q-mb-md" :class="{ 'content-reloading': loading && devicesList.length > 0 }">
       <!-- Total Devices -->
       <div class="col-12 col-sm-4">
         <q-card
           flat
           bordered
           class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-all': statusFilter === 'all' }"
-          @click="statusFilter = 'all'"
+          :class="{ 'stat-card-active-all': filters.status === 'all' }"
+          @click="filters.status = 'all'"
         >
           <q-card-section class="q-py-md">
             <div class="row items-center justify-between no-wrap">
@@ -61,8 +65,8 @@
           flat
           bordered
           class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-online': statusFilter === 'online' }"
-          @click="statusFilter = statusFilter === 'online' ? 'all' : 'online'"
+          :class="{ 'stat-card-active-online': filters.status === 'online' }"
+          @click="filters.status = filters.status === 'online' ? 'all' : 'online'"
         >
           <q-card-section class="q-py-md">
             <div class="row items-center no-wrap">
@@ -84,8 +88,8 @@
           flat
           bordered
           class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-offline': statusFilter === 'offline' }"
-          @click="statusFilter = statusFilter === 'offline' ? 'all' : 'offline'"
+          :class="{ 'stat-card-active-offline': filters.status === 'offline' }"
+          @click="filters.status = filters.status === 'offline' ? 'all' : 'offline'"
         >
           <q-card-section class="q-py-md">
             <div class="row items-center justify-between no-wrap">
@@ -95,13 +99,17 @@
                 </q-avatar>
                 <div>
                   <div class="text-caption text-weight-medium text-grey-7">Offline</div>
-                  <div class="text-h5 text-weight-bolder text-grey-8">{{ deviceStats.offline }}</div>
+                  <div class="text-h5 text-weight-bolder text-grey-8">
+                    {{ deviceStats.offline }}
+                  </div>
                 </div>
               </div>
-              <span v-if="statusFilter === 'offline'" class="text-caption text-weight-bold text-grey-7">
+              <span
+                v-if="filters.status === 'offline'"
+                class="text-caption text-weight-bold text-grey-7"
+              >
                 Filtered
               </span>
-
             </div>
           </q-card-section>
         </q-card>
@@ -109,66 +117,51 @@
     </div>
 
     <!-- Filter & Search Toolbar -->
-    <q-card flat bordered class="rounded-borders bg-white q-mb-md">
-      <q-card-section class="q-py-sm">
-        <div class="row items-center justify-between q-col-gutter-sm">
-          <div class="col-12 col-sm-auto">
-            <q-select
-              v-model="statusFilter"
-              :options="statusOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              label="Device Status"
-              style="min-width: 180px"
-            />
-          </div>
-
-          <div class="col-12 col-sm">
-            <q-input
-              v-model="searchTerm"
-              outlined
-              dense
-              clearable
-              placeholder="Search by device label, serial number, office, or IP address..."
-            >
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <!-- Loading State (Initial Fetch) -->
-    <div v-if="loading && devicesList.length === 0" class="row justify-center q-py-xl">
-      <q-spinner-dots color="primary" size="48px" />
-    </div>
-
-    <!-- Empty State -->
-    <div
-      v-else-if="filteredDevices.length === 0"
-      class="text-center q-py-xl text-grey-6 bg-white rounded-borders q-pa-xl"
-      style="border: 1px dashed #cbd5e1;"
+    <DataFilterBar
+      v-model:search="searchTerm"
+      search-class="col-12 col-sm"
+      search-placeholder="Search by device label, serial number, office, or IP address..."
+      :show-reset="hasActiveFilters"
+      :loading="loading && devicesList.length === 0"
+      :skeleton-filter-count="1"
+      :skeleton-has-action="false"
+      @reset="resetFilters"
     >
-      <q-icon
-        :name="hasActiveFilters ? 'search_off' : 'developer_board_off'"
-        size="56px"
-        color="grey-4"
-      />
-      <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">
-        {{ hasActiveFilters ? 'No matching biometric devices' : 'No biometric devices found' }}
-      </div>
-      <div class="text-caption text-grey-6 q-mb-md">
-        {{
-          hasActiveFilters
-            ? 'Try adjusting your search query or status filter.'
-            : 'ADMS devices appear automatically when connected. For LAN devices, click below to register them.'
-        }}
-      </div>
-      <div class="row justify-center items-center q-gutter-sm">
+      <template #prepend>
+        <div class="col-12 col-sm-auto">
+          <q-select
+            v-model="filters.status"
+            :options="statusOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Device Status"
+            style="min-width: 180px"
+          />
+        </div>
+      </template>
+    </DataFilterBar>
+
+    <!-- Table View -->
+    <DataTableCard
+      v-model:pagination="pagination"
+      :rows="filteredDevices"
+      :columns="columns"
+      row-key="id"
+      :loading="loading"
+      :rows-per-page-options="[10, 20, 50, 0]"
+      table-class="biometric-table"
+      :empty-icon="hasActiveFilters ? 'search_off' : 'developer_board_off'"
+      :no-data-label="hasActiveFilters ? 'No matching biometric devices' : 'No biometric devices found'"
+      :empty-subtext="
+        hasActiveFilters
+          ? 'Try adjusting your search query or status filter.'
+          : 'ADMS devices appear automatically when connected. For LAN devices, click below to register them.'
+      "
+      loading-text="Loading biometric devices..."
+    >
+      <template #empty-actions>
         <q-btn
           v-if="hasActiveFilters"
           outline
@@ -187,22 +180,7 @@
           class="text-weight-bold q-px-md"
           @click="openAddDeviceDialog"
         />
-      </div>
-    </div>
-
-    <!-- Table View -->
-    <div v-else>
-      <q-table
-        v-model:pagination="pagination"
-        :rows="filteredDevices"
-        :columns="columns"
-        row-key="id"
-        flat
-        bordered
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50, 0]"
-        class="biometric-table"
-      >
+      </template>
         <!-- Device Info Column -->
         <template #body-cell-device_info="props">
           <q-td :props="props">
@@ -234,17 +212,11 @@
         <!-- Assigned Office Column -->
         <template #body-cell-assigned_office="props">
           <q-td :props="props">
-            <div
-              v-if="props.row.department_id"
-              class="text-dark ellipsis"
-              style="max-width: 260px;"
-            >
-              {{ props.row.department_name }}
+            <div v-if="props.row.department_id" class="text-dark ellipsis" style="max-width: 260px">
+              {{ props.row.office_acronym || formatOfficeAbbreviation(props.row.department_name) }}
               <q-tooltip>{{ props.row.department_name }}</q-tooltip>
             </div>
-            <span v-else class="text-grey-5 text-italic text-caption">
-              Unassigned
-            </span>
+            <span v-else class="text-grey-5 text-italic text-caption"> Unassigned </span>
           </q-td>
         </template>
 
@@ -252,19 +224,39 @@
         <template #body-cell-network="props">
           <q-td :props="props">
             <div class="row items-center no-wrap q-gutter-x-xs">
-              <span v-if="props.row.communication_mode === 'ADMS'" class="text-caption text-grey-8 font-mono">
+              <span
+                v-if="props.row.communication_mode === 'ADMS'"
+                class="text-caption text-grey-8 font-mono"
+              >
                 Cloud / Push
               </span>
-              <code v-else-if="props.row.communication_mode === 'LAN_POLL'" class="text-caption font-mono text-weight-medium text-dark">
-                {{ props.row.ip_address ? `${props.row.ip_address}:${props.row.port || 4370}` : 'No Static IP' }}
+              <code
+                v-else-if="props.row.communication_mode === 'LAN_POLL'"
+                class="text-caption font-mono text-weight-medium text-dark"
+              >
+                {{
+                  props.row.ip_address
+                    ? `${props.row.ip_address}:${props.row.port || 4370}`
+                    : 'No Static IP'
+                }}
               </code>
-              <span v-else class="text-caption text-grey-6 font-mono">
-                Offline
-              </span>
+              <span v-else class="text-caption text-grey-6 font-mono"> Offline </span>
               <q-badge
                 dense
-                :color="props.row.communication_mode === 'LAN_POLL' ? 'blue-8' : props.row.communication_mode === 'OFFLINE_USB' ? 'grey-7' : 'purple-8'"
-                :label="props.row.communication_mode === 'LAN_POLL' ? 'LAN' : props.row.communication_mode === 'OFFLINE_USB' ? 'USB' : 'ADMS'"
+                :color="
+                  props.row.communication_mode === 'LAN_POLL'
+                    ? 'blue-8'
+                    : props.row.communication_mode === 'OFFLINE_USB'
+                      ? 'grey-7'
+                      : 'purple-8'
+                "
+                :label="
+                  props.row.communication_mode === 'LAN_POLL'
+                    ? 'LAN'
+                    : props.row.communication_mode === 'OFFLINE_USB'
+                      ? 'USB'
+                      : 'ADMS'
+                "
               />
             </div>
           </q-td>
@@ -278,7 +270,6 @@
               <span class="status-text text-weight-bold">
                 {{ isDeviceOnline(props.row) ? 'Online' : 'Offline' }}
               </span>
-
             </span>
           </q-td>
         </template>
@@ -289,7 +280,11 @@
             <div class="row inline no-wrap items-center q-gutter-x-xs">
               <!-- Test Ping Button (Only for LAN Socket devices) -->
               <q-btn
-                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.ip_address && props.row.id"
+                v-if="
+                  props.row.communication_mode === 'LAN_POLL' &&
+                  props.row.ip_address &&
+                  props.row.id
+                "
                 flat
                 round
                 dense
@@ -304,7 +299,11 @@
 
               <!-- Manual Sync Button (Only for LAN Socket devices) -->
               <q-btn
-                v-if="props.row.communication_mode === 'LAN_POLL' && props.row.ip_address && props.row.id"
+                v-if="
+                  props.row.communication_mode === 'LAN_POLL' &&
+                  props.row.ip_address &&
+                  props.row.id
+                "
                 flat
                 round
                 dense
@@ -342,14 +341,15 @@
             </div>
           </q-td>
         </template>
-      </q-table>
-    </div>
+    </DataTableCard>
 
     <!-- Edit Biometric Device Dialog -->
     <q-dialog v-model="showDeviceDialog" persistent>
-      <q-card style="width: 520px; max-width: 95vw;" class="rounded-borders overflow-hidden">
+      <q-card style="width: 520px; max-width: 95vw" class="rounded-borders overflow-hidden">
         <!-- Dialog Header -->
-        <div class="dialog-header bg-primary text-white row items-center justify-between no-wrap q-px-md q-py-sm">
+        <div
+          class="dialog-header bg-primary text-white row items-center justify-between no-wrap q-px-md q-py-sm"
+        >
           <div class="row items-center no-wrap q-gutter-x-sm">
             <div class="dialog-header-icon row items-center justify-center">
               <q-icon name="devices" size="20px" color="white" />
@@ -358,7 +358,14 @@
               {{ isCreatingDevice ? 'Register Biometric Device' : 'Edit Biometric Device' }}
             </div>
           </div>
-          <q-btn icon="close" flat round dense text-color="white" @click="showDeviceDialog = false" />
+          <q-btn
+            icon="close"
+            flat
+            round
+            dense
+            text-color="white"
+            @click="showDeviceDialog = false"
+          />
         </div>
 
         <!-- Dialog Body -->
@@ -371,7 +378,7 @@
                 dense
                 label="Device Label *"
                 placeholder="e.g. CHRMO, CICTMO"
-                :rules="[val => !!val || 'Device name is required']"
+                :rules="[(val) => !!val || 'Device name is required']"
                 hide-bottom-space
               />
             </div>
@@ -384,7 +391,7 @@
                 :label="isCreatingDevice ? 'Serial Number *' : 'Serial Number'"
                 placeholder="e.g. KMY2252000112"
                 class="font-mono"
-                :rules="[val => !!val || 'Serial Number is required']"
+                :rules="[(val) => !!val || 'Serial Number is required']"
                 hide-bottom-space
               />
             </div>
@@ -392,7 +399,9 @@
 
           <!-- Connection Mode & Port (Port only needed for LAN socket polling) -->
           <div class="row q-col-gutter-sm">
-            <div :class="deviceForm.communication_mode === 'LAN_POLL' ? 'col-12 col-sm-8' : 'col-12'">
+            <div
+              :class="deviceForm.communication_mode === 'LAN_POLL' ? 'col-12 col-sm-8' : 'col-12'"
+            >
               <q-select
                 v-model="deviceForm.communication_mode"
                 :options="communicationModeOptions"
@@ -414,7 +423,7 @@
                 dense
                 label="LAN Port *"
                 placeholder="4370"
-                :rules="[val => !!val || 'Port is required for LAN']"
+                :rules="[(val) => !!val || 'Port is required for LAN']"
                 hide-bottom-space
               />
             </div>
@@ -428,7 +437,7 @@
               dense
               label="IP Address (Static LAN) *"
               placeholder="e.g. 192.168.1.100"
-              :rules="[val => !!val || 'IP Address is required for LAN poll']"
+              :rules="[(val) => !!val || 'IP Address is required for LAN poll']"
               hide-bottom-space
             />
           </div>
@@ -445,7 +454,7 @@
               options-dense
               label="Assigned Office *"
               :loading="loadingOffices"
-              :rules="[val => !!val || 'Assigned office is required']"
+              :rules="[(val) => !!val || 'Assigned office is required']"
               hide-bottom-space
               @popup-show="officeSearchQuery = ''"
               @update:model-value="onOfficeSelected"
@@ -519,19 +528,31 @@
 
     <!-- Delete Confirmation Dialog -->
     <q-dialog v-model="showDeleteDialog" persistent>
-      <q-card style="width: 440px; max-width: 95vw;" class="rounded-borders overflow-hidden">
-        <q-card-section class="row items-center justify-between bg-negative text-white q-py-sm q-px-md">
+      <q-card style="width: 440px; max-width: 95vw" class="rounded-borders overflow-hidden">
+        <q-card-section
+          class="row items-center justify-between bg-negative text-white q-py-sm q-px-md"
+        >
           <div class="row items-center q-gutter-x-sm">
             <q-icon name="warning" size="22px" />
             <span class="text-subtitle1 text-weight-bold">Delete Biometric Device?</span>
           </div>
-          <q-btn icon="close" flat round dense text-color="white" @click="showDeleteDialog = false" />
+          <q-btn
+            icon="close"
+            flat
+            round
+            dense
+            text-color="white"
+            @click="showDeleteDialog = false"
+          />
         </q-card-section>
 
         <q-card-section class="q-pa-md">
           <div class="text-body2 text-grey-9">
-            Are you sure you want to remove <strong>{{ activeDeleteDevice?.device_name }}</strong>
-            (<code class="font-mono">{{ activeDeleteDevice?.serial_number }}</code>)?
+            Are you sure you want to remove
+            <strong>{{ activeDeleteDevice?.device_name }}</strong> (<code class="font-mono">{{
+              activeDeleteDevice?.serial_number
+            }}</code
+            >)?
           </div>
           <div class="text-caption text-grey-7 q-mt-sm">
             The device record will be removed from ALMS.
@@ -561,22 +582,35 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useQuasar, copyToClipboard } from 'quasar'
 import { storeToRefs } from 'pinia'
 import { useBiometricDeviceStore } from 'stores/biometric-device-store'
+import { formatOfficeAbbreviation } from 'src/utils/office-acronym'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
 const deviceStore = useBiometricDeviceStore()
 
-const {
-  loading,
-  submittingDevice,
-  devicesList,
-  loadingOffices,
-  deviceStats,
-  allOfficeOptions,
-} = storeToRefs(deviceStore)
+const { loading, submittingDevice, devicesList, loadingOffices, deviceStats, allOfficeOptions } =
+  storeToRefs(deviceStore)
 const { isDeviceOnline } = deviceStore
 
-const searchTerm = ref('')
-const statusFilter = ref('all')
+const {
+  search: searchTerm,
+  filters,
+  pagination,
+  hasActiveFilters,
+  resetFilters,
+} = useDataTable({
+  initialFilters: {
+    status: 'all',
+  },
+  initialPagination: {
+    sortBy: 'status',
+    descending: true,
+    page: 1,
+    rowsPerPage: 10,
+  },
+})
 
 const statusOptions = [
   { label: 'All Devices', value: 'all' },
@@ -584,22 +618,17 @@ const statusOptions = [
   { label: 'Offline Only', value: 'offline' },
 ]
 
-
 function formatDeviceName(dev) {
   if (!dev) return 'Biometric Device'
   return dev.device_name || `Terminal ${dev.serial_number}` || 'Biometric Device'
 }
 
-const hasActiveFilters = computed(() => {
-  return Boolean((searchTerm.value && searchTerm.value.trim() !== '') || statusFilter.value !== 'all')
-})
-
 const filteredDevices = computed(() => {
   let list = devicesList.value
 
-  if (statusFilter.value === 'online') {
+  if (filters.status === 'online') {
     list = list.filter((d) => isDeviceOnline(d))
-  } else if (statusFilter.value === 'offline') {
+  } else if (filters.status === 'offline') {
     list = list.filter((d) => !isDeviceOnline(d))
   }
 
@@ -615,13 +644,6 @@ const filteredDevices = computed(() => {
   }
 
   return list
-})
-
-const pagination = ref({
-  sortBy: 'status',
-  descending: true,
-  page: 1,
-  rowsPerPage: 10,
 })
 
 const columns = [
@@ -650,7 +672,7 @@ const columns = [
     name: 'network',
     label: 'Connection / IP',
     align: 'left',
-    field: (row) => (row.communication_mode === 'ADMS' ? 'ADMS' : (row.ip_address || '')),
+    field: (row) => (row.communication_mode === 'ADMS' ? 'ADMS' : row.ip_address || ''),
     sortable: true,
   },
   {
@@ -668,11 +690,6 @@ const columns = [
     sortable: false,
   },
 ]
-
-function resetFilters() {
-  searchTerm.value = ''
-  statusFilter.value = 'all'
-}
 
 async function fetchDevices(silent = false) {
   try {
@@ -711,7 +728,7 @@ const filteredOfficeOptions = computed(() => {
   return allOfficeOptions.value.filter(
     (opt) =>
       (opt.name || '').toLowerCase().includes(needle) ||
-      (opt.acronym || '').toLowerCase().includes(needle)
+      (opt.acronym || '').toLowerCase().includes(needle),
   )
 })
 
@@ -729,7 +746,7 @@ function autoMatchOfficeForUnassignedDevice(dev) {
   if (!labelHint || labelHint === 'default') return
 
   const exactAcronym = deviceStore.officesList.find(
-    (d) => (d.acronym || '').trim().toLowerCase() === labelHint
+    (d) => (d.acronym || '').trim().toLowerCase() === labelHint,
   )
   if (exactAcronym) {
     deviceForm.department_id = Number(exactAcronym.id)
@@ -738,7 +755,9 @@ function autoMatchOfficeForUnassignedDevice(dev) {
   const partial = deviceStore.officesList.find((d) => {
     const acr = (d.acronym || '').trim().toLowerCase()
     const nm = (d.name || '').trim().toLowerCase()
-    return (acr && labelHint.includes(acr)) || (nm && (nm.includes(labelHint) || labelHint.includes(nm)))
+    return (
+      (acr && labelHint.includes(acr)) || (nm && (nm.includes(labelHint) || labelHint.includes(nm)))
+    )
   })
   if (partial) {
     deviceForm.department_id = Number(partial.id)
@@ -777,7 +796,6 @@ const communicationModeOptions = [
 const deviceForm = reactive({
   device_name: '',
   serial_number: '',
-  model_name: 'MB360',
   department_id: null,
   communication_mode: 'ADMS',
   is_primary: true,
@@ -791,7 +809,6 @@ function openAddDeviceDialog() {
   activeDevice.value = null
   deviceForm.device_name = ''
   deviceForm.serial_number = ''
-  deviceForm.model_name = 'MB360'
   deviceForm.department_id = null
   deviceForm.communication_mode = 'ADMS'
   deviceForm.is_primary = true
@@ -807,7 +824,6 @@ function openEditDeviceDialog(dev) {
   activeDevice.value = dev
   deviceForm.device_name = dev.device_name || ''
   deviceForm.serial_number = dev.serial_number || ''
-  deviceForm.model_name = dev.model || dev.model_name || 'MB360'
   deviceForm.department_id = dev.department_id ? Number(dev.department_id) : null
   deviceForm.communication_mode = dev.communication_mode || 'ADMS'
   deviceForm.is_primary = dev.is_primary !== undefined ? Boolean(dev.is_primary) : true
@@ -921,7 +937,11 @@ async function submitDeviceForm() {
 
     $q.notify({
       type: 'positive',
-      message: data?.message || (isCreatingDevice.value ? 'Device registered successfully.' : 'Device updated successfully.'),
+      message:
+        data?.message ||
+        (isCreatingDevice.value
+          ? 'Device registered successfully.'
+          : 'Device updated successfully.'),
       position: 'top',
     })
     showDeviceDialog.value = false
@@ -950,7 +970,7 @@ async function submitDeleteDevice() {
   try {
     const data = await deviceStore.deleteDevice(
       activeDeleteDevice.value.id,
-      activeDeleteDevice.value.serial_number
+      activeDeleteDevice.value.serial_number,
     )
     $q.notify({
       type: 'positive',
@@ -988,11 +1008,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.biometric-devices-page {
-  max-width: 1300px;
-  margin: 0 auto;
-}
-
 .stat-card {
   border-color: #e5e7eb;
   transition: all 0.18s ease;
@@ -1016,10 +1031,6 @@ onUnmounted(() => {
 .stat-card-active-offline {
   border-color: #64748b;
   box-shadow: 0 0 0 1px #64748b;
-}
-
-.font-mono {
-  font-family: monospace;
 }
 
 .biometric-table {
@@ -1096,7 +1107,8 @@ onUnmounted(() => {
     transform: scale(0.8);
     opacity: 0.9;
   }
-  80%, 100% {
+  80%,
+  100% {
     transform: scale(2.2);
     opacity: 0;
   }

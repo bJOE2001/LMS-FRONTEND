@@ -20,97 +20,20 @@
     </div>
 
     <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && (employees.length > 0 || fullEmployeeRows.length > 0)"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders top-reload-bar"
-    />
+    <AppReloadBar :loading="loading && (employees.length > 0 || fullEmployeeRows.length > 0)" />
 
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && employees.length === 0 && fullEmployeeRows.length === 0" class="skeleton-suite">
-      <!-- 5 Skeleton KPI Status Cards -->
-      <div class="row q-col-gutter-sm q-mb-md status-cards-row">
-        <div v-for="i in 5" :key="'sk-card-' + i" class="col-6 col-sm-6 col-md status-cards-row__item">
-          <q-card flat bordered class="rounded-borders bg-white stat-card">
-            <q-card-section class="q-py-md status-card__section">
-              <div class="row items-center no-wrap status-card__content">
-                <q-skeleton type="QAvatar" size="44px" class="q-mr-md" animation="wave" />
-                <q-skeleton type="text" width="70px" height="16px" animation="wave" />
-                <q-skeleton type="text" width="36px" height="26px" class="q-ml-auto" animation="wave" />
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Skeleton Employee Records Table Card -->
-      <q-card flat bordered class="rounded-borders employee-records-card">
-        <q-card-section class="employee-records-card__section">
-          <div class="row justify-between items-center employee-records-toolbar">
-            <div class="row items-center q-gutter-sm">
-              <div class="text-h6">Employee Records</div>
-            </div>
-            <q-skeleton type="rect" width="220px" height="36px" class="rounded-borders" animation="wave" />
-          </div>
-        </q-card-section>
-
-        <div class="q-pa-md">
-          <!-- Columns Header Placeholder -->
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-5"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-3 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-
-          <!-- 8 Skeleton Rows -->
-          <div
-            v-for="r in 8"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <!-- Control No -->
-            <div class="col-2">
-              <q-skeleton type="text" width="70px" height="16px" animation="wave" />
-            </div>
-
-            <!-- Employee Avatar + Name + Designation -->
-            <div class="col-5">
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-skeleton type="QAvatar" size="32px" animation="wave" />
-                <div>
-                  <q-skeleton type="text" width="140px" height="18px" animation="wave" />
-                  <q-skeleton type="text" width="90px" height="14px" class="q-mt-xs" animation="wave" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Status Badge -->
-            <div class="col-3 text-center">
-              <q-skeleton type="rect" width="75px" height="22px" class="rounded-borders q-mx-auto" animation="wave" />
-            </div>
-
-            <!-- Actions -->
-            <div class="col-2 text-right">
-              <div class="row items-center justify-end q-gutter-xs">
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Skeleton Table Footer -->
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
-        </div>
-      </q-card>
+      <KpiCardsSkeleton :count="5" row-class="row q-col-gutter-sm q-mb-md status-cards-row" col-class="col-6 col-sm-6 col-md status-cards-row__item" />
+      <TableSkeletonCard
+        :columns="4"
+        :rows="8"
+        :show-toolbar="true"
+        :toolbar-filter-count="0"
+        :show-toolbar-action="false"
+      />
     </div>
 
     <!-- ========================================================= -->
@@ -169,40 +92,33 @@
       </div>
     </div>
 
-    <q-card flat bordered class="rounded-borders employee-records-card">
-      <q-card-section class="employee-records-card__section">
-        <div class="row justify-between items-center employee-records-toolbar">
-          <div class="row items-center q-gutter-sm">
-            <div class="text-h6">Employee Records</div>
-          </div>
-          <q-input
-            v-model="search"
-            outlined
-            dense
-            debounce="400"
-            placeholder="Search employees..."
-            clearable
-            class="employee-records-search"
-            @update:model-value="fetchEmployees(1)"
-          >
-            <template #prepend>
-              <q-icon name="search" size="sm" color="grey-6" />
-            </template>
-          </q-input>
-        </div>
-      </q-card-section>
+    <DataFilterBar
+      v-model:search="search"
+      :debounce="400"
+      search-placeholder="Search employees..."
+      search-class="col-12 col-sm-6 col-md-4"
+      @update:search="fetchEmployees(1)"
+    />
 
-      <q-table
-        :rows="tableRows"
-        :columns="visibleColumns"
-        row-key="control_no"
-        flat
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-        v-model:pagination="pagination"
-        class="employee-records-table"
-        @request="onRequest"
-      >
+    <DataTableCard
+      :rows="tableRows"
+      :columns="visibleColumns"
+      row-key="control_no"
+      :loading="loading"
+      v-model:pagination="pagination"
+      :rows-per-page-options="[10, 20, 50]"
+      card-class="employee-records-card"
+      table-class="employee-records-table"
+      empty-icon="search_off"
+      :no-data-label="noDataMessage"
+      loading-text="Loading employees..."
+      @request="onRequest"
+    >
+      <template #before-table>
+        <q-card-section class="q-pb-sm">
+          <div class="text-h6">Employee Records</div>
+        </q-card-section>
+      </template>
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap cursor-pointer" @click="viewEmployee(props.row)">
@@ -317,21 +233,7 @@
             </div>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width text-center q-pa-lg">
-            <template v-if="loading">
-              <q-spinner color="primary" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading employees...</div>
-            </template>
-            <template v-else>
-              <q-icon name="search_off" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">{{ noDataMessage }}</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
   </div>
 
     <q-dialog
@@ -649,14 +551,12 @@
                   outlined
                   dense
                   use-input
-                  fill-input
-                  hide-selected
                   clearable
                   input-debounce="250"
                   label="Select Employee *"
                   hint="Type at least 2 characters to search employees."
                   persistent-hint
-                  option-label="label"
+                  :option-label="(opt) => (opt ? (opt.label || opt.full_name || opt.control_no || '') : '')"
                   :loading="employeePickerLoading"
                   :rules="[() => !!employeeForm.control_no || 'Employee is required.']"
                   @filter="filterEmployeeOptions"
@@ -664,6 +564,9 @@
                   @update:model-value="handleSelectedEmployeeOption"
                   @clear="clearSelectedEmployeeOption"
                 >
+                  <template #selected-item="scope">
+                    <span class="ellipsis">{{ scope.opt.label || scope.opt.full_name }}</span>
+                  </template>
                   <template #option="scope">
                     <q-item v-bind="scope.itemProps">
                       <q-item-section>
@@ -800,6 +703,8 @@ import { useAuthStore } from 'stores/auth-store'
 import { useAdminEmployeeStore } from 'stores/admin-employee-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 
@@ -1792,7 +1697,9 @@ function toEmployeePickerOption(employee) {
   const hrisOffice = String(employee.hris_office || employee.office || '').trim()
   const officeAcronym = resolveOfficeAcronymLabel(employee)
   const designation = String(employee.designation || '').trim()
-  const fullName = [surname, firstname, middlename].filter(Boolean).join(', ').replace(', ,', ',')
+  const middleInitial = middlename ? `${middlename.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase()}.` : ''
+  const givenName = [firstname, middleInitial].filter(Boolean).join(' ')
+  const fullName = surname && givenName ? `${surname}, ${givenName}` : (surname || givenName || controlNo)
 
   return {
     ...employee,

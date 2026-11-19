@@ -222,10 +222,11 @@ const emit = defineEmits(['update:modelValue', 'open-calendar-preview'])
 const employeeFullName = computed(() => {
   const emp = props.employee
   if (!emp) return ''
-  const lastName = String(emp.last_name || '').trim()
-  const firstName = String(emp.first_name || '').trim()
-  const middleName = String(emp.middle_name || '').trim()
-  const extension = String(emp.name_extension || '').trim()
+  if (emp.full_name) return String(emp.full_name).trim()
+  const lastName = String(emp.surname ?? emp.last_name ?? emp.lastName ?? '').trim()
+  const firstName = String(emp.firstname ?? emp.first_name ?? emp.firstName ?? '').trim()
+  const middleName = String(emp.middlename ?? emp.middle_name ?? emp.middleName ?? '').trim()
+  const extension = String(emp.extension ?? emp.name_extension ?? emp.nameExtension ?? '').trim()
   const fullName = [lastName, [firstName, middleName].filter(Boolean).join(' '), extension].filter(Boolean).join(', ')
   return fullName || emp.name || emp.control_no || '-'
 })

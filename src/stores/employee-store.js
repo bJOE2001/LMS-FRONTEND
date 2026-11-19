@@ -165,10 +165,21 @@ export const useEmployeeStore = defineStore('employee', () => {
           totalRows = data.employees.total ?? 0
         }
 
-        if (data?.total_employees !== undefined && data?.total_employees !== null) {
-          overallTotal = Number(data.total_employees)
-        } else if (totalRows > 0 && !params.search && !params.department_id) {
-          overallTotal = totalRows
+        const isSearchOrFilterApplied = Boolean(
+          params.search ||
+          params.department_id ||
+          (params.biometric_status && params.biometric_status !== 'ALL')
+        )
+
+        if (!isSearchOrFilterApplied) {
+          if (data?.total_employees !== undefined && data?.total_employees !== null) {
+            overallTotal = Number(data.total_employees)
+          } else if (totalRows > 0) {
+            overallTotal = totalRows
+          }
+        } else if (overallTotal === 0) {
+          // If totalEmployees is not yet populated, fetch unfiltered count in background
+          void fetchTotalEmployeesSummary(params.activity || 'ACTIVE')
         }
 
         employees.value = loadedList

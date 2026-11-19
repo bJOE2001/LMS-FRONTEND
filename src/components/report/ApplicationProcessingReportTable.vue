@@ -1,6 +1,16 @@
 <template>
   <div>
+    <TableSkeletonCard
+      v-if="loading && rows.length === 0"
+      :columns="columns.length > 0 ? columns : 6"
+      :rows="6"
+      :show-footer="false"
+      :show-avatar-column="false"
+      :show-subtitle-on-first-column="false"
+    />
+
     <q-table
+      v-else
       :rows="rows"
       :columns="columns"
       row-key="id"

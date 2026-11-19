@@ -342,26 +342,88 @@ watch(
   },
 )
 
+function getMiddleInitial(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+
+  const firstToken = normalized
+    .split(/[\s.-]+/)
+    .map((part) => part.trim())
+    .find(Boolean)
+
+  const firstCharacter = String(firstToken || normalized)
+    .replace(/[^A-Za-z0-9]/g, '')
+    .charAt(0)
+
+  return firstCharacter ? `${firstCharacter.toUpperCase()}.` : ''
+}
+
+function formatEmployeeDisplayName(employee) {
+  if (!employee) return ''
+
+  const surname = String(employee.surname ?? employee.last_name ?? employee.lastName ?? '').trim()
+  const firstname = String(
+    employee.firstname ?? employee.first_name ?? employee.firstName ?? '',
+  ).trim()
+  const middlename = String(
+    employee.middlename ?? employee.middle_name ?? employee.middleName ?? '',
+  ).trim()
+  const extension = String(
+    employee.extension ?? employee.name_extension ?? employee.nameExtension ?? '',
+  ).trim()
+  const middleInitial = getMiddleInitial(middlename)
+
+  if (surname && firstname) {
+    const givenName = [firstname, middleInitial, extension].filter(Boolean).join(' ')
+    return `${surname}, ${givenName}`
+  }
+
+  return surname || firstname || String(employee.control_no ?? employee.id ?? '').trim()
+}
+
 function upsertEmployeeOption(emp) {
   if (!emp?.control_no) return
   const val = String(emp.control_no)
-  const lastName = String(emp.last_name || '').trim()
-  const firstName = String(emp.first_name || '').trim()
-  const middleName = String(emp.middle_name || '').trim()
-  const extension = String(emp.name_extension || '').trim()
-  const fullName = [lastName, [firstName, middleName].filter(Boolean).join(' '), extension].filter(Boolean).join(', ') || emp.name || val
+  const fullName = formatEmployeeDisplayName(emp) || val
 
   const exists = employeeOptions.value.some((opt) => String(opt.value) === val)
   if (!exists) {
     employeeOptions.value = [
       {
-        label: `${fullName} (${val})`,
+        label: fullName,
         value: val,
-        caption: emp.designation || emp.office || '',
+        caption: [val, emp.designation, emp.office].filter(Boolean).join(' • '),
       },
       ...employeeOptions.value,
     ]
   }
+}
+
+const LEAVE_TYPE_SEQUENCE = [
+  'vacation leave',
+  'sick leave',
+  'mandatory / forced leave',
+  'special privilege leave',
+  'solo parent leave',
+  'special emergency (calamity) leave',
+  'wellness leave',
+]
+
+function sortCreditLeaveTypes(types) {
+  if (!Array.isArray(types)) return []
+  return [...types].sort((a, b) => {
+    const nameA = String(a?.display_name || a?.name || '').trim().toLowerCase()
+    const nameB = String(b?.display_name || b?.name || '').trim().toLowerCase()
+    const indexA = LEAVE_TYPE_SEQUENCE.indexOf(nameA)
+    const indexB = LEAVE_TYPE_SEQUENCE.indexOf(nameB)
+    const rankA = indexA === -1 ? 999 : indexA
+    const rankB = indexB === -1 ? 999 : indexB
+
+    if (rankA !== rankB) {
+      return rankA - rankB
+    }
+    return nameA.localeCompare(nameB)
+  })
 }
 
 async function loadAvailableLeaveTypes(controlNo, prefillBalances = false) {
@@ -370,9 +432,11 @@ async function loadAvailableLeaveTypes(controlNo, prefillBalances = false) {
     const data = await employeeStore.fetchAvailableLeaveTypes(controlNo)
     const types = Array.isArray(data?.leave_types) ? data.leave_types : []
 
-    creditLeaveTypes.value = types
+    const filtered = types
       .map((t) => ({ ...t, is_credit_based: t?.is_credit_based ?? true }))
       .filter((t) => t.is_credit_based && String(t?.name || '').trim().toLowerCase() !== 'cto leave')
+
+    creditLeaveTypes.value = sortCreditLeaveTypes(filtered)
 
     if (prefillBalances) {
       if (data?.as_of_date) {
@@ -425,16 +489,12 @@ async function onFilterEmployees(val, update) {
     const list = Array.isArray(data?.employees) ? data.employees : []
     const mapped = list.map((emp) => {
       const cNo = String(emp.control_no || emp.id)
-      const lName = String(emp.last_name || '').trim()
-      const fName = String(emp.first_name || '').trim()
-      const mName = String(emp.middle_name || '').trim()
-      const ext = String(emp.name_extension || '').trim()
-      const name = [lName, [fName, mName].filter(Boolean).join(' '), ext].filter(Boolean).join(', ') || emp.name || cNo
+      const name = formatEmployeeDisplayName(emp) || cNo
 
       return {
-        label: `${name} (${cNo})`,
+        label: name,
         value: cNo,
-        caption: emp.designation || emp.office || '',
+        caption: [cNo, emp.designation, emp.office].filter(Boolean).join(' • '),
       }
     })
 

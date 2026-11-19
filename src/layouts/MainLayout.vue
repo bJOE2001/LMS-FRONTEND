@@ -88,18 +88,70 @@
           <template v-if="canAccessHrModule('employee_management')">
 
 
-            <q-item
-              clickable
-              :active="route.path === '/hr/biometric-devices'"
-              active-class="nav-item-active text-white text-weight-bold"
-              to="/hr/biometric-devices"
-              class="nav-item q-mx-sm q-mb-xs rounded-borders"
+            <q-expansion-item
+              v-model="biometricMenuExpanded"
+              icon="fingerprint"
+              label="Bio Management"
+              header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
+              expand-icon-class="text-white opacity-80"
+              :class="{ 'group-active': isBioManagementRoute(route.path) }"
+              dense-toggle
             >
-              <q-item-section avatar class="nav-item-avatar">
-                <q-icon name="devices" size="20px" />
-              </q-item-section>
-              <q-item-section class="nav-item-label">Biometric Devices</q-item-section>
-            </q-item>
+              <q-list class="nav-sub-tree q-mb-xs">
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/biometric-devices'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/biometric-devices"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="devices" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Biometric Devices</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/biometric-logs'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/biometric-logs"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="receipt_long" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Bio Logs</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/attendance-logs'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/attendance-logs"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="schedule" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Attendance Logs</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/dtr'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/dtr"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="event_note" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Employee DTR</q-item-section>
+                </q-item>
+              </q-list>
+            </q-expansion-item>
           </template>
 
           <!-- ADMINISTRATION -->
@@ -439,7 +491,22 @@ const isHrLeaveRouteActive = computed(() => {
   return hrLeaveNav.some((item) => route.path.startsWith(item.path))
 })
 
+const isBioManagementRoute = (path) =>
+  path.startsWith('/hr/biometric-') ||
+  path.startsWith('/hr/attendance-logs') ||
+  path.startsWith('/hr/dtr')
+
 const hrLeaveMenuExpanded = ref(false)
+const biometricMenuExpanded = ref(isBioManagementRoute(route.path))
+
+watch(
+  () => route.path,
+  (newPath) => {
+    if (isBioManagementRoute(newPath)) {
+      biometricMenuExpanded.value = true
+    }
+  }
+)
 
 // Auto-expand Leave Management whenever navigating to any leave screen
 watch(

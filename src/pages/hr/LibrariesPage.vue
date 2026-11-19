@@ -1,8 +1,8 @@
 <template>
   <q-page class="q-pa-md libraries-page">
     <!-- Top Header Banner -->
-    <div class="q-mb-md">
-      <h1 class="text-h5 text-weight-bolder text-dark q-my-none">System Libraries</h1>
+    <div class="q-mb-lg">
+      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">System Libraries</h1>
     </div>
 
     <!-- Navigation Tabs -->
@@ -21,6 +21,7 @@
         <q-tab name="holidays" icon="event" label="Holiday Library" />
         <q-tab name="leave_types" icon="playlist_add" label="Leave Types" />
         <q-tab name="offices" icon="apartment" label="Office Library" />
+        <q-tab name="office_divisions" icon="lan" label="Office Divisions" />
         <q-tab name="illnesses" icon="medical_services" label="Illness Library" />
         <q-tab name="work_schedules" icon="schedule" label="Work Schedules" />
         <q-tab name="signatories" icon="draw" label="Signatories" />
@@ -34,55 +35,42 @@
       <!-- ========================================================= -->
       <q-tab-panel name="remarks" class="q-pa-none">
         <!-- Remarks Toolbar -->
-        <q-card flat bordered class="rounded-borders q-mb-md bg-white">
-          <q-card-section class="q-pa-sm">
-            <div class="row items-center justify-between q-col-gutter-sm">
-              <div class="col-12 col-md-5">
-                <q-input
-                  v-model="remarksSearch"
-                  outlined
-                  dense
-                  clearable
-                  placeholder="Search abbreviation or description..."
-                >
-                  <template #prepend>
-                    <q-icon name="search" color="grey-6" />
-                  </template>
-                </q-input>
-              </div>
-
-              <div class="col-12 col-md-auto">
-                <div class="row items-center q-gutter-x-sm">
-                  <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
-                    {{ remarksList.length }} Total Remarks
-                  </q-badge>
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="green-9"
-                    icon="add"
-                    label="Add Remark"
-                    class="text-weight-bold q-px-md"
-                    @click="openAddRemarkDialog"
-                  />
-                </div>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
+        <DataFilterBar
+          v-model:search="remarksSearch"
+          search-placeholder="Search abbreviation or description..."
+          search-class="col-12 col-md-5"
+          actions-class="col-12 col-md-auto q-ml-auto"
+          section-class="q-pa-sm"
+        >
+          <template #actions>
+            <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold q-mr-xs">
+              {{ remarksList.length }} Total Remarks
+            </q-badge>
+            <q-btn
+              unelevated
+              no-caps
+              color="green-9"
+              icon="add"
+              label="Add Remark"
+              class="text-weight-bold q-px-md"
+              @click="openAddRemarkDialog"
+            />
+          </template>
+        </DataFilterBar>
 
         <!-- Remarks Table -->
-        <q-card flat bordered class="rounded-borders bg-white">
-          <q-table
-            :rows="filteredRemarks"
-            :columns="remarkColumns"
-            row-key="id"
-            flat
-            dense
-            :loading="loadingRemarks"
-            :pagination="{ rowsPerPage: 15 }"
-            no-data-label="No remarks found. Click '+ Add Remark' to create one."
-          >
+        <DataTableCard
+          :rows="filteredRemarks"
+          :columns="remarkColumns"
+          row-key="id"
+          dense
+          :loading="loadingRemarks"
+          v-model:pagination="remarkPagination"
+          :rows-per-page-options="[15, 25, 50]"
+          empty-icon="label_off"
+          no-data-label="No remarks found"
+          empty-subtext="Click '+ Add Remark' to create one."
+        >
             <template #body-cell-abbrv="props">
               <q-td :props="props">
                 <span v-if="props.row.abbrv" class="text-weight-bolder text-green-9 text-body2">
@@ -132,8 +120,7 @@
                 </q-btn>
               </q-td>
             </template>
-          </q-table>
-        </q-card>
+        </DataTableCard>
       </q-tab-panel>
 
       <!-- ========================================================= -->
@@ -141,70 +128,55 @@
       <!-- ========================================================= -->
       <q-tab-panel name="holidays" class="q-pa-none">
         <!-- Holidays Toolbar -->
-        <q-card flat bordered class="rounded-borders q-mb-md bg-white">
-          <q-card-section class="q-pa-sm">
-            <div class="row items-center justify-between q-col-gutter-sm">
-              <div class="col-12 col-md-7">
-                <div class="row items-center q-gutter-sm">
-                  <q-input
-                    v-model="holidaysSearch"
-                    outlined
-                    dense
-                    clearable
-                    placeholder="Search holiday name..."
-                    style="min-width: 260px;"
-                  >
-                    <template #prepend>
-                      <q-icon name="search" color="grey-6" />
-                    </template>
-                  </q-input>
+        <DataFilterBar
+          v-model:search="holidaysSearch"
+          search-placeholder="Search holiday name..."
+          search-class="col-12 col-md-4"
+          actions-class="col-12 col-md-auto q-ml-auto"
+          section-class="q-pa-sm"
+        >
+          <div class="col-12 col-sm-4 col-md-2">
+            <q-select
+              v-model="selectedHolidayYear"
+              :options="holidayYearOptions"
+              outlined
+              dense
+              emit-value
+              map-options
+              label="Filter Year"
+              @update:model-value="fetchHolidays"
+            />
+          </div>
 
-                  <q-select
-                    v-model="selectedHolidayYear"
-                    :options="holidayYearOptions"
-                    outlined
-                    dense
-                    emit-value
-                    map-options
-                    label="Filter Year"
-                    style="width: 140px;"
-                    @update:model-value="fetchHolidays"
-                  />
-                </div>
-              </div>
-
-              <div class="col-12 col-md-auto">
-                <div class="row items-center q-gutter-x-sm">
-                  <q-badge color="blue-1" text-color="blue-9" class="q-pa-xs text-weight-bold">
-                    {{ holidaysList.length }} Holidays
-                  </q-badge>
-                  <q-btn
-                    unelevated
-                    no-caps
-                    color="green-9"
-                    icon="add"
-                    label="Add Holiday"
-                    class="text-weight-bold q-px-md"
-                    @click="openAddHolidayDialog"
-                  />
-                </div>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
+          <template #actions>
+            <q-badge color="blue-1" text-color="blue-9" class="q-pa-xs text-weight-bold q-mr-xs">
+              {{ holidaysList.length }} Holidays
+            </q-badge>
+            <q-btn
+              unelevated
+              no-caps
+              color="green-9"
+              icon="add"
+              label="Add Holiday"
+              class="text-weight-bold q-px-md"
+              @click="openAddHolidayDialog"
+            />
+          </template>
+        </DataFilterBar>
 
         <!-- Holidays Table -->
-        <q-card flat bordered class="rounded-borders bg-white">
-          <q-table
-            :rows="filteredHolidays"
-            :columns="holidayColumns"
-            row-key="id"
-            flat
-            dense
-            :loading="loadingHolidays"
-            :pagination="{ rowsPerPage: 15 }"
-            no-data-label="No holidays found for this year. Click '+ Add Holiday' to register one."
-          >
+        <DataTableCard
+          :rows="filteredHolidays"
+          :columns="holidayColumns"
+          row-key="id"
+          dense
+          :loading="loadingHolidays"
+          v-model:pagination="holidayPagination"
+          :rows-per-page-options="[15, 25, 50]"
+          empty-icon="event_busy"
+          no-data-label="No holidays found for this year"
+          empty-subtext="Click '+ Add Holiday' to register one."
+        >
             <template #body-cell-holiday_date="props">
               <q-td :props="props">
                 <div class="row items-center no-wrap q-gutter-x-xs">
@@ -284,8 +256,7 @@
                 </q-btn>
               </q-td>
             </template>
-          </q-table>
-        </q-card>
+        </DataTableCard>
       </q-tab-panel>
 
       <!-- ========================================================= -->
@@ -300,6 +271,13 @@
       <!-- ========================================================= -->
       <q-tab-panel name="offices" class="q-pa-none">
         <DepartmentsLibraryView :embedded="true" />
+      </q-tab-panel>
+
+      <!-- ========================================================= -->
+      <!-- TAB 5: OFFICE DIVISIONS                                   -->
+      <!-- ========================================================= -->
+      <q-tab-panel name="office_divisions" class="q-pa-none">
+        <OfficeDivisionsView :embedded="true" />
       </q-tab-panel>
 
       <!-- ========================================================= -->
@@ -485,10 +463,13 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 
 // Embedded Existing Library Views
 import LeaveTypesView from 'pages/hr/LeaveTypesPage.vue'
 import DepartmentsLibraryView from 'pages/hr/DepartmentsLibraryPage.vue'
+import OfficeDivisionsView from 'pages/hr/OfficeDivisionsPage.vue'
 import IllnessLibraryView from 'pages/hr/IllnessLibraryPage.vue'
 import WorkSchedulesView from 'pages/hr/WorkSchedulesPage.vue'
 import SignatoriesView from 'pages/hr/SignatoriesPage.vue'
@@ -523,6 +504,7 @@ const remarksList = ref([])
 const remarksSearch = ref('')
 const loadingRemarks = ref(false)
 const savingRemark = ref(false)
+const remarkPagination = ref({ page: 1, rowsPerPage: 15 })
 
 const remarkColumns = [
   { name: 'abbrv', label: 'ABBRV.', field: 'abbrv', align: 'left', sortable: true },
@@ -651,6 +633,7 @@ const holidaysList = ref([])
 const holidaysSearch = ref('')
 const loadingHolidays = ref(false)
 const savingHoliday = ref(false)
+const holidayPagination = ref({ page: 1, rowsPerPage: 15 })
 const currentYear = new Date().getFullYear()
 const selectedHolidayYear = ref(currentYear)
 
@@ -840,8 +823,4 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.libraries-page {
-  max-width: 1300px;
-  margin: 0 auto;
-}
 </style>

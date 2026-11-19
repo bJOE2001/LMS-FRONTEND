@@ -17,9 +17,13 @@
             :series="trendChartSeries"
           />
         </q-no-ssr>
-        <q-inner-loading :showing="loading" :class="['chart-loading', { 'chart-loading--dark': isDark }]">
-          <q-spinner color="primary" size="34px" />
-        </q-inner-loading>
+        <ChartSkeleton
+          :loading="loading"
+          :has-data="hasChartData"
+          variant="area"
+          height="220px"
+          label="Updating trends..."
+        />
       </div>
     </q-card-section>
   </q-card>
@@ -48,6 +52,8 @@ const props = defineProps({
     default: () => new Date().getFullYear(),
   },
 })
+
+const hasChartData = computed(() => (props.applications?.length || 0) > 0 || Boolean(props.analytics))
 
 const chartRoot = ref(null)
 let chartTitleCleanupObserver = null
