@@ -1,12 +1,40 @@
 <template>
   <q-page class="q-pa-md attendance-overview-page">
     <!-- Page Header -->
-    <div class="row items-center justify-between q-mb-md">
+    <div class="row items-center justify-between q-col-gutter-sm q-mb-md">
       <div>
         <h1 class="text-h5 text-weight-bold text-dark q-my-none">Attendance Management</h1>
         <div class="text-caption text-grey-7 q-mt-xs">
           Monitor daily time records, biometric punches, and Civil Service Form No. 48
         </div>
+      </div>
+      <div class="row items-center q-gutter-x-sm">
+        <q-btn
+          outline
+          color="green-9"
+          icon="print"
+          label="Batch Print DTR"
+          no-caps
+          class="text-weight-bold q-px-md toolbar-action-btn"
+          :disable="employeeRows.length === 0"
+          @click="openBatchPrintDialog"
+        >
+          <q-tooltip class="bg-dark">Open batch CS Form 48 print setup</q-tooltip>
+        </q-btn>
+        <q-btn
+          unelevated
+          color="green-9"
+          icon="sync"
+          label="Pull Punches"
+          no-caps
+          class="text-weight-bold q-px-md toolbar-action-btn"
+          :loading="syncingBiometrics"
+          @click="handleSyncOfficeBiometrics"
+        >
+          <q-tooltip class="bg-dark"
+            >Pull latest attendance logs from office biometric terminal</q-tooltip
+          >
+        </q-btn>
       </div>
     </div>
 
@@ -29,10 +57,21 @@
           <q-card flat bordered class="rounded-borders bg-white stat-card">
             <q-card-section class="q-py-md q-px-md">
               <div class="row items-center no-wrap">
-                <q-skeleton type="QAvatar" size="40px" class="q-mr-sm flex-shrink-0" animation="wave" />
+                <q-skeleton
+                  type="QAvatar"
+                  size="40px"
+                  class="q-mr-sm flex-shrink-0"
+                  animation="wave"
+                />
                 <div class="col">
                   <q-skeleton type="text" width="75px" height="14px" animation="wave" />
-                  <q-skeleton type="text" width="42px" height="28px" class="q-mt-xs" animation="wave" />
+                  <q-skeleton
+                    type="text"
+                    width="42px"
+                    height="28px"
+                    class="q-mt-xs"
+                    animation="wave"
+                  />
                 </div>
               </div>
             </q-card-section>
@@ -43,25 +82,78 @@
       <!-- Skeleton Main Table Card -->
       <q-card flat bordered class="rounded-borders bg-white table-card">
         <q-card-section class="q-py-sm q-px-md row items-center q-col-gutter-sm border-bottom">
-          <div class="col-auto"><q-skeleton type="rect" width="195px" height="40px" class="rounded-borders" animation="wave" /></div>
-          <div class="col-auto"><q-skeleton type="rect" width="180px" height="40px" class="rounded-borders" animation="wave" /></div>
-          <div class="col"><q-skeleton type="rect" width="100%" height="40px" class="rounded-borders" animation="wave" /></div>
-          <div class="col-auto"><q-skeleton type="rect" width="150px" height="40px" class="rounded-borders" animation="wave" /></div>
+          <div class="col-auto">
+            <q-skeleton
+              type="rect"
+              width="195px"
+              height="40px"
+              class="rounded-borders"
+              animation="wave"
+            />
+          </div>
+          <div class="col-auto">
+            <q-skeleton
+              type="rect"
+              width="180px"
+              height="40px"
+              class="rounded-borders"
+              animation="wave"
+            />
+          </div>
+          <div class="col">
+            <q-skeleton
+              type="rect"
+              width="100%"
+              height="40px"
+              class="rounded-borders"
+              animation="wave"
+            />
+          </div>
         </q-card-section>
 
         <!-- Skeleton Table Body -->
         <div class="q-pa-md">
           <!-- Columns Header Placeholder -->
           <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
-            <div class="col-3"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="70%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2 text-center"><q-skeleton type="text" width="65%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
+            <div class="col-1">
+              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
+            </div>
+            <div class="col-3">
+              <q-skeleton type="text" width="50%" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="60%" height="16px" animation="wave" />
+            </div>
+            <div class="col-2 text-center">
+              <q-skeleton
+                type="text"
+                width="65%"
+                height="16px"
+                class="q-mx-auto"
+                animation="wave"
+              />
+            </div>
+            <div class="col-1 text-center">
+              <q-skeleton
+                type="text"
+                width="50%"
+                height="16px"
+                class="q-mx-auto"
+                animation="wave"
+              />
+            </div>
           </div>
 
           <!-- 8 Skeleton Rows -->
@@ -71,17 +163,37 @@
             class="row items-center q-py-md border-bottom q-col-gutter-sm"
             :class="{ 'bg-grey-1': r % 2 === 0 }"
           >
-            <div class="col-1"><q-skeleton type="text" width="60px" height="16px" animation="wave" /></div>
+            <div class="col-1">
+              <q-skeleton type="text" width="60px" height="16px" animation="wave" />
+            </div>
             <div class="col-3">
               <q-skeleton type="text" width="145px" height="18px" animation="wave" />
               <q-skeleton type="text" width="95px" height="14px" class="q-mt-xs" animation="wave" />
             </div>
-            <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="55px" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="42px" height="16px" animation="wave" /></div>
-            <div class="col-2 text-center"><q-skeleton type="rect" width="72px" height="22px" class="rounded-borders q-mx-auto" animation="wave" /></div>
+            <div class="col-1">
+              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
+            </div>
+            <div class="col-1">
+              <q-skeleton type="text" width="42px" height="16px" animation="wave" />
+            </div>
+            <div class="col-2 text-center">
+              <q-skeleton
+                type="rect"
+                width="72px"
+                height="22px"
+                class="rounded-borders q-mx-auto"
+                animation="wave"
+              />
+            </div>
             <div class="col-1 text-center">
               <q-skeleton type="QAvatar" size="26px" class="q-mx-auto" animation="wave" />
             </div>
@@ -91,7 +203,13 @@
         <!-- Skeleton Footer -->
         <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
           <q-skeleton type="text" width="120px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
+          <q-skeleton
+            type="rect"
+            width="160px"
+            height="30px"
+            class="rounded-borders"
+            animation="wave"
+          />
         </div>
       </q-card>
     </div>
@@ -117,12 +235,21 @@
           >
             <q-card-section class="q-py-md q-px-md">
               <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="blue-1" text-color="blue-9" class="q-mr-sm flex-shrink-0">
+                <q-avatar
+                  size="40px"
+                  color="blue-1"
+                  text-color="blue-9"
+                  class="q-mr-sm flex-shrink-0"
+                >
                   <q-icon name="groups" size="21px" />
                 </q-avatar>
                 <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Total Personnel</div>
-                  <div class="text-h5 text-weight-bolder text-dark leading-tight">{{ stats.total }}</div>
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">
+                    Total Personnel
+                  </div>
+                  <div class="text-h5 text-weight-bolder text-dark leading-tight">
+                    {{ stats.total }}
+                  </div>
                 </div>
               </div>
             </q-card-section>
@@ -144,12 +271,19 @@
           >
             <q-card-section class="q-py-md q-px-md">
               <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="green-1" text-color="green-9" class="q-mr-sm flex-shrink-0">
+                <q-avatar
+                  size="40px"
+                  color="green-1"
+                  text-color="green-9"
+                  class="q-mr-sm flex-shrink-0"
+                >
                   <q-icon name="check_circle" size="21px" />
                 </q-avatar>
                 <div class="ellipsis">
                   <div class="text-caption text-weight-medium text-grey-7 ellipsis">Present</div>
-                  <div class="text-h5 text-weight-bolder text-positive leading-tight">{{ stats.present }}</div>
+                  <div class="text-h5 text-weight-bolder text-positive leading-tight">
+                    {{ stats.present }}
+                  </div>
                 </div>
               </div>
             </q-card-section>
@@ -171,12 +305,21 @@
           >
             <q-card-section class="q-py-md q-px-md">
               <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="amber-1" text-color="amber-9" class="q-mr-sm flex-shrink-0">
+                <q-avatar
+                  size="40px"
+                  color="amber-1"
+                  text-color="amber-9"
+                  class="q-mr-sm flex-shrink-0"
+                >
                   <q-icon name="history_toggle_off" size="21px" />
                 </q-avatar>
                 <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Tardy / Late</div>
-                  <div class="text-h5 text-weight-bolder text-amber-9 leading-tight">{{ stats.late }}</div>
+                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">
+                    Tardy / Late
+                  </div>
+                  <div class="text-h5 text-weight-bolder text-amber-9 leading-tight">
+                    {{ stats.late }}
+                  </div>
                 </div>
               </div>
             </q-card-section>
@@ -198,12 +341,19 @@
           >
             <q-card-section class="q-py-md q-px-md">
               <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="indigo-1" text-color="indigo-9" class="q-mr-sm flex-shrink-0">
+                <q-avatar
+                  size="40px"
+                  color="indigo-1"
+                  text-color="indigo-9"
+                  class="q-mr-sm flex-shrink-0"
+                >
                   <q-icon name="beach_access" size="21px" />
                 </q-avatar>
                 <div class="ellipsis">
                   <div class="text-caption text-weight-medium text-grey-7 ellipsis">On Leave</div>
-                  <div class="text-h5 text-weight-bolder text-indigo-9 leading-tight">{{ stats.on_leave }}</div>
+                  <div class="text-h5 text-weight-bolder text-indigo-9 leading-tight">
+                    {{ stats.on_leave }}
+                  </div>
                 </div>
               </div>
             </q-card-section>
@@ -225,12 +375,19 @@
           >
             <q-card-section class="q-py-md q-px-md">
               <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="red-1" text-color="red-9" class="q-mr-sm flex-shrink-0">
+                <q-avatar
+                  size="40px"
+                  color="red-1"
+                  text-color="red-9"
+                  class="q-mr-sm flex-shrink-0"
+                >
                   <q-icon name="event_busy" size="21px" />
                 </q-avatar>
                 <div class="ellipsis">
                   <div class="text-caption text-weight-medium text-grey-7 ellipsis">Absent</div>
-                  <div class="text-h5 text-weight-bolder text-negative leading-tight">{{ stats.absent }}</div>
+                  <div class="text-h5 text-weight-bolder text-negative leading-tight">
+                    {{ stats.absent }}
+                  </div>
                 </div>
               </div>
             </q-card-section>
@@ -240,9 +397,25 @@
 
       <!-- Main Attendance Management Card -->
       <q-card flat bordered class="rounded-borders bg-white table-card">
-        <!-- Balanced Toolbar Section: Date Navigator + Filter + Search + Batch Print -->
+        <!-- Table Toolbar Section: Search + Date Navigator + Filter -->
         <q-card-section class="q-py-sm q-px-md border-bottom">
           <div class="row items-center q-col-gutter-sm">
+            <!-- Search Input -->
+            <div class="col-12 col-md">
+              <q-input
+                v-model="searchTerm"
+                outlined
+                dense
+                placeholder="Search by employee name, position, or ID..."
+                class="search-employee-input"
+                clearable
+                @update:model-value="onSearchInput"
+              >
+                <template #prepend>
+                  <q-icon name="search" size="18px" color="grey-6" />
+                </template>
+              </q-input>
+            </div>
             <!-- Date Navigator + Quick Jump to Today -->
             <div class="col-12 col-sm-auto row items-center no-wrap q-gutter-x-xs">
               <div class="row items-center no-wrap rounded-borders q-px-xs date-nav-box">
@@ -332,51 +505,6 @@
                 </template>
               </q-select>
             </div>
-
-            <!-- Search Input -->
-            <div class="col-12 col-md">
-              <q-input
-                v-model="searchTerm"
-                outlined
-                dense
-                placeholder="Search by employee name, position, or ID..."
-                class="search-employee-input"
-                clearable
-                @update:model-value="onSearchInput"
-              >
-                <template #prepend>
-                  <q-icon name="search" size="18px" color="grey-6" />
-                </template>
-              </q-input>
-            </div>
-
-            <!-- Actions: Pull Punches & Batch Print DTR -->
-            <div class="col-12 col-sm-auto row items-center justify-end no-wrap q-gutter-x-sm">
-              <q-btn
-                unelevated
-                color="green-9"
-                icon="sync"
-                label="Pull Punches"
-                no-caps
-                class="text-weight-bold q-px-md toolbar-action-btn"
-                :loading="syncingBiometrics"
-                @click="handleSyncOfficeBiometrics"
-              >
-                <q-tooltip class="bg-dark">Pull latest attendance logs from office biometric terminal</q-tooltip>
-              </q-btn>
-              <q-btn
-                outline
-                color="green-9"
-                icon="print"
-                label="Batch Print DTR"
-                no-caps
-                class="text-weight-bold q-px-md toolbar-action-btn"
-                :disable="employeeRows.length === 0"
-                @click="openBatchPrintDialog"
-              >
-                <q-tooltip class="bg-dark">Open batch CS Form 48 print setup</q-tooltip>
-              </q-btn>
-            </div>
           </div>
         </q-card-section>
 
@@ -399,7 +527,7 @@
                 <div class="text-weight-bold text-dark employee-name-text">
                   {{ props.row.employee_name }}
                 </div>
-                <div class="text-caption text-grey-7 ellipsis" style="max-width: 260px;">
+                <div class="text-caption text-grey-7 ellipsis" style="max-width: 260px">
                   {{ props.row.designation || 'Staff Member' }}
                   <q-tooltip v-if="props.row.designation" class="bg-dark text-caption">
                     {{ props.row.designation }}
@@ -421,7 +549,11 @@
             <q-td :props="props" class="text-center font-mono tabular-nums">
               <span
                 v-if="props.row.dtr?.am_arrival"
-                :class="getRowSlotLateMinutes(props.row, 'am_arrival') > 0 ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'"
+                :class="
+                  getRowSlotLateMinutes(props.row, 'am_arrival') > 0
+                    ? 'text-negative text-weight-bold'
+                    : 'text-dark text-weight-medium'
+                "
               >
                 {{ formatPunchTime(props.row.dtr.am_arrival) }}
               </span>
@@ -444,7 +576,11 @@
             <q-td :props="props" class="text-center font-mono tabular-nums">
               <span
                 v-if="props.row.dtr?.pm_arrival"
-                :class="getRowSlotLateMinutes(props.row, 'pm_arrival') > 0 ? 'text-negative text-weight-bold' : 'text-dark text-weight-medium'"
+                :class="
+                  getRowSlotLateMinutes(props.row, 'pm_arrival') > 0
+                    ? 'text-negative text-weight-bold'
+                    : 'text-dark text-weight-medium'
+                "
               >
                 {{ formatPunchTime(props.row.dtr.pm_arrival) }}
               </span>
@@ -516,9 +652,12 @@
           <template #no-data>
             <div class="full-width text-center q-py-xl text-grey-6">
               <q-icon name="person_off" size="48px" color="grey-4" />
-              <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">No Attendance Records Found</div>
+              <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">
+                No Attendance Records Found
+              </div>
               <div class="text-caption q-mb-md">
-                No personnel attendance records match your filter criteria for {{ formatFullDate(selectedDate) }}.
+                No personnel attendance records match your filter criteria for
+                {{ formatFullDate(selectedDate) }}.
               </div>
               <q-btn
                 v-if="hasActiveFilters"
@@ -537,11 +676,7 @@
     </div>
 
     <!-- Step 1: Quick Date Setup Dialog for Individual Employee DTR -->
-    <q-dialog
-      v-model="showSingleDtrSetupDialog"
-      transition-show="scale"
-      transition-hide="scale"
-    >
+    <q-dialog v-model="showSingleDtrSetupDialog" transition-show="scale" transition-hide="scale">
       <q-card class="dtr-setup-dialog column no-wrap bg-white">
         <!-- Dialog Header Toolbar -->
         <div class="dtr-dialog-header bg-green-9 text-white row items-center no-wrap q-px-md">
@@ -549,8 +684,12 @@
             <q-icon name="event_note" size="20px" color="white" />
           </div>
           <div class="col ellipsis">
-            <div class="text-subtitle1 text-weight-bold leading-tight">Civil Service Form No. 48</div>
-            <div class="text-caption text-green-2 leading-tight">Daily Time Record Coverage Setup</div>
+            <div class="text-subtitle1 text-weight-bold leading-tight">
+              Civil Service Form No. 48
+            </div>
+            <div class="text-caption text-green-2 leading-tight">
+              Daily Time Record Coverage Setup
+            </div>
           </div>
           <q-btn icon="close" flat round dense text-color="white" v-close-popup>
             <q-tooltip class="bg-dark">Close</q-tooltip>
@@ -560,7 +699,9 @@
         <!-- Dialog Body -->
         <q-card-section class="col scroll q-pa-md bg-grey-1 column no-wrap dtr-dialog-body">
           <!-- Personnel Identity Card -->
-          <div class="dtr-employee-card bg-white q-py-xs q-px-sm rounded-borders row items-center no-wrap justify-between flex-shrink-0">
+          <div
+            class="dtr-employee-card bg-white q-py-xs q-px-sm rounded-borders row items-center no-wrap justify-between flex-shrink-0"
+          >
             <div class="row items-center no-wrap col ellipsis q-pr-sm">
               <q-avatar
                 size="36px"
@@ -588,10 +729,10 @@
               </div>
             </div>
 
-            <div class="dtr-control-badge text-right font-mono flex-shrink-0">
+            <!-- <div class="dtr-control-badge text-right font-mono flex-shrink-0">
               <span class="dtr-control-label block">Control No</span>
               <span class="text-weight-bolder text-green-9 text-caption">{{ singleDtrEmployee?.control_no || '—' }}</span>
-            </div>
+            </div> -->
           </div>
 
           <!-- Coverage Date Range Card -->
@@ -711,7 +852,11 @@
             @click="confirmSingleDtrSetup"
           >
             <q-tooltip class="bg-dark">
-              {{ !normalizedSingleDtrCustomRange ? 'Please select a coverage date range first' : 'Generate and preview Civil Service Form No. 48' }}
+              {{
+                !normalizedSingleDtrCustomRange
+                  ? 'Please select a coverage date range first'
+                  : 'Generate and preview Civil Service Form No. 48'
+              }}
             </q-tooltip>
           </q-btn>
         </q-card-actions>
@@ -727,12 +872,16 @@
       @hide="onDtrModalClose"
     >
       <q-card
-        :style="isDialogMaximized ? 'width: 100vw; height: 100vh;' : 'width: 1080px; max-width: 96vw; max-height: 92vh;'"
+        :style="
+          isDialogMaximized
+            ? 'width: 100vw; height: 100vh;'
+            : 'width: 1080px; max-width: 96vw; max-height: 92vh;'
+        "
         class="bg-grey-2 column no-wrap rounded-borders"
       >
         <q-bar class="bg-green-9 text-white q-py-sm no-print">
           <q-icon name="description" class="q-mr-xs" />
-          <div class="text-weight-bold ellipsis" style="max-width: 650px;">
+          <div class="text-weight-bold ellipsis" style="max-width: 650px">
             {{ dtrModalHeaderTitle }}
           </div>
           <q-space />
@@ -743,13 +892,18 @@
             class="q-mr-xs"
             @click="isDialogMaximized = !isDialogMaximized"
           >
-            <q-tooltip>{{ isDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen' }}</q-tooltip>
+            <q-tooltip>{{
+              isDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen'
+            }}</q-tooltip>
           </q-btn>
           <q-btn dense flat icon="close" v-close-popup />
         </q-bar>
 
         <q-card-section class="col scroll q-pa-md flex flex-center">
-          <div style="width: 100%; max-width: 1000px;" class="bg-white q-pa-md rounded-borders shadow-2">
+          <div
+            style="width: 100%; max-width: 1000px"
+            class="bg-white q-pa-md rounded-borders shadow-2"
+          >
             <DailyTimeRecordTable
               v-if="dtrData"
               ref="previewDtrRef"
@@ -777,20 +931,23 @@
     </q-dialog>
 
     <!-- Centered Two-Column Modal Dialog for Batch DTR Printing -->
-    <q-dialog
-      v-model="showBulkDialog"
-      transition-show="scale"
-      transition-hide="scale"
-    >
-      <q-card style="width: 820px; max-width: 96vw; max-height: 92vh;" class="dtr-setup-dialog column no-wrap bg-white">
+    <q-dialog v-model="showBulkDialog" transition-show="scale" transition-hide="scale">
+      <q-card
+        style="width: 820px; max-width: 96vw; max-height: 92vh"
+        class="dtr-setup-dialog column no-wrap bg-white"
+      >
         <!-- Dialog Header Toolbar -->
         <div class="dtr-dialog-header bg-green-9 text-white row items-center no-wrap q-px-md">
           <div class="dtr-header-icon-box row items-center justify-center q-mr-sm">
             <q-icon name="print" size="20px" color="white" />
           </div>
           <div class="col ellipsis">
-            <div class="text-subtitle1 text-weight-bold leading-tight">Batch Print DTR — Civil Service Form No. 48</div>
-            <div class="text-caption text-green-2 leading-tight">Configure coverage period and personnel roster</div>
+            <div class="text-subtitle1 text-weight-bold leading-tight">
+              Batch Print DTR — Civil Service Form No. 48
+            </div>
+            <div class="text-caption text-green-2 leading-tight">
+              Configure coverage period and personnel roster
+            </div>
           </div>
           <q-btn icon="close" flat round dense text-color="white" v-close-popup>
             <q-tooltip class="bg-dark">Close</q-tooltip>
@@ -904,7 +1061,10 @@
 
             <!-- Right Column: Selected Personnel -->
             <div class="col-12 col-sm-6 column">
-              <div class="dtr-coverage-card bg-white q-pa-md rounded-borders column full-height" style="min-height: 380px;">
+              <div
+                class="dtr-coverage-card bg-white q-pa-md rounded-borders column full-height"
+                style="min-height: 380px"
+              >
                 <div class="row items-center justify-between q-mb-sm">
                   <div class="row items-center q-gutter-x-xs">
                     <q-icon name="people" color="green-9" size="18px" />
@@ -985,7 +1145,9 @@
                   class="col column items-center justify-center text-center q-pa-md text-grey-6"
                 >
                   <q-icon name="touch_app" size="34px" color="grey-4" class="q-mb-xs" />
-                  <div class="text-subtitle2 text-weight-bold text-grey-8">No Personnel Selected</div>
+                  <div class="text-subtitle2 text-weight-bold text-grey-8">
+                    No Personnel Selected
+                  </div>
                   <div class="text-caption text-grey-6 q-mb-sm">
                     Select one or more statuses above to include personnel.
                   </div>
@@ -1002,22 +1164,34 @@
                 </div>
 
                 <!-- List of Selected Employees -->
-                <q-list v-else separator dense class="col scroll rounded-borders" style="max-height: 290px;">
+                <q-list
+                  v-else
+                  separator
+                  dense
+                  class="col scroll rounded-borders"
+                  style="max-height: 290px"
+                >
                   <q-item
                     v-for="emp in selectedEmployees"
                     :key="emp.control_no"
                     class="q-py-xs q-px-xs items-center"
                   >
-                    <q-item-section avatar style="min-width: 34px;">
-                      <q-avatar size="28px" class="dtr-employee-avatar text-caption text-weight-bold">
+                    <q-item-section avatar style="min-width: 34px">
+                      <q-avatar
+                        size="28px"
+                        class="dtr-employee-avatar text-caption text-weight-bold"
+                      >
                         {{ getInitials(emp.employee_name) }}
                       </q-avatar>
                     </q-item-section>
                     <q-item-section>
-                      <q-item-label class="text-caption text-weight-bold ellipsis" style="max-width: 210px;">
+                      <q-item-label
+                        class="text-caption text-weight-bold ellipsis"
+                        style="max-width: 210px"
+                      >
                         {{ emp.employee_name }}
                       </q-item-label>
-                      <q-item-label caption class="ellipsis text-grey-6" style="max-width: 210px;">
+                      <q-item-label caption class="ellipsis text-grey-6" style="max-width: 210px">
                         {{ emp.designation || `ID: ${emp.control_no}` }}
                       </q-item-label>
                     </q-item-section>
@@ -1064,7 +1238,11 @@
             @click="openBatchPrintModal"
           >
             <q-tooltip class="bg-dark">
-              {{ !normalizedBatchCustomRange ? 'Please select a coverage date range first' : 'Generate and preview CSC Form No. 48 for selected personnel' }}
+              {{
+                !normalizedBatchCustomRange
+                  ? 'Please select a coverage date range first'
+                  : 'Generate and preview CSC Form No. 48 for selected personnel'
+              }}
             </q-tooltip>
           </q-btn>
         </q-card-actions>
@@ -1079,21 +1257,23 @@
       transition-hide="scale"
     >
       <q-card
-        :style="isBatchDialogMaximized ? 'width: 100vw; height: 100vh;' : 'width: 1100px; max-width: 98vw; max-height: 94vh;'"
+        :style="
+          isBatchDialogMaximized
+            ? 'width: 100vw; height: 100vh;'
+            : 'width: 1100px; max-width: 98vw; max-height: 94vh;'
+        "
         class="bg-grey-2 column no-wrap rounded-borders"
       >
         <q-bar class="bg-green-9 text-white q-py-sm no-print">
           <q-icon name="print" class="q-mr-xs" />
-          <div class="row items-center no-wrap text-weight-bold ellipsis" style="max-width: 650px;">
+          <div class="row items-center no-wrap text-weight-bold ellipsis" style="max-width: 650px">
             <q-spinner-dots v-if="batchLoading" size="16px" class="q-mr-xs" />
             <span>
               Batch CSC Form No. 48 Preview —
               <template v-if="batchLoading">
                 Preparing {{ selectedEmployees.length }} Personnel...
               </template>
-              <template v-else>
-                {{ batchEmployeesDtr.length }} Personnel
-              </template>
+              <template v-else> {{ batchEmployeesDtr.length }} Personnel </template>
               ({{ batchRangeDisplayLabel }})
             </span>
           </div>
@@ -1106,7 +1286,9 @@
             icon="print"
             :loading="batchLoading"
             :disable="batchLoading || batchEmployeesDtr.length === 0"
-            :label="batchLoading ? 'Preparing...' : `Print All (${batchEmployeesDtr.length} Copies)`"
+            :label="
+              batchLoading ? 'Preparing...' : `Print All (${batchEmployeesDtr.length} Copies)`
+            "
             class="q-mr-sm text-weight-bolder"
             no-caps
             size="sm"
@@ -1124,7 +1306,9 @@
             class="q-mr-xs"
             @click="isBatchDialogMaximized = !isBatchDialogMaximized"
           >
-            <q-tooltip>{{ isBatchDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen' }}</q-tooltip>
+            <q-tooltip>{{
+              isBatchDialogMaximized ? 'Exit Full Screen' : 'Toggle Full Screen'
+            }}</q-tooltip>
           </q-btn>
           <q-btn dense flat icon="close" v-close-popup />
         </q-bar>
@@ -1135,32 +1319,48 @@
             <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-md">
               Generating CSC Form No. 48 for {{ selectedEmployees.length }} Personnel...
             </div>
-            <div class="text-caption text-grey-6">Calculating punches, rendered hours, and accomplishments</div>
+            <div class="text-caption text-grey-6">
+              Calculating punches, rendered hours, and accomplishments
+            </div>
           </div>
 
-          <div v-else-if="batchEmployeesDtr.length === 0" class="full-width q-pa-xl text-center text-grey-7">
+          <div
+            v-else-if="batchEmployeesDtr.length === 0"
+            class="full-width q-pa-xl text-center text-grey-7"
+          >
             <q-icon name="error_outline" size="48px" color="grey-5" />
             <div class="text-subtitle1 text-weight-bold q-mt-md">No Records Found</div>
-            <div class="text-caption">No attendance logs found for the selected personnel and date range.</div>
+            <div class="text-caption">
+              No attendance logs found for the selected personnel and date range.
+            </div>
           </div>
 
           <!-- Printable Container with All Sheets -->
-          <div v-else id="batch-print-container" ref="batchPrintContainerRef" class="batch-sheets-list">
+          <div
+            v-else
+            id="batch-print-container"
+            ref="batchPrintContainerRef"
+            class="batch-sheets-list"
+          >
             <div
               v-for="(item, idx) in batchEmployeesDtr"
               :key="item.employee?.control_no || idx"
               class="batch-employee-sheet-wrapper q-mb-lg"
             >
               <!-- Screen sheet header badge -->
-              <div class="no-print row items-center justify-between q-px-sm q-py-xs q-mb-xs bg-grey-3 rounded-borders text-caption text-weight-bold text-dark">
+              <div
+                class="no-print row items-center justify-between q-px-sm q-py-xs q-mb-xs bg-grey-3 rounded-borders text-caption text-weight-bold text-dark"
+              >
                 <span>
-                  <q-badge color="green-9" text-color="white" class="q-mr-xs">#{{ idx + 1 }}</q-badge>
+                  <q-badge color="green-9" text-color="white" class="q-mr-xs"
+                    >#{{ idx + 1 }}</q-badge
+                  >
                   {{ item.employee?.name }} (ID: {{ item.employee?.control_no }})
                 </span>
                 <span>{{ item.employee?.office || item.employee?.designation }}</span>
               </div>
 
-              <div style="background: #ffffff; padding: 12px; border-radius: 6px;" class="shadow-1">
+              <div style="background: #ffffff; padding: 12px; border-radius: 6px" class="shadow-1">
                 <DailyTimeRecordTable
                   :records="item.records"
                   :employee="item.employee"
@@ -1251,8 +1451,7 @@ function setAttendanceStatusFilter(statusKey) {
 }
 
 function toggleAttendanceStatusFilter(statusKey) {
-  selectedAttendanceStatus.value =
-    selectedAttendanceStatus.value === statusKey ? 'ALL' : statusKey
+  selectedAttendanceStatus.value = selectedAttendanceStatus.value === statusKey ? 'ALL' : statusKey
   pagination.value.page = 1
 }
 
@@ -1281,26 +1480,21 @@ function resetAllFilters() {
 
 function matchesAttendanceStatusFilter(row, filterKey) {
   if (!filterKey || filterKey === 'ALL') return true
-  const norm = String(row.attendance_status || '').toLowerCase().trim()
-  const rawDtrStatus = String(row.dtr?.status || '').toLowerCase().trim()
+  const norm = String(row.attendance_status || '')
+    .toLowerCase()
+    .trim()
+  const rawDtrStatus = String(row.dtr?.status || '')
+    .toLowerCase()
+    .trim()
 
   if (filterKey === 'PRESENT') {
-    return (
-      rawDtrStatus === 'present' ||
-      norm === 'present' ||
-      norm === 'on time' ||
-      norm === 'late'
-    )
+    return rawDtrStatus === 'present' || norm === 'present' || norm === 'on time' || norm === 'late'
   }
   if (filterKey === 'LATE') {
     return norm === 'late' || isRowLate(row)
   }
   if (filterKey === 'ON_LEAVE') {
-    return (
-      norm.startsWith('on leave') ||
-      norm.startsWith('on_leave') ||
-      norm === 'half day'
-    )
+    return norm.startsWith('on leave') || norm.startsWith('on_leave') || norm === 'half day'
   }
   if (filterKey === 'ABSENT') {
     return norm === 'absent'
@@ -1364,7 +1558,9 @@ const filteredEmployeeRows = computed(() => {
 
   return employeeRows.value.filter((row) => {
     if (empTarget) {
-      const s = String(row.employment_status || '').toUpperCase().trim()
+      const s = String(row.employment_status || '')
+        .toUpperCase()
+        .trim()
       if (s !== empTarget) return false
     }
     if (!matchesAttendanceStatusFilter(row, attTarget)) {
@@ -1422,7 +1618,9 @@ function parsePunchMinutes(timeStr) {
 
 function getRowSlotLateMinutes(row, slotKey) {
   if (!row?.dtr || Number(row.dtr.late_minutes || 0) <= 0) return 0
-  const rawStatus = String(row.dtr.status || '').toUpperCase().trim()
+  const rawStatus = String(row.dtr.status || '')
+    .toUpperCase()
+    .trim()
   if (rawStatus === 'ON_LEAVE' || rawStatus === 'HOLIDAY' || rawStatus === 'ABSENT') return 0
 
   const actualMinutes = parsePunchMinutes(row.dtr[slotKey])
@@ -1444,15 +1642,21 @@ function getRowSlotLateMinutes(row, slotKey) {
 }
 
 function formatStatusText(status) {
-  const norm = String(status || 'ABSENT').trim().toUpperCase()
+  const norm = String(status || 'ABSENT')
+    .trim()
+    .toUpperCase()
   if (norm === 'ON TIME') return 'PRESENT'
-  if (norm === 'ON_LEAVE_AM' || norm === 'ON LEAVE (AM)' || norm === 'ON LEAVE AM') return 'ON LEAVE (AM)'
-  if (norm === 'ON_LEAVE_PM' || norm === 'ON LEAVE (PM)' || norm === 'ON LEAVE PM') return 'ON LEAVE (PM)'
+  if (norm === 'ON_LEAVE_AM' || norm === 'ON LEAVE (AM)' || norm === 'ON LEAVE AM')
+    return 'ON LEAVE (AM)'
+  if (norm === 'ON_LEAVE_PM' || norm === 'ON LEAVE (PM)' || norm === 'ON LEAVE PM')
+    return 'ON LEAVE (PM)'
   return norm
 }
 
 function getStatusBadgeColor(status) {
-  const norm = String(status || '').toLowerCase().trim()
+  const norm = String(status || '')
+    .toLowerCase()
+    .trim()
   if (norm === 'on time' || norm === 'present') return 'green-1'
   if (norm === 'late') return 'amber-1'
   if (norm === 'absent') return 'red-1'
@@ -1464,7 +1668,9 @@ function getStatusBadgeColor(status) {
 }
 
 function getStatusBadgeTextColor(status) {
-  const norm = String(status || '').toLowerCase().trim()
+  const norm = String(status || '')
+    .toLowerCase()
+    .trim()
   if (norm === 'on time' || norm === 'present') return 'green-9'
   if (norm === 'late') return 'amber-9'
   if (norm === 'absent') return 'red-9'
@@ -1553,7 +1759,8 @@ async function handleSyncOfficeBiometrics() {
     console.error('Failed to sync office biometrics:', err)
     $q.notify({
       type: 'negative',
-      message: err.response?.data?.message || 'Failed to pull punches from office biometric terminal.',
+      message:
+        err.response?.data?.message || 'Failed to pull punches from office biometric terminal.',
       position: 'top',
       icon: 'error',
       timeout: 6000,
@@ -1570,7 +1777,9 @@ function isEmployeeContractual(emp) {
   if (emp.is_contractual !== undefined && emp.is_contractual !== null) {
     return Boolean(emp.is_contractual)
   }
-  const status = String(emp.employment_status || emp.status || '').toUpperCase().trim()
+  const status = String(emp.employment_status || emp.status || '')
+    .toUpperCase()
+    .trim()
   if (status === 'CONTRACTUAL') return true
   const designation = String(emp.designation || '').toUpperCase()
   return designation.includes('JOB ORDER') || designation.includes('CONTRACTUAL')
@@ -1649,7 +1858,7 @@ function computeDefaultRange(isContractual, baseDateStr) {
 function isDateRangeMatchingPreset(rangeVal, type) {
   if (!rangeVal) return false
   const from = typeof rangeVal === 'string' ? rangeVal : rangeVal.from
-  const to = typeof rangeVal === 'string' ? rangeVal : (rangeVal.to || from)
+  const to = typeof rangeVal === 'string' ? rangeVal : rangeVal.to || from
   if (!from || !to) return false
 
   const [fromY, fromM, fromD] = from.split('-').map(Number)
@@ -1759,7 +1968,7 @@ function applySingleDtrPreset(type) {
     type,
     targetYm,
     singleDtrDateRange.value,
-    selectedDate.value
+    selectedDate.value,
   )
 }
 
@@ -1769,7 +1978,7 @@ function applyBatchPreset(type) {
     type,
     targetYm,
     batchDateRange.value,
-    selectedDate.value
+    selectedDate.value,
   )
 }
 
@@ -1944,7 +2153,7 @@ watch(
     if (showDtrModal.value && selectedDtrEmployee.value?.control_no && !dtrLoading.value) {
       fetchEmployeeDtr(selectedDtrEmployee.value.control_no)
     }
-  }
+  },
 )
 
 /**
@@ -1974,7 +2183,8 @@ async function fetchEmployeeDtr(controlNo) {
     dtrData.value = res
   } catch (err) {
     console.error('Failed to fetch employee DTR:', err)
-    dtrErrorMessage.value = err.response?.data?.message || 'Failed to load employee Daily Time Record.'
+    dtrErrorMessage.value =
+      err.response?.data?.message || 'Failed to load employee Daily Time Record.'
     $q.notify({
       type: 'negative',
       message: dtrErrorMessage.value,
@@ -2157,7 +2367,9 @@ const selectedControlNoSet = computed(() => {
 })
 
 function getEmployeeStatusKey(emp) {
-  const raw = String(emp?.employment_status || '').toUpperCase().trim()
+  const raw = String(emp?.employment_status || '')
+    .toUpperCase()
+    .trim()
   if (raw) return raw
   if (isEmployeeContractual(emp)) return 'CONTRACTUAL'
   return 'OTHER'
@@ -2192,10 +2404,7 @@ const batchEmploymentStatusOptions = computed(() => {
 
   return orderedKeys.map((key) => {
     const rows = buckets.get(key) || []
-    const selectedCount = rows.reduce(
-      (acc, r) => acc + (selectedSet.has(r.control_no) ? 1 : 0),
-      0
-    )
+    const selectedCount = rows.reduce((acc, r) => acc + (selectedSet.has(r.control_no) ? 1 : 0), 0)
     const total = rows.length
     return {
       value: key,
@@ -2223,9 +2432,7 @@ function syncBatchCutoffIfStandardPreset() {
 }
 
 function toggleBatchStatusSelection(statusKey) {
-  const matchingRows = employeeRows.value.filter(
-    (row) => getEmployeeStatusKey(row) === statusKey
-  )
+  const matchingRows = employeeRows.value.filter((row) => getEmployeeStatusKey(row) === statusKey)
   if (matchingRows.length === 0) return
 
   const selectedSet = selectedControlNoSet.value
@@ -2233,9 +2440,7 @@ function toggleBatchStatusSelection(statusKey) {
 
   if (allCurrentlySelected) {
     const removeSet = new Set(matchingRows.map((r) => r.control_no))
-    selectedEmployees.value = selectedEmployees.value.filter(
-      (e) => !removeSet.has(e.control_no)
-    )
+    selectedEmployees.value = selectedEmployees.value.filter((e) => !removeSet.has(e.control_no))
   } else {
     const toAdd = matchingRows.filter((r) => !selectedSet.has(r.control_no))
     selectedEmployees.value = [...selectedEmployees.value, ...toAdd]
@@ -2250,11 +2455,8 @@ function selectAllBatchEmployees() {
 }
 
 function removeEmployeeFromBatch(emp) {
-  selectedEmployees.value = selectedEmployees.value.filter(
-    (e) => e.control_no !== emp.control_no
-  )
+  selectedEmployees.value = selectedEmployees.value.filter((e) => e.control_no !== emp.control_no)
 }
-
 
 async function onBatchDtrOverrideSaved(item) {
   const controlNo = item?.employee?.control_no
@@ -2271,9 +2473,7 @@ async function onBatchDtrOverrideSaved(item) {
       })
       const updatedEntry = res?.employees_dtr?.[0]
       if (updatedEntry) {
-        const idx = batchEmployeesDtr.value.findIndex(
-          (e) => e.employee?.control_no === controlNo
-        )
+        const idx = batchEmployeesDtr.value.findIndex((e) => e.employee?.control_no === controlNo)
         if (idx !== -1) {
           batchEmployeesDtr.value[idx] = updatedEntry
         }
@@ -2381,8 +2581,12 @@ onMounted(() => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Interactive KPI Stat Cards */
@@ -2530,7 +2734,9 @@ onMounted(() => {
 
 .dtr-row-action-btn {
   opacity: 0.78;
-  transition: opacity 0.15s ease, background-color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .attendance-pro-table :deep(tbody tr:hover) .dtr-row-action-btn,
@@ -2547,7 +2753,9 @@ onMounted(() => {
   max-width: 95vw;
   border-radius: 12px !important;
   overflow: hidden;
-  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.28), 0 8px 18px -6px rgba(15, 23, 42, 0.14) !important;
+  box-shadow:
+    0 20px 45px -10px rgba(15, 23, 42, 0.28),
+    0 8px 18px -6px rgba(15, 23, 42, 0.14) !important;
 }
 
 .dtr-dialog-header {
@@ -2894,5 +3102,4 @@ onMounted(() => {
   background-color: rgba(255, 255, 255, 0.2);
   color: #ffffff;
 }
-
 </style>
