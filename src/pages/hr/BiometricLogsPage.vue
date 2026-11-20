@@ -1,25 +1,30 @@
 <template>
   <q-page class="q-pa-md biometric-logs-page">
     <!-- Page Header -->
-    <div class="q-mb-lg">
-      <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">
-        Biometric Logs
-      </h1>
+    <div class="row justify-between items-center q-col-gutter-sm q-mb-lg">
+      <div class="col-auto">
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">
+          Enrollment Logs
+        </h1>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <HeaderDateRangePicker
+          v-model:start-date="filters.start_date"
+          v-model:end-date="filters.end_date"
+        />
+      </div>
     </div>
-
-    <AppReloadBar :loading="loading && rows.length > 0" />
 
     <!-- Filter Bar -->
     <DataFilterBar
       v-model:search="searchTerm"
       search-placeholder="Search employee, control no, office, device SN, performed by..."
-      :show-reset="hasActiveFilters"
+      search-class="col-12 col-md"
       :loading="loading && rows.length === 0"
-      :skeleton-filter-count="4"
+      :skeleton-filter-count="2"
       :skeleton-has-action="false"
-      @reset="resetFilters"
     >
-      <div class="col-6 col-md-2">
+      <div class="col-6 col-md-3">
         <q-select
           v-model="filters.action_type"
           :options="actionTypeOptions"
@@ -29,7 +34,7 @@
           label="Action Type"
         />
       </div>
-      <div class="col-6 col-md-2">
+      <div class="col-6 col-md-3">
         <q-select
           v-model="filters.status"
           :options="statusOptions"
@@ -38,34 +43,6 @@
           options-dense
           label="Status"
         />
-      </div>
-      <div class="col-6 col-md-2">
-        <q-input v-model="filters.start_date" outlined dense type="date" label="Start Date" stack-label />
-      </div>
-      <div class="col-6 col-md-2">
-        <div class="row items-center no-wrap">
-          <q-input
-            v-model="filters.end_date"
-            outlined
-            dense
-            type="date"
-            label="End Date"
-            stack-label
-            class="col"
-          />
-          <q-btn
-            v-if="filters.start_date || filters.end_date"
-            flat
-            round
-            dense
-            icon="clear"
-            color="grey-7"
-            class="q-ml-xs"
-            @click="clearDates"
-          >
-            <q-tooltip>Clear date range</q-tooltip>
-          </q-btn>
-        </div>
       </div>
     </DataFilterBar>
 
@@ -179,6 +156,7 @@ import { api } from 'src/boot/axios'
 import { formatOfficeAbbreviation } from 'src/utils/office-acronym'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
@@ -192,10 +170,8 @@ const {
   rows,
   loading,
   pagination,
-  hasActiveFilters,
   fetch: fetchLogs,
   onRequest,
-  resetFilters,
 } = useDataTable({
   server: true,
   debounceMs: 400,
@@ -304,11 +280,6 @@ function simplifyRemarks(text) {
   }
 
   return trimmed
-}
-
-function clearDates() {
-  filters.start_date = ''
-  filters.end_date = ''
 }
 
 onMounted(fetchLogs)

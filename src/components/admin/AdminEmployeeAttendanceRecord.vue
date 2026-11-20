@@ -64,37 +64,13 @@
                 <q-skeleton type="rect" width="125px" height="38px" class="rounded-borders" animation="wave" />
               </template>
               <template v-else>
-                <!-- Single Calendar Date Range Picker -->
-                <div
-                  class="header-date-range-trigger row items-center no-wrap q-px-md cursor-pointer rounded-borders"
-                >
-                  <q-icon name="date_range" size="18px" color="green-9" class="q-mr-sm" />
-                  <span class="text-body2 text-weight-bold text-dark">{{ customRangeDisplayLabel }}</span>
-                  <q-icon name="arrow_drop_down" size="20px" color="grey-7" class="q-ml-xs" />
-
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-date
-                      v-model="datePickerModel"
-                      range
-                      mask="YYYY-MM-DD"
-                      color="green-9"
-                      minimal
-                    >
-                      <div class="row items-center justify-between q-gutter-x-sm">
-                        <span class="text-caption text-grey-7">{{ customRangeDisplayLabel }}</span>
-                        <q-btn
-                          v-close-popup
-                          label="Apply"
-                          color="green-9"
-                          flat
-                          dense
-                          no-caps
-                          class="text-weight-bold"
-                        />
-                      </div>
-                    </q-date>
-                  </q-popup-proxy>
-                </div>
+                <HeaderDateRangePicker
+                  :start-date="normalizedCustomRange.from"
+                  :end-date="normalizedCustomRange.to"
+                  :clearable="false"
+                  @update:start-date="updateCustomStartDate"
+                  @update:end-date="updateCustomEndDate"
+                />
 
                 <!-- Action Button -->
                 <q-btn
@@ -114,12 +90,6 @@
         </div>
       </q-card-section>
     </q-card>
-
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar
-      :loading="Boolean(loading && dtrData)"
-      bar-class="q-mb-md rounded-borders no-print top-reload-bar"
-    />
 
     <!-- Initial Loading State: Realistic Skeleton Screen Suite -->
     <div v-if="loading && !dtrData" class="skeleton-suite no-print">
@@ -705,6 +675,7 @@ import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
 import DtrOverrideDialog from 'src/components/admin/DtrOverrideDialog.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 
 const props = defineProps({
   employeeId: {
@@ -757,15 +728,15 @@ function buildDefaultFullMonthRange() {
 
 const customDateRange = ref(buildDefaultFullMonthRange())
 
-const datePickerModel = computed({
-  get() {
-    return customDateRange.value || buildDefaultFullMonthRange()
-  },
-  set(val) {
-    if (!val) return
-    customDateRange.value = typeof val === 'string' ? { from: val, to: val } : val
-  },
-})
+function updateCustomStartDate(val) {
+  const base = customDateRange.value || buildDefaultFullMonthRange()
+  customDateRange.value = { ...base, from: val }
+}
+
+function updateCustomEndDate(val) {
+  const base = customDateRange.value || buildDefaultFullMonthRange()
+  customDateRange.value = { ...base, to: val }
+}
 
 const normalizedCustomRange = computed(() => {
   const val = customDateRange.value || buildDefaultFullMonthRange()
@@ -1153,19 +1124,6 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.header-date-range-trigger {
-  height: 38px;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.header-date-range-trigger:hover {
-  background: #f1f5f9;
-  border-color: #2e7d32;
-}
-
 .header-card {
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
@@ -1313,10 +1271,6 @@ onMounted(() => {
 .action-override-btn:hover {
   background-color: #e2e8f0;
   transform: scale(1.08);
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.3);
 }
 
 .border-green-subtle {

@@ -1,5 +1,5 @@
 <template>
-  <div class="row q-col-gutter-md q-mb-lg">
+  <div class="row q-col-gutter-sm q-mb-md">
     <div class="col-12 col-md-6">
       <AdminMonthlyLeaveTrendChart
         :applications="applications"

@@ -122,7 +122,7 @@
                   <q-item-section avatar class="min-avatar">
                     <q-icon name="receipt_long" size="18px" />
                   </q-item-section>
-                  <q-item-section class="nav-sub-label">Bio Logs</q-item-section>
+                  <q-item-section class="nav-sub-label">Enrollment Logs</q-item-section>
                 </q-item>
                 <q-item
                   clickable
@@ -135,7 +135,7 @@
                   <q-item-section avatar class="min-avatar">
                     <q-icon name="schedule" size="18px" />
                   </q-item-section>
-                  <q-item-section class="nav-sub-label">Attendance Logs</q-item-section>
+                  <q-item-section class="nav-sub-label">Punch Logs</q-item-section>
                 </q-item>
                 <q-item
                   clickable
@@ -369,6 +369,8 @@ import { useQuasar } from 'quasar'
 import { useLeaveStore } from 'stores/leave-store'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
+import { useHrDashboardStore } from 'stores/hr-dashboard-store'
+import { useAdminDashboardStore } from 'stores/admin-dashboard-store'
 import { api } from 'boot/axios'
 import NotificationPanel from 'components/NotificationPanel.vue'
 import { hrUserHasModuleAccess } from 'src/utils/hr-module-access'
@@ -379,6 +381,8 @@ const $q = useQuasar()
 const leaveStore = useLeaveStore()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const hrDashboardStore = useHrDashboardStore()
+const adminDashboardStore = useAdminDashboardStore()
 
 const leftDrawer = ref($q.screen.gt.sm)
 const logoutDialog = ref(false)
@@ -538,6 +542,8 @@ async function doLogout() {
   authStore.clearAuth()
   leaveStore.setUserRole(null)
   notifStore.clearAll()
+  hrDashboardStore.reset()
+  adminDashboardStore.reset()
   $q.notify({
     type: 'positive',
     message: 'Logged out successfully!',

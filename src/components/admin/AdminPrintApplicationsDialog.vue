@@ -8,20 +8,14 @@
         </div>
       </q-card-section>
 
-      <q-card-section class="q-pt-none q-gutter-md">
-        <q-input
-          v-model="dateRange.from"
-          type="date"
-          outlined
-          label="From Date"
-          clearable
-        />
-        <q-input
-          v-model="dateRange.to"
-          type="date"
-          outlined
-          label="To Date"
-          clearable
+      <q-card-section class="q-pt-none">
+        <HeaderDateRangePicker
+          v-model:start-date="dateRange.from"
+          v-model:end-date="dateRange.to"
+          label="Print Date Range"
+          full-width
+          menu-anchor="bottom left"
+          menu-self="top left"
         />
       </q-card-section>
 
@@ -41,6 +35,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 
 const props = defineProps({
   modelValue: {

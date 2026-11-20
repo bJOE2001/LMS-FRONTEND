@@ -5,8 +5,6 @@
       <h1 class="text-h4 text-weight-bold q-ma-none text-grey-9">Cancelled Applications</h1>
     </div>
 
-    <AppReloadBar :loading="loading && applications.length > 0" />
-
     <!-- Filters Card -->
     <DataFilterBar
       v-model:search="search"

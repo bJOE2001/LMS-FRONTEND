@@ -252,15 +252,6 @@ export const useAttendanceStore = defineStore('attendance', () => {
     }
   }
 
-  async function syncOfficeBiometrics(departmentId = null) {
-    const payload = {}
-    if (departmentId) {
-      payload.department_id = departmentId
-    }
-    const response = await api.post('/attendance/sync-office-biometrics', payload)
-    return response.data
-  }
-
   function changeDate(deltaDays) {
     if (!selectedDate.value) {
       selectedDate.value = getLocalTodayStr()
@@ -471,7 +462,6 @@ export const useAttendanceStore = defineStore('attendance', () => {
     batchEmploymentStatusOptions,
     // Actions
     fetchAttendanceOverview,
-    syncOfficeBiometrics,
     changeDate,
     goToToday,
     setSelectedDate,

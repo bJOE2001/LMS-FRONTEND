@@ -46,22 +46,19 @@
         </q-card-section>
 
         <q-card-section class="q-pt-none">
-          <q-input
-            v-model="exportFromDate"
-            label="From Date"
-            type="date"
-            outlined
+          <HeaderDateRangePicker
+            v-model:start-date="exportFromDate"
+            v-model:end-date="exportToDate"
+            label="Export Date Range"
+            :clearable="false"
+            full-width
+            menu-anchor="bottom left"
+            menu-self="top left"
             class="q-mb-md"
           />
-          <q-input
-            v-model="exportToDate"
-            label="To Date"
-            type="date"
-            outlined
-            class="q-mb-md"
-            :error="!!dateError"
-            :error-message="dateError"
-          />
+          <div v-if="dateError" class="text-caption text-negative q-mb-sm">
+            {{ dateError }}
+          </div>
           
           <div class="text-subtitle2 q-mb-sm">Export Format</div>
           <div class="q-gutter-sm">
@@ -91,6 +88,7 @@ import { api } from 'boot/axios'
 import { useQuasar } from 'quasar'
 import HrApplicationsPanel from 'components/hr/HrApplicationsPanel.vue'
 import LeaveFormScannerDialog from 'components/hr/LeaveFormScannerDialog.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 import { exportReceivingExcel, exportReceivingPdf } from 'src/utils/receiving-export.js'
 
 const q = useQuasar()

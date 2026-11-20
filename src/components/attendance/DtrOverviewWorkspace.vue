@@ -7,14 +7,16 @@
       </div>
     </div>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar :loading="loading && employeeRows.length > 0" />
-
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && employeeRows.length === 0" class="skeleton-suite">
-      <KpiCardsSkeleton :count="5" row-class="row q-col-gutter-sm q-mb-md" />
+      <KpiCardsSkeleton
+        :count="5"
+        variant="dashboard"
+        row-class="row q-col-gutter-sm q-mb-md"
+        col-class="col-6 col-sm-4 col-md"
+      />
       <TableSkeletonCard
         :columns="showOfficeFilter ? 10 : 9"
         :rows="8"
@@ -29,142 +31,11 @@
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && employeeRows.length > 0 }">
       <!-- Interactive Summary KPI Stat Cards (Click to Filter) -->
-      <div class="row q-col-gutter-sm q-mb-md">
-        <!-- Total Personnel -->
-        <div class="col-12 col-sm-6 col-md">
-          <q-card
-            flat
-            bordered
-            role="button"
-            tabindex="0"
-            class="rounded-borders bg-white stat-card cursor-pointer"
-            :class="{ 'stat-card-active-all': selectedAttendanceStatus === 'ALL' }"
-            @click="setAttendanceStatusFilter('ALL')"
-            @keydown.enter.prevent="setAttendanceStatusFilter('ALL')"
-            @keydown.space.prevent="setAttendanceStatusFilter('ALL')"
-          >
-            <q-card-section class="q-py-md q-px-md">
-              <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="blue-1" text-color="blue-9" class="q-mr-sm flex-shrink-0">
-                  <q-icon name="groups" size="21px" />
-                </q-avatar>
-                <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Total Personnel</div>
-                  <div class="text-h5 text-weight-bolder text-dark leading-tight">{{ stats.total }}</div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <!-- Present -->
-        <div class="col-12 col-sm-6 col-md">
-          <q-card
-            flat
-            bordered
-            role="button"
-            tabindex="0"
-            class="rounded-borders bg-white stat-card cursor-pointer"
-            :class="{ 'stat-card-active-present': selectedAttendanceStatus === 'PRESENT' }"
-            @click="toggleAttendanceStatusFilter('PRESENT')"
-            @keydown.enter.prevent="toggleAttendanceStatusFilter('PRESENT')"
-            @keydown.space.prevent="toggleAttendanceStatusFilter('PRESENT')"
-          >
-            <q-card-section class="q-py-md q-px-md">
-              <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="green-1" text-color="green-9" class="q-mr-sm flex-shrink-0">
-                  <q-icon name="check_circle" size="21px" />
-                </q-avatar>
-                <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Present</div>
-                  <div class="text-h5 text-weight-bolder text-positive leading-tight">{{ stats.present }}</div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <!-- Tardy / Late -->
-        <div class="col-12 col-sm-6 col-md">
-          <q-card
-            flat
-            bordered
-            role="button"
-            tabindex="0"
-            class="rounded-borders bg-white stat-card cursor-pointer"
-            :class="{ 'stat-card-active-late': selectedAttendanceStatus === 'LATE' }"
-            @click="toggleAttendanceStatusFilter('LATE')"
-            @keydown.enter.prevent="toggleAttendanceStatusFilter('LATE')"
-            @keydown.space.prevent="toggleAttendanceStatusFilter('LATE')"
-          >
-            <q-card-section class="q-py-md q-px-md">
-              <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="amber-1" text-color="amber-9" class="q-mr-sm flex-shrink-0">
-                  <q-icon name="history_toggle_off" size="21px" />
-                </q-avatar>
-                <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Tardy / Late</div>
-                  <div class="text-h5 text-weight-bolder text-amber-9 leading-tight">{{ stats.late }}</div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <!-- On Leave -->
-        <div class="col-12 col-sm-6 col-md">
-          <q-card
-            flat
-            bordered
-            role="button"
-            tabindex="0"
-            class="rounded-borders bg-white stat-card cursor-pointer"
-            :class="{ 'stat-card-active-leave': selectedAttendanceStatus === 'ON_LEAVE' }"
-            @click="toggleAttendanceStatusFilter('ON_LEAVE')"
-            @keydown.enter.prevent="toggleAttendanceStatusFilter('ON_LEAVE')"
-            @keydown.space.prevent="toggleAttendanceStatusFilter('ON_LEAVE')"
-          >
-            <q-card-section class="q-py-md q-px-md">
-              <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="indigo-1" text-color="indigo-9" class="q-mr-sm flex-shrink-0">
-                  <q-icon name="beach_access" size="21px" />
-                </q-avatar>
-                <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">On Leave</div>
-                  <div class="text-h5 text-weight-bolder text-indigo-9 leading-tight">{{ stats.on_leave }}</div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <!-- Absent -->
-        <div class="col-12 col-sm-6 col-md">
-          <q-card
-            flat
-            bordered
-            role="button"
-            tabindex="0"
-            class="rounded-borders bg-white stat-card cursor-pointer"
-            :class="{ 'stat-card-active-absent': selectedAttendanceStatus === 'ABSENT' }"
-            @click="toggleAttendanceStatusFilter('ABSENT')"
-            @keydown.enter.prevent="toggleAttendanceStatusFilter('ABSENT')"
-            @keydown.space.prevent="toggleAttendanceStatusFilter('ABSENT')"
-          >
-            <q-card-section class="q-py-md q-px-md">
-              <div class="row items-center no-wrap">
-                <q-avatar size="40px" color="red-1" text-color="red-9" class="q-mr-sm flex-shrink-0">
-                  <q-icon name="event_busy" size="21px" />
-                </q-avatar>
-                <div class="ellipsis">
-                  <div class="text-caption text-weight-medium text-grey-7 ellipsis">Absent</div>
-                  <div class="text-h5 text-weight-bolder text-negative leading-tight">{{ stats.absent }}</div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
+      <AttendanceKpiCards
+        v-model="selectedAttendanceStatus"
+        :stats="stats"
+        @update:model-value="pagination.page = 1"
+      />
 
       <!-- Filters Bar Card: Date Navigator + Filter + Search + Actions -->
       <DataFilterBar
@@ -291,19 +162,6 @@
         </div>
 
         <template #actions>
-          <q-btn
-            v-if="showPullPunches"
-            unelevated
-            color="green-9"
-            icon="sync"
-            label="Pull Punches"
-            no-caps
-            class="text-weight-bold q-px-md toolbar-action-btn"
-            :loading="syncingBiometrics"
-            @click="handleSyncOfficeBiometrics"
-          >
-            <q-tooltip class="bg-dark">Pull latest attendance logs from office biometric terminal</q-tooltip>
-          </q-btn>
           <q-btn
             v-if="showPrint"
             outline
@@ -1146,6 +1004,7 @@ import { useEmployeeStore } from 'stores/employee-store'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
+import AttendanceKpiCards from 'src/components/attendance/AttendanceKpiCards.vue'
 import { printBatchCscForm48 } from 'src/utils/csc-form-48-print'
 
 const props = defineProps({
@@ -1160,10 +1019,6 @@ const props = defineProps({
   showOfficeFilter: {
     type: Boolean,
     default: false,
-  },
-  showPullPunches: {
-    type: Boolean,
-    default: true,
   },
   showPrint: {
     type: Boolean,
@@ -1190,7 +1045,6 @@ function getLocalTodayStr() {
 }
 
 const loading = ref(false)
-const syncingBiometrics = ref(false)
 const todayStr = getLocalTodayStr()
 const selectedDate = ref(todayStr)
 const searchTerm = ref('')
@@ -1299,17 +1153,6 @@ function onDepartmentFilterChange() {
   pagination.value.page = 1
   selectedEmployees.value = []
   fetchAttendanceOverview()
-}
-
-function setAttendanceStatusFilter(statusKey) {
-  selectedAttendanceStatus.value = statusKey || 'ALL'
-  pagination.value.page = 1
-}
-
-function toggleAttendanceStatusFilter(statusKey) {
-  selectedAttendanceStatus.value =
-    selectedAttendanceStatus.value === statusKey ? 'ALL' : statusKey
-  pagination.value.page = 1
 }
 
 watch(selectedEmploymentStatus, () => {
@@ -1596,35 +1439,6 @@ async function fetchAttendanceOverview() {
     })
   } finally {
     loading.value = false
-  }
-}
-
-// =========================================================
-async function handleSyncOfficeBiometrics() {
-  if (syncingBiometrics.value) return
-  syncingBiometrics.value = true
-
-  try {
-    const res = await attendanceStore.syncOfficeBiometrics()
-    $q.notify({
-      type: res.success ? 'positive' : 'warning',
-      message: res.message || 'Biometric punches pulled successfully.',
-      position: 'top',
-      icon: res.success ? 'check_circle' : 'warning',
-      timeout: 5000,
-    })
-    await fetchAttendanceOverview()
-  } catch (err) {
-    console.error('Failed to sync office biometrics:', err)
-    $q.notify({
-      type: 'negative',
-      message: err.response?.data?.message || 'Failed to pull punches from office biometric terminal.',
-      position: 'top',
-      icon: 'error',
-      timeout: 6000,
-    })
-  } finally {
-    syncingBiometrics.value = false
   }
 }
 
@@ -2434,15 +2248,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.attendance-overview-page {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
-}
-
 .content-reloading {
   opacity: 0.55;
   pointer-events: none;
@@ -2456,48 +2261,6 @@ onMounted(() => {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-/* Interactive KPI Stat Cards */
-.stat-card {
-  border-color: #e5e7eb;
-  transition: all 0.18s ease;
-  user-select: none;
-}
-
-.stat-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-}
-
-.stat-card:focus-visible {
-  outline: 2px solid #15803d;
-  outline-offset: 2px;
-}
-
-.stat-card-active-all {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 1px #3b82f6;
-}
-
-.stat-card-active-present {
-  border-color: #10b981;
-  box-shadow: 0 0 0 1px #10b981;
-}
-
-.stat-card-active-late {
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 1px #f59e0b;
-}
-
-.stat-card-active-leave {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 1px #6366f1;
-}
-
-.stat-card-active-absent {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 1px #ef4444;
 }
 
 /* Main Table Card & Toolbar */

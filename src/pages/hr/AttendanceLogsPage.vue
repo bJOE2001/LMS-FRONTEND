@@ -1,45 +1,30 @@
 <template>
   <q-page class="q-pa-md attendance-logs-page">
     <!-- Page Header -->
-    <div class="row items-center justify-between q-col-gutter-sm q-mb-lg">
-      <div>
+    <div class="row justify-between items-center q-col-gutter-sm q-mb-lg">
+      <div class="col-auto">
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">
-          Attendance Logs
+          Punch Logs
         </h1>
       </div>
-      <div class="row items-center q-gutter-sm">
-        <q-btn
-          v-if="hasActiveFilters"
-          outline
-          no-caps
-          color="grey-8"
-          icon="filter_alt_off"
-          label="Reset Filters"
-          @click="resetFilters"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          color="primary"
-          icon="refresh"
-          label="Refresh"
-          :loading="loading"
-          @click="fetchLogs"
+      <div class="col-12 col-sm-auto">
+        <HeaderDateRangePicker
+          v-model:start-date="filters.start_date"
+          v-model:end-date="filters.end_date"
         />
       </div>
     </div>
-
-    <AppReloadBar :loading="loading && rows.length > 0" />
 
     <!-- Filter Bar -->
     <DataFilterBar
       v-model:search="searchTerm"
       search-placeholder="Search employee, control no, PIN, device, office..."
+      search-class="col-12 col-md-4"
       :loading="loading && rows.length === 0"
       :skeleton-filter-count="4"
       :skeleton-has-action="false"
     >
-      <div class="col-6 col-md-2">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.department_id"
           :options="officeOptions"
@@ -54,7 +39,7 @@
           @update:model-value="onOfficeChange"
         />
       </div>
-      <div class="col-6 col-md-2">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.device_serial_number"
           :options="deviceOptions"
@@ -68,72 +53,34 @@
           label="Device"
         />
       </div>
-      <div class="col-6 col-md-2">
-        <q-input
-          v-model="filters.start_date"
+      <div class="col-6 col-sm-3 col-md-2">
+        <q-select
+          v-model="filters.sync_source"
+          :options="syncSourceOptions"
+          option-label="label"
+          option-value="value"
+          emit-value
+          map-options
           outlined
           dense
-          type="date"
-          label="Start Date"
-          stack-label
+          options-dense
+          label="Sync Source"
         />
       </div>
-      <div class="col-6 col-md-2">
-        <div class="row items-center no-wrap">
-          <q-input
-            v-model="filters.end_date"
-            outlined
-            dense
-            type="date"
-            label="End Date"
-            stack-label
-            class="col"
-          />
-          <q-btn
-            v-if="filters.start_date || filters.end_date"
-            flat
-            round
-            dense
-            icon="clear"
-            color="grey-7"
-            class="q-ml-xs"
-            @click="clearDates"
-          >
-            <q-tooltip>Clear date range</q-tooltip>
-          </q-btn>
-        </div>
+      <div class="col-6 col-sm-3 col-md-2">
+        <q-select
+          v-model="filters.verify_type"
+          :options="verifyTypeOptions"
+          option-label="label"
+          option-value="value"
+          emit-value
+          map-options
+          outlined
+          dense
+          options-dense
+          label="Verify Mode"
+        />
       </div>
-
-      <template #secondary>
-        <div class="col-6 col-sm-6">
-          <q-select
-            v-model="filters.sync_source"
-            :options="syncSourceOptions"
-            option-label="label"
-            option-value="value"
-            emit-value
-            map-options
-            outlined
-            dense
-            options-dense
-            label="Sync Source"
-          />
-        </div>
-        <div class="col-6 col-sm-6">
-          <q-select
-            v-model="filters.verify_type"
-            :options="verifyTypeOptions"
-            option-label="label"
-            option-value="value"
-            emit-value
-            map-options
-            outlined
-            dense
-            options-dense
-            label="Verify Mode"
-          />
-        </div>
-      </template>
     </DataFilterBar>
 
     <!-- Attendance Logs Table -->
@@ -226,6 +173,7 @@ import { date as qDate, useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
@@ -254,10 +202,8 @@ const {
   rows,
   loading,
   pagination,
-  hasActiveFilters,
   fetch: fetchLogs,
   onRequest,
-  resetFilters,
 } = useDataTable({
   server: true,
   debounceMs: 400,
@@ -426,11 +372,6 @@ function onOfficeChange(newOfficeId) {
   if (selectedDevice && selectedDevice.department_id !== newOfficeId) {
     filters.device_serial_number = 'ALL'
   }
-}
-
-function clearDates() {
-  filters.start_date = ''
-  filters.end_date = ''
 }
 
 onMounted(fetchLogs)

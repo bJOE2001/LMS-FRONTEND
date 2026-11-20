@@ -15,9 +15,6 @@
       </div>
     </div>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar :loading="loading && rows.length > 0" />
-
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
@@ -96,36 +93,15 @@
         </template>
 
         <template #secondary>
-          <div class="col-12 col-md-3">
-            <q-input v-model="filters.dateFrom" label="Date From" outlined dense>
-              <template #append>
-                <q-icon name="event" class="cursor-pointer">
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-date v-model="filters.dateFrom" mask="YYYY-MM-DD">
-                      <div class="row items-center justify-end q-gutter-sm q-pa-sm">
-                        <q-btn v-close-popup label="Close" color="primary" flat no-caps />
-                      </div>
-                    </q-date>
-                  </q-popup-proxy>
-                </q-icon>
-              </template>
-            </q-input>
-          </div>
-
-          <div class="col-12 col-md-3">
-            <q-input v-model="filters.dateTo" label="Date To" outlined dense>
-              <template #append>
-                <q-icon name="event" class="cursor-pointer">
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-date v-model="filters.dateTo" mask="YYYY-MM-DD">
-                      <div class="row items-center justify-end q-gutter-sm q-pa-sm">
-                        <q-btn v-close-popup label="Close" color="primary" flat no-caps />
-                      </div>
-                    </q-date>
-                  </q-popup-proxy>
-                </q-icon>
-              </template>
-            </q-input>
+          <div class="col-12 col-md-4">
+            <HeaderDateRangePicker
+              v-model:start-date="filters.dateFrom"
+              v-model:end-date="filters.dateTo"
+              dense
+              full-width
+              menu-anchor="bottom left"
+              menu-self="top left"
+            />
           </div>
         </template>
       </DataFilterBar>
@@ -203,6 +179,7 @@
 import { ref } from 'vue'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 
 const loading = ref(false)
 
@@ -378,10 +355,6 @@ function statusColor(status) {
     width: 100%;
     justify-content: flex-start;
   }
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
 }
 
 .content-reloading {

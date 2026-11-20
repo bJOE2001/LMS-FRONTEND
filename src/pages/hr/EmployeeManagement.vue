@@ -20,8 +20,6 @@
       </div>
     </div>
 
-    <AppReloadBar :loading="loading && employees.length > 0" />
-
     <!-- Summary Cards -->
     <KpiCardsSkeleton
       v-if="loadingTotalEmployees || loadingDepartments"

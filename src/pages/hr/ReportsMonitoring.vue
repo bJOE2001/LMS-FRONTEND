@@ -55,7 +55,7 @@
       <q-card-section>
         <div class="text-subtitle1 text-weight-medium q-mb-md">Report Selector and Filters</div>
         <div class="row q-col-gutter-md">
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-md-5">
             <q-select
               v-model="selectedReportType"
               :options="reportTypeOptions"
@@ -69,69 +69,7 @@
             />
           </div>
 
-          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-6 col-md-2">
-            <q-select
-              v-model="filters.month"
-              :options="monthOptions"
-              option-label="label"
-              option-value="value"
-              emit-value
-              map-options
-              outlined
-              dense
-              label="Month"
-            />
-          </div>
-
-          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-6 col-md-2">
-            <q-select
-              v-model="filters.year"
-              :options="yearOptions"
-              option-label="label"
-              option-value="value"
-              emit-value
-              map-options
-              outlined
-              dense
-              label="Year"
-            />
-          </div>
-
-          <div v-if="selectedReportType === 'applicationProcessing'" class="col-6 col-md-2">
-            <q-input
-              v-model="filters.fromDate"
-              type="date"
-              outlined
-              dense
-              label="From Date"
-            />
-          </div>
-
-          <div v-if="selectedReportType === 'applicationProcessing'" class="col-6 col-md-2">
-            <q-input
-              v-model="filters.toDate"
-              type="date"
-              outlined
-              dense
-              label="To Date"
-            />
-          </div>
-
-          <div v-if="selectedReportType === 'applicationProcessing'" class="col-12 col-md-2">
-            <q-select
-              v-model="filters.actionType"
-              :options="actionTypeOptions"
-              option-label="label"
-              option-value="value"
-              emit-value
-              map-options
-              outlined
-              dense
-              label="Action"
-            />
-          </div>
-
-          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-12 col-md-2">
+          <div class="col-6 col-md-2">
             <q-select
               v-model="filters.office"
               :options="officeOptions"
@@ -145,7 +83,21 @@
             />
           </div>
 
-          <div v-if="selectedReportType !== 'applicationProcessing'" class="col-12 col-md-2">
+          <div v-if="selectedReportType === 'applicationProcessing'" class="col-6 col-md-2">
+            <q-select
+              v-model="filters.actionType"
+              :options="actionTypeOptions"
+              option-label="label"
+              option-value="value"
+              emit-value
+              map-options
+              outlined
+              dense
+              label="Action"
+            />
+          </div>
+
+          <div v-else class="col-6 col-md-2">
             <q-select
               v-model="filters.status"
               :options="statusOptions"
@@ -156,6 +108,17 @@
               outlined
               dense
               label="Status"
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <HeaderDateRangePicker
+              v-model:start-date="filters.fromDate"
+              v-model:end-date="filters.toDate"
+              dense
+              full-width
+              menu-anchor="bottom right"
+              menu-self="top right"
             />
           </div>
 
@@ -300,6 +263,7 @@ import CocBalancesReportTable from 'components/report/CocBalancesReportTable.vue
 import LeaveAvailmentPerOfficeReportTable from 'components/report/LeaveAvailmentPerOfficeReportTable.vue'
 import LeaveAdjustmentReportTable from 'components/report/LeaveAdjustmentReportTable.vue'
 import ApplicationProcessingReportTable from 'components/report/ApplicationProcessingReportTable.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 import {
   exportReportsMonitoringCsv,
   exportReportsMonitoringExcel,
@@ -328,20 +292,11 @@ const defaultPrintSignatories = {
 const printSignatories = reactive({ ...defaultPrintSignatories })
 
 const filters = reactive({
-  month: null,
-  year: null,
   office: null,
   status: null,
   employeeName: '',
-  fromDate: (() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-  })(),
-  toDate: (() => {
-    const d = new Date()
-    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-    return `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
-  })(),
+  fromDate: '',
+  toDate: '',
   actionType: 'all',
 })
 
@@ -358,14 +313,6 @@ const monthNames = [
   'October',
   'November',
   'December',
-]
-
-const monthOptions = [
-  { label: 'All Months', value: null },
-  ...monthNames.map((month, index) => ({
-    label: month,
-    value: index + 1,
-  })),
 ]
 
 const actionTypeOptions = [
@@ -928,16 +875,16 @@ const reportConfigs = {
     ],
   },
   applicationProcessing: {
-    label: 'Processed Applications',
+    label: 'Report of Processed Applications',
     component: ApplicationProcessingReportTable,
     rows: applicationProcessingRows,
-    minTableWidth: '1200px',
+    minTableWidth: '100%',
     metricField: null,
     balanceField: null,
     columns: [
       { name: 'no', label: 'No.', field: 'no', align: 'left' },
       { name: 'employee_name', label: 'Employee Name', field: (row) => formatExistingName(row.employee_name), align: 'left' },
-      { name: 'office_acronym', label: 'Office', field: 'office_acronym', align: 'left' },
+      { name: 'office_acronym', label: 'Office', field: getOfficeColumnValue, align: 'left' },
       { name: 'leave_type_name', label: 'Leave Type', field: 'leave_type_name', align: 'left' },
       { name: 'inclusive_dates', label: 'Inclusive Dates', field: (row) => formatInclusiveDates(row.inclusive_dates), align: 'left' },
       { name: 'action', label: 'Action', field: 'action', align: 'center' },
@@ -1062,54 +1009,82 @@ const columns = computed(() => {
   })
 })
 
-function resolveRowMonths(row) {
-  if (Array.isArray(row?.months) && row.months.length) {
-    return row.months
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value) && value >= 1 && value <= 12)
-  }
+function toIsoDateKey(value) {
+  const raw = String(value || '').trim()
+  if (!raw || raw === '-' || raw === 'N/A') return ''
 
-  const month = Number(row?.month)
-  return Number.isInteger(month) && month >= 1 && month <= 12 ? [month] : []
+  const isoMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (isoMatch) return isoMatch[1]
+
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
-function resolveRowYears(row) {
-  if (Array.isArray(row?.years) && row.years.length) {
-    return row.years
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value) && value > 0)
+function resolveRowDateKeys(row) {
+  const candidates = []
+
+  if (Array.isArray(row?.dateKeys)) {
+    candidates.push(...row.dateKeys)
   }
 
-  const year = Number(row?.year)
-  return Number.isInteger(year) && year > 0 ? [year] : []
+  candidates.push(
+    row?.referenceDate,
+    row?.requested_at_raw,
+    row?.date_action_taken,
+    row?.dateReceivedCHRMO,
+    row?.dateReceivedHRMO,
+    row?.dateOfFiling,
+    row?.dateFiled,
+    row?.date_of_request,
+  )
+
+  return Array.from(
+    new Set(candidates.map((value) => toIsoDateKey(value)).filter(Boolean)),
+  )
 }
 
 function resolveRowPeriodKeys(row) {
   if (Array.isArray(row?.periodKeys) && row.periodKeys.length) {
     return row.periodKeys
       .map((value) => String(value || '').trim())
-      .filter((value) => value !== '')
+      .filter((value) => /^\d{4}-\d{2}$/.test(value))
   }
 
-  const months = resolveRowMonths(row)
-  const years = resolveRowYears(row)
-  if (months.length === 1 && years.length === 1) {
-    return [`${years[0]}-${String(months[0]).padStart(2, '0')}`]
+  const month = Number(row?.month)
+  const year = Number(row?.year)
+  if (Number.isInteger(month) && month >= 1 && month <= 12 && Number.isInteger(year) && year > 0) {
+    return [`${year}-${String(month).padStart(2, '0')}`]
   }
 
   return []
 }
 
-const yearOptions = computed(() => {
-  const years = Array.from(new Set(selectedReportRows.value.flatMap((row) => resolveRowYears(row)))).sort(
-    (a, b) => b - a,
-  )
+function rowMatchesDateRange(row, fromDate, toDate) {
+  if (!fromDate && !toDate) return true
 
-  return [
-    { label: 'All Years', value: null },
-    ...years.map((year) => ({ label: String(year), value: year })),
-  ]
-})
+  const rangeFrom = fromDate || toDate
+  const rangeTo = toDate || fromDate
+  const normalizedFrom = rangeFrom <= rangeTo ? rangeFrom : rangeTo
+  const normalizedTo = rangeFrom <= rangeTo ? rangeTo : rangeFrom
+
+  const dateKeys = resolveRowDateKeys(row)
+  if (dateKeys.length > 0) {
+    return dateKeys.some((dateKey) => dateKey >= normalizedFrom && dateKey <= normalizedTo)
+  }
+
+  const periodKeys = resolveRowPeriodKeys(row)
+  if (periodKeys.length > 0) {
+    const fromMonth = normalizedFrom.slice(0, 7)
+    const toMonth = normalizedTo.slice(0, 7)
+    return periodKeys.some((periodKey) => periodKey >= fromMonth && periodKey <= toMonth)
+  }
+
+  return true
+}
 
 const officeOptions = computed(() => {
   const offices = Array.from(
@@ -1162,33 +1137,22 @@ const filteredRows = computed(() => {
 
   return selectedReportRows.value
     .filter((row) => {
-    const rowMonths = resolveRowMonths(row)
-    const rowYears = resolveRowYears(row)
-    const rowPeriodKeys = resolveRowPeriodKeys(row)
+      if (filters.office && getOfficeFilterValue(row) !== filters.office) return false
+      if (filters.status && row?.status !== filters.status) return false
 
-    if (filters.month && filters.year) {
-      const targetPeriodKey = `${filters.year}-${String(filters.month).padStart(2, '0')}`
-      if (!rowPeriodKeys.includes(targetPeriodKey)) return false
-    } else {
-      if (filters.month && !rowMonths.includes(filters.month)) return false
-      if (filters.year && !rowYears.includes(filters.year)) return false
-    }
+      // For application processing, date range is filtered backend-side; apply employee search.
+      if (resolvedReportType.value === 'applicationProcessing') {
+        if (search && !String(row?.employee_name || '').toLowerCase().includes(search)) return false
+        return true
+      }
 
-    if (filters.office && getOfficeFilterValue(row) !== filters.office) return false
-    if (filters.status && row?.status !== filters.status) return false
-    
-    // For application processing, it's filtered backend-side. We just apply the search filter.
-    if (resolvedReportType.value === 'applicationProcessing') {
-      if (search && !String(row?.employee_name || '').toLowerCase().includes(search)) return false
+      if (!rowMatchesDateRange(row, filters.fromDate, filters.toDate)) return false
+      if (search && !String(row?.name || '').toLowerCase().includes(search)) return false
       return true
-    }
-    
-    if (search && !String(row?.name || '').toLowerCase().includes(search)) return false
-    return true
-  })
+    })
     .sort((a, b) => {
-      const aName = String(a?.name || '').trim()
-      const bName = String(b?.name || '').trim()
+      const aName = String(a?.name || a?.employee_name || '').trim()
+      const bName = String(b?.name || b?.employee_name || '').trim()
       const nameComparison = aName.localeCompare(bName, undefined, { sensitivity: 'base' })
       if (nameComparison !== 0) return nameComparison
 
@@ -1202,8 +1166,6 @@ watch(selectedReportType, () => {
     return
   }
 
-  filters.month = null
-  filters.year = null
   filters.office = null
   filters.status = null
   filters.employeeName = ''
@@ -1213,9 +1175,6 @@ watch(selectedReportType, () => {
   }
 
   void ensureSelectedReportLoaded()
-  if (selectedReportType.value === 'applicationProcessing') {
-    void ensureSelectedReportLoaded()
-  }
 })
 
 // Refetch application processing report when date/action filters change

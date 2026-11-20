@@ -24,9 +24,6 @@
       </div>
     </div>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar :loading="loading && leaveApplicationRows.length > 0" />
-
     <AdminApplyLeaveDialog
       v-model="showApplyLeaveDialog"
       :existing-applications="leaveApplicationRows"
@@ -1887,10 +1884,6 @@ async function submitAdminSelfCocApplication(payload) {
   font-size: 0.72rem;
   color: #64748b;
   margin-top: 1px;
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
 }
 
 .content-reloading {

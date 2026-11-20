@@ -16,103 +16,55 @@
       </div>
     </div>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar :loading="loading && devicesList.length > 0" />
-
     <!-- Interactive Summary Stat Cards (Click to Filter) -->
     <KpiCardsSkeleton
       v-if="loading && devicesList.length === 0"
       :count="3"
-      row-class="row q-col-gutter-sm q-mb-md"
+      variant="dashboard"
+      row-class="row q-col-gutter-sm q-mb-md device-kpi-row"
     />
-    <div v-else class="row q-col-gutter-sm q-mb-md" :class="{ 'content-reloading': loading && devicesList.length > 0 }">
-      <!-- Total Devices -->
-      <div class="col-12 col-sm-4">
-        <q-card
-          flat
-          bordered
-          class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-all': filters.status === 'all' }"
-          @click="filters.status = 'all'"
+    <div
+      v-else
+      class="row q-col-gutter-sm q-mb-md device-kpi-row"
+      :class="{ 'content-reloading': loading && devicesList.length > 0 }"
+    >
+      <div v-for="card in deviceKpiCards" :key="card.key" class="col-12 col-sm-4">
+        <div
+          role="button"
+          tabindex="0"
+          :class="['device-kpi-card', { 'device-kpi-card--active': filters.status === card.key }]"
+          :style="getDeviceKpiCardStyle(card)"
+          @click="card.onSelect()"
+          @keydown.enter.prevent="card.onSelect()"
+          @keydown.space.prevent="card.onSelect()"
         >
-          <q-card-section class="q-py-md">
-            <div class="row items-center justify-between no-wrap">
-              <div class="row items-center no-wrap">
-                <q-avatar size="42px" color="blue-1" text-color="blue-9" class="q-mr-md">
-                  <q-icon name="devices" size="22px" />
-                </q-avatar>
-                <div>
-                  <div class="text-caption text-weight-medium text-grey-7">Total Devices</div>
-                  <div class="text-h5 text-weight-bolder text-dark">{{ deviceStats.total }}</div>
-                </div>
-              </div>
-              <q-badge
-                v-if="deviceStats.unassigned > 0"
-                color="amber-2"
-                text-color="amber-10"
-                class="text-weight-bold q-px-sm q-py-xs"
-              >
-                {{ deviceStats.unassigned }} Unassigned
-              </q-badge>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <!-- Online -->
-      <div class="col-12 col-sm-4">
-        <q-card
-          flat
-          bordered
-          class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-online': filters.status === 'online' }"
-          @click="filters.status = filters.status === 'online' ? 'all' : 'online'"
-        >
-          <q-card-section class="q-py-md">
-            <div class="row items-center no-wrap">
-              <q-avatar size="42px" color="green-1" text-color="green-9" class="q-mr-md">
-                <q-icon name="wifi" size="22px" />
-              </q-avatar>
-              <div>
-                <div class="text-caption text-weight-medium text-grey-7">Online</div>
-                <div class="text-h5 text-weight-bolder text-positive">{{ deviceStats.online }}</div>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <!-- Offline -->
-      <div class="col-12 col-sm-4">
-        <q-card
-          flat
-          bordered
-          class="rounded-borders bg-white stat-card cursor-pointer"
-          :class="{ 'stat-card-active-offline': filters.status === 'offline' }"
-          @click="filters.status = filters.status === 'offline' ? 'all' : 'offline'"
-        >
-          <q-card-section class="q-py-md">
-            <div class="row items-center justify-between no-wrap">
-              <div class="row items-center no-wrap">
-                <q-avatar size="42px" color="grey-2" text-color="grey-8" class="q-mr-md">
-                  <q-icon name="wifi_off" size="22px" />
-                </q-avatar>
-                <div>
-                  <div class="text-caption text-weight-medium text-grey-7">Offline</div>
-                  <div class="text-h5 text-weight-bolder text-grey-8">
-                    {{ deviceStats.offline }}
-                  </div>
-                </div>
-              </div>
-              <span
-                v-if="filters.status === 'offline'"
-                class="text-caption text-weight-bold text-grey-7"
-              >
-                Filtered
+          <div class="device-kpi-card__top">
+            <div class="device-kpi-card__identity">
+              <span class="device-kpi-card__icon-box" aria-hidden="true">
+                <q-icon :name="card.icon" size="17px" />
               </span>
+              <span class="device-kpi-card__label">{{ card.label }}</span>
             </div>
-          </q-card-section>
-        </q-card>
+            <span class="device-kpi-card__value tabular-nums">
+              {{ card.value }}
+            </span>
+          </div>
+
+          <div class="device-kpi-card__bottom">
+            <span class="device-kpi-card__hint">{{ card.hint }}</span>
+            <span
+              v-if="card.badgeLabel"
+              :class="[
+                'device-kpi-card__pill',
+                `device-kpi-card__pill--${card.badgeVariant}`,
+              ]"
+            >
+              {{ card.badgeLabel }}
+            </span>
+          </div>
+
+          <q-tooltip>{{ card.tooltip }}</q-tooltip>
+        </div>
       </div>
     </div>
 
@@ -121,11 +73,9 @@
       v-model:search="searchTerm"
       search-class="col-12 col-sm"
       search-placeholder="Search by device label, serial number, office, or IP address..."
-      :show-reset="hasActiveFilters"
       :loading="loading && devicesList.length === 0"
       :skeleton-filter-count="1"
       :skeleton-has-action="false"
-      @reset="resetFilters"
     >
       <template #prepend>
         <div class="col-12 col-sm-auto">
@@ -157,30 +107,10 @@
       :empty-subtext="
         hasActiveFilters
           ? 'Try adjusting your search query or status filter.'
-          : 'ADMS devices appear automatically when connected. For LAN devices, click below to register them.'
+          : 'ADMS devices appear automatically when connected. For LAN devices, use Add Device above to register them.'
       "
       loading-text="Loading biometric devices..."
     >
-      <template #empty-actions>
-        <q-btn
-          v-if="hasActiveFilters"
-          outline
-          no-caps
-          color="primary"
-          icon="filter_alt_off"
-          label="Reset Filters"
-          @click="resetFilters"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          color="primary"
-          icon="add"
-          label="Register Biometric Device"
-          class="text-weight-bold q-px-md"
-          @click="openAddDeviceDialog"
-        />
-      </template>
         <!-- Device Info Column -->
         <template #body-cell-device_info="props">
           <q-td :props="props">
@@ -599,7 +529,6 @@ const {
   filters,
   pagination,
   hasActiveFilters,
-  resetFilters,
 } = useDataTable({
   initialFilters: {
     status: 'all',
@@ -617,6 +546,61 @@ const statusOptions = [
   { label: 'Online Only', value: 'online' },
   { label: 'Offline Only', value: 'offline' },
 ]
+
+const deviceKpiCards = computed(() => [
+  {
+    key: 'all',
+    label: 'Total Devices',
+    value: deviceStats.value.total,
+    hint: 'Registered hardware',
+    icon: 'devices',
+    accent: '#1565c0',
+    iconBg: '#e0f2fe',
+    badgeLabel: deviceStats.value.unassigned > 0 ? `${deviceStats.value.unassigned} Unassigned` : '',
+    badgeVariant: 'warning',
+    tooltip: 'Show all registered biometric devices',
+    onSelect: () => {
+      filters.status = 'all'
+    },
+  },
+  {
+    key: 'online',
+    label: 'Online',
+    value: deviceStats.value.online,
+    hint: 'Active connection',
+    icon: 'wifi',
+    accent: '#15803d',
+    iconBg: '#dcfce7',
+    badgeLabel: filters.status === 'online' ? 'Filtered' : '',
+    badgeVariant: 'active',
+    tooltip: filters.status === 'online' ? 'Click to show all devices' : 'Filter by online devices',
+    onSelect: () => {
+      filters.status = filters.status === 'online' ? 'all' : 'online'
+    },
+  },
+  {
+    key: 'offline',
+    label: 'Offline',
+    value: deviceStats.value.offline,
+    hint: 'Disconnected units',
+    icon: 'wifi_off',
+    accent: '#475569',
+    iconBg: '#f1f5f9',
+    badgeLabel: filters.status === 'offline' ? 'Filtered' : '',
+    badgeVariant: 'active',
+    tooltip: filters.status === 'offline' ? 'Click to show all devices' : 'Filter by offline devices',
+    onSelect: () => {
+      filters.status = filters.status === 'offline' ? 'all' : 'offline'
+    },
+  },
+])
+
+function getDeviceKpiCardStyle(card) {
+  return {
+    '--dev-kpi-accent': card.accent,
+    '--dev-kpi-icon-bg': card.iconBg,
+  }
+}
 
 function formatDeviceName(dev) {
   if (!dev) return 'Biometric Device'
@@ -1008,29 +992,159 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.stat-card {
-  border-color: #e5e7eb;
-  transition: all 0.18s ease;
+.device-kpi-row > div {
+  display: flex;
 }
 
-.stat-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+.device-kpi-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 88px;
+  padding: 10px 12px 9px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease;
 }
 
-.stat-card-active-all {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 1px #3b82f6;
+.device-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--dev-kpi-accent, #1565c0);
+  box-shadow: 0 10px 22px -8px rgba(15, 23, 42, 0.12);
 }
 
-.stat-card-active-online {
-  border-color: #10b981;
-  box-shadow: 0 0 0 1px #10b981;
+.device-kpi-card:focus-visible {
+  outline: 2px solid var(--dev-kpi-accent, #1565c0);
+  outline-offset: 2px;
 }
 
-.stat-card-active-offline {
-  border-color: #64748b;
-  box-shadow: 0 0 0 1px #64748b;
+.device-kpi-card--active {
+  border-color: var(--dev-kpi-accent, #1565c0);
+  background-color: #f8fafc;
+  box-shadow:
+    0 8px 20px -8px rgba(15, 23, 42, 0.14),
+    inset 0 0 0 1px var(--dev-kpi-accent, #1565c0);
+}
+
+.device-kpi-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.device-kpi-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.device-kpi-card__icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background-color: var(--dev-kpi-icon-bg, #e2e8f0);
+  color: var(--dev-kpi-accent, #1565c0);
+  flex-shrink: 0;
+}
+
+.device-kpi-card__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-kpi-card--active .device-kpi-card__label {
+  color: var(--dev-kpi-accent, #1565c0);
+}
+
+.device-kpi-card__value {
+  font-size: clamp(1.35rem, 1.8vw, 1.6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--dev-kpi-accent, #1565c0);
+  flex-shrink: 0;
+}
+
+.device-kpi-card__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.device-kpi-card__hint {
+  font-size: 0.67rem;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-kpi-card__pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.device-kpi-card__pill--active {
+  background-color: var(--dev-kpi-accent, #1565c0);
+  color: #ffffff;
+}
+
+.device-kpi-card__pill--warning {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+:global(body.body--dark) .device-kpi-card {
+  background-color: var(--dm-surface, #1b2330);
+  border-color: var(--dm-border, #324258);
+  box-shadow: none;
+}
+
+:global(body.body--dark) .device-kpi-card:hover,
+:global(body.body--dark) .device-kpi-card--active {
+  background-color: var(--dm-surface-2, #212b3a);
+}
+
+:global(body.body--dark) .device-kpi-card__label,
+:global(body.body--dark) .device-kpi-card__value {
+  color: var(--dm-text-primary, #e6edf5);
+}
+
+:global(body.body--dark) .device-kpi-card__hint {
+  color: var(--dm-text-muted, #a4b1c2);
+}
+
+:global(body.body--dark) .device-kpi-card__icon-box {
+  background-color: var(--dm-surface-3, #283446);
+  color: var(--dm-text-secondary, #cad5e4);
 }
 
 .biometric-table {

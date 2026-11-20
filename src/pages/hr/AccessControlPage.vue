@@ -27,8 +27,6 @@
       </div>
     </div>
 
-    <AppReloadBar :loading="loading && accounts.length > 0" />
-
     <!-- Top KPI Metrics Row -->
     <KpiCardsSkeleton
       v-if="loading && accounts.length === 0"

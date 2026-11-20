@@ -7,9 +7,6 @@
       <q-space />
     </div>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar :loading="loading && logs.length > 0" />
-
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
@@ -303,10 +300,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
-}
-
 .content-reloading {
   opacity: 0.55;
   pointer-events: none;

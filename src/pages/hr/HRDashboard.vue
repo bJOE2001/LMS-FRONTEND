@@ -5,39 +5,13 @@
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
       </div>
       <div class="col-12 col-sm-auto">
-        <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
-          <q-input
-            class="dashboard-kpi-range-input"
-            dense
-            outlined
-            readonly
-            label="Date Range"
-            :model-value="kpiDateRangeLabel"
-          >
-            <template #prepend>
-              <q-icon name="event" />
-            </template>
-            <template #append>
-              <q-icon name="arrow_drop_down" class="cursor-pointer">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date
-                    :model-value="kpiDateRangeModel"
-                    mask="YYYY-MM-DD"
-                    range
-                    today-btn
-                    @update:model-value="handleKpiDateRangeChange"
-                  />
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
-          <q-btn flat dense no-caps label="Today" @click="resetKpiDateRangeToToday" />
-        </div>
+        <HeaderDateRangePicker
+          v-model:start-date="kpiStartDate"
+          v-model:end-date="kpiEndDate"
+          :clearable="false"
+        />
       </div>
     </div>
-
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <AppReloadBar :loading="loading && hasLoadedOnce" />
 
     <KpiCardsSkeleton
       v-if="loading && !hasLoadedOnce"
@@ -48,140 +22,14 @@
       col-class="col-12 col-sm-6 col-md stat-card-col"
     />
 
-    <div
+    <ApplicationKpiCards
       v-else
-      class="row q-col-gutter-sm q-mb-sm stat-cards-row"
-      :class="{ 'content-reloading': loading && hasLoadedOnce }"
-    >
-      <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card
-          class="stat-card stat-card--applications bg-white rounded-borders"
-          flat
-          elevation="1"
-          @click="goToApplications('total')"
-        >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="description" size="28px" color="grey" class="stat-card-icon" />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Applications</div>
-              </div>
-              <div class="stat-value text-primary">
-                {{ kpiCardMetrics.total_count }}
-              </div>
-            </div>
-            <div class="stat-breakdown">
-              <div
-                v-for="card in totalApplicationBreakdownCards"
-                :key="card.key"
-                class="stat-mini-card"
-                :style="getEmploymentTypeCardStyle(card)"
-              >
-                <span class="stat-mini-label">{{ card.label }}</span>
-                <span class="stat-mini-value">{{ card.value }}</span>
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card
-          class="stat-card stat-card--compact bg-white rounded-borders"
-          flat
-          elevation="1"
-          @click="goToApplications('pending')"
-        >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="schedule" size="28px" color="warning" class="stat-card-icon" />
-                  <q-icon
-                    v-if="kpiCardMetrics.pending_count > 5"
-                    name="warning"
-                    size="18px"
-                    color="warning"
-                    class="stat-card-alert-icon"
-                  />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Pending Applications</div>
-              </div>
-              <div class="stat-value text-warning">
-                {{ kpiCardMetrics.pending_count }}
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card
-          class="stat-card stat-card--compact bg-white rounded-borders"
-          flat
-          elevation="1"
-          @click="goToApplications('approved')"
-        >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="check_circle" size="28px" color="primary" class="stat-card-icon" />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Total Approved</div>
-              </div>
-              <div class="stat-value text-primary">
-                {{ kpiCardMetrics.approved_count }}
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card
-          class="stat-card stat-card--compact bg-white rounded-borders"
-          flat
-          elevation="1"
-          @click="goToApplications('rejected')"
-        >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="cancel" size="28px" color="negative" class="stat-card-icon" />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Disapproved Applications</div>
-              </div>
-              <div class="stat-value text-negative">
-                {{ kpiCardMetrics.rejected_count }}
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md stat-card-col">
-        <q-card
-          class="stat-card stat-card--compact bg-white rounded-borders"
-          flat
-          elevation="1"
-          @click="goToApplications('recalled')"
-        >
-          <q-card-section class="stat-card-content">
-            <div class="stat-card-main">
-              <div class="stat-card-left">
-                <div class="row items-center no-wrap q-gutter-xs">
-                  <q-icon name="history" size="28px" color="blue-grey-7" class="stat-card-icon" />
-                </div>
-                <div class="text-caption text-weight-medium q-mt-sm">Recalled Applications</div>
-              </div>
-              <div class="stat-value text-blue-grey-7">
-                {{ kpiCardMetrics.recalled_count }}
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
+      :total-count="kpiCardMetrics.total_count"
+      :breakdown-cards="totalApplicationBreakdownCards"
+      :status-cards="statusKpiCards"
+      :reloading="loading && hasLoadedOnce"
+      @select="goToApplications"
+    />
 
     <div class="row q-col-gutter-sm q-mb-sm">
       <div class="col-12 col-md-6 dashboard-panel-col">
@@ -231,6 +79,8 @@ import { useHrDashboardStore } from 'stores/hr-dashboard-store'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import HrCalendarPanel from 'components/hr/HrCalendarPanel.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
+import ApplicationKpiCards from 'src/components/common/ApplicationKpiCards.vue'
 import HrManpowerPieChart from 'components/charts/HrManpowerPieChart.vue'
 import HrLeaveTrendAreaChart from 'components/charts/HrLeaveTrendAreaChart.vue'
 import HrLeaveTypeLineChart from 'components/charts/HrLeaveTypeLineChart.vue'
@@ -361,9 +211,10 @@ function buildEmploymentBreakdown(applications) {
   return breakdown
 }
 
-const loading = ref(true)
-const hasLoadedOnce = ref(false)
-const kpiDateRangeModel = ref(null)
+const loading = ref(!hrDashboardStore.dashboardLoaded)
+const hasLoadedOnce = ref(hrDashboardStore.dashboardLoaded)
+const kpiStartDate = ref('')
+const kpiEndDate = ref('')
 const dashboardData = ref({
   total_count: 0,
   pending_count: 0,
@@ -377,6 +228,7 @@ const dashboardData = ref({
 })
 const dashboardApplications = ref([])
 const activeEmployeeCount = ref(0)
+const manpowerToday = ref(null)
 const trendYearLabel = computed(() => {
   const parsed = Number(dashboardData.value.analytics?.trend_year)
   if (!Number.isFinite(parsed) || parsed < 2000) return new Date().getFullYear()
@@ -527,16 +379,6 @@ function resolveKpiDateRange(value) {
     : { from: resolvedTo, to: resolvedFrom }
 }
 
-function formatRangeDateLabel(value) {
-  const parsedDate = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(parsedDate.getTime())) return value
-  return parsedDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
 function getApplicationKpiDateIso(application) {
   const candidates = [
     application?.dateFiled,
@@ -602,13 +444,9 @@ function getEmployeeKey(application) {
   return String(key || '').trim()
 }
 
-const normalizedKpiDateRange = computed(() => resolveKpiDateRange(kpiDateRangeModel.value))
-
-const kpiDateRangeLabel = computed(() => {
-  const range = normalizedKpiDateRange.value
-  if (range.from === range.to) return formatRangeDateLabel(range.from)
-  return `${formatRangeDateLabel(range.from)} - ${formatRangeDateLabel(range.to)}`
-})
+const normalizedKpiDateRange = computed(() =>
+  resolveKpiDateRange({ from: kpiStartDate.value, to: kpiEndDate.value }),
+)
 
 const kpiFilteredApplications = computed(() => {
   const range = normalizedKpiDateRange.value
@@ -676,6 +514,31 @@ const manpowerCurrentDateLabel = computed(() => {
 })
 
 const manpowerCurrentSnapshot = computed(() => {
+  const apiManpower = manpowerToday.value
+  if (apiManpower && typeof apiManpower === 'object') {
+    const totalActive = Math.max(Number(apiManpower.total_active ?? activeEmployeeCount.value ?? 0), 0)
+    const presentCount = Math.min(Math.max(Number(apiManpower.present_count || 0), 0), totalActive)
+    const onLeaveCount = Math.min(
+      Math.max(Number(apiManpower.on_leave_count || 0), 0),
+      Math.max(totalActive - presentCount, 0),
+    )
+    const absentCount = Math.max(
+      Number(apiManpower.absent_count ?? totalActive - presentCount - onLeaveCount),
+      0,
+    )
+    const toPct = (count) => (totalActive ? Number(((count / totalActive) * 100).toFixed(2)) : 0)
+
+    return {
+      totalActive,
+      presentCount,
+      absentCount,
+      onLeaveCount,
+      presentPercentage: Number(apiManpower.present_percentage ?? toPct(presentCount)),
+      absentPercentage: Number(apiManpower.absent_percentage ?? toPct(absentCount)),
+      onLeavePercentage: Number(apiManpower.on_leave_percentage ?? toPct(onLeaveCount)),
+    }
+  }
+
   const todayIsoDate = manpowerCurrentDateIso.value
   const onLeaveEmployeeKeys = new Set()
 
@@ -690,21 +553,19 @@ const manpowerCurrentSnapshot = computed(() => {
   }
 
   const totalActive = Math.max(Number(activeEmployeeCount.value || 0), 0)
+  const presentCount = 0
   const onLeaveCount = Math.min(onLeaveEmployeeKeys.size, totalActive)
-  const availableCount = Math.max(totalActive - onLeaveCount, 0)
-  const availablePercentage = totalActive
-    ? Number(((availableCount / totalActive) * 100).toFixed(2))
-    : 0
-  const onLeavePercentage = totalActive
-    ? Number(((onLeaveCount / totalActive) * 100).toFixed(2))
-    : 0
+  const absentCount = Math.max(totalActive - presentCount - onLeaveCount, 0)
+  const toPct = (count) => (totalActive ? Number(((count / totalActive) * 100).toFixed(2)) : 0)
 
   return {
     totalActive,
-    availableCount,
+    presentCount,
+    absentCount,
     onLeaveCount,
-    availablePercentage,
-    onLeavePercentage,
+    presentPercentage: toPct(presentCount),
+    absentPercentage: toPct(absentCount),
+    onLeavePercentage: toPct(onLeaveCount),
   }
 })
 
@@ -735,52 +596,106 @@ const totalApplicationBreakdownCards = computed(() =>
   })),
 )
 
-function getEmploymentTypeCardStyle(card) {
-  return {
-    '--stat-mini-card-accent': card.accent,
-    '--stat-mini-card-hover-bg': card.bg,
-  }
-}
+const statusKpiCards = computed(() => {
+  const total = Math.max(Number(kpiCardMetrics.value.total_count || 0), 0)
+  const shareOfTotal = (count) => (total > 0 ? Math.round((count / total) * 100) : 0)
 
-function handleKpiDateRangeChange(value) {
-  kpiDateRangeModel.value = resolveKpiDateRange(value)
-}
+  return [
+    {
+      key: 'pending',
+      routeStatus: 'pending',
+      label: 'Pending Review',
+      icon: 'schedule',
+      value: kpiCardMetrics.value.pending_count,
+      share: shareOfTotal(kpiCardMetrics.value.pending_count),
+      hint: kpiCardMetrics.value.pending_count > 5 ? 'High queue' : 'Awaiting action',
+      isUrgent: kpiCardMetrics.value.pending_count > 5,
+      variant: 'amber',
+    },
+    {
+      key: 'approved',
+      routeStatus: 'approved',
+      label: 'Approved',
+      icon: 'check_circle',
+      value: kpiCardMetrics.value.approved_count,
+      share: shareOfTotal(kpiCardMetrics.value.approved_count),
+      hint: 'Cleared & finalized',
+      isUrgent: false,
+      variant: 'green',
+    },
+    {
+      key: 'rejected',
+      routeStatus: 'rejected',
+      label: 'Disapproved',
+      icon: 'cancel',
+      value: kpiCardMetrics.value.rejected_count,
+      share: shareOfTotal(kpiCardMetrics.value.rejected_count),
+      hint: 'Declined',
+      isUrgent: false,
+      variant: 'red',
+    },
+    {
+      key: 'recalled',
+      routeStatus: 'recalled',
+      label: 'Recalled',
+      icon: 'history',
+      value: kpiCardMetrics.value.recalled_count,
+      share: shareOfTotal(kpiCardMetrics.value.recalled_count),
+      hint: 'Withdrawn / returned',
+      isUrgent: false,
+      variant: 'slate',
+    },
+  ]
+})
 
 function resetKpiDateRangeToToday() {
   const today = getCurrentIsoDate()
-  kpiDateRangeModel.value = { from: today, to: today }
+  kpiStartDate.value = today
+  kpiEndDate.value = today
 }
 
-async function fetchDashboard() {
+function applyDashboardData(data) {
+  const applications = Array.isArray(data?.applications) ? data.applications : []
+  const visibleApplications = applications.filter((application) => !isCancelledApplication(application))
+  dashboardApplications.value = visibleApplications
+
+  activeEmployeeCount.value = Number(data?.active_employees || 0)
+  manpowerToday.value = data?.manpower_today ?? null
+
+  const pendingFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Pending').length
+  const approvedFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Approved').length
+  const rejectedFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Disapproved').length
+  const recalledFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Recalled').length
+
+  dashboardData.value = {
+    total_count: Number(data?.total_count ?? visibleApplications.length ?? 0),
+    pending_count: Number(data?.pending_count ?? pendingFromApps),
+    approved_count: Number(data?.approved_count ?? approvedFromApps),
+    rejected_count: Number(data?.rejected_count ?? rejectedFromApps),
+    recalled_count: Number(data?.recalled_count ?? recalledFromApps),
+    analytics:
+      data?.analytics && typeof data.analytics === 'object'
+        ? normalizeDashboardAnalytics(data.analytics)
+        : null,
+    kpi_breakdown: data?.kpi_breakdown ?? {
+      total: buildEmploymentBreakdown(visibleApplications),
+    },
+  }
+}
+
+async function fetchDashboard(force = false) {
+  if (!force && hrDashboardStore.dashboardLoaded && hrDashboardStore.rawDashboardData !== null) {
+    applyDashboardData(hrDashboardStore.rawDashboardData)
+    hasLoadedOnce.value = true
+    loading.value = false
+    maybeShowPendingReminder()
+    return
+  }
+
   loading.value = true
   try {
-    const data = await hrDashboardStore.fetchDashboard()
-    const applications = Array.isArray(data.applications) ? data.applications : []
-    const visibleApplications = applications.filter((application) => !isCancelledApplication(application))
-    dashboardApplications.value = visibleApplications
-
-    activeEmployeeCount.value = Number(data?.active_employees || 0)
-
-    const pendingFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Pending').length
-    const approvedFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Approved').length
-    const rejectedFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Disapproved').length
-    const recalledFromApps = visibleApplications.filter((app) => mergeStatus(app) === 'Recalled').length
-
-    dashboardData.value = {
-      total_count: Number(data.total_count ?? visibleApplications.length ?? 0),
-      pending_count: Number(data.pending_count ?? pendingFromApps),
-      approved_count: Number(data.approved_count ?? approvedFromApps),
-      rejected_count: Number(data.rejected_count ?? rejectedFromApps),
-      recalled_count: Number(data.recalled_count ?? recalledFromApps),
-      analytics:
-        data?.analytics && typeof data.analytics === 'object'
-          ? normalizeDashboardAnalytics(data.analytics)
-          : null,
-      kpi_breakdown: data?.kpi_breakdown ?? {
-        total: buildEmploymentBreakdown(visibleApplications),
-      },
-    }
-
+    const data = await hrDashboardStore.fetchDashboard(force)
+    applyDashboardData(data)
     maybeShowPendingReminder()
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to load HR dashboard data right now.')
@@ -808,17 +723,20 @@ function maybeShowPendingReminder() {
 }
 
 resetKpiDateRangeToToday()
-onMounted(fetchDashboard)
+if (hrDashboardStore.dashboardLoaded && hrDashboardStore.rawDashboardData !== null) {
+  applyDashboardData(hrDashboardStore.rawDashboardData)
+  hasLoadedOnce.value = true
+  loading.value = false
+}
+onMounted(() => {
+  void fetchDashboard()
+})
 </script>
 
 <style scoped>
 .hr-dashboard-page {
   min-height: auto !important;
   overflow-y: hidden;
-}
-
-.stat-cards-row > div {
-  display: flex;
 }
 
 .dashboard-panel-col {
@@ -829,104 +747,8 @@ onMounted(fetchDashboard)
   width: 100%;
 }
 
-.dashboard-kpi-range-wrap {
-  justify-content: flex-end;
-}
-
-.dashboard-kpi-range-input {
-  min-width: 240px;
-}
-
 .compact-panel :deep(.q-card__section) {
   padding: 12px;
-}
-
-.stat-card {
-  width: 100%;
-  height: 100%;
-  min-height: 100px;
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
-}
-
-.stat-card-content {
-  height: 100%;
-  padding: 10px 12px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.stat-card-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.stat-card-left {
-  flex: 1 1 auto;
-}
-
-.stat-value {
-  flex: 0 0 auto;
-  align-self: flex-start;
-  margin-top: 2px;
-  min-width: 64px;
-  text-align: right;
-  font-size: clamp(1.8rem, 2.4vw, 2.2rem);
-  font-weight: 500;
-  line-height: 1;
-}
-
-.stat-breakdown {
-  margin-top: 4px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.stat-mini-card {
-  width: 100%;
-  min-width: 0;
-  padding: 4px 6px;
-  border-radius: 7px;
-  border: 1px solid #ebeff3;
-  background: #f7f9fb;
-  appearance: none;
-  font: inherit;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  cursor: default;
-}
-
-.stat-mini-label {
-  min-width: 0;
-  font-size: 0.62rem;
-  color: #9aa3ad;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.stat-mini-value {
-  flex: 0 0 auto;
-  font-size: 0.72rem;
-  color: #7f8b97;
-  font-weight: 600;
-}
-
-.stat-card:hover {
-  background-color: #f3faf3 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 
 .pending-reminder-card {
@@ -1001,108 +823,6 @@ onMounted(fetchDashboard)
     min-height: 40px;
     padding-inline: 14px;
     font-size: 0.88rem;
-  }
-
-  .stat-cards-row {
-    margin: 0 0 4px !important;
-  }
-
-  .dashboard-kpi-range-wrap {
-    justify-content: stretch;
-  }
-
-  .dashboard-kpi-range-input {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .stat-card-col {
-    padding: 2px 0 0 !important;
-  }
-
-  .stat-card {
-    min-height: 56px;
-  }
-
-  .stat-card--applications {
-    min-height: 60px;
-  }
-
-  .stat-card--compact {
-    min-height: 44px;
-  }
-
-  .stat-card-content {
-    padding: 6px 9px 5px;
-    gap: 2px;
-  }
-
-  .stat-card--compact .stat-card-content {
-    padding-top: 5px;
-    padding-bottom: 4px;
-  }
-
-  .stat-card-main {
-    align-items: center;
-    gap: 8px;
-  }
-
-  .stat-card-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .stat-card-left > .row {
-    flex: 0 0 auto;
-  }
-
-  .stat-card-icon {
-    font-size: 18px !important;
-  }
-
-  .stat-card-alert-icon {
-    font-size: 11px !important;
-  }
-
-  .stat-card-left .text-caption {
-    margin-top: 0 !important;
-    font-size: 0.8rem;
-    line-height: 1.1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .stat-value {
-    min-width: 0;
-    margin-top: 0;
-    font-size: 1.7rem;
-  }
-
-  .stat-card--compact .stat-value {
-    font-size: 1.45rem;
-  }
-
-  .stat-breakdown {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 3px;
-    margin-top: 0;
-  }
-
-  .stat-mini-card {
-    padding: 1px 4px;
-    border-radius: 4px;
-    gap: 2px;
-  }
-
-  .stat-mini-label {
-    font-size: 0.5rem;
-  }
-
-  .stat-mini-value {
-    font-size: 0.58rem;
   }
 
 }

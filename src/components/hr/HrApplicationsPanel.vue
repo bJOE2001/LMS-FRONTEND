@@ -5,8 +5,6 @@
       { 'hr-applications-panel--coc-only': isCocOnlyView },
     ]"
   >
-    <AppReloadBar :loading="loading && applicationsForTable.length > 0" />
-
     <DataFilterBar
       v-model:search="statusSearch"
       :debounce="350"

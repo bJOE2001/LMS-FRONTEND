@@ -16,8 +16,6 @@
       </div>
     </div>
 
-    <AppReloadBar :loading="loading && filteredRows.length > 0" />
-
     <KpiCardsSkeleton
       v-if="loading && filteredRows.length === 0"
       :count="3"
