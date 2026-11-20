@@ -28,10 +28,7 @@
     <q-separator />
 
     <!-- Loading State -->
-    <div v-if="notifStore.loading" class="notif-empty q-pa-lg text-center">
-      <q-spinner color="primary" size="32px" />
-      <p class="text-grey-6 text-caption q-mt-sm q-mb-none">Loading notifications...</p>
-    </div>
+    <ListSkeleton v-if="notifStore.loading && notifStore.notifications.length === 0" :rows="4" />
 
     <!-- Empty State -->
     <div v-else-if="notifStore.notifications.length === 0" class="notif-empty q-pa-xl text-center">

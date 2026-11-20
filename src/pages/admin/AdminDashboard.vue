@@ -1,295 +1,92 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="row items-center justify-between q-col-gutter-sm q-mb-lg">
+  <q-page :class="['q-pa-md', { 'admin-dashboard-page': !props.applicationsOnly }]">
+    <div class="row items-center justify-between q-col-gutter-sm q-mb-md">
       <div class="col-auto">
         <h1 class="text-h4 text-weight-bold q-mt-none q-mb-none">Dashboard</h1>
       </div>
       <div class="col-12 col-sm-auto">
-        <div class="row items-center q-gutter-sm dashboard-kpi-range-wrap">
-          <q-input
-            class="dashboard-kpi-range-input"
-            dense
-            outlined
-            readonly
-            label="Date Range"
-            :model-value="kpiDateRangeLabel"
-          >
-            <template #prepend>
-              <q-icon name="event" />
-            </template>
-            <template #append>
-              <q-icon name="arrow_drop_down" class="cursor-pointer">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date
-                    :model-value="kpiDateRangeModel"
-                    mask="YYYY-MM-DD"
-                    range
-                    today-btn
-                    @update:model-value="handleKpiDateRangeChange"
-                  />
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
-          <q-btn flat dense no-caps label="Today" @click="resetKpiDateRangeToToday" />
-        </div>
+        <HeaderDateRangePicker
+          v-model:start-date="kpiStartDate"
+          v-model:end-date="kpiEndDate"
+          :clearable="false"
+        />
       </div>
     </div>
-
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && hasLoadedOnce"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders top-reload-bar"
-    />
 
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && !hasLoadedOnce" class="skeleton-suite">
-      <!-- 4 Skeleton KPI Cards -->
-      <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
-        <!-- Card 1 (Applications with breakdown) -->
-        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-          <q-card flat bordered class="stat-card bg-white rounded-borders dashboard-kpi-card">
-            <q-card-section class="stat-card-content dashboard-kpi-content">
-              <div class="stat-card-main dashboard-kpi-main">
-                <div class="stat-card-left dashboard-kpi-left">
-                  <q-skeleton type="QAvatar" size="28px" animation="wave" />
-                  <q-skeleton type="text" width="70px" height="14px" class="q-mt-sm" animation="wave" />
-                </div>
-                <q-skeleton type="text" width="40px" height="32px" class="q-ml-auto" animation="wave" />
-              </div>
-              <div class="stat-breakdown dashboard-kpi-breakdown">
-                <div v-for="i in 4" :key="'sk-dash-mini-' + i" class="stat-mini-card">
-                  <q-skeleton type="text" width="30px" height="10px" animation="wave" />
-                  <q-skeleton type="text" width="20px" height="14px" class="q-mt-xs" animation="wave" />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
+      <KpiCardsSkeleton
+        :count="4"
+        variant="dashboard"
+        :has-first-card-breakdown="true"
+        row-class="row q-col-gutter-sm q-mb-md stat-cards-row"
+        col-class="col-12 col-sm-6 col-md-3"
+      />
 
-        <!-- Cards 2, 3, 4 -->
-        <div v-for="i in 3" :key="'sk-dash-kpi-' + i" class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-          <q-card flat bordered class="stat-card bg-white rounded-borders dashboard-kpi-card">
-            <q-card-section class="stat-card-content dashboard-kpi-content">
-              <div class="stat-card-main dashboard-kpi-main">
-                <div class="stat-card-left dashboard-kpi-left">
-                  <q-skeleton type="QAvatar" size="28px" animation="wave" />
-                  <q-skeleton type="text" width="85px" height="14px" class="q-mt-sm" animation="wave" />
+      <!-- Skeleton Analytics Charts or Applications Table -->
+      <div v-if="!props.applicationsOnly" class="row q-col-gutter-sm q-mb-md">
+        <div
+          v-for="chartIdx in 2"
+          :key="`admin-chart-skeleton-${chartIdx}`"
+          class="col-12 col-md-6"
+        >
+          <q-card flat bordered class="admin-chart-skeleton-card full-height app-skeleton-card">
+            <q-card-section class="admin-chart-skeleton-section">
+              <div class="admin-chart-skeleton-header">
+                <div class="row items-center no-wrap q-gutter-x-sm">
+                  <q-skeleton
+                    type="rect"
+                    width="30px"
+                    height="30px"
+                    class="admin-chart-skeleton-icon app-skeleton-element flex-shrink-0"
+                    animation="wave"
+                  />
+                  <div>
+                    <q-skeleton type="text" width="145px" height="14px" animation="wave" class="app-skeleton-element" />
+                    <q-skeleton type="text" width="105px" height="10px" animation="wave" class="q-mt-xs app-skeleton-element" />
+                  </div>
                 </div>
-                <q-skeleton type="text" width="40px" height="32px" class="q-ml-auto" animation="wave" />
+                <q-skeleton
+                  v-if="chartIdx === 2"
+                  type="rect"
+                  width="124px"
+                  height="36px"
+                  class="rounded-borders app-skeleton-element flex-shrink-0"
+                  animation="wave"
+                />
+              </div>
+              <div class="relative-position" style="height: 185px;">
+                <ChartSkeleton :loading="true" :variant="chartIdx === 1 ? 'area' : 'line'" height="185px" />
               </div>
             </q-card-section>
           </q-card>
         </div>
       </div>
 
-      <!-- Skeleton Analytics Charts or Applications Table -->
-      <q-card v-if="!props.applicationsOnly" flat bordered class="rounded-borders q-pa-md">
-        <div class="row items-center justify-between q-mb-md">
-          <q-skeleton type="text" width="160px" height="20px" animation="wave" />
-          <q-skeleton type="rect" width="120px" height="32px" class="rounded-borders" animation="wave" />
-        </div>
-        <q-skeleton type="rect" height="320px" class="rounded-borders" animation="wave" />
-      </q-card>
-
-      <q-card v-else flat bordered class="rounded-borders">
-        <q-card-section>
-          <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
-            <div class="col application-toolbar__search">
-              <q-skeleton type="rect" height="36px" class="rounded-borders" animation="wave" />
-            </div>
-            <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
-              <q-skeleton type="rect" width="140px" height="32px" class="rounded-borders" animation="wave" />
-            </div>
-          </div>
-        </q-card-section>
-
-        <div class="q-pa-md">
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-3"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-3"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="60%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="60%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-
-          <div
-            v-for="r in 6"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <div class="col-3">
-              <q-skeleton type="text" width="140px" height="18px" animation="wave" />
-              <q-skeleton type="text" width="85px" height="13px" class="q-mt-xs" animation="wave" />
-            </div>
-            <div class="col-3"><q-skeleton type="text" width="120px" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="rect" width="90px" height="22px" class="rounded-borders" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="text" width="35px" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-1 text-center"><q-skeleton type="rect" width="65px" height="20px" class="rounded-borders q-mx-auto" animation="wave" /></div>
-            <div class="col-2 text-right">
-              <div class="row items-center justify-end q-gutter-xs">
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
-        </div>
-      </q-card>
+      <TableSkeletonCard
+        v-else
+        :columns="6"
+        :rows="6"
+        :show-toolbar="true"
+        :toolbar-filter-count="0"
+        :show-avatar-column="false"
+      />
     </div>
 
     <!-- ========================================================= -->
     <!-- REAL CONTENT SUITE                                        -->
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && hasLoadedOnce }">
-      <div class="row q-col-gutter-md q-mb-lg stat-cards-row dashboard-kpi-row">
-        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-          <q-card
-            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-            flat
-            elevation="1"
-            role="button"
-            tabindex="0"
-            :style="{ '--stat-card-hover-bg': '#eef4ff' }"
-            @click="openApplicationsView()"
-            @keyup.enter="openApplicationsView()"
-            @keyup.space.prevent="openApplicationsView()"
-          >
-            <q-card-section class="stat-card-content dashboard-kpi-content">
-              <div class="stat-card-main dashboard-kpi-main">
-                <div class="stat-card-left dashboard-kpi-left">
-                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                    <q-icon name="description" size="28px" color="grey" />
-                  </div>
-                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                    Applications
-                  </div>
-                </div>
-                <div class="stat-value text-primary dashboard-kpi-value">
-                  {{ kpiCardMetrics.total_count }}
-                </div>
-              </div>
-              <div class="stat-breakdown dashboard-kpi-breakdown">
-                <div
-                  v-for="card in totalApplicationBreakdownCards"
-                  :key="card.key"
-                  class="stat-mini-card"
-                >
-                  <span class="stat-mini-label">{{ card.label }}</span>
-                  <span class="stat-mini-value">{{ card.value }}</span>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-          <q-card
-            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-            flat
-            elevation="1"
-            role="button"
-            tabindex="0"
-            :style="{ '--stat-card-hover-bg': '#fff5e0' }"
-            @click="openApplicationsView('pending')"
-            @keyup.enter="openApplicationsView('pending')"
-            @keyup.space.prevent="openApplicationsView('pending')"
-          >
-            <q-card-section class="stat-card-content dashboard-kpi-content">
-              <div class="stat-card-main dashboard-kpi-main">
-                <div class="stat-card-left dashboard-kpi-left">
-                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                    <q-icon name="schedule" size="28px" color="warning" />
-                    <q-icon
-                      v-if="kpiCardMetrics.pending_count > 5"
-                      name="warning"
-                      size="18px"
-                      color="warning"
-                    />
-                  </div>
-                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                    Pending Applications
-                  </div>
-                </div>
-                <div class="stat-value text-warning dashboard-kpi-value">
-                  {{ kpiCardMetrics.pending_count }}
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-          <q-card
-            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-            flat
-            elevation="1"
-            role="button"
-            tabindex="0"
-            :style="{ '--stat-card-hover-bg': '#edf8ef' }"
-            @click="openApplicationsView('approved')"
-            @keyup.enter="openApplicationsView('approved')"
-            @keyup.space.prevent="openApplicationsView('approved')"
-          >
-            <q-card-section class="stat-card-content dashboard-kpi-content">
-              <div class="stat-card-main dashboard-kpi-main">
-                <div class="stat-card-left dashboard-kpi-left">
-                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                    <q-icon name="check_circle" size="28px" color="primary" />
-                  </div>
-                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                    Total Approved
-                  </div>
-                </div>
-                <div class="stat-value text-primary dashboard-kpi-value">
-                  {{ kpiCardMetrics.total_approved }}
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-sm-6 col-md-3 dashboard-kpi-col">
-          <q-card
-            class="stat-card stat-card--interactive bg-white rounded-borders dashboard-kpi-card"
-            flat
-            elevation="1"
-            role="button"
-            tabindex="0"
-            :style="{ '--stat-card-hover-bg': '#ffebee' }"
-            @click="openApplicationsView('rejected')"
-            @keyup.enter="openApplicationsView('rejected')"
-            @keyup.space.prevent="openApplicationsView('rejected')"
-          >
-            <q-card-section class="stat-card-content dashboard-kpi-content">
-              <div class="stat-card-main dashboard-kpi-main">
-                <div class="stat-card-left dashboard-kpi-left">
-                  <div class="row items-center no-wrap q-gutter-xs dashboard-kpi-icon-wrap">
-                    <q-icon name="cancel" size="28px" color="negative" />
-                  </div>
-                  <div class="text-caption text-weight-medium q-mt-sm dashboard-kpi-label">
-                    Total Disapproved
-                  </div>
-                </div>
-                <div class="stat-value text-negative dashboard-kpi-value">
-                  {{ kpiCardMetrics.rejected_count }}
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
+      <ApplicationKpiCards
+        row-class="row q-col-gutter-sm q-mb-md stat-cards-row"
+        col-class="col-12 col-sm-6 col-md-3"
+        :total-count="kpiCardMetrics.total_count"
+        :breakdown-cards="totalApplicationBreakdownCards"
+        :status-cards="adminStatusKpiCards"
+        @select="onKpiCardSelect"
+      />
 
     <AdminAnalyticsCharts
       v-if="!props.applicationsOnly"
@@ -298,45 +95,37 @@
       :loading="loading"
     />
 
-    <q-card v-if="props.applicationsOnly" flat bordered class="rounded-borders">
-      <q-card-section>
-        <div class="row items-center justify-between q-col-gutter-sm application-toolbar">
-          <div class="col application-toolbar__search">
-            <q-input
-              v-model="statusSearch"
-              dense
-              outlined
-              clearable
-              placeholder="Search all application columns"
-              class="application-status-search application-status-search--left"
-            >
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-            </q-input>
-          </div>
-          <div class="col-auto row items-center q-gutter-sm application-toolbar__actions">
-            <q-btn
-              unelevated
-              no-caps
-              color="blue-grey-7"
-              icon="print"
-              label="Print Applications"
-              size="sm"
-              @click="showPrintDialog = true"
-            />
-          </div>
-        </div>
-      </q-card-section>
-      <q-table
+    <template v-if="props.applicationsOnly">
+      <DataFilterBar
+        v-model:search="statusSearch"
+        search-placeholder="Search all application columns"
+        search-class="col-12 col-md-5"
+        actions-class="col-12 col-md-auto q-ml-auto"
+      >
+        <template #actions>
+          <q-btn
+            unelevated
+            no-caps
+            color="blue-grey-7"
+            icon="print"
+            label="Print Applications"
+            size="sm"
+            @click="showPrintDialog = true"
+          />
+        </template>
+      </DataFilterBar>
+
+      <DataTableCard
         :rows="applicationsForTable"
         :columns="applicationTableColumns"
         row-key="application_uid"
-        flat
         v-model:pagination="applicationsPagination"
         :rows-per-page-options="[5, 10, 15, 20]"
         :loading="loading"
-        class="applications-table applications-table--interactive"
+        table-class="applications-table applications-table--interactive"
+        empty-icon="inbox"
+        no-data-label="No Applications Submitted"
+        loading-text="Loading applications..."
         @row-click="handleApplicationRowClick"
       >
         <template #body-cell-employee="props">
@@ -531,20 +320,8 @@
             </div>
           </q-td>
         </template>
-        <template #no-data>
-          <div class="full-width row flex-center q-pa-md text-grey-7">
-            <template v-if="loading">
-              <q-spinner color="primary" size="24px" class="q-mr-sm" />
-              <span>Loading applications...</span>
-            </template>
-            <template v-else>
-              <q-icon name="inbox" size="24px" class="q-mr-sm" />
-              <span>No Applications Submitted</span>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+      </DataTableCard>
+    </template>
   </div>
 
     <!-- View dialog -->
@@ -881,6 +658,10 @@ import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'sr
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
+import ApplicationKpiCards from 'src/components/common/ApplicationKpiCards.vue'
 import AdminAnalyticsCharts from 'src/components/admin/AdminAnalyticsCharts.vue'
 import { getApplicationRequestedDayCount } from 'src/utils/leave-date-locking'
 import AdminPrintApplicationsDialog from 'src/components/admin/AdminPrintApplicationsDialog.vue'
@@ -1121,16 +902,6 @@ function resolveKpiDateRange(value) {
     : { from: resolvedTo, to: resolvedFrom }
 }
 
-function formatRangeDateLabel(value) {
-  const parsedDate = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(parsedDate.getTime())) return value
-  return parsedDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
 function getApplicationKpiDateIso(application) {
   const candidates = [
     application?.dateFiled,
@@ -1159,14 +930,14 @@ function normalizeStatusKey(value) {
 }
 
 const EMPLOYMENT_TYPE_BREAKDOWN_CARDS = [
-  { key: 'elective', label: 'Elective' },
-  { key: 'co_terminous', label: 'Co-term' },
-  { key: 'regular', label: 'Regular' },
-  { key: 'casual', label: 'Casual' },
+  { key: 'elective', label: 'Elective', accent: '#8e24aa', bg: '#f3e5f5' },
+  { key: 'co_terminous', label: 'Co-term', accent: '#0277bd', bg: '#e1f5fe' },
+  { key: 'regular', label: 'Regular', accent: '#2e7d32', bg: '#e8f5e9' },
+  { key: 'casual', label: 'Casual', accent: '#e65100', bg: '#fff3e0' },
 ]
 
-const loading = ref(true)
-const hasLoadedOnce = ref(false)
+const loading = ref(!adminDashboardStore.dashboardLoaded)
+const hasLoadedOnce = ref(adminDashboardStore.dashboardLoaded)
 const actionLoading = ref(false)
 const applicationRows = ref([])
 const statusSearch = ref('')
@@ -1188,7 +959,8 @@ const rejectionMode = ref('disapprove')
 const disapproveTargetApp = ref(null)
 const actionResultType = ref('approved')
 const actionResultApp = ref(null)
-const kpiDateRangeModel = ref(resolveKpiDateRange(getCurrentIsoDate()))
+const kpiStartDate = ref(getCurrentIsoDate())
+const kpiEndDate = ref(getCurrentIsoDate())
 const dashboardData = ref({
   pending_count: 0,
   approved_today: 0,
@@ -1226,13 +998,9 @@ const baseKpiBreakdown = computed(() => {
   }
 })
 
-const normalizedKpiDateRange = computed(() => resolveKpiDateRange(kpiDateRangeModel.value))
-
-const kpiDateRangeLabel = computed(() => {
-  const range = normalizedKpiDateRange.value
-  if (range.from === range.to) return formatRangeDateLabel(range.from)
-  return `${formatRangeDateLabel(range.from)} - ${formatRangeDateLabel(range.to)}`
-})
+const normalizedKpiDateRange = computed(() =>
+  resolveKpiDateRange({ from: kpiStartDate.value, to: kpiEndDate.value }),
+)
 
 const kpiFilteredApplications = computed(() => {
   const range = normalizedKpiDateRange.value
@@ -1305,13 +1073,49 @@ const totalApplicationBreakdownCards = computed(() =>
   })),
 )
 
-function handleKpiDateRangeChange(value) {
-  kpiDateRangeModel.value = resolveKpiDateRange(value)
-}
+const adminStatusKpiCards = computed(() => {
+  const total = Math.max(Number(kpiCardMetrics.value.total_count || 0), 0)
+  const shareOfTotal = (count) => (total > 0 ? Math.round((count / total) * 100) : 0)
 
-function resetKpiDateRangeToToday() {
-  const today = getCurrentIsoDate()
-  kpiDateRangeModel.value = { from: today, to: today }
+  return [
+    {
+      key: 'pending',
+      routeStatus: 'pending',
+      label: 'Pending Review',
+      icon: 'schedule',
+      value: kpiCardMetrics.value.pending_count,
+      share: shareOfTotal(kpiCardMetrics.value.pending_count),
+      hint: kpiCardMetrics.value.pending_count > 5 ? 'High queue' : 'Awaiting action',
+      isUrgent: kpiCardMetrics.value.pending_count > 5,
+      variant: 'amber',
+    },
+    {
+      key: 'approved',
+      routeStatus: 'approved',
+      label: 'Approved',
+      icon: 'check_circle',
+      value: kpiCardMetrics.value.total_approved,
+      share: shareOfTotal(kpiCardMetrics.value.total_approved),
+      hint: 'Cleared & finalized',
+      isUrgent: false,
+      variant: 'green',
+    },
+    {
+      key: 'rejected',
+      routeStatus: 'rejected',
+      label: 'Disapproved',
+      icon: 'cancel',
+      value: kpiCardMetrics.value.rejected_count,
+      share: shareOfTotal(kpiCardMetrics.value.rejected_count),
+      hint: 'Declined',
+      isUrgent: false,
+      variant: 'red',
+    },
+  ]
+})
+
+function onKpiCardSelect(routeStatus) {
+  openApplicationsView(routeStatus === 'total' ? undefined : routeStatus)
 }
 
 const applicationTableColumns = computed(() => {
@@ -1396,7 +1200,9 @@ watch(
   { immediate: true },
 )
 
-onMounted(fetchDashboard)
+onMounted(() => {
+  void fetchDashboard()
+})
 
 function pendingReminderNotificationId() {
   return `local-pending-reminder-admin:${authStore.user?.id ?? 'unknown'}`
@@ -1466,43 +1272,50 @@ function syncPendingReminderNotification(pendingCount) {
   })
 }
 
-async function fetchDashboard() {
+function applyDashboardPayload(data, cocData) {
+  const mergedApplications = mergeApplications(
+    extractApplicationsFromPayload(data),
+    extractApplicationsFromPayload(cocData),
+  )
+  const apiRejectedCount = Number(data?.rejected_count)
+  const rejectedCount = Number.isFinite(apiRejectedCount)
+    ? apiRejectedCount
+    : countRejectedApplications(mergedApplications)
+
+  dashboardData.value = {
+    pending_count: Number(data?.pending_count || 0),
+    approved_today: Number(data?.approved_today || 0),
+    total_approved: Number(data?.total_approved || 0),
+    rejected_count: rejectedCount,
+    total_count: Number(data?.total_count || 0),
+    analytics:
+      data?.analytics && typeof data.analytics === 'object'
+        ? normalizeDashboardAnalytics(data.analytics)
+        : null,
+    kpi_breakdown: data?.kpi_breakdown ?? {
+      pending: emptyEmploymentBreakdown(),
+      approved_today: emptyEmploymentBreakdown(),
+      total_approved: emptyEmploymentBreakdown(),
+      total: emptyEmploymentBreakdown(),
+    },
+  }
+
+  applicationRows.value = mergedApplications
+}
+
+async function fetchDashboard(force = false) {
+  if (!force && adminDashboardStore.dashboardLoaded && adminDashboardStore.rawDashboardData !== null) {
+    applyDashboardPayload(adminDashboardStore.rawDashboardData, adminDashboardStore.rawCocData)
+    hasLoadedOnce.value = true
+    loading.value = false
+    maybeShowPendingReminder()
+    return
+  }
+
   loading.value = true
   try {
-    const [dashboardResponse, cocApplicationsResponse] = await Promise.all([
-      adminDashboardStore.fetchRawDashboard(),
-      adminDashboardStore.fetchRawCocApplications(),
-    ])
-
-    const data = dashboardResponse?.data ?? {}
-    const mergedApplications = mergeApplications(
-      extractApplicationsFromPayload(data),
-      extractApplicationsFromPayload(cocApplicationsResponse?.data),
-    )
-    const apiRejectedCount = Number(data.rejected_count)
-    const rejectedCount = Number.isFinite(apiRejectedCount)
-      ? apiRejectedCount
-      : countRejectedApplications(mergedApplications)
-
-    dashboardData.value = {
-      pending_count: Number(data.pending_count || 0),
-      approved_today: Number(data.approved_today || 0),
-      total_approved: Number(data.total_approved || 0),
-      rejected_count: rejectedCount,
-      total_count: Number(data.total_count || 0),
-      analytics:
-        data.analytics && typeof data.analytics === 'object'
-          ? normalizeDashboardAnalytics(data.analytics)
-          : null,
-      kpi_breakdown: data.kpi_breakdown ?? {
-        pending: emptyEmploymentBreakdown(),
-        approved_today: emptyEmploymentBreakdown(),
-        total_approved: emptyEmploymentBreakdown(),
-        total: emptyEmploymentBreakdown(),
-      },
-    }
-
-    applicationRows.value = mergedApplications
+    const { dashboard, coc } = await adminDashboardStore.fetchDashboard(force)
+    applyDashboardPayload(dashboard ?? {}, coc)
     maybeShowPendingReminder()
   } catch (err) {
     const message = resolveApiErrorMessage(err, 'Unable to load dashboard data right now.')
@@ -3447,7 +3260,7 @@ async function printApplication(app, printOptions = {}) {
   if (pdfWindow && !printOptions.targetWindow) {
     try {
       pdfWindow.document.title = 'Preparing PDF...'
-      pdfWindow.document.body.innerHTML = '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+      pdfWindow.document.body.innerHTML = '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
     } catch {
       // Ignore interim window rendering issues.
     }
@@ -3673,7 +3486,7 @@ async function handleApprove(target) {
       position: 'top',
     })
     showDetailsDialog.value = false
-    await fetchDashboard()
+    await fetchDashboard(true)
     showPostActionDialog('approved', id, app)
   } catch (err) {
     const msg = resolveApiErrorMessage(err, 'Unable to approve this application right now.')
@@ -3728,7 +3541,7 @@ async function confirmDisapprove() {
           : 'Leave application disapproved with remarks'
     $q.notify({ type: 'info', message: successMessage, position: 'top' })
     showDisapproveDialog.value = false
-    await fetchDashboard()
+    await fetchDashboard(true)
     const fallback = disapproveTargetApp.value
       ? { ...disapproveTargetApp.value, remarks: payloadRemarks }
       : null
@@ -3744,110 +3557,19 @@ async function confirmDisapprove() {
     actionLoading.value = false
   }
 }
+
+if (adminDashboardStore.dashboardLoaded && adminDashboardStore.rawDashboardData !== null) {
+  applyDashboardPayload(adminDashboardStore.rawDashboardData, adminDashboardStore.rawCocData)
+  hasLoadedOnce.value = true
+  loading.value = false
+}
 </script>
 
 <style scoped>
-.stat-cards-row .col {
-  display: flex;
-}
-.stat-card {
-  width: 100%;
-  height: 100%;
-  min-height: 116px;
-}
-.stat-card--interactive {
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-.stat-card--interactive:hover,
-.stat-card--interactive:focus-visible {
-  background: var(--stat-card-hover-bg, #f5f7fa) !important;
-  box-shadow: 0 10px 24px rgba(38, 50, 56, 0.1);
-  transform: translateY(-2px);
-}
-.stat-card-content {
-  height: 100%;
-  padding: 12px 16px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.stat-card-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-.stat-card-left {
-  flex: 1 1 auto;
-}
-.stat-value {
-  flex: 0 0 auto;
-  align-self: flex-start;
-  margin-top: 2px;
-  min-width: 64px;
-  text-align: right;
-  font-size: clamp(2.2rem, 3.2vw, 2.8rem);
-  font-weight: 500;
-  line-height: 1;
-}
-.stat-breakdown {
-  margin-top: 4px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-.stat-mini-card {
-  width: 100%;
-  min-width: 0;
-  padding: 4px 6px;
-  border-radius: 7px;
-  border: 1px solid #ebeff3;
-  background: #f7f9fb;
-  appearance: none;
-  font: inherit;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  cursor: default;
-}
-.stat-mini-label {
-  min-width: 0;
-  font-size: 0.62rem;
-  color: #9aa3ad;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.stat-mini-value {
-  flex: 0 0 auto;
-  font-size: 0.72rem;
-  color: #7f8b97;
-  font-weight: 600;
-}
-.dashboard-kpi-main {
-  align-items: center;
-}
-.dashboard-kpi-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.dashboard-kpi-label {
-  margin-top: 0 !important;
-}
-.dashboard-kpi-range-wrap {
-  justify-content: flex-end;
-}
-.dashboard-kpi-range-input {
-  min-width: 240px;
+.admin-dashboard-page {
+  /* MainLayout places .layout-content-header inside .layout-main-content (100vh),
+     so Quasar's injected min-height: 100vh on q-page overflows by the header height. */
+  min-height: auto !important;
 }
 .pending-reminder-card {
   min-width: 360px;
@@ -4286,88 +4008,6 @@ async function confirmDisapprove() {
     padding-inline: 14px;
     font-size: 0.88rem;
   }
-
-  .dashboard-kpi-row {
-    margin-bottom: 10px !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-
-  .dashboard-kpi-range-wrap {
-    justify-content: stretch;
-  }
-
-  .dashboard-kpi-range-input {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .dashboard-kpi-col {
-    width: 100%;
-    flex: 0 0 100%;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
-
-  .dashboard-kpi-card {
-    min-height: 68px;
-  }
-
-  .dashboard-kpi-content {
-    padding: 8px 10px 7px;
-    gap: 0;
-  }
-
-  .dashboard-kpi-main {
-    align-items: center;
-    gap: 8px;
-  }
-
-  .dashboard-kpi-left {
-    gap: 6px;
-  }
-
-  .dashboard-kpi-icon-wrap :deep(.q-icon) {
-    font-size: 18px !important;
-  }
-
-  .dashboard-kpi-label {
-    font-size: 0.64rem;
-    line-height: 1;
-    letter-spacing: 0.03em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .dashboard-kpi-value {
-    min-width: 0;
-    margin-top: 0;
-    font-size: 1.75rem;
-    line-height: 1;
-  }
-
-  .dashboard-kpi-breakdown {
-    margin-top: 4px;
-    gap: 4px;
-  }
-
-  .dashboard-kpi-breakdown .stat-mini-card {
-    padding: 2px 4px;
-    border-radius: 6px;
-  }
-
-  .dashboard-kpi-breakdown .stat-mini-label {
-    font-size: 0.5rem;
-  }
-
-  .dashboard-kpi-breakdown .stat-mini-value {
-    font-size: 0.6rem;
-  }
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
 }
 
 .content-reloading {
@@ -4378,6 +4018,33 @@ async function confirmDisapprove() {
 
 .skeleton-suite {
   animation: fadeIn 0.2s ease-in;
+}
+
+.admin-chart-skeleton-card {
+  border-radius: 12px;
+  border-color: #e2e8f0;
+}
+
+.admin-chart-skeleton-section {
+  padding: 12px 14px;
+}
+
+.admin-chart-skeleton-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-chart-skeleton-icon {
+  border-radius: 8px;
+}
+
+:global(body.body--dark) .admin-chart-skeleton-header {
+  border-bottom-color: var(--dm-border, #324258);
 }
 
 .border-bottom {

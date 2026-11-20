@@ -64,37 +64,13 @@
                 <q-skeleton type="rect" width="125px" height="38px" class="rounded-borders" animation="wave" />
               </template>
               <template v-else>
-                <!-- Single Calendar Date Range Picker -->
-                <div
-                  class="header-date-range-trigger row items-center no-wrap q-px-md cursor-pointer rounded-borders"
-                >
-                  <q-icon name="date_range" size="18px" color="green-9" class="q-mr-sm" />
-                  <span class="text-body2 text-weight-bold text-dark">{{ customRangeDisplayLabel }}</span>
-                  <q-icon name="arrow_drop_down" size="20px" color="grey-7" class="q-ml-xs" />
-
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-date
-                      v-model="datePickerModel"
-                      range
-                      mask="YYYY-MM-DD"
-                      color="green-9"
-                      minimal
-                    >
-                      <div class="row items-center justify-between q-gutter-x-sm">
-                        <span class="text-caption text-grey-7">{{ customRangeDisplayLabel }}</span>
-                        <q-btn
-                          v-close-popup
-                          label="Apply"
-                          color="green-9"
-                          flat
-                          dense
-                          no-caps
-                          class="text-weight-bold"
-                        />
-                      </div>
-                    </q-date>
-                  </q-popup-proxy>
-                </div>
+                <HeaderDateRangePicker
+                  :start-date="normalizedCustomRange.from"
+                  :end-date="normalizedCustomRange.to"
+                  :clearable="false"
+                  @update:start-date="updateCustomStartDate"
+                  @update:end-date="updateCustomEndDate"
+                />
 
                 <!-- Action Button -->
                 <q-btn
@@ -115,35 +91,9 @@
       </q-card-section>
     </q-card>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && dtrData"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders no-print top-reload-bar"
-    />
-
     <!-- Initial Loading State: Realistic Skeleton Screen Suite -->
     <div v-if="loading && !dtrData" class="skeleton-suite no-print">
-      <!-- 5 Skeleton KPI Stat Cards -->
-      <div class="row q-col-gutter-md q-mb-md">
-        <div v-for="i in 5" :key="'sk-kpi-' + i" class="col-12 col-sm-6 col-md">
-          <q-card flat bordered class="rounded-borders stat-kpi-card bg-white">
-            <q-card-section class="q-pa-md">
-              <div class="row items-center justify-between no-wrap q-mb-xs">
-                <q-skeleton type="text" width="75px" height="16px" animation="wave" />
-                <q-skeleton type="QAvatar" size="32px" animation="wave" />
-              </div>
-              <div class="row items-baseline q-gutter-x-xs q-my-xs">
-                <q-skeleton type="text" width="55px" height="34px" animation="wave" />
-                <q-skeleton type="text" width="28px" height="16px" animation="wave" />
-              </div>
-              <q-skeleton type="text" width="120px" height="14px" animation="wave" />
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
+      <KpiCardsSkeleton :count="5" />
 
       <!-- Skeleton Tab Navigation Bar -->
       <div class="q-mb-md">
@@ -155,57 +105,7 @@
         </q-card>
       </div>
 
-      <!-- Skeleton Table Card -->
-      <q-card flat bordered class="rounded-borders bg-white table-card">
-        <q-card-section class="q-pa-md row items-center justify-between border-bottom">
-          <div>
-            <q-skeleton type="text" width="180px" height="24px" animation="wave" />
-            <q-skeleton type="text" width="240px" height="14px" class="q-mt-xs" animation="wave" />
-          </div>
-          <q-skeleton type="text" width="130px" height="16px" animation="wave" />
-        </q-card-section>
-
-        <!-- Skeleton Table Body -->
-        <div class="q-pa-md">
-          <!-- Table Columns Header Placeholder -->
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="75%" height="16px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="text" width="55%" height="16px" animation="wave" /></div>
-            <div class="col-1 text-right"><q-skeleton type="text" width="70%" height="16px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-
-          <!-- 8 Realistic Skeleton Rows -->
-          <div
-            v-for="r in 8"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <div class="col-2">
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-skeleton type="rect" width="34px" height="22px" class="rounded-borders" animation="wave" />
-                <q-skeleton type="text" width="60px" height="18px" animation="wave" />
-              </div>
-            </div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-2"><q-skeleton type="text" width="70px" height="18px" animation="wave" /></div>
-            <div class="col-1"><q-skeleton type="rect" width="50px" height="22px" class="rounded-borders" animation="wave" /></div>
-            <div class="col-1 text-right"><q-skeleton type="QAvatar" size="26px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-        </div>
-
-        <!-- Skeleton Pagination Bar -->
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="110px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="140px" height="30px" class="rounded-borders" animation="wave" />
-        </div>
-      </q-card>
+      <TableSkeletonCard :columns="7" :rows="8" :show-avatar-column="false" :show-subtitle-on-first-column="false" />
     </div>
 
     <!-- Error State -->
@@ -775,6 +675,7 @@ import { useRouter } from 'vue-router'
 import { api } from 'boot/axios'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
 import DtrOverrideDialog from 'src/components/admin/DtrOverrideDialog.vue'
+import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
 
 const props = defineProps({
   employeeId: {
@@ -827,15 +728,15 @@ function buildDefaultFullMonthRange() {
 
 const customDateRange = ref(buildDefaultFullMonthRange())
 
-const datePickerModel = computed({
-  get() {
-    return customDateRange.value || buildDefaultFullMonthRange()
-  },
-  set(val) {
-    if (!val) return
-    customDateRange.value = typeof val === 'string' ? { from: val, to: val } : val
-  },
-})
+function updateCustomStartDate(val) {
+  const base = customDateRange.value || buildDefaultFullMonthRange()
+  customDateRange.value = { ...base, from: val }
+}
+
+function updateCustomEndDate(val) {
+  const base = customDateRange.value || buildDefaultFullMonthRange()
+  customDateRange.value = { ...base, to: val }
+}
 
 const normalizedCustomRange = computed(() => {
   const val = customDateRange.value || buildDefaultFullMonthRange()
@@ -1223,19 +1124,6 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.header-date-range-trigger {
-  height: 38px;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.header-date-range-trigger:hover {
-  background: #f1f5f9;
-  border-color: #2e7d32;
-}
-
 .header-card {
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
@@ -1259,10 +1147,6 @@ onMounted(() => {
 .employee-name-title {
   max-width: 420px;
   letter-spacing: -0.01em;
-}
-
-.font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .action-btn {
@@ -1387,10 +1271,6 @@ onMounted(() => {
 .action-override-btn:hover {
   background-color: #e2e8f0;
   transform: scale(1.08);
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.3);
 }
 
 .border-green-subtle {

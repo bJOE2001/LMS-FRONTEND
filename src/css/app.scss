@@ -1,6 +1,45 @@
 // app global css in SCSS form
 
 // ============================================================
+// TYPOGRAPHY TOKENS & GLOBAL CONSISTENCY
+// ============================================================
+
+:root {
+  --app-font-sans: 'Roboto', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --app-font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Menlo, Monaco, Consolas, monospace;
+  --app-skeleton-bg: #e8edf3;
+  --app-skeleton-shine: rgba(255, 255, 255, 0.72);
+  --app-skeleton-border: rgba(15, 23, 42, 0.08);
+  --app-skeleton-header-bg: #f8fafc;
+  --app-skeleton-stripe-bg: rgba(15, 23, 42, 0.018);
+  --app-chart-surface-bg: #ffffff;
+  --app-chart-overlay-bg: rgba(255, 255, 255, 0.76);
+  --app-chart-pill-bg: #ffffff;
+}
+
+html,
+body,
+#q-app,
+input,
+button,
+textarea,
+select {
+  font-family: var(--app-font-sans);
+}
+
+.font-mono,
+code,
+pre,
+kbd {
+  font-family: var(--app-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+// ============================================================
 // DARK MODE — Global overrides for Quasar's body.body--dark
 // ============================================================
 
@@ -14,6 +53,14 @@ body.body--dark {
   --dm-text-secondary: #cad5e4;
   --dm-text-muted: #a4b1c2;
   --dm-hover: rgba(255, 255, 255, 0.06);
+  --app-skeleton-bg: #263347;
+  --app-skeleton-shine: rgba(148, 163, 184, 0.16);
+  --app-skeleton-border: #324258;
+  --app-skeleton-header-bg: #212b3a;
+  --app-skeleton-stripe-bg: rgba(255, 255, 255, 0.025);
+  --app-chart-surface-bg: #1b2330;
+  --app-chart-overlay-bg: rgba(20, 27, 37, 0.78);
+  --app-chart-pill-bg: #212b3a;
 
   background-color: var(--dm-page-bg);
   color: var(--dm-text-primary);
@@ -391,4 +438,134 @@ body {
 .q-toolbar,
 .layout-content-header {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+// ============================================================
+// Global Loading / Reload / Skeleton States
+// ============================================================
+.q-table__linear-progress {
+  height: 3px !important;
+  color: #1b5e20 !important;
+}
+
+.content-reloading {
+  opacity: 0.58;
+  pointer-events: none;
+  transition: opacity 0.22s ease-in-out;
+}
+
+.skeleton-suite {
+  animation: skeletonFadeIn 0.2s ease-out;
+}
+
+.app-skeleton-card {
+  border-color: var(--app-skeleton-border) !important;
+  overflow: hidden;
+}
+
+.app-skeleton-element.q-skeleton {
+  background: var(--app-skeleton-bg);
+}
+
+.app-skeleton-element.q-skeleton--anim-wave::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--app-skeleton-shine) 50%,
+    transparent 100%
+  );
+}
+
+.app-skeleton-table__head {
+  background: var(--app-skeleton-header-bg);
+  border-bottom: 1px solid var(--app-skeleton-border);
+}
+
+.app-skeleton-table__row {
+  border-bottom: 1px solid var(--app-skeleton-border);
+}
+
+.app-skeleton-table__row--alt {
+  background: var(--app-skeleton-stripe-bg);
+}
+
+.app-skeleton-table__row:last-of-type {
+  border-bottom: none;
+}
+
+.app-skeleton-table__footer {
+  background: var(--app-skeleton-header-bg);
+  border-top: 1px solid var(--app-skeleton-border);
+}
+
+.app-chart-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  border-radius: inherit;
+}
+
+.app-chart-loader__skeleton {
+  background: var(--app-chart-surface-bg);
+  border-radius: 8px;
+}
+
+.app-chart-loader__plot {
+  border-bottom: 1px solid var(--app-skeleton-border);
+  background-image: repeating-linear-gradient(
+    to top,
+    transparent,
+    transparent 38px,
+    var(--app-skeleton-border) 39px
+  );
+  padding: 12px 10px 0;
+}
+
+.app-chart-loader__bars {
+  height: 168px;
+}
+
+.app-chart-loader__donut {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-chart-loader__donut-hole {
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--app-chart-surface-bg);
+}
+
+.app-chart-loader__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-chart-overlay-bg);
+  backdrop-filter: blur(2px);
+  border-radius: 8px;
+}
+
+.app-chart-loader__pill {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--app-chart-pill-bg);
+  border: 1px solid var(--app-skeleton-border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+@keyframes skeletonFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

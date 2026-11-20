@@ -94,7 +94,7 @@
               label="Bio Management"
               header-class="q-mx-sm q-mb-xs rounded-borders text-white nav-expansion-header"
               expand-icon-class="text-white opacity-80"
-              :class="{ 'group-active': route.path.startsWith('/hr/biometric-') }"
+              :class="{ 'group-active': isBioManagementRoute(route.path) }"
               dense-toggle
             >
               <q-list class="nav-sub-tree q-mb-xs">
@@ -122,7 +122,33 @@
                   <q-item-section avatar class="min-avatar">
                     <q-icon name="receipt_long" size="18px" />
                   </q-item-section>
-                  <q-item-section class="nav-sub-label">Bio Logs</q-item-section>
+                  <q-item-section class="nav-sub-label">Enrollment Logs</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/attendance-logs'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/attendance-logs"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="schedule" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Punch Logs</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/dtr'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/dtr"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="event_note" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">Employee DTR</q-item-section>
                 </q-item>
               </q-list>
             </q-expansion-item>
@@ -343,6 +369,8 @@ import { useQuasar } from 'quasar'
 import { useLeaveStore } from 'stores/leave-store'
 import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
+import { useHrDashboardStore } from 'stores/hr-dashboard-store'
+import { useAdminDashboardStore } from 'stores/admin-dashboard-store'
 import { api } from 'boot/axios'
 import NotificationPanel from 'components/NotificationPanel.vue'
 import { hrUserHasModuleAccess } from 'src/utils/hr-module-access'
@@ -353,6 +381,8 @@ const $q = useQuasar()
 const leaveStore = useLeaveStore()
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const hrDashboardStore = useHrDashboardStore()
+const adminDashboardStore = useAdminDashboardStore()
 
 const leftDrawer = ref($q.screen.gt.sm)
 const logoutDialog = ref(false)
@@ -465,13 +495,18 @@ const isHrLeaveRouteActive = computed(() => {
   return hrLeaveNav.some((item) => route.path.startsWith(item.path))
 })
 
+const isBioManagementRoute = (path) =>
+  path.startsWith('/hr/biometric-') ||
+  path.startsWith('/hr/attendance-logs') ||
+  path.startsWith('/hr/dtr')
+
 const hrLeaveMenuExpanded = ref(false)
-const biometricMenuExpanded = ref(route.path.startsWith('/hr/biometric-'))
+const biometricMenuExpanded = ref(isBioManagementRoute(route.path))
 
 watch(
   () => route.path,
   (newPath) => {
-    if (newPath.startsWith('/hr/biometric-')) {
+    if (isBioManagementRoute(newPath)) {
       biometricMenuExpanded.value = true
     }
   }
@@ -507,6 +542,8 @@ async function doLogout() {
   authStore.clearAuth()
   leaveStore.setUserRole(null)
   notifStore.clearAll()
+  hrDashboardStore.reset()
+  adminDashboardStore.reset()
   $q.notify({
     type: 'positive',
     message: 'Logged out successfully!',

@@ -51,6 +51,12 @@ export const useAdminDashboardStore = defineStore('adminDashboard', () => {
    * @param {boolean} force - Force re-fetch even if in-flight or cached
    */
   async function fetchDashboard(force = false) {
+    if (!force && dashboardLoaded.value && rawDashboardData.value !== null) {
+      return {
+        dashboard: rawDashboardData.value,
+        coc: rawCocData.value,
+      }
+    }
     if (!force && activeDashboardPromise) {
       return activeDashboardPromise
     }
@@ -124,6 +130,14 @@ export const useAdminDashboardStore = defineStore('adminDashboard', () => {
     return api.post(endpoint, payload)
   }
 
+  function reset() {
+    dashboardLoaded.value = false
+    lastFetchedAt.value = null
+    rawDashboardData.value = null
+    rawCocData.value = null
+    applicationRows.value = []
+  }
+
   return {
     // State
     loading,
@@ -143,6 +157,7 @@ export const useAdminDashboardStore = defineStore('adminDashboard', () => {
     fetchApplicationDetail,
     postApproval,
     postDisapproval,
+    reset,
   }
 })
 

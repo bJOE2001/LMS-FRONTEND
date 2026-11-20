@@ -19,98 +19,23 @@
       </div>
     </div>
 
-    <!-- Indeterminate Top Progress Bar for Background Reloads -->
-    <q-linear-progress
-      v-if="loading && (employees.length > 0 || fullEmployeeRows.length > 0)"
-      indeterminate
-      color="green-9"
-      size="3px"
-      class="q-mb-md rounded-borders top-reload-bar"
-    />
-
     <!-- ========================================================= -->
     <!-- SKELETON LOADING STATE (Initial Page Load)               -->
     <!-- ========================================================= -->
     <div v-if="loading && employees.length === 0 && fullEmployeeRows.length === 0" class="skeleton-suite">
-      <!-- 5 Skeleton KPI Status Cards -->
-      <div class="row q-col-gutter-sm q-mb-md status-cards-row">
-        <div v-for="i in 5" :key="'sk-card-' + i" class="col-6 col-sm-6 col-md status-cards-row__item">
-          <q-card flat bordered class="rounded-borders bg-white stat-card">
-            <q-card-section class="q-py-md status-card__section">
-              <div class="row items-center no-wrap status-card__content">
-                <q-skeleton type="QAvatar" size="44px" class="q-mr-md" animation="wave" />
-                <q-skeleton type="text" width="70px" height="16px" animation="wave" />
-                <q-skeleton type="text" width="36px" height="26px" class="q-ml-auto" animation="wave" />
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Skeleton Employee Records Table Card -->
-      <q-card flat bordered class="rounded-borders employee-records-card">
-        <q-card-section class="employee-records-card__section">
-          <div class="row justify-between items-center employee-records-toolbar">
-            <div class="row items-center q-gutter-sm">
-              <div class="text-h6">Employee Records</div>
-            </div>
-            <q-skeleton type="rect" width="220px" height="36px" class="rounded-borders" animation="wave" />
-          </div>
-        </q-card-section>
-
-        <div class="q-pa-md">
-          <!-- Columns Header Placeholder -->
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-2"><q-skeleton type="text" width="60%" height="16px" animation="wave" /></div>
-            <div class="col-5"><q-skeleton type="text" width="50%" height="16px" animation="wave" /></div>
-            <div class="col-3 text-center"><q-skeleton type="text" width="50%" height="16px" class="q-mx-auto" animation="wave" /></div>
-            <div class="col-2 text-right"><q-skeleton type="text" width="50%" height="16px" class="q-ml-auto" animation="wave" /></div>
-          </div>
-
-          <!-- 8 Skeleton Rows -->
-          <div
-            v-for="r in 8"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <!-- Control No -->
-            <div class="col-2">
-              <q-skeleton type="text" width="70px" height="16px" animation="wave" />
-            </div>
-
-            <!-- Employee Avatar + Name + Designation -->
-            <div class="col-5">
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-skeleton type="QAvatar" size="32px" animation="wave" />
-                <div>
-                  <q-skeleton type="text" width="140px" height="18px" animation="wave" />
-                  <q-skeleton type="text" width="90px" height="14px" class="q-mt-xs" animation="wave" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Status Badge -->
-            <div class="col-3 text-center">
-              <q-skeleton type="rect" width="75px" height="22px" class="rounded-borders q-mx-auto" animation="wave" />
-            </div>
-
-            <!-- Actions -->
-            <div class="col-2 text-right">
-              <div class="row items-center justify-end q-gutter-xs">
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-                <q-skeleton type="QAvatar" size="28px" animation="wave" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Skeleton Table Footer -->
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
-          <q-skeleton type="rect" width="160px" height="30px" class="rounded-borders" animation="wave" />
-        </div>
-      </q-card>
+      <KpiCardsSkeleton
+        :count="6"
+        variant="dashboard"
+        row-class="row q-col-gutter-sm q-mb-md status-cards-row"
+        col-class="col-6 col-sm-4 col-md status-cards-row__item"
+      />
+      <TableSkeletonCard
+        :columns="4"
+        :rows="8"
+        :show-toolbar="true"
+        :toolbar-filter-count="0"
+        :show-toolbar-action="false"
+      />
     </div>
 
     <!-- ========================================================= -->
@@ -118,91 +43,74 @@
     <!-- ========================================================= -->
     <div v-else :class="{ 'content-reloading': loading && (employees.length > 0 || fullEmployeeRows.length > 0) }">
       <div class="row q-col-gutter-sm q-mb-md status-cards-row">
-      <div
-        v-for="card in statusCards"
-        :key="card.key"
-        class="col-6 col-sm-6 col-md status-cards-row__item"
-      >
-        <q-card
-          :class="[
-            'stat-card',
-            'bg-white',
-            'rounded-borders',
-            { 'stat-card--active': isStatusCardActive(card) },
-          ]"
-          :style="getStatusCardStyle(card)"
-          flat
-          bordered
-          @click="applyStatusFilter(card.filterValue)"
+        <div
+          v-for="card in statusCards"
+          :key="card.key"
+          class="col-6 col-sm-4 col-md status-cards-row__item"
         >
-          <q-card-section class="q-py-md status-card__section">
-            <div class="row items-center no-wrap status-card__content">
-              <q-avatar
-                :style="{ background: card.bg }"
-                :text-color="card.color"
-                size="44px"
-                class="q-mr-md stat-icon status-card__avatar"
-              >
-                <q-icon
-                  :name="card.icon"
-                  size="22px"
-                  :color="card.color"
-                  class="status-card__avatar-icon"
-                />
-              </q-avatar>
-              <div
-                class="text-caption text-grey-7 text-weight-medium text-uppercase status-card__label"
-                style="letter-spacing: 0.04em"
-              >
-                {{ card.label }}
-              </div>
-              <div
-                class="text-h6 text-weight-bold status-card__value q-ml-auto"
-                :style="{ color: card.hex }"
-              >
-                {{ card.value }}
-              </div>
-            </div>
-            <q-tooltip>{{ getStatusCardTooltip(card) }}</q-tooltip>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
-
-    <q-card flat bordered class="rounded-borders employee-records-card">
-      <q-card-section class="employee-records-card__section">
-        <div class="row justify-between items-center employee-records-toolbar">
-          <div class="row items-center q-gutter-sm">
-            <div class="text-h6">Employee Records</div>
-          </div>
-          <q-input
-            v-model="search"
-            outlined
-            dense
-            debounce="400"
-            placeholder="Search employees..."
-            clearable
-            class="employee-records-search"
-            @update:model-value="fetchEmployees(1)"
+          <div
+            role="button"
+            tabindex="0"
+            :class="[
+              'employee-kpi-card',
+              { 'employee-kpi-card--active': isStatusCardActive(card) },
+            ]"
+            :style="getStatusCardStyle(card)"
+            @click="applyStatusFilter(card.filterValue)"
+            @keydown.enter.prevent="applyStatusFilter(card.filterValue)"
+            @keydown.space.prevent="applyStatusFilter(card.filterValue)"
           >
-            <template #prepend>
-              <q-icon name="search" size="sm" color="grey-6" />
-            </template>
-          </q-input>
-        </div>
-      </q-card-section>
+            <div class="employee-kpi-card__top">
+              <span class="employee-kpi-card__icon-box" aria-hidden="true">
+                <q-icon :name="card.icon" size="16px" />
+              </span>
+              <span class="employee-kpi-card__label">{{ card.label }}</span>
+            </div>
 
-      <q-table
-        :rows="tableRows"
-        :columns="visibleColumns"
-        row-key="control_no"
-        flat
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-        v-model:pagination="pagination"
-        class="employee-records-table"
-        @request="onRequest"
-      >
+            <div class="employee-kpi-card__bottom">
+              <span class="employee-kpi-card__value tabular-nums">
+                {{ card.value }}
+              </span>
+              <span
+                v-if="isStatusCardActive(card) && card.filterValue"
+                class="employee-kpi-card__pill"
+              >
+                Filtered
+              </span>
+            </div>
+
+            <q-tooltip>{{ getStatusCardTooltip(card) }}</q-tooltip>
+          </div>
+        </div>
+      </div>
+
+    <DataFilterBar
+      v-model:search="search"
+      :debounce="400"
+      search-placeholder="Search employees..."
+      search-class="col-12 col-sm-6 col-md-4"
+      @update:search="fetchEmployees(1)"
+    />
+
+    <DataTableCard
+      :rows="tableRows"
+      :columns="visibleColumns"
+      row-key="control_no"
+      :loading="loading"
+      v-model:pagination="pagination"
+      :rows-per-page-options="[10, 20, 50]"
+      card-class="employee-records-card"
+      table-class="employee-records-table"
+      empty-icon="search_off"
+      :no-data-label="noDataMessage"
+      loading-text="Loading employees..."
+      @request="onRequest"
+    >
+      <template #before-table>
+        <q-card-section class="q-pb-sm">
+          <div class="text-h6">Employee Records</div>
+        </q-card-section>
+      </template>
         <template #body-cell-name="props">
           <q-td :props="props">
             <div class="row items-center no-wrap cursor-pointer" @click="viewEmployee(props.row)">
@@ -317,21 +225,7 @@
             </div>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width text-center q-pa-lg">
-            <template v-if="loading">
-              <q-spinner color="primary" size="40px" />
-              <div class="text-grey-6 q-mt-sm">Loading employees...</div>
-            </template>
-            <template v-else>
-              <q-icon name="search_off" size="48px" color="grey-5" />
-              <div class="text-grey-6 q-mt-sm">{{ noDataMessage }}</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
   </div>
 
     <q-dialog
@@ -801,6 +695,8 @@ import { useAuthStore } from 'stores/auth-store'
 import { useAdminEmployeeStore } from 'stores/admin-employee-store'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import AdminApplyOnBehalf from 'pages/admin/AdminApplyOnBehalf.vue'
 import AdminApplyCocDialog from 'src/components/admin/AdminApplyCocDialog.vue'
 
@@ -1065,13 +961,13 @@ const statusCards = computed(() => [
   },
   {
     key: 'CONTRACTUAL',
-    label: 'COS(Job Order)',
+    label: 'COS (Job Order)',
     value: statusCounts.value.CONTRACTUAL || 0,
     filterValue: 'CONTRACTUAL',
     icon: 'badge',
-    hex: '#0d47a1',
+    hex: '#0369a1',
     color: 'blue-9',
-    bg: '#e3f2fd',
+    bg: '#e0f2fe',
   },
 ])
 // const employeeLeaveBalanceItems = computed(() => getLeaveBalanceTextItems(selectedEmployee.value))
@@ -1167,8 +1063,9 @@ function isStatusCardActive(card) {
 
 function getStatusCardStyle(card) {
   return {
-    '--stat-card-accent': card.hex,
-    '--stat-card-hover-bg': card.bg,
+    '--emp-kpi-accent': card.hex,
+    '--emp-kpi-icon-bg': card.bg,
+    '--emp-kpi-hover-bg': card.bg,
   }
 }
 
@@ -2287,65 +2184,140 @@ watch(
   flex-direction: column;
 }
 
-.stat-card {
+.status-cards-row > div {
+  display: flex;
+}
+
+.employee-kpi-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 86px;
+  padding: 10px 12px 9px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
-  border-color: #d9dee7;
+  user-select: none;
   transition:
-    background-color 0.2s,
-    border-color 0.2s,
-    box-shadow 0.2s,
-    transform 0.2s;
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease;
 }
 
-.stat-card:hover {
-  background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
-  border-color: var(--stat-card-accent, #d6dde6) !important;
-  box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.08),
-    inset 0 0 0 1px var(--stat-card-accent, #d6dde6);
+.employee-kpi-card:hover {
   transform: translateY(-2px);
+  border-color: var(--emp-kpi-accent, #15803d);
+  box-shadow: 0 10px 22px -8px rgba(15, 23, 42, 0.12);
 }
 
-.stat-card--active {
-  background-color: var(--stat-card-hover-bg, #f7f9fb) !important;
-  border-color: var(--stat-card-accent, #2563eb) !important;
+.employee-kpi-card:focus-visible {
+  outline: 2px solid var(--emp-kpi-accent, #15803d);
+  outline-offset: 2px;
+}
+
+.employee-kpi-card--active {
+  border-color: var(--emp-kpi-accent, #1565c0);
+  background-color: #f8fafc;
   box-shadow:
-    0 10px 22px rgba(15, 23, 42, 0.1),
-    inset 0 0 0 2px var(--stat-card-accent, #2563eb);
-  transform: translateY(-1px);
+    0 8px 20px -8px rgba(15, 23, 42, 0.14),
+    inset 0 0 0 1px var(--emp-kpi-accent, #1565c0);
 }
 
-.stat-card--active .status-card__label {
-  color: var(--stat-card-accent, #2563eb) !important;
+.employee-kpi-card__top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
 }
 
-.stat-card--active .status-card__value {
-  transform: scale(1.03);
-}
-
-.stat-icon {
+.employee-kpi-card__icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background-color: var(--emp-kpi-icon-bg, #e2e8f0);
+  color: var(--emp-kpi-accent, #1565c0);
   flex-shrink: 0;
 }
 
-.status-card__section {
-  padding: 10px 12px;
-}
-
-.status-card__content {
-  min-height: 30px;
-}
-
-.status-card__label {
-  letter-spacing: 0.04em;
+.employee-kpi-card__label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #334155;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 72%;
 }
 
-.status-card__value {
-  margin-left: auto;
+.employee-kpi-card--active .employee-kpi-card__label {
+  color: var(--emp-kpi-accent, #1565c0);
+}
+
+.employee-kpi-card__bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.employee-kpi-card__value {
+  font-size: clamp(1.3rem, 1.7vw, 1.55rem);
+  font-weight: 800;
   line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--emp-kpi-accent, #1565c0);
+}
+
+.employee-kpi-card__pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background-color: var(--emp-kpi-icon-bg, #f1f5f9);
+  color: var(--emp-kpi-accent, #475569);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.employee-kpi-card--active .employee-kpi-card__pill {
+  background-color: var(--emp-kpi-accent, #1565c0);
+  color: #ffffff;
+}
+
+:global(body.body--dark) .employee-kpi-card {
+  background-color: var(--dm-surface, #1b2330);
+  border-color: var(--dm-border, #324258);
+  box-shadow: none;
+}
+
+:global(body.body--dark) .employee-kpi-card:hover {
+  background-color: var(--dm-surface-2, #212b3a);
+  box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.45);
+}
+
+:global(body.body--dark) .employee-kpi-card--active {
+  background-color: var(--dm-surface-2, #212b3a);
+}
+
+:global(body.body--dark) .employee-kpi-card__label,
+:global(body.body--dark) .employee-kpi-card__value {
+  color: var(--dm-text-primary, #e6edf5);
+}
+
+:global(body.body--dark) .employee-kpi-card__icon-box,
+:global(body.body--dark) .employee-kpi-card__pill {
+  background-color: var(--dm-surface-3, #283446);
+  color: var(--dm-text-secondary, #cad5e4);
 }
 
 .employee-records-search {
@@ -2586,31 +2558,24 @@ watch(
     padding-right: 3px !important;
   }
 
-  .status-card__section {
-    padding: 6px 8px;
+  .employee-kpi-card {
+    min-height: 76px;
+    padding: 8px 10px;
+    gap: 6px;
   }
 
-  .status-card__avatar {
-    width: 28px !important;
-    height: 28px !important;
-    min-width: 28px !important;
-    margin-right: 6px !important;
+  .employee-kpi-card__icon-box {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
   }
 
-  .status-card__avatar-icon {
-    font-size: 14px !important;
+  .employee-kpi-card__label {
+    font-size: 0.7rem;
   }
 
-  .status-card__label {
-    font-size: 0.58rem;
-    line-height: 1;
-    letter-spacing: 0.03em;
-    max-width: 66%;
-  }
-
-  .status-card__value {
-    font-size: 1.1rem !important;
-    line-height: 1;
+  .employee-kpi-card__value {
+    font-size: 1.2rem;
   }
 
   .employee-records-card__section {
@@ -2686,10 +2651,6 @@ watch(
     min-height: 52px;
     padding: 0 8px 0 10px;
   }
-}
-
-.top-reload-bar {
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
 }
 
 .content-reloading {

@@ -18,67 +18,53 @@
     </div>
 
     <!-- Unified Toolbar -->
-    <q-card flat bordered class="rounded-borders q-mb-md bg-white">
-      <q-card-section class="q-pa-sm">
-        <div class="row items-center justify-between q-col-gutter-sm">
-          <div class="col-12 col-md-7">
-            <div class="row items-center q-gutter-sm">
-              <q-input
-                v-model="search"
-                outlined
-                dense
-                clearable
-                debounce="300"
-                placeholder="Search leave type..."
-                style="min-width: 240px;"
-              >
-                <template #prepend>
-                  <q-icon name="search" color="grey-6" />
-                </template>
-              </q-input>
-              <q-select
-                v-model="filterCategory"
-                :options="categoryFilterOptions"
-                emit-value
-                map-options
-                outlined
-                dense
-                clearable
-                label="Category"
-                style="width: 150px;"
-              />
-            </div>
-          </div>
-          <div class="col-12 col-md-auto">
-            <div class="row items-center q-gutter-x-sm">
-              <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
-                {{ filteredRows.length }} Total Types
-              </q-badge>
-              <q-btn
-                unelevated
-                no-caps
-                color="green-9"
-                icon="add"
-                label="Add Leave Type"
-                class="text-weight-bold q-px-md"
-                @click="openCreateDialog"
-              />
-            </div>
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
+    <DataFilterBar
+      v-model:search="search"
+      search-class="col-12 col-sm-6 col-md-4"
+      :debounce="300"
+      search-placeholder="Search leave type..."
+      :show-reset="hasActiveFilters"
+      @reset="resetFilters"
+    >
+      <div class="col-12 col-sm-4 col-md-3">
+        <q-select
+          v-model="filters.category"
+          :options="categoryFilterOptions"
+          emit-value
+          map-options
+          outlined
+          dense
+          clearable
+          label="Category"
+        />
+      </div>
 
-    <q-card flat bordered class="rounded-borders bg-white">
-      <q-table
-        :rows="filteredRows"
-        :columns="columns"
-        row-key="id"
-        flat
-        dense
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-      >
+      <template #actions>
+        <q-badge color="green-1" text-color="green-9" class="q-pa-xs text-weight-bold">
+          {{ filteredRows.length }} Total Types
+        </q-badge>
+        <q-btn
+          unelevated
+          no-caps
+          color="green-9"
+          icon="add"
+          label="Add Leave Type"
+          class="text-weight-bold q-px-md"
+          @click="openCreateDialog"
+        />
+      </template>
+    </DataFilterBar>
+
+    <DataTableCard
+      :rows="filteredRows"
+      :columns="columns"
+      row-key="id"
+      dense
+      :loading="loading"
+      :rows-per-page-options="[10, 20, 50]"
+      no-data-label="No leave types found."
+      loading-text="Loading leave types..."
+    >
         <template #body-cell-category="props">
           <q-td :props="props">
             <q-badge
@@ -156,21 +142,7 @@
             </q-btn>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width text-center q-pa-lg text-grey-7">
-            <template v-if="loading">
-              <q-spinner color="primary" size="32px" />
-              <div class="q-mt-sm">Loading leave types...</div>
-            </template>
-            <template v-else>
-              <q-icon name="inbox" size="36px" />
-              <div class="q-mt-sm">No leave types found.</div>
-            </template>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <q-dialog v-model="showFormDialog" persistent>
       <q-card style="width: 95vw; max-width: 620px" class="rounded-borders">
@@ -268,6 +240,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'boot/axios'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
+import { useDataTable } from 'src/composables/useDataTable'
 
 defineProps({
   embedded: {
@@ -278,13 +253,15 @@ defineProps({
 
 const $q = useQuasar()
 
-const loading = ref(false)
+const { search, filters, loading, hasActiveFilters, resetFilters } = useDataTable({
+  initialFilters: {
+    category: null,
+  },
+})
 const saving = ref(false)
 const deletingId = ref(null)
 
 const leaveTypes = ref([])
-const search = ref('')
-const filterCategory = ref(null)
 const employmentStatusOptions = ref([
   { label: 'Regular', value: 'regular' },
   { label: 'Elective', value: 'elective' },
@@ -330,7 +307,7 @@ const columns = [
 const filteredRows = computed(() => {
   const needle = search.value.trim().toLowerCase()
   return leaveTypes.value.filter((row) => {
-    const matchCategory = !filterCategory.value || row.category === filterCategory.value
+    const matchCategory = !filters.category || row.category === filters.category
     if (!matchCategory) return false
     if (!needle) return true
     return [row.display_name, row.name]

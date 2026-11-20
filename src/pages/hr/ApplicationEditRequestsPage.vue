@@ -10,45 +10,41 @@
       Only HR Admin accounts can review staff edit requests.
     </q-banner>
 
-    <div class="hr-edit-filter-bar q-mb-md">
-      <q-input
-        v-model="search"
-        outlined
-        dense
-        clearable
-        debounce="250"
-        class="hr-edit-search"
-        label="Search employee, leave type, date"
-      >
-        <template #prepend>
-          <q-icon name="search" color="grey-6" />
-        </template>
-      </q-input>
-      <q-btn-toggle
-        v-model="statusFilter"
-        unelevated
-        no-caps
-        toggle-color="primary"
-        color="white"
-        text-color="primary"
-        :options="statusOptions"
-        class="hr-edit-status-toggle"
-        @update:model-value="fetchRequests"
-      />
-    </div>
+    <DataFilterBar
+      v-model:search="search"
+      search-label="Search employee, leave type, date"
+      search-placeholder=""
+      :debounce="250"
+      search-class="col-12 col-md-5"
+      actions-class="col-12 col-md-auto q-ml-auto"
+    >
+      <template #actions>
+        <q-btn-toggle
+          v-model="statusFilter"
+          unelevated
+          no-caps
+          toggle-color="primary"
+          color="white"
+          text-color="primary"
+          :options="statusOptions"
+          class="hr-edit-status-toggle"
+          @update:model-value="fetchRequests"
+        />
+      </template>
+    </DataFilterBar>
 
-    <q-card flat bordered class="hr-edit-table-card">
-      <q-table
-        :rows="filteredRequests"
-        :columns="columns"
-        row-key="id"
-        flat
-        binary-state-sort
-        separator="horizontal"
-        :loading="loading"
-        :rows-per-page-options="[10, 20, 50]"
-        table-header-class="hr-edit-table-header"
-      >
+    <DataTableCard
+      :rows="filteredRequests"
+      :columns="columns"
+      row-key="id"
+      :loading="loading"
+      v-model:pagination="pagination"
+      :rows-per-page-options="[10, 20, 50]"
+      card-class="hr-edit-table-card"
+      table-header-class="hr-edit-table-header"
+      empty-icon="inbox"
+      no-data-label="No edit requests found"
+    >
         <template #body-cell-employee="props">
           <q-td :props="props" class="hr-edit-employee-cell">
             <div class="row items-center no-wrap">
@@ -123,15 +119,7 @@
             </div>
           </q-td>
         </template>
-
-        <template #no-data>
-          <div class="full-width row flex-center q-pa-lg text-grey-7">
-            <q-icon name="inbox" size="md" class="q-mr-sm" />
-            <span>No edit requests found</span>
-          </div>
-        </template>
-      </q-table>
-    </q-card>
+    </DataTableCard>
 
     <q-dialog v-model="detailsDialogOpen" @hide="selectedRequest = null">
       <q-card class="hr-edit-details-dialog">
@@ -258,6 +246,8 @@ import { computed, onMounted, ref } from 'vue'
 import { date, useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { useAuthStore } from 'src/stores/auth-store'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 
 const $q = useQuasar()
@@ -268,6 +258,7 @@ const rejectLoadingId = ref(null)
 const requests = ref([])
 const search = ref('')
 const statusFilter = ref('PENDING')
+const pagination = ref({ page: 1, rowsPerPage: 10 })
 const detailsDialogOpen = ref(false)
 const selectedRequest = ref(null)
 
@@ -582,22 +573,6 @@ async function rejectRequest(row, remarks = '') {
 .hr-edit-refresh-btn {
   min-width: 104px;
   border-radius: 6px;
-}
-
-.hr-edit-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid #dce3ea;
-  border-radius: 8px;
-}
-
-.hr-edit-search {
-  flex: 1 1 360px;
-  max-width: 560px;
 }
 
 .hr-edit-status-toggle {

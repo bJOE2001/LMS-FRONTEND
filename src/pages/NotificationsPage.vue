@@ -16,12 +16,7 @@
       />
     </div>
 
-    <q-card v-if="notifStore.loading" flat bordered class="rounded-borders">
-      <q-card-section class="text-center q-pa-xl">
-        <q-spinner color="primary" size="40px" />
-        <p class="text-grey-6 q-mt-md q-mb-none">Loading notifications...</p>
-      </q-card-section>
-    </q-card>
+    <ListSkeleton v-if="notifStore.loading && notifStore.notifications.length === 0" :rows="6" :card="true" />
 
     <q-card v-else-if="notifStore.notifications.length === 0" flat bordered class="rounded-borders">
       <q-card-section class="text-center q-pa-xl">

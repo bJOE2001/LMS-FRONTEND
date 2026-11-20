@@ -43,6 +43,9 @@ export const useHrDashboardStore = defineStore('hrDashboard', () => {
    * Fetch HR Dashboard overview & metrics
    */
   async function fetchDashboard(force = false) {
+    if (!force && dashboardLoaded.value && rawDashboardData.value !== null) {
+      return rawDashboardData.value
+    }
     if (!force && activeDashboardPromise) {
       return activeDashboardPromise
     }
@@ -148,6 +151,18 @@ export const useHrDashboardStore = defineStore('hrDashboard', () => {
     return activeCalendarPromise
   }
 
+  function reset() {
+    dashboardLoaded.value = false
+    rawDashboardData.value = null
+    activeEmployeeCount.value = 0
+    dashboardApplications.value = []
+    departmentsLoaded.value = false
+    departments.value = []
+    allDepartmentOptions.value = []
+    calendarLeaves.value = []
+    calendarCache.value = {}
+  }
+
   return {
     // Dashboard
     loading,
@@ -168,7 +183,9 @@ export const useHrDashboardStore = defineStore('hrDashboard', () => {
     // Calendar
     calendarLoading,
     calendarLeaves,
+    calendarCache,
     fetchCalendarLeaves,
+    reset,
   }
 })
 

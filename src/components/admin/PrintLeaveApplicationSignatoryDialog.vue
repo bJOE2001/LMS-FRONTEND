@@ -307,7 +307,7 @@ function handlePrintClick() {
     try {
       pdfWindow.document.title = 'Preparing PDF...'
       pdfWindow.document.body.innerHTML =
-        '<div style="font-family: Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
+        '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
     } catch {
       // Ignore interim window write errors
     }
