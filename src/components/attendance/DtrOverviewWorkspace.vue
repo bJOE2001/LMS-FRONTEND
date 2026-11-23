@@ -1005,6 +1005,7 @@ import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
 import AttendanceKpiCards from 'src/components/attendance/AttendanceKpiCards.vue'
+import { formatOfficeAbbreviation, resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import { printBatchCscForm48 } from 'src/utils/csc-form-48-print'
 
 const props = defineProps({
@@ -1114,8 +1115,8 @@ const officeFilterOptions = computed(() => {
     officeAcronym: '',
   }
   const departments = (employeeStore.allDepartments || []).map((dept) => {
-    const acronym = dept.office_acronym || dept.acronym || ''
-    const label = acronym ? `${acronym} — ${dept.name}` : dept.name
+    const acronym = resolveOfficeAcronymLabel(dept)
+    const label = acronym || formatOfficeAbbreviation(dept.name)
     return {
       label,
       value: dept.id,

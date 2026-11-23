@@ -1382,6 +1382,7 @@ function resolveBadgeColorClass(code) {
   font-weight: 600;
 }
 
+.ledger-table__value--mc06,
 .ledger-table__value--mco6 {
   color: #15803d;
   font-weight: 600;
@@ -1416,12 +1417,16 @@ function resolveBadgeColorClass(code) {
 .ledger-table__cell--period {
   font-weight: 600;
   white-space: pre-line;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .ledger-table__cell--action {
   position: relative;
   white-space: pre-line;
   font-weight: 600;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .ledger-row-actions-floating {

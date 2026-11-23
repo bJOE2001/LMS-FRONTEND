@@ -79,47 +79,33 @@
         </q-td>
       </template>
 
-      <template #body-cell-source="props">
+      <template #body-cell-office_device="props">
         <q-td :props="props">
-          <div class="text-dark text-weight-medium">
-            {{ props.row.source_office_acronym || formatOfficeAbbreviation(props.row.source_office_name) }}
-            <q-tooltip
-              v-if="
-                props.row.source_office_name &&
-                props.row.source_office_name !==
-                  (props.row.source_office_acronym || formatOfficeAbbreviation(props.row.source_office_name))
-              "
-              anchor="top middle"
-              self="bottom middle"
+          <div v-if="getOfficeDeviceEndpoints(props.row).length > 0" class="office-device-route">
+            <template
+              v-for="(endpoint, idx) in getOfficeDeviceEndpoints(props.row)"
+              :key="endpoint.side"
             >
-              {{ props.row.source_office_name }}
-            </q-tooltip>
+              <q-icon
+                v-if="idx > 0"
+                name="arrow_forward"
+                size="14px"
+                class="text-grey-6 office-device-arrow"
+              />
+              <div class="office-device-side">
+                <div v-if="endpoint.label" class="text-dark text-weight-medium">
+                  {{ endpoint.label }}
+                  <q-tooltip v-if="endpoint.tooltip" anchor="top middle" self="bottom middle">
+                    {{ endpoint.tooltip }}
+                  </q-tooltip>
+                </div>
+                <div v-if="endpoint.sn" class="text-caption text-grey-7 font-mono">
+                  {{ endpoint.sn }}
+                </div>
+              </div>
+            </template>
           </div>
-          <div v-if="props.row.source_device_sn" class="text-caption text-grey-7 font-mono">
-            {{ props.row.source_device_sn }}
-          </div>
-        </q-td>
-      </template>
-
-      <template #body-cell-target="props">
-        <q-td :props="props">
-          <div class="text-dark text-weight-medium">
-            {{ props.row.target_office_acronym || formatOfficeAbbreviation(props.row.target_office_name) }}
-            <q-tooltip
-              v-if="
-                props.row.target_office_name &&
-                props.row.target_office_name !==
-                  (props.row.target_office_acronym || formatOfficeAbbreviation(props.row.target_office_name))
-              "
-              anchor="top middle"
-              self="bottom middle"
-            >
-              {{ props.row.target_office_name }}
-            </q-tooltip>
-          </div>
-          <div v-if="props.row.target_device_sn" class="text-caption text-grey-7 font-mono">
-            {{ props.row.target_device_sn }}
-          </div>
+          <span v-else class="text-grey-6">—</span>
         </q-td>
       </template>
 
@@ -130,19 +116,13 @@
             square
             :color="statusColor(props.row.status)"
             text-color="white"
-            class="text-weight-bold"
+            class="text-weight-bold q-my-none"
           >
             {{ props.row.status }}
+            <q-tooltip v-if="props.row.remarks" max-width="360px">
+              {{ props.row.remarks }}
+            </q-tooltip>
           </q-chip>
-        </q-td>
-      </template>
-
-      <template #body-cell-remarks="props">
-        <q-td :props="props" style="max-width: 280px">
-          <div class="ellipsis">
-            {{ simplifyRemarks(props.row.remarks) }}
-            <q-tooltip v-if="props.row.remarks" max-width="360px">{{ props.row.remarks }}</q-tooltip>
-          </div>
         </q-td>
       </template>
     </DataTableCard>
@@ -217,12 +197,10 @@ const columns = [
   { name: 'employee_control_no', label: 'Control No', align: 'left', field: 'employee_control_no' },
   { name: 'employee_name', label: 'Employee Name', align: 'left', field: 'employee_name' },
   { name: 'action_type', label: 'Action Type', align: 'left', field: 'action_type' },
-  { name: 'source', label: 'Source Office / Device', align: 'left', field: 'source_office_name' },
-  { name: 'target', label: 'Target Office / Device', align: 'left', field: 'target_office_name' },
+  { name: 'office_device', label: 'Office / Device', align: 'left', field: 'target_office_name' },
   { name: 'status', label: 'Status', align: 'center', field: 'status' },
   { name: 'created_at', label: 'Date/Time', align: 'left', field: 'created_at' },
   { name: 'performed_by_name', label: 'Performed By', align: 'left', field: 'performed_by_name' },
-  { name: 'remarks', label: 'Remarks', align: 'left', field: 'remarks' },
 ]
 
 const ACTION_COLORS = {
@@ -246,6 +224,28 @@ function statusColor(status) {
   return STATUS_COLORS[status] || 'grey-6'
 }
 
+function buildOfficeDeviceEndpoint(row, side) {
+  const acronym = row?.[`${side}_office_acronym`]
+  const fullName = String(row?.[`${side}_office_name`] || '').trim()
+  const label = acronym || formatOfficeAbbreviation(fullName)
+  const sn = String(row?.[`${side}_device_sn`] || '').trim()
+  if ((!label || label === '—') && !sn) return null
+
+  return {
+    side,
+    label: label === '—' ? '' : label,
+    tooltip: fullName && fullName !== label ? fullName : '',
+    sn,
+  }
+}
+
+function getOfficeDeviceEndpoints(row) {
+  return [
+    buildOfficeDeviceEndpoint(row, 'source'),
+    buildOfficeDeviceEndpoint(row, 'target'),
+  ].filter(Boolean)
+}
+
 function formatDateTime(value) {
   if (!value) return '—'
   const parsed = new Date(value)
@@ -253,34 +253,22 @@ function formatDateTime(value) {
   return qDate.formatDate(parsed, 'MMM D, YYYY h:mm A')
 }
 
-function simplifyRemarks(text) {
-  if (!text) return '—'
-  const trimmed = String(text).trim()
-  if (!trimmed || trimmed === '—') return '—'
-
-  if (/Biometrics.*?(\d+).*?transferred/i.test(trimmed)) {
-    const match = trimmed.match(/Biometrics.*?(\d+).*?transferred/i)
-    return `Transferred (${match[1]} template synced)`
-  }
-  if (/User profile provisioned.*scan/i.test(trimmed) || /provisioned.*local.*scan/i.test(trimmed)) {
-    return 'Profile provisioned; scan needed'
-  }
-  if (/Employee removed from office/i.test(trimmed)) {
-    return 'Removed from office terminal'
-  }
-  if (/Registration initiated.*scan/i.test(trimmed)) {
-    return 'Registration initiated; awaiting scan'
-  }
-  if (/Provisioned profile and synced\s*(\d+)/i.test(trimmed)) {
-    const match = trimmed.match(/Provisioned profile and synced\s*(\d+)/i)
-    return `Registered (${match[1]} template synced)`
-  }
-  if (/Biometric enrollment reconciled/i.test(trimmed)) {
-    return 'Enrollment confirmed via punch log'
-  }
-
-  return trimmed
-}
-
 onMounted(fetchLogs)
 </script>
+
+<style scoped>
+.office-device-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.office-device-side {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.office-device-arrow {
+  flex-shrink: 0;
+}
+</style>

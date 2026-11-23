@@ -63,6 +63,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import VueApexCharts from 'vue3-apexcharts'
+import { formatOfficeAbbreviation, resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 
 const props = defineProps({
   applications: {
@@ -93,7 +94,6 @@ const chartMarkerStrokeColor = computed(() => (isDark.value ? '#1b2330' : '#ffff
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const leaveTypeChartPalette = ['#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#7cb342', '#3949ab', '#f4511e']
 const ALL_OFFICES_FILTER = '__ALL_OFFICES__'
-const OFFICE_ACRONYM_STOP_WORDS = new Set(['A', 'AN', 'AND', 'FOR', 'IN', 'OF', 'OFFICE', 'ON', 'THE', 'TO'])
 const leaveTypeFilter = ref('All')
 const officeFilter = ref(ALL_OFFICES_FILTER)
 const trendChartHeight = computed(() => ($q.screen.lt.lg ? 165 : 185))
@@ -157,31 +157,6 @@ function getApplicationOffice(application) {
   return 'Unassigned'
 }
 
-function toOfficeCode(value) {
-  const source = String(value || '').trim()
-  if (!source) return 'Unassigned'
-
-  if (!/\s/.test(source) && source === source.toUpperCase()) {
-    return source
-  }
-
-  const words = source
-    .replace(/[^A-Za-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim().toUpperCase())
-    .filter(Boolean)
-
-  if (!words.length) return source
-
-  const acronymWords = words.filter(
-    (word) => !OFFICE_ACRONYM_STOP_WORDS.has(word) && !/^\d+$/.test(word),
-  )
-  const selectedWords = acronymWords.length ? acronymWords : words
-  const acronym = selectedWords.map((word) => word[0]).join('')
-
-  return acronym || source.toUpperCase()
-}
-
 
 function normalizeTrendBuckets(rawBuckets) {
   return Array.from({ length: 12 }, (_unused, monthIndex) => {
@@ -215,19 +190,29 @@ const resolvedTrendYearLabel = computed(() => {
 })
 
 const officeFilterOptions = computed(() => {
-  const offices = new Set()
+  const officeLabelsByKey = new Map()
 
   for (const application of props.applications) {
     if (!isApprovedApplication(application)) continue
-    offices.add(getApplicationOffice(application))
+    const office = getApplicationOffice(application)
+    const acronym = resolveOfficeAcronymLabel(application)
+    const displayLabel = acronym || formatOfficeAbbreviation(office)
+    const existingLabel = officeLabelsByKey.get(office)
+
+    if (!existingLabel || (existingLabel === office && acronym)) {
+      officeLabelsByKey.set(office, displayLabel)
+    }
   }
 
-  return [{ label: 'All Offices', value: ALL_OFFICES_FILTER }, ...Array.from(offices)
-    .sort((left, right) => left.localeCompare(right))
-    .map((office) => ({
-      label: toOfficeCode(office),
-      value: office,
-    }))]
+  return [
+    { label: 'All Offices', value: ALL_OFFICES_FILTER },
+    ...Array.from(officeLabelsByKey.entries())
+      .sort(([, leftLabel], [, rightLabel]) => leftLabel.localeCompare(rightLabel))
+      .map(([office, displayLabel]) => ({
+        label: displayLabel,
+        value: office,
+      })),
+  ]
 })
 
 watch(
