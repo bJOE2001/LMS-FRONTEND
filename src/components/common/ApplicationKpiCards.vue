@@ -72,9 +72,6 @@
         <div class="app-kpi-card__footer">
           <div class="app-kpi-card__meta-row">
             <span class="app-kpi-card__hint">{{ card.hint }}</span>
-            <span class="app-kpi-card__share-pill tabular-nums">
-              {{ card.share }}%
-            </span>
           </div>
         </div>
       </div>
@@ -282,16 +279,6 @@ function getBreakdownCardStyle(card) {
   color: #334155;
 }
 
-.app-kpi-card__share-pill {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background-color: var(--kpi-pill-bg);
-  color: var(--kpi-pill-fg);
-  font-size: 0.66rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 .app-kpi-breakdown {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -381,8 +368,7 @@ function getBreakdownCardStyle(card) {
   color: var(--dm-text-muted, #a4b1c2);
 }
 
-:global(body.body--dark) .app-kpi-card__icon-box,
-:global(body.body--dark) .app-kpi-card__share-pill {
+:global(body.body--dark) .app-kpi-card__icon-box {
   background-color: var(--dm-surface-3, #283446);
   color: var(--dm-text-secondary, #cad5e4);
 }

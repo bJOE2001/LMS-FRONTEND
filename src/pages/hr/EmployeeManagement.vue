@@ -364,8 +364,6 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useQuasar } from 'quasar'
-import pdfMake from 'pdfmake/build/pdfmake'
-import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { useEmployeeStore } from 'src/stores/employee-store'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
@@ -378,8 +376,12 @@ import HrEmployeeCocCtoLedgerDialog from 'src/components/hr/HrEmployeeCocCtoLedg
 import HrEmployeeLeaveAccrualsEditDialog from 'src/components/hr/HrEmployeeLeaveAccrualsEditDialog.vue'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
-
-pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+import {
+  LEDGER_PAPER_PRESETS,
+  LEDGER_COLUMN_WIDTH_UNITS,
+  LEDGER_COLUMN_WIDTH_TOTAL,
+  printLeaveCreditsLedgerPdf,
+} from 'src/utils/leave-credits-ledger-pdf'
 
 const $q = useQuasar()
 const employeeStore = useEmployeeStore()
@@ -488,47 +490,6 @@ const visibleEmployeeColumns = computed(() =>
       )
     : employeeColumns,
 )
-const LEDGER_PAPER_PRESETS = {
-  A4: {
-    label: 'A4',
-    previewWidth: 794,
-    previewHeight: 1123,
-    minimumRows: 46,
-    pdfMinimumRows: 46,
-    pageSize: 'A4',
-    pageMargins: [8, 18, 8, 8],
-    pdfHorizontalInset: 0,
-    pdfGridLineWidth: 0.75,
-    pdfActionColumnShrink: 10,
-    pdfHeaderRowHeight: 14.5,
-    pdfSubHeaderRowHeight: 24,
-    pdfBodyRowHeight: 14.05,
-  },
-  LONG: {
-    label: 'Long',
-    previewWidth: 816,
-    previewHeight: 1248,
-    minimumRows: 56,
-    pdfMinimumRows: 56,
-    pageSize: {
-      width: 612,
-      height: 936,
-    },
-    pageMargins: [8, 18, 8, 8],
-    pdfHorizontalInset: 0,
-    pdfGridLineWidth: 0.75,
-    pdfActionColumnShrink: 10,
-    pdfHeaderRowHeight: 14.5,
-    pdfSubHeaderRowHeight: 24,
-    pdfBodyRowHeight: 14.2,
-  },
-}
-
-const LEDGER_COLUMN_WIDTH_UNITS = [10, 13, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 11]
-const LEDGER_COLUMN_WIDTH_TOTAL = LEDGER_COLUMN_WIDTH_UNITS.reduce(
-  (total, width) => total + width,
-  0,
-)
 const LEDGER_BLANK_ROW_TEMPLATE = Object.freeze({
   period: '',
   particulars: '',
@@ -547,12 +508,7 @@ const LEDGER_BLANK_ROW_TEMPLATE = Object.freeze({
   otherAbsUndWop: '',
   actionTaken: '',
 })
-const LEDGER_LEAVE_TYPE_COLORS = Object.freeze({
-  VL: '#000000',
-  SL: '#000000',
-  WL: '#1e5fbf',
-  MCO6: '#1b8f3a',
-})
+const LEDGER_ALLOWED_OTHER_CODES = Object.freeze(['MC06', 'MCO6', 'WL', 'SPL', 'CL'])
 const LEDGER_BALANCE_BADGE_ORDER = Object.freeze([
   'VL',
   'SL',
@@ -1035,17 +991,6 @@ function resolveLedgerPreviewIdentityFontSize(value) {
   if (length > 42) return '0.62rem'
   if (length > 30) return '0.66rem'
   return '0.72rem'
-}
-
-function resolveLedgerPdfIdentityFontSize(value) {
-  const length = String(value || '').trim().length
-
-  if (length > 72) return 6.3
-  if (length > 60) return 6.7
-  if (length > 54) return 7
-  if (length > 42) return 7.5
-  if (length > 30) return 8
-  return 8.6
 }
 
 function buildLedgerIdentityPreviewStyle(value) {
@@ -1547,8 +1492,6 @@ function createLedgerForwardedBalanceState() {
 function updateLedgerForwardedBalanceState(state, rows) {
   if (!state || !Array.isArray(rows)) return state
 
-  const allowedOtherCodes = ['MCO6', 'WL', 'SPL', 'CL']
-
   rows.forEach((row) => {
     if (!row || row.isBlank || row.isBalanceForwarded) return
 
@@ -1568,7 +1511,7 @@ function updateLedgerForwardedBalanceState(state, rows) {
         normalizeLedgerLeaveCode(row.leaveTypeCode) ||
         normalizeLedgerLeaveCode(row.balanceKey) ||
         normalizeLedgerLeaveCode(row.particulars)
-      if (allowedOtherCodes.includes(codeCandidate)) {
+      if (LEDGER_ALLOWED_OTHER_CODES.includes(codeCandidate)) {
         state.otherByCode[codeCandidate] = {
           value: otherBalance,
           code: codeCandidate,
@@ -1623,7 +1566,6 @@ function buildLedgerBalanceForwardedRows(state, pageIndex) {
     })
   }
 
-  const allowedOtherCodes = ['MCO6', 'WL', 'SPL', 'CL']
   const otherBalances = Object.entries(state?.otherByCode || {})
     .filter(([, data]) => isLedgerFiniteNumberValue(data?.value !== undefined ? data.value : data))
     .map(([, data]) => {
@@ -1632,13 +1574,13 @@ function buildLedgerBalanceForwardedRows(state, pageIndex) {
       }
       return { code: '', value: data }
     })
-    .filter((item) => allowedOtherCodes.includes(normalizeLedgerLeaveCode(item.code)))
+    .filter((item) => LEDGER_ALLOWED_OTHER_CODES.includes(normalizeLedgerLeaveCode(item.code)))
 
   if (state?.otherDefault) {
     const def = state.otherDefault
     const defVal = typeof def === 'object' && def !== null ? def.value : def
     const defCode = typeof def === 'object' ? def.code : ''
-    if (isLedgerFiniteNumberValue(defVal) && allowedOtherCodes.includes(normalizeLedgerLeaveCode(defCode))) {
+    if (isLedgerFiniteNumberValue(defVal) && LEDGER_ALLOWED_OTHER_CODES.includes(normalizeLedgerLeaveCode(defCode))) {
       otherBalances.push({ code: defCode, value: defVal })
     }
   }
@@ -1710,41 +1652,6 @@ function buildLedgerPagesForPaper(rows, preset, options = {}) {
   }
 
   return pages
-}
-
-function getLedgerPdfPageWidth(preset) {
-  if (preset?.pageSize === 'A4') return 595.28
-
-  const customWidth = Number(preset?.pageSize?.width)
-  return Number.isFinite(customWidth) && customWidth > 0 ? customWidth : 595.28
-}
-
-function buildLedgerPdfTableWidths(preset) {
-  const pageWidth = getLedgerPdfPageWidth(preset)
-  const leftMargin = Number(preset?.pageMargins?.[0] ?? 10)
-  const rightMargin = Number(preset?.pageMargins?.[2] ?? 10)
-  const horizontalInset = Number(preset?.pdfHorizontalInset ?? 0)
-  const gridLineWidth = Number(preset?.pdfGridLineWidth ?? 0.75)
-  const columnCount = LEDGER_COLUMN_WIDTH_UNITS.length
-  const totalGridWidth = Math.max(0, (columnCount + 1) * gridLineWidth)
-  const availableWidth = Math.max(
-    460,
-    pageWidth - leftMargin - rightMargin - horizontalInset * 2 - totalGridWidth,
-  )
-
-  const widths = LEDGER_COLUMN_WIDTH_UNITS.map((unit) =>
-    Number(((availableWidth * unit) / LEDGER_COLUMN_WIDTH_TOTAL).toFixed(2)),
-  )
-
-  const actionColumnShrink = Number(preset?.pdfActionColumnShrink ?? 0)
-  if (actionColumnShrink > 0) {
-    const actionColumnIndex = widths.length - 1
-    widths[actionColumnIndex] = Number(
-      Math.max(30, widths[actionColumnIndex] - actionColumnShrink).toFixed(2),
-    )
-  }
-
-  return widths
 }
 
 function normalizeLedgerLeaveCode(value) {
@@ -1869,11 +1776,6 @@ function resolveLedgerCellLeaveCode(entry, section) {
   return rowLeaveCode
 }
 
-function resolveLedgerValueColorByLeaveCode(leaveCode) {
-  const normalizedCode = String(leaveCode || '').toUpperCase()
-  return LEDGER_LEAVE_TYPE_COLORS[normalizedCode] || '#000000'
-}
-
 function hasLedgerDisplayValue(value) {
   return String(value ?? '').trim() !== ''
 }
@@ -1886,513 +1788,7 @@ function ledgerValueClass(value, entry, section) {
     'ledger-table__value': true,
     'ledger-table__value--emphasis': hasValue,
     'ledger-table__value--wl': hasValue && leaveCode === 'WL',
-    'ledger-table__value--mco6': hasValue && leaveCode === 'MCO6',
-  }
-}
-
-function sanitizeLedgerPdfFilenamePart(value) {
-  return String(value ?? '')
-    .replace(/[\\/:*?"<>|]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function getLedgerPdfFilename(employee) {
-  const safeName = sanitizeLedgerPdfFilenamePart(
-    getEmployeeFullName(employee).replace(/,\s*/g, ' '),
-  )
-  return `${safeName || 'employee'} leave credits ledger.pdf`
-}
-
-function buildLedgerPdfIdentityCell(text, options = {}) {
-  return {
-    text: String(text || ' ').trim() || ' ',
-    fontSize: options.fontSize ?? 8.6,
-    bold: options.bold ?? true,
-    color: '#000000',
-    alignment: options.alignment || 'center',
-    margin: options.margin || [2, 1, 2, 1],
-    noWrap: options.noWrap ?? true,
-  }
-}
-
-function buildLedgerPdfIdentityServiceCell(value, options = {}) {
-  return {
-    text: String(value || 'N/A').trim() || 'N/A',
-    fontSize: options.fontSize ?? 8.6,
-    bold: true,
-    color: '#000000',
-    alignment: options.alignment || 'center',
-    noWrap: options.noWrap ?? true,
-    margin: options.margin || [2, 1, 2, 1],
-  }
-}
-
-function buildLedgerPdfTopLabelCell(text) {
-  return {
-    text: String(text || '').toUpperCase(),
-    fontSize: 8.6,
-    bold: true,
-    color: '#000000',
-    alignment: 'center',
-    margin: [0, 1.8, 0, 1.8],
-  }
-}
-
-function buildLedgerPdfBodyCellMargin(text, options = {}) {
-  if (Array.isArray(options.margin)) return options.margin
-
-  const fontSize = Number(options.fontSize ?? 6.85)
-  const lineHeight = Number(options.lineHeight ?? 0.95)
-  const rowHeight = Number(options.rowHeight ?? 14.05)
-  const lineCount = Math.max(1, String(text || ' ').split('\n').length)
-  // pdfMake uses the font's internal ascender/descender which adds about ~1.2x height
-  const estimatedTextHeight = fontSize * lineHeight * 1.2 * lineCount
-  const verticalMargin = Math.max(0, (rowHeight - estimatedTextHeight) / 2)
-
-  return [0.2, verticalMargin, 0.2, verticalMargin]
-}
-
-function buildLedgerPdfBodyCell(value, options = {}) {
-  const text = String(value ?? '').trim()
-  const fontSize = options.fontSize ?? 6.85
-  const lineHeight = options.lineHeight ?? 0.95
-
-  return {
-    text: text || ' ',
-    alignment: options.alignment || 'center',
-    bold: options.bold ?? false,
-    color: options.color || '#000000',
-    fillColor: options.fillColor,
-    fontSize,
-    lineHeight,
-    margin: buildLedgerPdfBodyCellMargin(text, {
-      ...options,
-      fontSize,
-      lineHeight,
-    }),
-    noWrap: options.noWrap ?? false,
-  }
-}
-
-function buildLedgerPdfValueCell(value, fillColor, options = {}, entry = null, section = '') {
-  const hasValue = hasLedgerDisplayValue(value)
-  const leaveCode = resolveLedgerCellLeaveCode(entry, section)
-  const color = hasValue ? resolveLedgerValueColorByLeaveCode(leaveCode) : '#000000'
-
-  return buildLedgerPdfBodyCell(value, {
-    color,
-    bold: hasValue,
-    fillColor,
-    noWrap: hasValue,
-    ...options,
-  })
-}
-
-function buildLedgerPdfTableBody(rows, preset = {}) {
-  const bodyRowHeight = Number(preset?.pdfBodyRowHeight ?? 14.05)
-  const tableBody = [
-    [
-      {
-        text: 'INCLUSIVE\nDATES',
-        rowSpan: 2,
-        style: 'ledgerPdfRowSpanHead',
-      },
-      {
-        text: 'PARTICULARS',
-        rowSpan: 2,
-        style: 'ledgerPdfRowSpanHead',
-      },
-      {
-        text: 'VACATION LEAVE',
-        colSpan: 4,
-        style: 'ledgerPdfGroupHead',
-      },
-      {},
-      {},
-      {},
-      {
-        text: 'SICK LEAVE',
-        colSpan: 4,
-        style: 'ledgerPdfGroupHead',
-      },
-      {},
-      {},
-      {},
-      {
-        text: 'OTHER TYPE OF LEAVE',
-        colSpan: 4,
-        style: 'ledgerPdfGroupHead',
-      },
-      {},
-      {},
-      {},
-      {
-        text: 'DATE &\nACTION\nTAKEN ON\nAPPLICATION\nFOR LEAVE',
-        rowSpan: 2,
-        style: 'ledgerPdfActionHead',
-      },
-    ],
-    [
-      {},
-      {},
-      { text: 'EARNED', style: 'ledgerPdfSubHead' },
-      { text: 'ABS.\nUND.\nW/P', style: 'ledgerPdfSubHead' },
-      { text: 'BAL.', style: 'ledgerPdfSubHead' },
-      { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
-      { text: 'EARNED', style: 'ledgerPdfSubHead' },
-      { text: 'ABS.\nUND.', style: 'ledgerPdfSubHead' },
-      { text: 'BAL.', style: 'ledgerPdfSubHead' },
-      { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
-      { text: 'EARNED', style: 'ledgerPdfSubHead' },
-      { text: 'ABS.\nUND.', style: 'ledgerPdfSubHead' },
-      { text: 'BAL.', style: 'ledgerPdfSubHead' },
-      { text: 'ABS.\nUND.\nW/oP', style: 'ledgerPdfSubHead' },
-      {},
-    ],
-  ]
-
-  rows.forEach((entry) => {
-    tableBody.push([
-      buildLedgerPdfBodyCell(entry.period, {
-        bold: Boolean(String(entry.period || '').trim()),
-        fontSize: 5.8,
-        lineHeight: 0.92,
-        noWrap: true,
-        rowHeight: bodyRowHeight,
-      }),
-      buildLedgerPdfBodyCell(entry.particulars, {
-        bold: Boolean(String(entry.particulars || '').trim()),
-        fontSize: 5.6,
-        lineHeight: 1,
-        noWrap: true,
-        rowHeight: bodyRowHeight,
-      }),
-      buildLedgerPdfValueCell(
-        entry.vacationEarned,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'VL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.vacationAbsUndWp,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'VL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.vacationBalance,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'VL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.vacationAbsUndWop,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'VL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.sickEarned,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'SL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.sickAbsUnd,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'SL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.sickBalance,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'SL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.sickAbsUndWop,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'SL',
-      ),
-      buildLedgerPdfValueCell(
-        entry.otherEarned,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'OTHER',
-      ),
-      buildLedgerPdfValueCell(
-        entry.otherAbsUndWp,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'OTHER',
-      ),
-      buildLedgerPdfValueCell(
-        entry.otherBalance,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'OTHER',
-      ),
-      buildLedgerPdfValueCell(
-        entry.otherAbsUndWop,
-        undefined,
-        {
-          fontSize: 6.85,
-          rowHeight: bodyRowHeight,
-        },
-        entry,
-        'OTHER',
-      ),
-      buildLedgerPdfBodyCell(entry.actionTaken, {
-        bold: Boolean(String(entry.actionTaken || '').trim()),
-        fontSize: 6.25,
-        lineHeight: 0.92,
-        noWrap: true,
-        rowHeight: bodyRowHeight,
-      }),
-    ])
-  })
-
-  return tableBody
-}
-
-function buildLedgerPdfPageHeader(
-  headingName,
-  headingStatus,
-  headingOffice,
-  firstDayOfService,
-  identityNameFontSize,
-  identityStatusFontSize,
-  identityOfficeFontSize,
-  identityServiceFontSize,
-  horizontalInset,
-  gridLineWidth,
-  headerUnderlineRightTrim,
-) {
-  return [
-    {
-      table: {
-        widths: ['34%', '13%', '29%', '24%'],
-        body: [
-          [
-            buildLedgerPdfIdentityCell(headingName, {
-              fontSize: identityNameFontSize,
-              alignment: 'center',
-            }),
-            buildLedgerPdfIdentityCell(headingStatus, {
-              fontSize: identityStatusFontSize,
-              alignment: 'center',
-            }),
-            buildLedgerPdfIdentityCell(headingOffice, {
-              fontSize: identityOfficeFontSize,
-              alignment: 'center',
-            }),
-            buildLedgerPdfIdentityServiceCell(firstDayOfService, {
-              fontSize: identityServiceFontSize,
-              alignment: 'center',
-            }),
-          ],
-        ],
-      },
-      layout: {
-        hLineWidth: () => 0,
-        vLineWidth: () => 0,
-        hLineColor: () => '#000000',
-        vLineColor: () => '#000000',
-        paddingLeft: () => 0,
-        paddingRight: () => 0,
-        paddingTop: () => 0,
-        paddingBottom: () => 0,
-      },
-      margin: [horizontalInset, 0, horizontalInset + headerUnderlineRightTrim, 2],
-    },
-    {
-      table: {
-        widths: ['34%', '13%', '29%', '24%'],
-        body: [
-          [
-            buildLedgerPdfTopLabelCell('Name'),
-            buildLedgerPdfTopLabelCell('Status'),
-            buildLedgerPdfTopLabelCell('Division Office'),
-            buildLedgerPdfTopLabelCell('1st Day of Service'),
-          ],
-        ],
-      },
-      layout: {
-        hLineWidth: () => gridLineWidth,
-        vLineWidth: () => 0,
-        hLineColor: () => '#000000',
-        vLineColor: () => '#000000',
-        paddingLeft: () => 0,
-        paddingRight: () => 0,
-        paddingTop: () => 0,
-        paddingBottom: () => 0,
-      },
-      margin: [horizontalInset, 0, horizontalInset + headerUnderlineRightTrim, 0],
-    },
-  ]
-}
-
-function buildLeaveCreditsLedgerDocDefinition(employee, rows, paperSize = 'A4') {
-  const preset = LEDGER_PAPER_PRESETS[paperSize] || LEDGER_PAPER_PRESETS.A4
-  const displayName = getEmployeeColumnDisplayName(employee)
-  const headingName = formatLedgerHeadingName(displayName)
-  const headingStatus = formatLedgerHeadingStatus(employee)
-  const headingOffice = formatLedgerHeadingOffice(employee)
-  const firstDayOfService = formatLedgerFirstDayOfService(employee)
-  const identityNameFontSize = resolveLedgerPdfIdentityFontSize(headingName)
-  const identityStatusFontSize = resolveLedgerPdfIdentityFontSize(headingStatus)
-  const identityOfficeFontSize = resolveLedgerPdfIdentityFontSize(headingOffice)
-  const identityServiceFontSize = resolveLedgerPdfIdentityFontSize(firstDayOfService)
-  const horizontalInset = Number(preset?.pdfHorizontalInset ?? 0)
-  const gridLineWidth = Number(preset?.pdfGridLineWidth ?? 0.75)
-  const headerUnderlineRightTrim = Number(preset?.pdfActionColumnShrink ?? 0) * 0.45
-  const renderedPages = buildLedgerPagesForPaper(rows, preset, {
-    padToMinimumRows: true,
-    minimumRowsOverride: preset.pdfMinimumRows ?? preset.minimumRows,
-  })
-  const tableWidths = buildLedgerPdfTableWidths(preset)
-  const content = renderedPages.map((pageRows, pageIndex) => {
-    const pageHeader = buildLedgerPdfPageHeader(
-      headingName,
-      headingStatus,
-      headingOffice,
-      firstDayOfService,
-      identityNameFontSize,
-      identityStatusFontSize,
-      identityOfficeFontSize,
-      identityServiceFontSize,
-      horizontalInset,
-      gridLineWidth,
-      headerUnderlineRightTrim,
-    )
-
-    return {
-      stack: [
-        ...pageHeader,
-        {
-          table: {
-            headerRows: 2,
-            widths: tableWidths,
-            heights: (rowIndex) => {
-              if (rowIndex === 0) return preset.pdfHeaderRowHeight
-              if (rowIndex === 1) return preset.pdfSubHeaderRowHeight
-              return preset.pdfBodyRowHeight
-            },
-            body: buildLedgerPdfTableBody(pageRows, preset),
-          },
-          dontBreakRows: true,
-          keepWithHeaderRows: 2,
-          layout: {
-            hLineWidth: (lineIndex) => (lineIndex === 0 ? 0 : gridLineWidth),
-            vLineWidth: () => gridLineWidth,
-            hLineColor: () => '#000000',
-            vLineColor: () => '#000000',
-            paddingLeft: () => 0.2,
-            paddingRight: () => 0.2,
-            paddingTop: () => 0,
-            paddingBottom: () => 0,
-          },
-          margin: [horizontalInset, 0, horizontalInset, 0],
-        },
-      ],
-      pageBreak: pageIndex > 0 ? 'before' : undefined,
-    }
-  })
-
-  return {
-    pageSize: preset.pageSize,
-    pageOrientation: 'portrait',
-    pageMargins: preset.pageMargins,
-    info: {
-      title: `Leave Credits Ledger - ${displayName}`,
-      author: 'LMS Frontend',
-      subject: 'Employee leave credits ledger',
-    },
-    content,
-    styles: {
-      ledgerPdfRowSpanHead: {
-        color: '#000000',
-        fontSize: 6.8,
-        bold: true,
-        alignment: 'center',
-        margin: [0.8, 10.8, 0.8, 0],
-        lineHeight: 1.01,
-      },
-      ledgerPdfActionHead: {
-        color: '#000000',
-        fontSize: 5.8,
-        bold: true,
-        alignment: 'center',
-        margin: [0.35, 2.5, 0.35, 0],
-        lineHeight: 0.93,
-      },
-      ledgerPdfGroupHead: {
-        color: '#000000',
-        fontSize: 6.8,
-        bold: true,
-        alignment: 'center',
-        margin: [0.8, 3.2, 0.8, 0],
-        lineHeight: 1,
-      },
-      ledgerPdfSubHead: {
-        color: '#000000',
-        fontSize: 6.72,
-        bold: true,
-        alignment: 'center',
-        margin: [0.6, 2.4, 0.6, 0],
-        lineHeight: 0.96,
-      },
-    },
-    defaultStyle: {
-      fontSize: 7.2,
-      color: '#000000',
-    },
+    'ledger-table__value--mc06': hasValue && (leaveCode === 'MC06' || leaveCode === 'MCO6'),
   }
 }
 
@@ -2433,17 +1829,27 @@ function printLeaveCreditsLedger() {
   printingLeaveCreditsLedger.value = true
 
   try {
-    const docDefinition = buildLeaveCreditsLedgerDocDefinition(
-      leaveCreditsLedgerEmployee.value,
-      leaveCreditsLedgerRows.value,
-      ledgerPaperSize.value,
-    )
-
-    pdfMake.createPdf(docDefinition).print()
+    const preset = LEDGER_PAPER_PRESETS[ledgerPaperSize.value] || LEDGER_PAPER_PRESETS.A4
+    const renderedPages = buildLedgerPagesForPaper(leaveCreditsLedgerRows.value, preset, {
+      padToMinimumRows: true,
+      minimumRowsOverride: preset.pdfMinimumRows ?? preset.minimumRows,
+    })
+    const { filename } = printLeaveCreditsLedgerPdf({
+      employeeFullName: getEmployeeFullName(leaveCreditsLedgerEmployee.value),
+      displayName: ledgerEmployeeDisplayName.value,
+      headingName: ledgerEmployeeHeadingName.value,
+      headingStatus: ledgerEmployeeHeadingStatus.value,
+      headingOffice: ledgerEmployeeHeadingOffice.value,
+      firstDayOfService: ledgerEmployeeFirstDayOfService.value,
+      renderedPages,
+      paperSize: ledgerPaperSize.value,
+      preset,
+      resolveCellLeaveCode: resolveLedgerCellLeaveCode,
+    })
 
     $q.notify({
       type: 'positive',
-      message: `Preparing ${ledgerPaperPreset.value.label} ${getLedgerPdfFilename(leaveCreditsLedgerEmployee.value)} for print.`,
+      message: `Preparing ${ledgerPaperPreset.value.label} ${filename} for print.`,
       position: 'top',
     })
   } catch (err) {

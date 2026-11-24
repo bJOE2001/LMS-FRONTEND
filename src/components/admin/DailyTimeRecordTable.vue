@@ -870,18 +870,14 @@
           <div class="csc-footer-band csc-summary-band">
             <div class="csc-panel-col csc-summary-row">
               <span>No. of Day(s): ~{{ pair.leftSheet.presentDaysCount }}</span>
-              <span :class="{ 'td-late-summary': pair.leftSheet.totalLateMinutes > 0 }">
-                No. of Min. Late(s): {{ pair.leftSheet.totalLateMinutes }}
-              </span>
+              <span>No. of Min. Late(s): {{ pair.leftSheet.totalLateMinutes }}</span>
             </div>
             <template v-if="pair.mode !== 'single-centered'">
               <div class="csc-panel-gutter"></div>
               <div class="csc-panel-col csc-summary-row">
                 <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
                   <span>No. of Day(s): ~{{ pair.rightSheet.presentDaysCount }}</span>
-                  <span :class="{ 'td-late-summary': pair.rightSheet.totalLateMinutes > 0 }">
-                    No. of Min. Late(s): {{ pair.rightSheet.totalLateMinutes }}
-                  </span>
+                  <span>No. of Min. Late(s): {{ pair.rightSheet.totalLateMinutes }}</span>
                 </template>
               </div>
             </template>
@@ -1664,8 +1660,8 @@ function getSlotTooltip(row, slotKey, slotLabel) {
   const isReadonly = props.readonly
   if (isRowSlotMissing(row, slotKey)) {
     return isReadonly
-      ? `MISSING PUNCH — Day ${row.dayNumber} (${slotLabel}) is empty.`
-      : `MISSING PUNCH — Day ${row.dayNumber} (${slotLabel}) is empty. Click to input time or remark (O.B. / O.F.) before printing.`
+      ? `Missing punch — Day ${row.dayNumber} (${slotLabel})`
+      : `Missing punch — Day ${row.dayNumber} (${slotLabel}). Click to edit.`
   }
   const lateMins = getSlotLateMinutes(row, slotKey)
   if (lateMins > 0) {
@@ -2280,21 +2276,12 @@ defineExpose({
   font-weight: 700;
 }
 
-.td-late-summary {
-  color: #c62828;
-  font-weight: 700;
-}
-
 @media print {
   .td-overridden-slot {
     color: #000000 !important;
   }
 
   .td-late-slot {
-    color: #c62828 !important;
-  }
-
-  .td-late-summary {
     color: #c62828 !important;
   }
 }

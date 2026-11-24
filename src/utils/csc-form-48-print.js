@@ -313,10 +313,6 @@ export const CSC_FORM_48_PRINT_STYLES = `
     color: #c62828 !important;
     font-weight: 700;
   }
-  .td-late-summary {
-    color: #c62828;
-    font-weight: 700;
-  }
   .td-dash {
     color: #333333;
     font-size: 8pt;

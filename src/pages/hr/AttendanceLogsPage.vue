@@ -171,6 +171,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { date as qDate, useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
+import { formatOfficeAbbreviation, resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
 import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
@@ -183,7 +184,7 @@ const availableDevices = ref([])
 
 const syncSourceOptions = [
   { label: 'All Sources', value: 'ALL' },
-  { label: 'ADMS (Real-Time)', value: 'ADMS' },
+  { label: 'ADMS', value: 'ADMS' },
   { label: 'LAN', value: 'LAN_POLL' },
   { label: 'USB Import', value: 'USB_IMPORT' },
 ]
@@ -270,9 +271,7 @@ const {
 const officeOptions = computed(() => [
   { label: 'All Offices', value: 'ALL' },
   ...availableOffices.value.map((office) => ({
-    label: office.office_acronym
-      ? `${office.office_acronym} — ${office.office_name}`
-      : office.office_name,
+    label: resolveOfficeAcronymLabel(office) || formatOfficeAbbreviation(office.office_name),
     value: office.department_id,
   })),
 ])

@@ -31,140 +31,13 @@
         row-class="row q-col-gutter-sm q-mb-md"
         col-class="col-6 col-sm-4 col-md"
       />
-
-      <!-- Skeleton Main Table Card -->
-      <q-card flat bordered class="rounded-borders bg-white table-card">
-        <q-card-section class="q-py-sm q-px-md row items-center q-col-gutter-sm border-bottom">
-          <div class="col-auto">
-            <q-skeleton
-              type="rect"
-              width="195px"
-              height="40px"
-              class="rounded-borders"
-              animation="wave"
-            />
-          </div>
-          <div class="col-auto">
-            <q-skeleton
-              type="rect"
-              width="180px"
-              height="40px"
-              class="rounded-borders"
-              animation="wave"
-            />
-          </div>
-          <div class="col">
-            <q-skeleton
-              type="rect"
-              width="100%"
-              height="40px"
-              class="rounded-borders"
-              animation="wave"
-            />
-          </div>
-        </q-card-section>
-
-        <!-- Skeleton Table Body -->
-        <div class="q-pa-md">
-          <!-- Columns Header Placeholder -->
-          <div class="row items-center q-pb-sm border-bottom q-col-gutter-sm text-grey-5">
-            <div class="col-1">
-              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
-            </div>
-            <div class="col-3">
-              <q-skeleton type="text" width="50%" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="70%" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="60%" height="16px" animation="wave" />
-            </div>
-            <div class="col-2 text-center">
-              <q-skeleton
-                type="text"
-                width="65%"
-                height="16px"
-                class="q-mx-auto"
-                animation="wave"
-              />
-            </div>
-            <div class="col-1 text-center">
-              <q-skeleton
-                type="text"
-                width="50%"
-                height="16px"
-                class="q-mx-auto"
-                animation="wave"
-              />
-            </div>
-          </div>
-
-          <!-- 8 Skeleton Rows -->
-          <div
-            v-for="r in 8"
-            :key="'sk-row-' + r"
-            class="row items-center q-py-md border-bottom q-col-gutter-sm"
-            :class="{ 'bg-grey-1': r % 2 === 0 }"
-          >
-            <div class="col-1">
-              <q-skeleton type="text" width="60px" height="16px" animation="wave" />
-            </div>
-            <div class="col-3">
-              <q-skeleton type="text" width="145px" height="18px" animation="wave" />
-              <q-skeleton type="text" width="95px" height="14px" class="q-mt-xs" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="55px" height="16px" animation="wave" />
-            </div>
-            <div class="col-1">
-              <q-skeleton type="text" width="42px" height="16px" animation="wave" />
-            </div>
-            <div class="col-2 text-center">
-              <q-skeleton
-                type="rect"
-                width="72px"
-                height="22px"
-                class="rounded-borders q-mx-auto"
-                animation="wave"
-              />
-            </div>
-            <div class="col-1 text-center">
-              <q-skeleton type="QAvatar" size="26px" class="q-mx-auto" animation="wave" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Skeleton Footer -->
-        <div class="q-pa-sm row items-center justify-between bg-grey-1 border-top">
-          <q-skeleton type="text" width="120px" height="16px" animation="wave" />
-          <q-skeleton
-            type="rect"
-            width="160px"
-            height="30px"
-            class="rounded-borders"
-            animation="wave"
-          />
-        </div>
-      </q-card>
+      <TableSkeletonCard
+        :columns="9"
+        :rows="8"
+        :show-toolbar="true"
+        :toolbar-filter-count="2"
+        :show-avatar-column="false"
+      />
     </div>
 
     <!-- ========================================================= -->
@@ -178,131 +51,121 @@
         @update:model-value="pagination.page = 1"
       />
 
-      <!-- Main Attendance Management Card -->
-      <q-card flat bordered class="rounded-borders bg-white table-card">
-        <!-- Table Toolbar Section: Search + Date Navigator + Filter -->
-        <q-card-section class="q-py-sm q-px-md border-bottom">
-          <div class="row items-center q-col-gutter-sm">
-            <!-- Search Input -->
-            <div class="col-12 col-md">
-              <q-input
-                v-model="searchTerm"
-                outlined
+      <!-- Filters Bar Card -->
+      <DataFilterBar
+        v-model:search="searchTerm"
+        search-placeholder="Search by employee name, position, or ID..."
+        search-class="col-12 col-md"
+        @update:search="onSearchInput"
+      >
+        <template #prepend>
+          <!-- Date Navigator + Quick Jump to Today -->
+          <div class="col-12 col-sm-auto row items-center no-wrap q-gutter-x-xs">
+            <div class="row items-center no-wrap rounded-borders q-px-xs date-nav-box">
+              <q-btn
+                flat
                 dense
-                placeholder="Search by employee name, position, or ID..."
-                class="search-employee-input"
-                clearable
-                @update:model-value="onSearchInput"
+                round
+                icon="chevron_left"
+                size="sm"
+                color="grey-8"
+                @click="changeDate(-1)"
               >
-                <template #prepend>
-                  <q-icon name="search" size="18px" color="grey-6" />
-                </template>
-              </q-input>
-            </div>
-            <!-- Date Navigator + Quick Jump to Today -->
-            <div class="col-12 col-sm-auto row items-center no-wrap q-gutter-x-xs">
-              <div class="row items-center no-wrap rounded-borders q-px-xs date-nav-box">
-                <q-btn
-                  flat
-                  dense
-                  round
-                  icon="chevron_left"
-                  size="sm"
-                  color="grey-8"
-                  @click="changeDate(-1)"
-                >
-                  <q-tooltip class="bg-dark">Previous Day</q-tooltip>
-                </q-btn>
+                <q-tooltip class="bg-dark">Previous Day</q-tooltip>
+              </q-btn>
 
-                <div class="row items-center no-wrap cursor-pointer q-px-sm date-display-trigger">
-                  <q-icon name="calendar_month" size="16px" color="green-9" class="q-mr-xs" />
-                  <span class="text-body2 text-weight-bold text-dark date-nav-text">
-                    {{ formatFullDate(selectedDate) }}
-                  </span>
+              <div class="row items-center no-wrap cursor-pointer q-px-sm date-display-trigger">
+                <q-icon name="calendar_month" size="16px" color="green-9" class="q-mr-xs" />
+                <span class="text-body2 text-weight-bold text-dark date-nav-text">
+                  {{ formatFullDate(selectedDate) }}
+                </span>
 
-                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                    <q-date
-                      v-model="selectedDate"
-                      mask="YYYY-MM-DD"
-                      color="green-9"
-                      @update:model-value="fetchAttendanceOverview"
-                    >
-                      <div class="row items-center justify-between">
-                        <q-btn
-                          v-if="selectedDate !== todayStr"
-                          v-close-popup
-                          label="Today"
-                          color="green-9"
-                          flat
-                          no-caps
-                          @click="goToToday"
-                        />
-                        <q-space />
-                        <q-btn v-close-popup label="Close" color="grey-7" flat no-caps />
-                      </div>
-                    </q-date>
-                  </q-popup-proxy>
-                </div>
-
-                <q-btn
-                  flat
-                  dense
-                  round
-                  icon="chevron_right"
-                  size="sm"
-                  color="grey-8"
-                  @click="changeDate(1)"
-                >
-                  <q-tooltip class="bg-dark">Next Day</q-tooltip>
-                </q-btn>
+                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                  <q-date
+                    v-model="selectedDate"
+                    mask="YYYY-MM-DD"
+                    color="green-9"
+                    @update:model-value="fetchAttendanceOverview"
+                  >
+                    <div class="row items-center justify-between">
+                      <q-btn
+                        v-if="selectedDate !== todayStr"
+                        v-close-popup
+                        label="Today"
+                        color="green-9"
+                        flat
+                        no-caps
+                        @click="goToToday"
+                      />
+                      <q-space />
+                      <q-btn v-close-popup label="Close" color="grey-7" flat no-caps />
+                    </div>
+                  </q-date>
+                </q-popup-proxy>
               </div>
 
               <q-btn
-                v-if="selectedDate !== todayStr"
-                outline
+                flat
                 dense
-                no-caps
-                color="green-9"
-                label="Today"
-                class="q-px-sm text-weight-bold toolbar-action-btn"
-                @click="goToToday"
+                round
+                icon="chevron_right"
+                size="sm"
+                color="grey-8"
+                @click="changeDate(1)"
               >
-                <q-tooltip class="bg-dark">Jump back to today</q-tooltip>
+                <q-tooltip class="bg-dark">Next Day</q-tooltip>
               </q-btn>
             </div>
 
-            <!-- Employment Status Filter Dropdown -->
-            <div class="col-12 col-sm-auto">
-              <q-select
-                v-model="selectedEmploymentStatus"
-                :options="employmentStatusOptions"
-                emit-value
-                map-options
-                outlined
-                dense
-                options-dense
-                class="status-filter-select"
-              >
-                <template #prepend>
-                  <q-icon name="filter_list" size="18px" color="grey-6" />
-                </template>
-              </q-select>
-            </div>
+            <q-btn
+              v-if="selectedDate !== todayStr"
+              outline
+              dense
+              no-caps
+              color="green-9"
+              label="Today"
+              class="q-px-sm text-weight-bold toolbar-action-btn"
+              @click="goToToday"
+            >
+              <q-tooltip class="bg-dark">Jump back to today</q-tooltip>
+            </q-btn>
           </div>
-        </q-card-section>
+        </template>
 
-        <!-- Attendance Data Table with Detailed Punch Sessions -->
-        <q-table
-          :rows="filteredEmployeeRows"
-          :columns="columns"
-          row-key="control_no"
-          flat
-          :loading="loading"
-          :rows-per-page-options="[10, 15, 25, 50, 100]"
-          v-model:pagination="pagination"
-          class="attendance-pro-table"
-          @row-click="handleEmployeeRowClick"
-        >
+        <!-- Employment Status Filter Dropdown -->
+        <div class="col-12 col-sm-auto">
+          <q-select
+            v-model="selectedEmploymentStatus"
+            :options="employmentStatusOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            options-dense
+            class="status-filter-select"
+          >
+            <template #prepend>
+              <q-icon name="filter_list" size="18px" color="grey-6" />
+            </template>
+          </q-select>
+        </div>
+      </DataFilterBar>
+
+      <!-- Main Attendance Management Table Card -->
+      <DataTableCard
+        :rows="filteredEmployeeRows"
+        :columns="columns"
+        row-key="control_no"
+        :loading="loading"
+        v-model:pagination="pagination"
+        :rows-per-page-options="[10, 15, 25, 50, 100]"
+        table-class="attendance-pro-table"
+        empty-icon="person_off"
+        no-data-label="No Attendance Records Found"
+        :empty-subtext="`No personnel attendance records match your filter criteria for ${formatFullDate(selectedDate)}.`"
+        loading-text="Loading attendance..."
+        @row-click="handleEmployeeRowClick"
+      >
           <!-- Employee Column: Full Name + Position -->
           <template #body-cell-employee="props">
             <q-td :props="props" class="text-left">
@@ -431,31 +294,20 @@
             </q-td>
           </template>
 
-          <!-- Empty State -->
-          <template #no-data>
-            <div class="full-width text-center q-py-xl text-grey-6">
-              <q-icon name="person_off" size="48px" color="grey-4" />
-              <div class="text-subtitle1 text-weight-bold text-grey-8 q-mt-sm">
-                No Attendance Records Found
-              </div>
-              <div class="text-caption q-mb-md">
-                No personnel attendance records match your filter criteria for
-                {{ formatFullDate(selectedDate) }}.
-              </div>
-              <q-btn
-                v-if="hasActiveFilters"
-                outline
-                dense
-                no-caps
-                color="green-9"
-                label="Reset Filters"
-                class="q-px-md text-weight-bold"
-                @click="resetAllFilters"
-              />
-            </div>
+          <!-- Empty State Actions -->
+          <template #empty-actions>
+            <q-btn
+              v-if="hasActiveFilters"
+              outline
+              dense
+              no-caps
+              color="green-9"
+              label="Reset Filters"
+              class="q-px-md text-weight-bold"
+              @click="resetAllFilters"
+            />
           </template>
-        </q-table>
-      </q-card>
+      </DataTableCard>
     </div>
 
     <!-- Step 1: Quick Date Setup Dialog for Individual Employee DTR -->
@@ -1169,6 +1021,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAttendanceStore } from 'stores/attendance-store'
 import DailyTimeRecordTable from 'src/components/admin/DailyTimeRecordTable.vue'
+import DataFilterBar from 'src/components/common/DataFilterBar.vue'
+import DataTableCard from 'src/components/common/DataTableCard.vue'
 import AttendanceKpiCards from 'src/components/attendance/AttendanceKpiCards.vue'
 import { printBatchCscForm48 } from 'src/utils/csc-form-48-print'
 
@@ -2304,11 +2158,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.attendance-overview-page {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
 .content-reloading {
   opacity: 0.55;
   pointer-events: none;
@@ -2328,31 +2177,13 @@ onMounted(() => {
   }
 }
 
-/* Main Table Card & Toolbar */
-.table-card {
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
-}
-
-.border-bottom {
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.border-top {
-  border-top: 1px solid #f1f5f9;
-}
-
+/* Main Toolbar Controls */
 .status-filter-select {
   min-width: 185px;
 }
 
-.status-filter-select :deep(.q-field__control),
-.search-employee-input :deep(.q-field__control) {
+.status-filter-select :deep(.q-field__control) {
   border-radius: 6px;
-}
-
-.search-employee-input {
-  min-width: 220px;
 }
 
 .date-nav-box {
@@ -2393,31 +2224,8 @@ onMounted(() => {
 }
 
 /* Table Styling */
-.attendance-pro-table :deep(thead tr th) {
-  background-color: #f8fafc;
-  color: #475569;
-  font-weight: 700;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.attendance-pro-table :deep(tbody tr td) {
-  font-size: 0.875rem;
-  color: #1e293b;
-  padding: 10px 14px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
 .attendance-pro-table :deep(tbody tr) {
   cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.attendance-pro-table :deep(tbody tr:hover td) {
-  background-color: #f8fafc !important;
 }
 
 .employee-name-text {

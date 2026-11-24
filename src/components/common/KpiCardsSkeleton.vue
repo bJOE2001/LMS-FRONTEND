@@ -55,19 +55,12 @@
             />
           </div>
 
-          <div v-else class="row items-center justify-between no-wrap q-gutter-x-sm">
+          <div v-else class="row items-center no-wrap">
             <q-skeleton
               type="text"
               :width="hintWidths[(n - 1) % hintWidths.length]"
               height="11px"
               class="app-skeleton-element"
-              :animation="animation"
-            />
-            <q-skeleton
-              type="rect"
-              width="34px"
-              height="16px"
-              class="app-skeleton-kpi-share app-skeleton-element flex-shrink-0"
               :animation="animation"
             />
           </div>
@@ -187,10 +180,6 @@ const resolvedColClass = computed(() => {
 
 .app-skeleton-kpi-pill {
   border-radius: 6px;
-}
-
-.app-skeleton-kpi-share {
-  border-radius: 999px;
 }
 
 .app-skeleton-kpi-compact {
