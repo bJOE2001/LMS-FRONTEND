@@ -1,15 +1,19 @@
 <template>
-  <q-dialog v-model="dialogModel" persistent>
-    <q-card style="min-width: 360px; max-width: 540px; width: 95vw;" class="rounded-borders">
-      <q-card-section class="bg-primary text-white row items-center justify-between q-py-sm">
-        <div class="row items-center text-subtitle1 text-weight-bold">
-          <q-icon name="print" class="q-mr-sm" size="sm" />
-          Print Leave Application (CS Form No. 6)
-        </div>
-        <q-btn icon="close" flat round dense v-close-popup />
-      </q-card-section>
-
-      <q-card-section class="q-pt-md q-pb-xs">
+  <AppDialog
+    v-model="dialogModel"
+    title="Print Leave Application (CS Form No. 6)"
+    icon="print"
+    header-color="primary"
+    max-width="540px"
+    body-class="q-pt-md q-pb-xs q-px-md"
+    actions-class="q-pa-md q-pt-none q-gutter-sm"
+    cancel-color="grey-8"
+    submit-label="Print PDF"
+    submit-icon="print"
+    submit-color="primary"
+    :submit-disable="signatoryMode === 'custom' && !selectedEmployee"
+    @submit="handlePrintClick"
+  >
         <!-- Applicant & Office Summary Card -->
         <div class="q-pa-sm q-mb-md rounded-borders" style="background: #f1f5f9; border: 1px solid #cbd5e1;">
           <div class="row items-center justify-between q-col-gutter-xs">
@@ -115,21 +119,7 @@
             />
           </div>
         </div>
-      </q-card-section>
-
-      <q-card-actions align="right" class="q-pa-md q-pt-none">
-        <q-btn flat label="Cancel" color="grey-8" v-close-popup />
-        <q-btn
-          unelevated
-          color="primary"
-          label="Print PDF"
-          icon="print"
-          :disable="signatoryMode === 'custom' && !selectedEmployee"
-          @click="handlePrintClick"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+  </AppDialog>
 </template>
 
 <script setup>

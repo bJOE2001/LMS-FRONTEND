@@ -305,156 +305,124 @@
     <!-- ========================================================= -->
     <!-- DIALOG: ADD / EDIT REMARK                                 -->
     <!-- ========================================================= -->
-    <q-dialog v-model="remarkDialog.show" persistent>
-      <q-card style="width: 440px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="edit_note" size="20px" />
-            <span class="text-subtitle1 text-weight-bold">
-              {{ remarkDialog.isEdit ? 'Edit Remark' : 'Add New Remark' }}
-            </span>
-          </div>
-          <q-btn dense flat round icon="close" v-close-popup />
-        </q-card-section>
+    <AppDialog
+      v-model="remarkDialog.show"
+      :title="remarkDialog.isEdit ? 'Edit Remark' : 'Add New Remark'"
+      icon="edit_note"
+      max-width="440px"
+      body-class="q-pa-md q-gutter-y-md"
+      actions-class="q-px-md q-pb-md q-gutter-sm"
+      :loading="savingRemark"
+      submit-label="Save Remark"
+      submit-color="green-9"
+      @submit="saveRemark"
+    >
+      <q-input
+        v-model="remarkForm.abbrv"
+        outlined
+        dense
+        label="Abbreviation (Optional)"
+        hint="e.g. O.B., O.F., RESTDAY, ABSENT"
+        autofocus
+      />
 
-        <q-card-section class="q-pa-md q-gutter-y-md">
-          <q-input
-            v-model="remarkForm.abbrv"
-            outlined
-            dense
-            label="Abbreviation (Optional)"
-            hint="e.g. O.B., O.F., RESTDAY, ABSENT"
-            autofocus
-          />
+      <q-input
+        v-model="remarkForm.description"
+        outlined
+        dense
+        label="Description *"
+        hint="e.g. OFFICIAL BUSINESS, ON FIELD, UNDERTIME"
+        :rules="[val => !!val && val.trim().length > 0 || 'Description is required']"
+      />
 
-          <q-input
-            v-model="remarkForm.description"
-            outlined
-            dense
-            label="Description *"
-            hint="e.g. OFFICIAL BUSINESS, ON FIELD, UNDERTIME"
-            :rules="[val => !!val && val.trim().length > 0 || 'Description is required']"
-          />
-
-          <q-toggle
-            v-model="remarkForm.is_active"
-            color="green-9"
-            label="Active in DTR Override options"
-            class="text-weight-medium"
-          />
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn flat no-caps label="Cancel" v-close-popup />
-          <q-btn
-            unelevated
-            no-caps
-            color="green-9"
-            label="Save Remark"
-            class="text-weight-bold q-px-md"
-            :loading="savingRemark"
-            @click="saveRemark"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      <q-toggle
+        v-model="remarkForm.is_active"
+        color="green-9"
+        label="Active in DTR Override options"
+        class="text-weight-medium"
+      />
+    </AppDialog>
 
     <!-- ========================================================= -->
     <!-- DIALOG: ADD / EDIT HOLIDAY                                -->
     <!-- ========================================================= -->
-    <q-dialog v-model="holidayDialog.show" persistent>
-      <q-card style="width: 480px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="event" size="20px" />
-            <span class="text-subtitle1 text-weight-bold">
-              {{ holidayDialog.isEdit ? 'Edit Holiday' : 'Add New Holiday' }}
-            </span>
-          </div>
-          <q-btn dense flat round icon="close" v-close-popup />
-        </q-card-section>
+    <AppDialog
+      v-model="holidayDialog.show"
+      :title="holidayDialog.isEdit ? 'Edit Holiday' : 'Add New Holiday'"
+      icon="event"
+      max-width="480px"
+      body-class="q-pa-md q-gutter-y-md"
+      actions-class="q-px-md q-pb-md q-gutter-sm"
+      :loading="savingHoliday"
+      submit-label="Save Holiday"
+      submit-color="green-9"
+      @submit="saveHoliday"
+    >
+      <!-- Holiday Date Input with Popup Calendar -->
+      <q-input
+        v-model="holidayForm.holiday_date"
+        outlined
+        dense
+        label="Holiday Date *"
+        mask="####-##-##"
+        hint="Format: YYYY-MM-DD"
+        :rules="[val => !!val || 'Holiday date is required']"
+      >
+        <template #append>
+          <q-icon name="event" class="cursor-pointer text-green-9">
+            <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+              <q-date v-model="holidayForm.holiday_date" mask="YYYY-MM-DD" color="green-9">
+                <div class="row items-center justify-end">
+                  <q-btn v-close-popup label="Close" color="green-9" flat />
+                </div>
+              </q-date>
+            </q-popup-proxy>
+          </q-icon>
+        </template>
+      </q-input>
 
-        <q-card-section class="q-pa-md q-gutter-y-md">
-          <!-- Holiday Date Input with Popup Calendar -->
-          <q-input
-            v-model="holidayForm.holiday_date"
-            outlined
-            dense
-            label="Holiday Date *"
-            mask="####-##-##"
-            hint="Format: YYYY-MM-DD"
-            :rules="[val => !!val || 'Holiday date is required']"
-          >
-            <template #append>
-              <q-icon name="event" class="cursor-pointer text-green-9">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date v-model="holidayForm.holiday_date" mask="YYYY-MM-DD" color="green-9">
-                    <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Close" color="green-9" flat />
-                    </div>
-                  </q-date>
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
+      <q-input
+        v-model="holidayForm.name"
+        outlined
+        dense
+        label="Holiday Name *"
+        hint="e.g. Independence Day, Charter Day"
+        :rules="[val => !!val && val.trim().length > 0 || 'Holiday name is required']"
+      />
 
-          <q-input
-            v-model="holidayForm.name"
-            outlined
-            dense
-            label="Holiday Name *"
-            hint="e.g. Independence Day, Charter Day"
-            :rules="[val => !!val && val.trim().length > 0 || 'Holiday name is required']"
-          />
+      <q-select
+        v-model="holidayForm.type"
+        :options="holidayTypeOptions"
+        outlined
+        dense
+        emit-value
+        map-options
+        label="Holiday Classification *"
+      />
 
-          <q-select
-            v-model="holidayForm.type"
-            :options="holidayTypeOptions"
-            outlined
-            dense
-            emit-value
-            map-options
-            label="Holiday Classification *"
-          />
+      <q-input
+        v-model="holidayForm.description"
+        outlined
+        dense
+        label="Description / Notes (Optional)"
+        hint="e.g. Proclamation No. or special instructions"
+      />
 
-          <q-input
-            v-model="holidayForm.description"
-            outlined
-            dense
-            label="Description / Notes (Optional)"
-            hint="e.g. Proclamation No. or special instructions"
-          />
-
-          <div class="row q-gutter-x-md">
-            <q-checkbox
-              v-model="holidayForm.is_recurring"
-              color="green-9"
-              label="Recurs annually (repeats every year on this month/day)"
-              class="text-weight-medium text-caption"
-            />
-            <q-checkbox
-              v-model="holidayForm.is_active"
-              color="green-9"
-              label="Active"
-              class="text-weight-medium text-caption"
-            />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn flat no-caps label="Cancel" v-close-popup />
-          <q-btn
-            unelevated
-            no-caps
-            color="green-9"
-            label="Save Holiday"
-            class="text-weight-bold q-px-md"
-            :loading="savingHoliday"
-            @click="saveHoliday"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      <div class="row q-gutter-x-md">
+        <q-checkbox
+          v-model="holidayForm.is_recurring"
+          color="green-9"
+          label="Recurs annually (repeats every year on this month/day)"
+          class="text-weight-medium text-caption"
+        />
+        <q-checkbox
+          v-model="holidayForm.is_active"
+          color="green-9"
+          label="Active"
+          class="text-weight-medium text-caption"
+        />
+      </div>
+    </AppDialog>
   </q-page>
 </template>
 

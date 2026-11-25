@@ -274,32 +274,21 @@
     </DataTableCard>
 
     <!-- Edit Biometric Device Dialog -->
-    <q-dialog v-model="showDeviceDialog" persistent>
-      <q-card style="width: 520px; max-width: 95vw" class="rounded-borders overflow-hidden">
-        <!-- Dialog Header -->
-        <div
-          class="dialog-header bg-primary text-white row items-center justify-between no-wrap q-px-md q-py-sm"
-        >
-          <div class="row items-center no-wrap q-gutter-x-sm">
-            <div class="dialog-header-icon row items-center justify-center">
-              <q-icon name="devices" size="20px" color="white" />
-            </div>
-            <div class="text-subtitle1 text-weight-bold">
-              {{ isCreatingDevice ? 'Register Biometric Device' : 'Edit Biometric Device' }}
-            </div>
-          </div>
-          <q-btn
-            icon="close"
-            flat
-            round
-            dense
-            text-color="white"
-            @click="showDeviceDialog = false"
-          />
-        </div>
-
-        <!-- Dialog Body -->
-        <q-card-section class="q-pa-md dialog-form-body">
+    <AppDialog
+      v-model="showDeviceDialog"
+      :title="isCreatingDevice ? 'Register Biometric Device' : 'Edit Biometric Device'"
+      icon="devices"
+      header-color="primary"
+      max-width="520px"
+      card-class="rounded-borders overflow-hidden"
+      body-class="q-pa-md dialog-form-body"
+      actions-class="q-px-md q-py-sm bg-grey-1 dialog-footer q-gutter-sm"
+      :loading="submittingDevice"
+      cancel-color="grey-7"
+      :submit-label="isCreatingDevice ? 'Register Device' : 'Save Changes'"
+      submit-color="primary"
+      @submit="submitDeviceForm"
+    >
           <div class="row q-col-gutter-sm">
             <div class="col-12 col-sm-6">
               <q-input
@@ -438,72 +427,36 @@
               </template>
             </q-select>
           </div>
-        </q-card-section>
-
-        <!-- Dialog Footer -->
-        <q-card-actions align="right" class="q-px-md q-py-sm bg-grey-1 dialog-footer">
-          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showDeviceDialog = false" />
-          <q-btn
-            unelevated
-            no-caps
-            :label="isCreatingDevice ? 'Register Device' : 'Save Changes'"
-            color="primary"
-            class="text-weight-bold q-px-md"
-            :loading="submittingDevice"
-            @click="submitDeviceForm"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </AppDialog>
 
     <!-- Delete Confirmation Dialog -->
-    <q-dialog v-model="showDeleteDialog" persistent>
-      <q-card style="width: 440px; max-width: 95vw" class="rounded-borders overflow-hidden">
-        <q-card-section
-          class="row items-center justify-between bg-negative text-white q-py-sm q-px-md"
-        >
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="warning" size="22px" />
-            <span class="text-subtitle1 text-weight-bold">Delete Biometric Device?</span>
-          </div>
-          <q-btn
-            icon="close"
-            flat
-            round
-            dense
-            text-color="white"
-            @click="showDeleteDialog = false"
-          />
-        </q-card-section>
-
-        <q-card-section class="q-pa-md">
-          <div class="text-body2 text-grey-9">
-            Are you sure you want to remove
-            <strong>{{ activeDeleteDevice?.device_name }}</strong> (<code class="font-mono">{{
-              activeDeleteDevice?.serial_number
-            }}</code
-            >)?
-          </div>
-          <div class="text-caption text-grey-7 q-mt-sm">
-            The device record will be removed from ALMS.
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-py-sm bg-grey-1">
-          <q-btn flat no-caps label="Cancel" color="grey-7" @click="showDeleteDialog = false" />
-          <q-btn
-            unelevated
-            no-caps
-            label="Delete Device"
-            color="negative"
-            icon="delete"
-            class="text-weight-bold q-px-md"
-            :loading="submittingDevice"
-            @click="submitDeleteDevice"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <AppDialog
+      v-model="showDeleteDialog"
+      title="Delete Biometric Device?"
+      icon="warning"
+      header-color="negative"
+      max-width="440px"
+      card-class="rounded-borders overflow-hidden"
+      body-class="q-pa-md"
+      actions-class="q-px-md q-py-sm bg-grey-1 q-gutter-sm"
+      :loading="submittingDevice"
+      cancel-color="grey-7"
+      submit-label="Delete Device"
+      submit-icon="delete"
+      submit-color="negative"
+      @submit="submitDeleteDevice"
+    >
+      <div class="text-body2 text-grey-9">
+        Are you sure you want to remove
+        <strong>{{ activeDeleteDevice?.device_name }}</strong> (<code class="font-mono">{{
+          activeDeleteDevice?.serial_number
+        }}</code
+        >)?
+      </div>
+      <div class="text-caption text-grey-7 q-mt-sm">
+        The device record will be removed from ALMS.
+      </div>
+    </AppDialog>
   </q-page>
 </template>
 

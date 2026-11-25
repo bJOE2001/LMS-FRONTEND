@@ -7648,6 +7648,7 @@ export function useAdminApplicationsPage() {
     getEditRequestBadgeLabel,
     hasApprovedEditRequest,
     getEditRequestBadgeColor,
+    getAdminLatestUpdateRequestStatus,
     hasApplicationEditRequest,
     isAdminEditUpdateRequest,
     getApplicationEditRequestStatusLabel,

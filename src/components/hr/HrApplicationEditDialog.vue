@@ -1,6 +1,18 @@
 <template>
-  <q-dialog v-model="dialogModel" persistent class="hr-edit-dialog">
-    <q-card class="hr-edit-card">
+  <AppDialog
+    v-model="dialogModel"
+    max-width="1180px"
+    dialog-class="hr-edit-dialog"
+    card-class="hr-edit-card"
+    raw-body
+    is-form
+    :loading="submitLoading"
+    actions-class="hr-edit-actions"
+    :submit-label="submitButtonLabel"
+    submit-color="primary"
+    @submit="handleSave"
+  >
+    <template #header>
       <q-card-section class="hr-edit-header bg-primary text-white">
         <div class="row items-start no-wrap q-gutter-sm">
           <q-avatar size="42px" class="hr-edit-header__icon">
@@ -12,12 +24,11 @@
               {{ editDialogCaption }}
             </div>
           </div>
-          <q-btn flat dense round icon="close" aria-label="Close edit dialog" @click="dialogModel = false" />
         </div>
       </q-card-section>
+    </template>
 
-      <q-form @submit.prevent="handleSave">
-        <q-card-section v-if="formModel && formModel.id" class="hr-edit-content">
+    <q-card-section v-if="formModel && formModel.id" class="hr-edit-content">
           <div class="hr-edit-section">
             <div class="hr-edit-section__title">Application</div>
 
@@ -232,20 +243,7 @@
           </div>
 
         </q-card-section>
-
-        <q-card-actions align="right" class="hr-edit-actions">
-          <q-btn flat label="Cancel" :disable="submitLoading" @click="dialogModel = false" />
-          <q-btn
-            unelevated
-            color="primary"
-            :label="submitButtonLabel"
-            type="submit"
-            :loading="submitLoading"
-          />
-        </q-card-actions>
-      </q-form>
-    </q-card>
-  </q-dialog>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -1496,8 +1494,16 @@ async function handleSave() {
 }
 
 .hr-edit-card {
-  width: 100%;
+  width: min(1180px, calc(100vw - 32px)) !important;
   max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hr-edit-card > .q-form {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1776,7 +1782,7 @@ async function handleSave() {
   border-top: 1px solid #edf0f4;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 920px) {
   .hr-edit-dialog .q-dialog__inner--minimized {
     padding: 10px;
   }

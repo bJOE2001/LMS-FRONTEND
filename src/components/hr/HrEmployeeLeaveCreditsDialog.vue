@@ -1,14 +1,24 @@
 <template>
-  <q-dialog :model-value="modelValue" persistent @update:model-value="onDialogModelUpdate">
-    <q-card class="rounded-borders leave-credit-dialog">
+  <AppDialog
+    :model-value="modelValue"
+    max-width="780px"
+    card-class="rounded-borders leave-credit-dialog"
+    body-class="q-pt-sm q-px-md"
+    actions-class="q-pa-md q-gutter-sm"
+    :loading="saving"
+    cancel-color="grey-7"
+    :submit-label="saveButtonLabel"
+    :submit-icon="isEditMode ? 'edit' : 'save'"
+    submit-color="secondary"
+    @update:model-value="onDialogModelUpdate"
+    @submit="submitSave"
+  >
+    <template #header>
       <q-card-section class="row items-center q-pb-none">
         <q-icon :name="dialogIcon" size="sm" color="secondary" class="q-mr-sm" />
         <div class="text-h6">{{ dialogTitle }}</div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup :disable="saving" />
       </q-card-section>
-
-      <q-card-section class="q-pt-sm">
+    </template>
         <q-banner dense rounded class="bg-blue-1 text-blue-9 q-mb-md">
           <template #avatar>
             <q-icon name="info" color="blue-8" />
@@ -138,36 +148,14 @@
             </q-banner>
           </div>
         </div>
-      </q-card-section>
+  </AppDialog>
 
-      <q-card-actions align="right" class="q-pa-md">
-        <q-btn
-          flat
-          no-caps
-          label="Cancel"
-          color="grey-7"
-          v-close-popup
-          :disable="saving"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          :label="saveButtonLabel"
-          color="secondary"
-          :icon="isEditMode ? 'edit' : 'save'"
-          :loading="saving"
-          @click="submitSave"
-        />
-      </q-card-actions>
-    </q-card>
-
-    <HrEmployeeCocImportDialog
-      v-model="showCocImportDialog"
-      :employee-control-no="form.employee_control_no"
-      :employee-label="selectedEmployeeLabel"
-      @saved="onCocImportSaved"
-    />
-  </q-dialog>
+  <HrEmployeeCocImportDialog
+    v-model="showCocImportDialog"
+    :employee-control-no="form.employee_control_no"
+    :employee-label="selectedEmployeeLabel"
+    @saved="onCocImportSaved"
+  />
 </template>
 
 <script setup>

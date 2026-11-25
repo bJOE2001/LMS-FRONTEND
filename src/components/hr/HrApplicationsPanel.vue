@@ -603,120 +603,92 @@
   />
 
   <!-- Bulk CMO/CVMO Review Confirmation Dialog -->
-  <q-dialog v-model="showBulkCmoCbmoConfirmDialog" persistent>
-    <q-card class="rounded-borders" style="width: min(560px, 94vw)">
+  <AppDialog
+    v-model="showBulkCmoCbmoConfirmDialog"
+    max-width="560px"
+    body-class="q-pt-md q-px-md"
+    actions-class="q-px-md q-pb-md q-gutter-sm"
+    :loading="bulkCmoCbmoReviewLoading"
+    cancel-color="grey-7"
+    :submit-label="`Approve ${selectedCmoCbmoApplications.length} Application${selectedCmoCbmoApplications.length === 1 ? '' : 's'}`"
+    submit-icon="check_circle"
+    submit-color="deep-purple-7"
+    @submit="handleConfirmBulkCmoCbmoReview"
+  >
+    <template #header>
       <q-card-section class="row items-center q-pb-none">
         <q-avatar icon="playlist_add_check" color="deep-purple-1" text-color="deep-purple-8" size="md" />
         <div class="text-h6 text-weight-bold q-ml-sm">Approve CMO / CVMO Review</div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup :disable="bulkCmoCbmoReviewLoading" />
       </q-card-section>
+    </template>
 
-      <q-card-section class="q-pt-md">
-        <div class="text-body2 text-grey-9 q-mb-md">
-          You are about to batch-approve <strong>{{ selectedCmoCbmoApplications.length }}</strong> leave application(s) for CMO/CVMO Review. Once approved, they will advance to <strong>Pending Release</strong>.
-        </div>
+    <div class="text-body2 text-grey-9 q-mb-md">
+      You are about to batch-approve <strong>{{ selectedCmoCbmoApplications.length }}</strong> leave application(s) for CMO/CVMO Review. Once approved, they will advance to <strong>Pending Release</strong>.
+    </div>
 
-        <!-- Selected Applications List Summary -->
-        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Selected Applications:</div>
-        <q-scroll-area style="height: 180px;" class="bg-grey-1 rounded-borders q-pa-sm border-grey-3">
-          <q-list dense separator>
-            <q-item v-for="app in selectedCmoCbmoApplications" :key="`bulk-app-${app.id || app.application_uid}`">
-              <q-item-section>
-                <q-item-label class="text-weight-medium text-grey-9">{{ app.employeeName || 'Unknown Employee' }}</q-item-label>
-                <q-item-label caption class="text-grey-7">
-                  {{ app.leaveType || app.leave_type_name || 'Leave' }} ({{ getApplicationDurationDisplay(app) }})
-                  <span class="text-grey-6 q-ml-xs">• Filed {{ formatDate(app.dateFiled || app.filed_at || app.created_at) || 'N/A' }}</span>
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-badge color="deep-purple-7" label="CMO/CVMO Review" />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-scroll-area>
-      </q-card-section>
-
-      <q-card-actions align="right" class="q-px-md q-pb-md">
-        <q-btn
-          flat
-          no-caps
-          label="Cancel"
-          color="grey-7"
-          v-close-popup
-          :disable="bulkCmoCbmoReviewLoading"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          color="deep-purple-7"
-          text-color="white"
-          icon="check_circle"
-          :loading="bulkCmoCbmoReviewLoading"
-          :label="`Approve ${selectedCmoCbmoApplications.length} Application${selectedCmoCbmoApplications.length === 1 ? '' : 's'}`"
-          @click="handleConfirmBulkCmoCbmoReview"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+    <!-- Selected Applications List Summary -->
+    <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Selected Applications:</div>
+    <q-scroll-area style="height: 180px;" class="bg-grey-1 rounded-borders q-pa-sm border-grey-3">
+      <q-list dense separator>
+        <q-item v-for="app in selectedCmoCbmoApplications" :key="`bulk-app-${app.id || app.application_uid}`">
+          <q-item-section>
+            <q-item-label class="text-weight-medium text-grey-9">{{ app.employeeName || 'Unknown Employee' }}</q-item-label>
+            <q-item-label caption class="text-grey-7">
+              {{ app.leaveType || app.leave_type_name || 'Leave' }} ({{ getApplicationDurationDisplay(app) }})
+              <span class="text-grey-6 q-ml-xs">• Filed {{ formatDate(app.dateFiled || app.filed_at || app.created_at) || 'N/A' }}</span>
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-badge color="deep-purple-7" label="CMO/CVMO Review" />
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </q-scroll-area>
+  </AppDialog>
 
   <!-- Bulk Release Confirmation Dialog -->
-  <q-dialog v-model="showBulkReleaseConfirmDialog" persistent>
-    <q-card class="rounded-borders" style="width: min(560px, 94vw)">
+  <AppDialog
+    v-model="showBulkReleaseConfirmDialog"
+    max-width="560px"
+    body-class="q-pt-md q-px-md"
+    actions-class="q-px-md q-pb-md q-gutter-sm"
+    :loading="bulkReleaseLoading"
+    cancel-color="grey-7"
+    :submit-label="`Release ${selectedReleaseApplications.length} Application${selectedReleaseApplications.length === 1 ? '' : 's'}`"
+    submit-icon="assignment_turned_in"
+    submit-color="secondary"
+    @submit="handleConfirmBulkRelease"
+  >
+    <template #header>
       <q-card-section class="row items-center q-pb-none">
         <q-avatar icon="assignment_turned_in" color="blue-1" text-color="secondary" size="md" />
         <div class="text-h6 text-weight-bold q-ml-sm">Confirm Batch Release</div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup :disable="bulkReleaseLoading" />
       </q-card-section>
+    </template>
 
-      <q-card-section class="q-pt-md">
-        <div class="text-body2 text-grey-9 q-mb-md">
-          You are about to batch-release <strong>{{ selectedReleaseApplications.length }}</strong> application(s). Once released, their status will become <strong>Released / Approved (Completed)</strong>.
-        </div>
+    <div class="text-body2 text-grey-9 q-mb-md">
+      You are about to batch-release <strong>{{ selectedReleaseApplications.length }}</strong> application(s). Once released, their status will become <strong>Released / Approved (Completed)</strong>.
+    </div>
 
-        <!-- Selected Applications List Summary -->
-        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Selected Applications:</div>
-        <q-scroll-area style="height: 180px;" class="bg-grey-1 rounded-borders q-pa-sm border-grey-3">
-          <q-list dense separator>
-            <q-item v-for="app in selectedReleaseApplications" :key="`bulk-rel-app-${app.id || app.application_uid}`">
-              <q-item-section>
-                <q-item-label class="text-weight-medium text-grey-9">{{ app.employeeName || 'Unknown Employee' }}</q-item-label>
-                <q-item-label caption class="text-grey-7">
-                  {{ app.leaveType || app.leave_type_name || 'Leave' }} ({{ getApplicationDurationDisplay(app) }})
-                  <span class="text-grey-6 q-ml-xs">• Filed {{ formatDate(app.dateFiled || app.filed_at || app.created_at) || 'N/A' }}</span>
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-badge color="secondary" label="Pending Release" />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-scroll-area>
-      </q-card-section>
-
-      <q-card-actions align="right" class="q-px-md q-pb-md">
-        <q-btn
-          flat
-          no-caps
-          label="Cancel"
-          color="grey-7"
-          v-close-popup
-          :disable="bulkReleaseLoading"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          color="secondary"
-          text-color="white"
-          icon="assignment_turned_in"
-          :loading="bulkReleaseLoading"
-          :label="`Release ${selectedReleaseApplications.length} Application${selectedReleaseApplications.length === 1 ? '' : 's'}`"
-          @click="handleConfirmBulkRelease"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+    <!-- Selected Applications List Summary -->
+    <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">Selected Applications:</div>
+    <q-scroll-area style="height: 180px;" class="bg-grey-1 rounded-borders q-pa-sm border-grey-3">
+      <q-list dense separator>
+        <q-item v-for="app in selectedReleaseApplications" :key="`bulk-rel-app-${app.id || app.application_uid}`">
+          <q-item-section>
+            <q-item-label class="text-weight-medium text-grey-9">{{ app.employeeName || 'Unknown Employee' }}</q-item-label>
+            <q-item-label caption class="text-grey-7">
+              {{ app.leaveType || app.leave_type_name || 'Leave' }} ({{ getApplicationDurationDisplay(app) }})
+              <span class="text-grey-6 q-ml-xs">• Filed {{ formatDate(app.dateFiled || app.filed_at || app.created_at) || 'N/A' }}</span>
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-badge color="secondary" label="Pending Release" />
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </q-scroll-area>
+  </AppDialog>
 </template>
 
 <script>

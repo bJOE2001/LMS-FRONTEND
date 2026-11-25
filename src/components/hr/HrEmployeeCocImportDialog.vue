@@ -1,14 +1,28 @@
 <template>
-  <q-dialog :model-value="modelValue" persistent @update:model-value="onDialogModelUpdate">
-    <q-card class="rounded-borders coc-import-dialog">
+  <AppDialog
+    :model-value="modelValue"
+    title="Manage COC Entries"
+    icon="event_available"
+    header-class="bg-white text-dark"
+    max-width="780px"
+    card-class="rounded-borders coc-import-dialog"
+    body-class="q-pt-sm q-px-md"
+    actions-class="q-pa-md q-gutter-sm"
+    :loading="saving"
+    cancel-color="grey-7"
+    submit-label="Save"
+    submit-icon="save"
+    submit-color="primary"
+    :submit-disable="loading"
+    @update:model-value="onDialogModelUpdate"
+    @submit="submitSave"
+  >
+    <template #header>
       <q-card-section class="row items-center q-pb-none">
         <q-icon name="event_available" size="sm" color="primary" class="q-mr-sm" />
         <div class="text-h6">Manage COC Entries</div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup :disable="saving" />
       </q-card-section>
-
-      <q-card-section class="q-pt-sm">
+    </template>
         <div class="row q-col-gutter-md q-mb-md">
           <div class="col-12">
             <q-input
@@ -121,30 +135,7 @@
             </div>
           </template>
         </div>
-      </q-card-section>
-
-      <q-card-actions align="right" class="q-pa-md">
-        <q-btn
-          flat
-          no-caps
-          label="Cancel"
-          color="grey-7"
-          v-close-popup
-          :disable="saving"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          label="Save"
-          color="primary"
-          icon="save"
-          :loading="saving"
-          :disable="loading"
-          @click="submitSave"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+  </AppDialog>
 </template>
 
 <script setup>

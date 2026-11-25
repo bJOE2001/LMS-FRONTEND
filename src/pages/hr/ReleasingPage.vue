@@ -40,46 +40,40 @@
       @confirmed="onScannerConfirmed"
     />
 
-    <q-dialog v-model="showExportDialog">
-      <q-card style="width: 400px; max-width: 90vw;">
-        <q-card-section>
-          <div class="text-h6">Export Released Applications</div>
-        </q-card-section>
+    <AppDialog
+      v-model="showExportDialog"
+      title="Export Released Applications"
+      header-class="bg-white text-dark"
+      max-width="400px"
+      :persistent="false"
+      :loading="exporting"
+      body-class="q-pt-none q-px-md"
+      actions-class="q-pa-md q-gutter-sm"
+      cancel-color="grey-7"
+      submit-label="Export"
+      submit-color="primary"
+      @submit="performExport"
+    >
+      <HeaderDateRangePicker
+        v-model:start-date="exportFromDate"
+        v-model:end-date="exportToDate"
+        label="Export Date Range"
+        :clearable="false"
+        full-width
+        menu-anchor="bottom left"
+        menu-self="top left"
+        class="q-mb-md"
+      />
+      <div v-if="dateError" class="text-caption text-negative q-mb-sm">
+        {{ dateError }}
+      </div>
 
-        <q-card-section class="q-pt-none">
-          <HeaderDateRangePicker
-            v-model:start-date="exportFromDate"
-            v-model:end-date="exportToDate"
-            label="Export Date Range"
-            :clearable="false"
-            full-width
-            menu-anchor="bottom left"
-            menu-self="top left"
-            class="q-mb-md"
-          />
-          <div v-if="dateError" class="text-caption text-negative q-mb-sm">
-            {{ dateError }}
-          </div>
-          
-          <div class="text-subtitle2 q-mb-sm">Export Format</div>
-          <div class="q-gutter-sm">
-            <q-radio v-model="exportFormat" val="excel" label="Excel (.xlsx)" />
-            <q-radio v-model="exportFormat" val="pdf" label="PDF (.pdf)" />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey" v-close-popup />
-          <q-btn
-            flat
-            label="Export"
-            color="primary"
-            :loading="exporting"
-            @click="performExport"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      <div class="text-subtitle2 q-mb-sm">Export Format</div>
+      <div class="q-gutter-sm">
+        <q-radio v-model="exportFormat" val="excel" label="Excel (.xlsx)" />
+        <q-radio v-model="exportFormat" val="pdf" label="PDF (.pdf)" />
+      </div>
+    </AppDialog>
   </q-page>
 </template>
 

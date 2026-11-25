@@ -400,20 +400,21 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showDepartmentHeadDialog" persistent>
-      <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">
-            {{
-              departmentHeadDialogMode === 'edit' ? 'Edit Department Head' : 'Add Department Head'
-            }}
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="savingDepartmentHead" v-close-popup />
-        </q-card-section>
-
-        <q-form ref="departmentHeadFormRef" @submit.prevent="saveDepartmentHead">
-          <q-card-section class="q-pt-sm">
+    <AppDialog
+      ref="departmentHeadFormRef"
+      v-model="showDepartmentHeadDialog"
+      :title="departmentHeadDialogMode === 'edit' ? 'Edit Department Head' : 'Add Department Head'"
+      header-class="bg-white text-dark"
+      max-width="760px"
+      body-class="q-pt-sm q-px-md"
+      actions-class="q-pa-md q-gutter-sm"
+      is-form
+      :loading="savingDepartmentHead"
+      cancel-color="grey-7"
+      :submit-label="departmentHeadDialogMode === 'edit' ? 'Update Dept. Head' : 'Add Dept. Head'"
+      submit-color="primary"
+      @submit="saveDepartmentHead"
+    >
             <div class="row q-col-gutter-md">
               <div class="col-12 col-md-4">
                 <q-input
@@ -501,40 +502,23 @@
                 />
               </div>
             </div>
-          </q-card-section>
+    </AppDialog>
 
-          <q-card-actions align="right" class="q-pa-md">
-            <q-btn
-              flat
-              no-caps
-              label="Cancel"
-              color="grey-7"
-              :disable="savingDepartmentHead"
-              v-close-popup
-            />
-            <q-btn
-              unelevated
-              no-caps
-              :label="departmentHeadDialogMode === 'edit' ? 'Update Dept. Head' : 'Add Dept. Head'"
-              color="primary"
-              :loading="savingDepartmentHead"
-              type="submit"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showFormDialog" persistent>
-      <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Add Employee</div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="submitting" v-close-popup />
-        </q-card-section>
-
-        <q-form ref="formRef" @submit.prevent="saveEmployee">
-          <q-card-section class="q-pt-sm">
+    <AppDialog
+      ref="formRef"
+      v-model="showFormDialog"
+      title="Add Employee"
+      header-class="bg-white text-dark"
+      max-width="760px"
+      body-class="q-pt-sm q-px-md"
+      actions-class="q-pa-md q-gutter-sm"
+      is-form
+      :loading="submitting"
+      cancel-color="grey-7"
+      submit-label="Add Employee"
+      submit-color="primary"
+      @submit="saveEmployee"
+    >
             <div class="row q-col-gutter-md">
               <div class="col-12">
                 <q-select
@@ -566,6 +550,23 @@
                         <q-item-label caption>
                           {{ scope.opt.designation || '-' }} • {{ scope.opt.office_acronym || '-' }}
                         </q-item-label>
+                      </q-item-section>
+                      <q-item-section
+                        v-if="
+                          scope.opt.assigned_department_id &&
+                          Number(scope.opt.assigned_department_id) !== Number(adminDepartmentId)
+                        "
+                        side
+                      >
+                        <q-badge
+                          outline
+                          color="orange-9"
+                          :label="`In ${
+                            scope.opt.assigned_department_acronym ||
+                            scope.opt.assigned_department_name ||
+                            'Other Office'
+                          }`"
+                        />
                       </q-item-section>
                     </q-item>
                   </template>
@@ -600,7 +601,7 @@
                   :model-value="adminDepartmentName"
                   outlined
                   dense
-                  label="Assinged To"
+                  label="Assigned To"
                   readonly
                 />
               </div>
@@ -668,22 +669,7 @@
                 />
               </div>
             </div>
-          </q-card-section>
-
-          <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="submitting" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              label="Add Employee"
-              color="primary"
-              :loading="submitting"
-              type="submit"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
+    </AppDialog>
   </q-page>
 </template>
 

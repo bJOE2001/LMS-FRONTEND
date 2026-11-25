@@ -275,16 +275,16 @@
       </div>
     </div>
 
-    <q-dialog v-model="showOverrideDialog" persistent>
-      <q-card class="override-dialog rounded-borders">
-        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
-          <div>
-            <div class="text-subtitle1 text-weight-bold">{{ isViewingOverride ? 'Custom Schedule Details' : editingOverrideId ? 'Edit Custom Schedule' : 'Add Custom Schedule' }}</div>
-          </div>
-          <q-btn flat round dense icon="close" text-color="white" v-close-popup :disable="savingOverride" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-md schedule-fields-shell">
+    <AppDialog
+      v-model="showOverrideDialog"
+      :title="isViewingOverride ? 'Custom Schedule Details' : editingOverrideId ? 'Edit Custom Schedule' : 'Add Custom Schedule'"
+      max-width="1180px"
+      card-class="override-dialog rounded-borders"
+      body-class="q-pt-md schedule-fields-shell"
+      actions-class="q-px-md q-pb-md q-gutter-sm"
+      :show-cancel="!isViewingOverride"
+      :loading="savingOverride"
+    >
           <div class="row q-col-gutter-md">
             <div v-if="!editingOverrideId" class="col-12">
               <q-select
@@ -493,20 +493,17 @@
               Last updated on {{ formatDateTime(viewingOverrideMeta.updated_at) }} by {{ viewingOverrideMeta.updated_by_hr || 'HR' }}.
             </div>
           </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
-          <template v-if="isViewingOverride">
-            <q-btn flat no-caps color="grey-7" label="Close" v-close-popup />
-            <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="edit" label="Edit Schedule" @click="switchToEditOverride" />
-          </template>
-          <template v-else>
-            <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="savingOverride" />
-            <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" :label="editingOverrideId ? 'Save Changes' : 'Create Custom Schedule'" :loading="savingOverride" @click="saveOverride" />
-          </template>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      <template #actions="{ cancel }">
+        <template v-if="isViewingOverride">
+          <q-btn flat no-caps color="grey-7" label="Close" @click="cancel" />
+          <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" icon="edit" label="Edit Schedule" @click="switchToEditOverride" />
+        </template>
+        <template v-else>
+          <q-btn flat no-caps color="grey-7" label="Cancel" :disable="savingOverride" @click="cancel" />
+          <q-btn unelevated no-caps color="green-9" class="text-weight-bold q-px-md" :label="editingOverrideId ? 'Save Changes' : 'Create Custom Schedule'" :loading="savingOverride" @click="saveOverride" />
+        </template>
+      </template>
+    </AppDialog>
   </component>
 </template>
 

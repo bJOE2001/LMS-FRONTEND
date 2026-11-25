@@ -684,7 +684,7 @@
 
     <!-- Success Dialog -->
     <q-dialog v-model="showSuccess" persistent>
-      <q-card style="min-width: 400px" class="rounded-borders">
+      <q-card style="width: min(440px, 92vw); max-width: 92vw" class="rounded-borders">
         <q-card-section class="text-center q-pa-lg">
           <q-icon name="check_circle" color="positive" size="64px" class="q-mb-md" />
           <div class="text-h6 text-weight-bold">{{ isMonetization ? 'Monetization Request Filed!' : 'Application Filed!' }}</div>

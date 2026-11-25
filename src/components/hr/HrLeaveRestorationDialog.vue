@@ -1,16 +1,20 @@
 <template>
-  <q-dialog v-model="dialogModel" persistent>
-    <q-card style="width: 540px; max-width: 95vw" class="rounded-borders">
-      <q-card-section class="bg-primary text-white row items-center justify-between q-py-sm">
-        <div class="row items-center text-subtitle1 text-weight-bold">
-          <q-icon :name="isEditMode ? 'edit' : 'settings_backup_restore'" class="q-mr-sm" size="sm" />
-          {{ isEditMode ? 'Edit Restored Leave Entry' : 'Restore/Cancel/Recall Leave' }}
-        </div>
-        <q-btn icon="close" flat round dense v-close-popup />
-      </q-card-section>
-
-      <q-form @submit="handleSubmit">
-        <q-card-section class="q-gutter-y-md q-pt-md">
+  <AppDialog
+    v-model="dialogModel"
+    :title="isEditMode ? 'Edit Restored Leave Entry' : 'Restore/Cancel/Recall Leave'"
+    :icon="isEditMode ? 'edit' : 'settings_backup_restore'"
+    header-color="primary"
+    max-width="540px"
+    body-class="q-gutter-y-md q-pt-md q-px-md"
+    actions-class="q-px-md q-pb-md q-gutter-sm"
+    is-form
+    :loading="submitting"
+    cancel-color="grey-7"
+    :submit-label="isEditMode ? 'Save Changes' : 'Submit'"
+    :submit-icon="isEditMode ? 'save' : 'settings_backup_restore'"
+    submit-color="primary"
+    @submit="handleSubmit"
+  >
           <!-- Target Leave Type Selection -->
           <q-select
             v-model="form.target_leave_type_id"
@@ -91,21 +95,7 @@
               <span class="text-caption text-weight-bold text-primary">DAYS</span>
             </template>
           </q-input>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn flat label="Cancel" color="grey-7" v-close-popup :disable="submitting" />
-          <q-btn
-            type="submit"
-            color="primary"
-            :icon="isEditMode ? 'save' : 'settings_backup_restore'"
-            :label="isEditMode ? 'Save Changes' : 'Submit'"
-            :loading="submitting"
-          />
-        </q-card-actions>
-      </q-form>
-    </q-card>
-  </q-dialog>
+  </AppDialog>
 </template>
 
 <script setup>

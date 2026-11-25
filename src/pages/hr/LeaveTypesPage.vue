@@ -144,95 +144,83 @@
         </template>
     </DataTableCard>
 
-    <q-dialog v-model="showFormDialog" persistent>
-      <q-card style="width: 95vw; max-width: 620px" class="rounded-borders">
-        <q-card-section class="row items-center bg-green-9 text-white q-py-sm">
-          <div class="text-subtitle1 text-weight-bold">{{ isEditMode ? 'Edit Leave Type' : 'Add Leave Type' }}</div>
-          <q-space />
-          <q-btn icon="close" flat round dense text-color="white" v-close-popup :disable="saving" />
-        </q-card-section>
-
-        <q-card-section class="q-pt-md">
-          <div class="row q-col-gutter-md">
-            <div class="col-12 col-md-6">
-              <q-input v-model="form.name" outlined dense label="Name *" maxlength="255" />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-select
-                v-model="form.category"
-                :options="categoryOptions"
-                emit-value
-                map-options
-                outlined
-                dense
-                label="Category *"
-              />
-            </div>
-
-            <div v-if="form.category === 'ACCRUED'" class="col-12 col-md-6">
-              <q-input v-model.number="form.accrual_rate" type="number" outlined dense label="Accrual Rate *" min="0.01" step="0.01" />
-            </div>
-            <div v-if="form.category === 'ACCRUED'" class="col-12 col-md-6">
-              <q-input v-model.number="form.accrual_day_of_month" type="number" outlined dense label="Accrual Day (1-31) *" min="1" max="31" />
-            </div>
-
-            <div class="col-12 col-md-6">
-              <q-input v-model.number="form.max_days" type="number" outlined dense label="Max Days (optional)" min="0" />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-toggle v-model="form.is_credit_based" label="Credit-Based" color="green-8" />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-toggle v-model="form.resets_yearly" label="Resets Yearly" color="blue-7" />
-            </div>
-            <div class="col-12">
-              <div class="text-subtitle2 q-mb-sm">Required Documents</div>
-              <q-option-group
-                v-model="form.requires_documents"
-                :options="requiredDocumentOptions"
-                type="radio"
-                color="deep-orange-7"
-                inline
-              />
-              <div class="text-caption text-grey-7 q-mt-xs">
-                Choose whether this leave type requires attachment upload on application.
-              </div>
-            </div>
-            <div class="col-12">
-              <q-select
-                v-model="form.allowed_status"
-                :options="employmentStatusOptions"
-                outlined
-                dense
-                multiple
-                emit-value
-                map-options
-                use-chips
-                clearable
-                label="Allowed Employee Status (optional)"
-                hint="Leave empty to allow all employee status."
-              />
-            </div>
-            <div class="col-12">
-              <q-input v-model="form.description" type="textarea" rows="3" outlined dense label="Description (optional)" maxlength="2000" />
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn flat no-caps label="Cancel" color="grey-7" v-close-popup :disable="saving" />
-          <q-btn
-            unelevated
-            no-caps
-            color="green-9"
-            class="text-weight-bold q-px-md"
-            :label="isEditMode ? 'Save Changes' : 'Create Leave Type'"
-            :loading="saving"
-            @click="saveLeaveType"
+    <AppDialog
+      v-model="showFormDialog"
+      :title="isEditMode ? 'Edit Leave Type' : 'Add Leave Type'"
+      max-width="620px"
+      body-class="q-pt-md"
+      actions-class="q-px-md q-pb-md q-gutter-sm"
+      :loading="saving"
+      cancel-color="grey-7"
+      :submit-label="isEditMode ? 'Save Changes' : 'Create Leave Type'"
+      submit-color="green-9"
+      @submit="saveLeaveType"
+    >
+      <div class="row q-col-gutter-md">
+        <div class="col-12 col-md-6">
+          <q-input v-model="form.name" outlined dense label="Name *" maxlength="255" />
+        </div>
+        <div class="col-12 col-md-6">
+          <q-select
+            v-model="form.category"
+            :options="categoryOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            label="Category *"
           />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </div>
+
+        <div v-if="form.category === 'ACCRUED'" class="col-12 col-md-6">
+          <q-input v-model.number="form.accrual_rate" type="number" outlined dense label="Accrual Rate *" min="0.01" step="0.01" />
+        </div>
+        <div v-if="form.category === 'ACCRUED'" class="col-12 col-md-6">
+          <q-input v-model.number="form.accrual_day_of_month" type="number" outlined dense label="Accrual Day (1-31) *" min="1" max="31" />
+        </div>
+
+        <div class="col-12 col-md-6">
+          <q-input v-model.number="form.max_days" type="number" outlined dense label="Max Days (optional)" min="0" />
+        </div>
+        <div class="col-12 col-md-6">
+          <q-toggle v-model="form.is_credit_based" label="Credit-Based" color="green-8" />
+        </div>
+        <div class="col-12 col-md-6">
+          <q-toggle v-model="form.resets_yearly" label="Resets Yearly" color="blue-7" />
+        </div>
+        <div class="col-12">
+          <div class="text-subtitle2 q-mb-sm">Required Documents</div>
+          <q-option-group
+            v-model="form.requires_documents"
+            :options="requiredDocumentOptions"
+            type="radio"
+            color="deep-orange-7"
+            inline
+          />
+          <div class="text-caption text-grey-7 q-mt-xs">
+            Choose whether this leave type requires attachment upload on application.
+          </div>
+        </div>
+        <div class="col-12">
+          <q-select
+            v-model="form.allowed_status"
+            :options="employmentStatusOptions"
+            outlined
+            dense
+            multiple
+            emit-value
+            map-options
+            use-chips
+            clearable
+            label="Allowed Employee Status (optional)"
+            hint="Leave empty to allow all employee status."
+          />
+        </div>
+        <div class="col-12">
+          <q-input v-model="form.description" type="textarea" rows="3" outlined dense label="Description (optional)" maxlength="2000" />
+        </div>
+      </div>
+    </AppDialog>
   </component>
 </template>
 

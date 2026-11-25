@@ -3,9 +3,7 @@
     <!-- Page Header -->
     <div class="row justify-between items-center q-col-gutter-sm q-mb-lg">
       <div class="col-auto">
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">
-          Punch Logs
-        </h1>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Punch Logs</h1>
       </div>
       <div class="col-12 col-sm-auto">
         <HeaderDateRangePicker
@@ -19,12 +17,12 @@
     <DataFilterBar
       v-model:search="searchTerm"
       search-placeholder="Search employee, control no, PIN, device, office..."
-      search-class="col-12 col-md-4"
+      search-class="col-12 col-sm-6 col-md-6"
       :loading="loading && rows.length === 0"
-      :skeleton-filter-count="4"
+      :skeleton-filter-count="2"
       :skeleton-has-action="false"
     >
-      <div class="col-6 col-sm-3 col-md-2">
+      <div class="col-6 col-sm-3 col-md-3">
         <q-select
           v-model="filters.department_id"
           :options="officeOptions"
@@ -36,13 +34,12 @@
           dense
           options-dense
           label="Office"
-          @update:model-value="onOfficeChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-2">
+      <div class="col-6 col-sm-3 col-md-3">
         <q-select
-          v-model="filters.device_serial_number"
-          :options="deviceOptions"
+          v-model="filters.status"
+          :options="statusOptions"
           option-label="label"
           option-value="value"
           emit-value
@@ -50,35 +47,7 @@
           outlined
           dense
           options-dense
-          label="Device"
-        />
-      </div>
-      <div class="col-6 col-sm-3 col-md-2">
-        <q-select
-          v-model="filters.sync_source"
-          :options="syncSourceOptions"
-          option-label="label"
-          option-value="value"
-          emit-value
-          map-options
-          outlined
-          dense
-          options-dense
-          label="Sync Source"
-        />
-      </div>
-      <div class="col-6 col-sm-3 col-md-2">
-        <q-select
-          v-model="filters.verify_type"
-          :options="verifyTypeOptions"
-          option-label="label"
-          option-value="value"
-          emit-value
-          map-options
-          outlined
-          dense
-          options-dense
-          label="Verify Mode"
+          label="Status"
         />
       </div>
     </DataFilterBar>
@@ -96,7 +65,10 @@
     >
       <template #body-cell-biometric_pin="props">
         <q-td :props="props">
-          <code class="text-caption text-weight-bold">
+          <code
+            class="text-caption text-weight-bold"
+            :class="props.row.is_voided ? 'text-grey-6' : ''"
+          >
             {{ props.row.biometric_pin || props.row.employee_control_no || '—' }}
           </code>
         </q-td>
@@ -104,7 +76,10 @@
 
       <template #body-cell-employee_name="props">
         <q-td :props="props">
-          <div class="text-weight-medium text-dark">
+          <div
+            class="text-weight-medium"
+            :class="props.row.is_voided ? 'text-grey-6' : 'text-dark'"
+          >
             {{ props.row.employee_name || '—' }}
           </div>
           <div v-if="props.row.designation" class="text-caption text-grey-7">
@@ -136,7 +111,32 @@
 
       <template #body-cell-punch_time="props">
         <q-td :props="props">
-          <span class="text-no-wrap text-weight-medium">{{ formatDateTime(props.row.punch_time) }}</span>
+          <div class="row items-center no-wrap q-gutter-xs">
+            <span
+              class="text-no-wrap text-weight-medium"
+              :class="props.row.is_voided ? 'text-strike text-grey-6' : ''"
+            >
+              {{ formatDateTime(props.row.punch_time) }}
+            </span>
+            <q-badge
+              v-if="props.row.is_voided"
+              color="negative"
+              label="VOIDED"
+              class="text-weight-bold"
+            >
+              <q-tooltip anchor="top middle" self="bottom middle">
+                <div>Voided by {{ props.row.voided_by_name || 'HR' }}</div>
+                <div v-if="props.row.voided_at">{{ formatDateTime(props.row.voided_at) }}</div>
+                <div v-if="props.row.void_reason">Reason: {{ props.row.void_reason }}</div>
+              </q-tooltip>
+            </q-badge>
+          </div>
+          <div
+            v-if="props.row.is_voided && props.row.void_reason"
+            class="text-caption text-negative q-mt-xs"
+          >
+            {{ props.row.void_reason }}
+          </div>
         </q-td>
       </template>
 
@@ -163,7 +163,142 @@
           />
         </q-td>
       </template>
+
+      <template #body-cell-actions="props">
+        <q-td :props="props" class="text-center">
+          <q-btn
+            v-if="!props.row.is_voided"
+            flat
+            round
+            dense
+            size="sm"
+            color="negative"
+            icon="delete_outline"
+            aria-label="Void punch log"
+            @click="openVoidDialog(props.row)"
+          >
+            <q-tooltip anchor="top middle" self="bottom middle">Void</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-else
+            flat
+            round
+            dense
+            size="sm"
+            color="positive"
+            icon="restore"
+            aria-label="Restore punch log"
+            @click="openRestoreDialog(props.row)"
+          >
+            <q-tooltip anchor="top middle" self="bottom middle">Restore</q-tooltip>
+          </q-btn>
+        </q-td>
+      </template>
     </DataTableCard>
+
+    <!-- Void Punch Dialog -->
+    <AppDialog
+      v-model="voidDialog.open"
+      title="Void Punch Log"
+      icon="delete_outline"
+      header-color="negative"
+      max-width="480px"
+      :loading="submittingAction"
+      submit-label="Void Punch"
+      submit-icon="delete_outline"
+      submit-color="negative"
+      :submit-disable="voidDialog.reason.trim().length < 3"
+      @cancel="closeVoidDialog"
+      @submit="confirmVoidPunch"
+    >
+      <div v-if="voidDialog.row" class="bg-grey-2 rounded-borders q-pa-sm text-body2">
+        <div class="text-weight-bold text-dark">
+          {{ voidDialog.row.employee_name || 'Unlinked Employee' }}
+        </div>
+        <div class="text-caption text-grey-8 q-mt-xs">
+          PIN:
+          <code>{{
+            voidDialog.row.biometric_pin || voidDialog.row.employee_control_no || '—'
+          }}</code>
+          &nbsp;&bull;&nbsp;
+          {{ formatDateTime(voidDialog.row.punch_time) }}
+        </div>
+        <div class="text-caption text-grey-7">
+          Device:
+          {{ voidDialog.row.office_acronym || voidDialog.row.office_name || 'Unassigned Device' }}
+          <span v-if="voidDialog.row.device_serial_number"
+            >({{ voidDialog.row.device_serial_number }})</span
+          >
+        </div>
+      </div>
+
+      <div>
+        <div class="text-caption text-grey-7 q-mb-xs">Quick reasons</div>
+        <div class="row q-gutter-xs">
+          <q-chip
+            v-for="preset in VOID_REASON_PRESETS"
+            :key="preset"
+            clickable
+            dense
+            :outline="voidDialog.reason.trim() !== preset"
+            :color="voidDialog.reason.trim() === preset ? 'negative' : 'grey-7'"
+            :text-color="voidDialog.reason.trim() === preset ? 'white' : 'grey-8'"
+            @click="voidDialog.reason = preset"
+          >
+            {{ preset }}
+          </q-chip>
+        </div>
+      </div>
+
+      <q-input
+        v-model="voidDialog.reason"
+        type="textarea"
+        rows="2"
+        outlined
+        dense
+        autofocus
+        maxlength="255"
+        counter
+        label="Reason for voiding *"
+        placeholder="e.g. Accidental biometric punch outside shift"
+        :rules="[
+          (val) => (val && val.trim().length >= 3) || 'Please enter at least 3 characters',
+        ]"
+      />
+    </AppDialog>
+
+    <!-- Restore Punch Dialog -->
+    <AppDialog
+      v-model="restoreDialog.open"
+      title="Restore Punch Log"
+      icon="restore"
+      header-color="positive"
+      max-width="440px"
+      body-class="q-gutter-sm"
+      :loading="submittingAction"
+      submit-label="Restore Punch"
+      submit-icon="restore"
+      submit-color="positive"
+      @cancel="closeRestoreDialog"
+      @submit="confirmRestorePunch"
+    >
+      <div v-if="restoreDialog.row" class="bg-grey-2 rounded-borders q-pa-sm text-body2">
+        <div class="text-weight-bold text-dark">
+          {{ restoreDialog.row.employee_name || 'Unlinked Employee' }}
+        </div>
+        <div class="text-caption text-grey-8 q-mt-xs">
+          PIN:
+          <code>{{
+            restoreDialog.row.biometric_pin || restoreDialog.row.employee_control_no || '—'
+          }}</code>
+          &nbsp;&bull;&nbsp;
+          {{ formatDateTime(restoreDialog.row.punch_time) }}
+        </div>
+        <div v-if="restoreDialog.row.void_reason" class="text-caption text-negative q-mt-xs">
+          Void reason: {{ restoreDialog.row.void_reason }}
+        </div>
+      </div>
+    </AppDialog>
   </q-page>
 </template>
 
@@ -172,6 +307,7 @@ import { computed, onMounted, ref } from 'vue'
 import { date as qDate, useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { formatOfficeAbbreviation, resolveOfficeAcronymLabel } from 'src/utils/office-acronym'
+import AppDialog from 'src/components/common/AppDialog.vue'
 import DataFilterBar from 'src/components/common/DataFilterBar.vue'
 import DataTableCard from 'src/components/common/DataTableCard.vue'
 import HeaderDateRangePicker from 'src/components/common/HeaderDateRangePicker.vue'
@@ -180,22 +316,30 @@ import { useDataTable } from 'src/composables/useDataTable'
 const $q = useQuasar()
 
 const availableOffices = ref([])
-const availableDevices = ref([])
 
-const syncSourceOptions = [
-  { label: 'All Sources', value: 'ALL' },
-  { label: 'ADMS', value: 'ADMS' },
-  { label: 'LAN', value: 'LAN_POLL' },
-  { label: 'USB Import', value: 'USB_IMPORT' },
+const statusOptions = [
+  { label: 'All Punches', value: 'all' },
+  { label: 'Active Only', value: 'active' },
+  { label: 'Voided Only', value: 'voided' },
 ]
 
-const verifyTypeOptions = [
-  { label: 'All Modes', value: 'ALL' },
-  { label: 'Fingerprint', value: 1 },
-  { label: 'Face', value: 15 },
-  { label: 'Card', value: 4 },
-  { label: 'Password', value: 0 },
+const VOID_REASON_PRESETS = [
+  'Accidental punch',
+  'Double punch',
+  'Wrong terminal',
+  'Outside shift mistake',
 ]
+
+const submittingAction = ref(false)
+const voidDialog = ref({
+  open: false,
+  row: null,
+  reason: '',
+})
+const restoreDialog = ref({
+  open: false,
+  row: null,
+})
 
 const {
   search: searchTerm,
@@ -210,9 +354,7 @@ const {
   debounceMs: 400,
   initialFilters: {
     department_id: 'ALL',
-    device_serial_number: 'ALL',
-    sync_source: 'ALL',
-    verify_type: 'ALL',
+    status: 'all',
     start_date: '',
     end_date: '',
   },
@@ -229,15 +371,11 @@ const {
       per_page: rowsPerPage,
       sort_by: sortBy || 'punch_time',
       sort_dir: descending ? 'desc' : 'asc',
+      status: activeFilters.status || 'all',
     }
 
     if (search) params.search = search
     if (activeFilters.department_id !== 'ALL') params.department_id = activeFilters.department_id
-    if (activeFilters.device_serial_number !== 'ALL') {
-      params.device_serial_number = activeFilters.device_serial_number
-    }
-    if (activeFilters.sync_source !== 'ALL') params.sync_source = activeFilters.sync_source
-    if (activeFilters.verify_type !== 'ALL') params.verify_type = activeFilters.verify_type
     if (activeFilters.start_date) params.start_date = activeFilters.start_date
     if (activeFilters.end_date) params.end_date = activeFilters.end_date
 
@@ -246,9 +384,6 @@ const {
 
       if (Array.isArray(data.filters?.offices)) {
         availableOffices.value = data.filters.offices
-      }
-      if (Array.isArray(data.filters?.devices)) {
-        availableDevices.value = data.filters.devices
       }
 
       return {
@@ -275,21 +410,6 @@ const officeOptions = computed(() => [
     value: office.department_id,
   })),
 ])
-
-const deviceOptions = computed(() => {
-  const filtered =
-    filters.department_id === 'ALL'
-      ? availableDevices.value
-      : availableDevices.value.filter((device) => device.department_id === filters.department_id)
-
-  return [
-    { label: 'All Devices', value: 'ALL' },
-    ...filtered.map((device) => ({
-      label: `${device.device_name} (${device.serial_number})`,
-      value: device.serial_number,
-    })),
-  ]
-})
 
 const columns = [
   {
@@ -321,6 +441,12 @@ const columns = [
     align: 'center',
     field: 'sync_source',
     sortable: true,
+  },
+  {
+    name: 'actions',
+    label: 'Actions',
+    align: 'center',
+    field: 'actions',
   },
 ]
 
@@ -363,13 +489,96 @@ function formatDateTime(value) {
   return qDate.formatDate(parsed, 'MMM D, YYYY h:mm:ss A')
 }
 
-function onOfficeChange(newOfficeId) {
-  if (newOfficeId === 'ALL' || filters.device_serial_number === 'ALL') return
-  const selectedDevice = availableDevices.value.find(
-    (device) => device.serial_number === filters.device_serial_number
-  )
-  if (selectedDevice && selectedDevice.department_id !== newOfficeId) {
-    filters.device_serial_number = 'ALL'
+function openVoidDialog(row) {
+  voidDialog.value = {
+    open: true,
+    row,
+    reason: '',
+  }
+}
+
+function closeVoidDialog() {
+  if (submittingAction.value) return
+  voidDialog.value = {
+    open: false,
+    row: null,
+    reason: '',
+  }
+}
+
+async function confirmVoidPunch() {
+  const row = voidDialog.value.row
+  const reason = voidDialog.value.reason.trim()
+  if (!row || reason.length < 3 || submittingAction.value) return
+
+  submittingAction.value = true
+  try {
+    const { data } = await api.post(`/hr/attendance-logs/${row.id}/void`, {
+      void_reason: reason,
+    })
+
+    $q.notify({
+      type: data?.dtr_is_adjusted ? 'warning' : 'positive',
+      message: data?.message || 'Punch log voided and DTR recalculated.',
+      position: 'top',
+      timeout: data?.dtr_is_adjusted ? 5000 : 3500,
+    })
+
+    voidDialog.value = { open: false, row: null, reason: '' }
+    await fetchLogs()
+  } catch (err) {
+    console.error('Failed to void punch log:', err)
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to void punch log.',
+      position: 'top',
+    })
+  } finally {
+    submittingAction.value = false
+  }
+}
+
+function openRestoreDialog(row) {
+  restoreDialog.value = {
+    open: true,
+    row,
+  }
+}
+
+function closeRestoreDialog() {
+  if (submittingAction.value) return
+  restoreDialog.value = {
+    open: false,
+    row: null,
+  }
+}
+
+async function confirmRestorePunch() {
+  const row = restoreDialog.value.row
+  if (!row || submittingAction.value) return
+
+  submittingAction.value = true
+  try {
+    const { data } = await api.post(`/hr/attendance-logs/${row.id}/restore`)
+
+    $q.notify({
+      type: data?.dtr_is_adjusted ? 'warning' : 'positive',
+      message: data?.message || 'Punch log restored and DTR recalculated.',
+      position: 'top',
+      timeout: data?.dtr_is_adjusted ? 5000 : 3500,
+    })
+
+    restoreDialog.value = { open: false, row: null }
+    await fetchLogs()
+  } catch (err) {
+    console.error('Failed to restore punch log:', err)
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to restore punch log.',
+      position: 'top',
+    })
+  } finally {
+    submittingAction.value = false
   }
 }
 

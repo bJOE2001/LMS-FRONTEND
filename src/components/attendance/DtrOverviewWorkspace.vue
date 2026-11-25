@@ -590,13 +590,19 @@
     </q-dialog>
 
     <!-- Centered Two-Column Modal Dialog for Batch DTR Printing -->
-    <q-dialog
+    <AppDialog
       v-model="showBulkDialog"
+      max-width="820px"
+      :persistent="false"
+      card-class="dtr-setup-dialog column no-wrap bg-white"
+      card-style="width: 820px; max-width: 96vw; max-height: 92vh"
       transition-show="scale"
       transition-hide="scale"
+      body-class="col scroll q-pa-md bg-grey-1"
+      actions-class="bg-white q-px-md q-py-sm no-print dtr-dialog-footer row items-center justify-between"
+      :loading="batchLoading"
     >
-      <q-card style="width: 820px; max-width: 96vw; max-height: 92vh;" class="dtr-setup-dialog column no-wrap bg-white">
-        <!-- Dialog Header Toolbar -->
+      <template #header>
         <div class="dtr-dialog-header bg-green-9 text-white row items-center no-wrap q-px-md">
           <div class="dtr-header-icon-box row items-center justify-center q-mr-sm">
             <q-icon name="print" size="20px" color="white" />
@@ -605,13 +611,8 @@
             <div class="text-subtitle1 text-weight-bold leading-tight">Batch Print DTR — Civil Service Form No. 48</div>
             <div class="text-caption text-green-2 leading-tight">Configure coverage period and personnel roster</div>
           </div>
-          <q-btn icon="close" flat round dense text-color="white" v-close-popup>
-            <q-tooltip class="bg-dark">Close</q-tooltip>
-          </q-btn>
         </div>
-
-        <!-- Dialog Body: Two-Column Layout -->
-        <q-card-section class="col scroll q-pa-md bg-grey-1">
+      </template>
           <div class="row q-col-gutter-md">
             <!-- Left Column: Coverage Date Range -->
             <div class="col-12 col-sm-6">
@@ -852,37 +853,34 @@
               </div>
             </div>
           </div>
-        </q-card-section>
 
-        <!-- Dialog Footer Actions -->
-        <q-card-actions align="between" class="bg-white q-px-md q-py-sm no-print dtr-dialog-footer">
-          <q-btn
-            flat
-            no-caps
-            color="grey-7"
-            label="Cancel"
-            class="text-weight-bold q-px-md"
-            v-close-popup
-          />
-          <q-btn
-            unelevated
-            color="green-9"
-            text-color="white"
-            icon="print"
-            :label="`Generate & Preview (${selectedEmployees.length})`"
-            no-caps
-            class="text-weight-bolder q-px-md dtr-generate-btn"
-            :loading="batchLoading"
-            :disable="selectedEmployees.length === 0 || !normalizedBatchCustomRange"
-            @click="openBatchPrintModal"
-          >
-            <q-tooltip class="bg-dark">
-              {{ !normalizedBatchCustomRange ? 'Please select a coverage date range first' : 'Generate and preview CSC Form No. 48 for selected personnel' }}
-            </q-tooltip>
-          </q-btn>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      <template #actions="{ cancel }">
+        <q-btn
+          flat
+          no-caps
+          color="grey-7"
+          label="Cancel"
+          class="text-weight-bold q-px-md"
+          @click="cancel"
+        />
+        <q-btn
+          unelevated
+          color="green-9"
+          text-color="white"
+          icon="print"
+          :label="`Generate & Preview (${selectedEmployees.length})`"
+          no-caps
+          class="text-weight-bolder q-px-md dtr-generate-btn"
+          :loading="batchLoading"
+          :disable="selectedEmployees.length === 0 || !normalizedBatchCustomRange"
+          @click="openBatchPrintModal"
+        >
+          <q-tooltip class="bg-dark">
+            {{ !normalizedBatchCustomRange ? 'Please select a coverage date range first' : 'Generate and preview CSC Form No. 48 for selected personnel' }}
+          </q-tooltip>
+        </q-btn>
+      </template>
+    </AppDialog>
 
     <!-- Batch Civil Service Form No. 48 Print Preview Modal Dialog -->
     <q-dialog
