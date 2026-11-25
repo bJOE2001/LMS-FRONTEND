@@ -1,61 +1,50 @@
 <template>
-  <q-dialog :model-value="modelValue" persistent @update:model-value="onDialogModelUpdate">
-    <q-card style="width: 500px; max-width: 95vw;" class="rounded-borders">
-      <q-card-section class="row items-center justify-between bg-primary text-white q-py-sm">
-        <div class="row items-center q-gutter-x-sm">
-          <q-icon name="fingerprint" size="22px" />
-          <div class="text-subtitle1 text-weight-bold">Push to Biometric Device</div>
-        </div>
-        <q-btn flat round dense icon="close" text-color="white" v-close-popup :disable="pushing" />
-      </q-card-section>
+  <AppDialog
+    :model-value="modelValue"
+    title="Push to Biometric Device"
+    icon="fingerprint"
+    header-color="primary"
+    max-width="500px"
+    body-class="q-pt-md q-px-md"
+    actions-class="q-px-md q-pb-md q-gutter-sm"
+    :loading="pushing"
+    cancel-color="grey-7"
+    submit-label="Push to Device"
+    submit-icon="send"
+    submit-color="primary"
+    :submit-disable="!selectedDeviceSn"
+    @update:model-value="onDialogModelUpdate"
+    @submit="submitPush"
+  >
+    <div v-if="employee" class="q-mb-md">
+      <div class="text-caption text-grey-6 text-uppercase text-weight-bold">Employee</div>
+      <div class="text-weight-bold text-subtitle2 text-grey-9">
+        {{ employeeFullName }}
+      </div>
+      <div class="text-caption text-grey-7">
+        Control No: {{ employee.control_no }} • {{ officeLabel }}
+      </div>
+    </div>
 
-      <q-card-section class="q-pt-md">
-        <div v-if="employee" class="q-mb-md">
-          <div class="text-caption text-grey-6 text-uppercase text-weight-bold">Employee</div>
-          <div class="text-weight-bold text-subtitle2 text-grey-9">
-            {{ employeeFullName }}
-          </div>
-          <div class="text-caption text-grey-7">
-            Control No: {{ employee.control_no }} • {{ officeLabel }}
-          </div>
-        </div>
-
-        <div class="q-mb-sm">
-          <div class="text-caption text-grey-7 q-mb-xs">Select Biometric Terminal:</div>
-          <q-select
-            v-model="selectedDeviceSn"
-            :options="deviceOptions"
-            emit-value
-            map-options
-            outlined
-            dense
-            :loading="loadingDevices"
-            label="Biometric Terminal *"
-            hint="The employee record will be sent to this terminal for registration."
-          >
-            <template #prepend>
-              <q-icon name="devices" />
-            </template>
-          </q-select>
-        </div>
-      </q-card-section>
-
-      <q-card-actions align="right" class="q-px-md q-pb-md q-gutter-sm">
-        <q-btn flat no-caps color="grey-7" label="Cancel" v-close-popup :disable="pushing" />
-        <q-btn
-          unelevated
-          no-caps
-          color="primary"
-          class="text-weight-bold q-px-md"
-          icon="send"
-          label="Push to Device"
-          :loading="pushing"
-          :disable="!selectedDeviceSn"
-          @click="submitPush"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+    <div class="q-mb-sm">
+      <div class="text-caption text-grey-7 q-mb-xs">Select Biometric Terminal:</div>
+      <q-select
+        v-model="selectedDeviceSn"
+        :options="deviceOptions"
+        emit-value
+        map-options
+        outlined
+        dense
+        :loading="loadingDevices"
+        label="Biometric Terminal *"
+        hint="The employee record will be sent to this terminal for registration."
+      >
+        <template #prepend>
+          <q-icon name="devices" />
+        </template>
+      </q-select>
+    </div>
+  </AppDialog>
 </template>
 
 <script setup>

@@ -350,9 +350,17 @@
     </DataTableCard>
 
     <!-- Polished Edit Module Access Dialog -->
-    <q-dialog v-model="showEditDialog" persistent transition-show="scale" transition-hide="scale">
-      <q-card style="width: 780px; max-width: 96vw" class="rounded-borders dialog-card">
-        <!-- Dialog Header -->
+    <AppDialog
+      v-model="showEditDialog"
+      max-width="780px"
+      card-class="rounded-borders dialog-card"
+      transition-show="scale"
+      transition-hide="scale"
+      :loading="saving"
+      raw-body
+      actions-class="q-px-lg q-py-md border-top bg-grey-1 row items-center justify-between"
+    >
+      <template #header>
         <q-card-section class="row items-center q-pb-sm border-bottom bg-grey-1">
           <div class="row items-center q-gutter-sm">
             <q-avatar
@@ -373,9 +381,8 @@
               <div class="text-caption text-grey-6">@{{ selectedAccount?.username || '-' }}</div>
             </div>
           </div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="saving" v-close-popup />
         </q-card-section>
+      </template>
 
         <!-- Self-Edit Alert Banner -->
         <q-banner
@@ -613,38 +620,36 @@
           </div>
         </q-card-section>
 
-        <!-- Dialog Footer with Changes Diff Summary -->
-        <q-card-actions class="q-px-lg q-py-md border-top bg-grey-1 row items-center justify-between">
-          <div>
-            <div v-if="changeSummary.hasChanges" class="row items-center q-gutter-xs">
-              <span class="text-caption text-weight-medium text-grey-8">Changes:</span>
-              <q-badge v-if="changeSummary.addedCount > 0" color="positive" class="text-weight-bold">
-                +{{ changeSummary.addedCount }} to grant
-              </q-badge>
-              <q-badge v-if="changeSummary.removedCount > 0" color="negative" class="text-weight-bold">
-                -{{ changeSummary.removedCount }} to revoke
-              </q-badge>
-            </div>
-            <div v-else class="text-caption text-grey-6">
-              No permission changes made
-            </div>
+      <template #actions="{ cancel }">
+        <div>
+          <div v-if="changeSummary.hasChanges" class="row items-center q-gutter-xs">
+            <span class="text-caption text-weight-medium text-grey-8">Changes:</span>
+            <q-badge v-if="changeSummary.addedCount > 0" color="positive" class="text-weight-bold">
+              +{{ changeSummary.addedCount }} to grant
+            </q-badge>
+            <q-badge v-if="changeSummary.removedCount > 0" color="negative" class="text-weight-bold">
+              -{{ changeSummary.removedCount }} to revoke
+            </q-badge>
           </div>
+          <div v-else class="text-caption text-grey-6">
+            No permission changes made
+          </div>
+        </div>
 
-          <div class="row items-center q-gutter-sm">
-            <q-btn flat label="Cancel" :disable="saving" v-close-popup class="text-weight-medium" />
-            <q-btn
-              unelevated
-              color="primary"
-              icon="save"
-              label="Save Access"
-              :loading="saving"
-              class="rounded-borders q-px-md text-weight-bold"
-              @click="saveModuleAccess"
-            />
-          </div>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        <div class="row items-center q-gutter-sm">
+          <q-btn flat label="Cancel" :disable="saving" class="text-weight-medium" @click="cancel" />
+          <q-btn
+            unelevated
+            color="primary"
+            icon="save"
+            label="Save Access"
+            :loading="saving"
+            class="rounded-borders q-px-md text-weight-bold"
+            @click="saveModuleAccess"
+          />
+        </div>
+      </template>
+    </AppDialog>
   </q-page>
 </template>
 

@@ -887,203 +887,182 @@
     </div>
 
     <!-- In-Charge Signatory Modal Dialog -->
-    <q-dialog v-model="showInChargeDialog">
-      <q-card style="width: 520px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="badge" size="20px" />
-            <span class="text-subtitle1 text-weight-bold">Change In-Charge Signatory</span>
-          </div>
-          <q-btn dense flat round icon="close" v-close-popup />
-        </q-card-section>
+    <AppDialog
+      v-model="showInChargeDialog"
+      title="Change In-Charge Signatory"
+      icon="badge"
+      max-width="520px"
+      :persistent="false"
+      body-class="q-pa-md q-gutter-y-md"
+      actions-class="q-px-md q-pb-md row items-center justify-between"
+    >
+      <div class="text-caption text-grey-8">
+        Select a Department Head from the list or manually type a custom signatory (e.g. Officer-in-Charge / OIC).
+      </div>
 
-        <q-card-section class="q-pa-md q-gutter-y-md">
-          <div class="text-caption text-grey-8">
-            Select a Department Head from the list or manually type a custom signatory (e.g. Officer-in-Charge / OIC).
-          </div>
+      <!-- Quick Select Department Head -->
+      <q-select
+        v-if="departmentHeadsList.length > 0"
+        v-model="selectedHeadModel"
+        :options="departmentHeadsList"
+        option-label="label"
+        outlined
+        dense
+        label="Quick Select Department Head"
+        clearable
+        @update:model-value="onSelectDepartmentHead"
+      >
+        <template #prepend>
+          <q-icon name="account_circle" size="18px" color="green-9" />
+        </template>
+        <template #option="scope">
+          <q-item v-bind="scope.itemProps">
+            <q-item-section>
+              <q-item-label class="text-weight-bold">{{ scope.opt.name }}</q-item-label>
+              <q-item-label caption class="text-grey-7">{{ scope.opt.title }} • {{ scope.opt.department }}</q-item-label>
+            </q-item-section>
+          </q-item>
+        </template>
+      </q-select>
 
-          <!-- Quick Select Department Head -->
-          <q-select
-            v-if="departmentHeadsList.length > 0"
-            v-model="selectedHeadModel"
-            :options="departmentHeadsList"
-            option-label="label"
-            outlined
-            dense
-            label="Quick Select Department Head"
-            clearable
-            @update:model-value="onSelectDepartmentHead"
-          >
-            <template #prepend>
-              <q-icon name="account_circle" size="18px" color="green-9" />
-            </template>
-            <template #option="scope">
-              <q-item v-bind="scope.itemProps">
-                <q-item-section>
-                  <q-item-label class="text-weight-bold">{{ scope.opt.name }}</q-item-label>
-                  <q-item-label caption class="text-grey-7">{{ scope.opt.title }} • {{ scope.opt.department }}</q-item-label>
-                </q-item-section>
-              </q-item>
-            </template>
-          </q-select>
+      <!-- Signatory Name -->
+      <q-input
+        v-model="tempInChargeName"
+        outlined
+        dense
+        label="In-Charge Full Name *"
+        hint="Format: FIRSTNAME M.I. SURNAME"
+        class="text-uppercase"
+      />
 
-          <!-- Signatory Name -->
-          <q-input
-            v-model="tempInChargeName"
-            outlined
-            dense
-            label="In-Charge Full Name *"
-            hint="Format: FIRSTNAME M.I. SURNAME"
-            class="text-uppercase"
-          />
+      <!-- Designation / Title -->
+      <q-input
+        v-model="tempInChargeTitle"
+        outlined
+        dense
+        label="Office / Designation / Title *"
+        hint="e.g. CICTMO HEAD, OIC - CITY ENGINEER, etc."
+        class="text-uppercase"
+      />
 
-          <!-- Designation / Title -->
-          <q-input
-            v-model="tempInChargeTitle"
-            outlined
-            dense
-            label="Office / Designation / Title *"
-            hint="e.g. CICTMO HEAD, OIC - CITY ENGINEER, etc."
-            class="text-uppercase"
-          />
-        </q-card-section>
-
-        <q-card-actions align="between" class="q-px-md q-pb-md">
-          <q-btn
-            flat
-            no-caps
-            color="grey-8"
-            icon="restart_alt"
-            label="Reset to Default"
-            @click="resetToDefaultInCharge"
-          />
-          <div class="row q-gutter-x-sm">
-            <q-btn flat no-caps label="Cancel" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              color="green-9"
-              label="Apply Signatory"
-              class="text-weight-bold q-px-md"
-              @click="applyInCharge"
-            />
-          </div>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Workload Undertaken Modal Dialog -->
-    <q-dialog v-model="showWorkloadDialog">
-      <q-card style="width: 520px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="edit_note" size="20px" />
-            <span class="text-subtitle1 text-weight-bold">
-              {{ activeWorkloadRow ? `Edit Workload (${formatDialogDate(activeWorkloadRow)})` : 'Edit Workload for All Work Days' }}
-            </span>
-          </div>
-          <q-btn dense flat round icon="close" v-close-popup />
-        </q-card-section>
-
-        <q-card-section class="q-pa-md q-gutter-y-md">
-          <div class="text-caption text-grey-8">
-            {{ activeWorkloadRow
-              ? 'Update the accomplishment description and optional quantity for this specific workday, or apply it across all workdays.'
-              : 'Update the default accomplishment workload undertaken for all working days in this period.' }}
-          </div>
-
-          <!-- Workload Text -->
-          <q-input
-            v-model="workloadForm.text"
-            outlined
-            dense
-            type="textarea"
-            rows="3"
-            label="Workload Undertaken *"
-            hint="Enter daily accomplishment or workload"
-            autofocus
-          />
-
-          <!-- Quantity (Optional) -->
-          <q-input
-            v-model="workloadForm.quantity"
-            outlined
-            dense
-            label="Quantity (Optional)"
-            hint="e.g. 1 report, 8 hrs, or leave blank"
-          />
-
-          <!-- Scope: Apply to all work days toggle (if row is active) -->
-          <div v-if="activeWorkloadRow" class="q-pt-xs">
-            <q-checkbox
-              v-model="workloadForm.applyToAll"
-              color="green-9"
-              label="Apply this workload to all work days this month"
-              class="text-weight-medium"
-            />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="between" class="q-px-md q-pb-md">
-          <q-btn
-            v-if="activeWorkloadRow && hasCustomDayOverride(activeWorkloadRow)"
-            flat
-            no-caps
-            color="grey-8"
-            icon="restart_alt"
-            label="Revert Day to Default"
-            @click="revertDayWorkload(activeWorkloadRow)"
-          />
-          <q-space v-else />
-          <div class="row q-gutter-x-sm">
-            <q-btn flat no-caps label="Cancel" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              color="green-9"
-              label="Apply Workload"
-              class="text-weight-bold q-px-md"
-              @click="applyWorkload"
-            />
-          </div>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- PRN Number Modal Dialog -->
-    <q-dialog v-model="showPrnDialog">
-      <q-card style="width: 420px; max-width: 95vw;" class="rounded-borders">
-        <q-card-section class="row items-center justify-between bg-green-9 text-white q-py-sm">
-          <div class="row items-center q-gutter-x-sm">
-            <q-icon name="pin" size="20px" />
-            <span class="text-subtitle1 text-weight-bold">Edit PRN Number</span>
-          </div>
-          <q-btn dense flat round icon="close" v-close-popup />
-        </q-card-section>
-        <q-card-section class="q-pa-md">
-          <q-input
-            v-model="tempPrnNumber"
-            outlined
-            dense
-            label="PRN Number (Optional)"
-            hint="Optional PRN code"
-            autofocus
-            @keyup.enter="applyPrn"
-          />
-        </q-card-section>
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn flat no-caps label="Cancel" v-close-popup />
+      <template #actions="{ cancel }">
+        <q-btn
+          flat
+          no-caps
+          color="grey-8"
+          icon="restart_alt"
+          label="Reset to Default"
+          @click="resetToDefaultInCharge"
+        />
+        <div class="row q-gutter-x-sm">
+          <q-btn flat no-caps label="Cancel" @click="cancel" />
           <q-btn
             unelevated
             no-caps
             color="green-9"
-            label="Apply"
+            label="Apply Signatory"
             class="text-weight-bold q-px-md"
-            @click="applyPrn"
+            @click="applyInCharge"
           />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </div>
+      </template>
+    </AppDialog>
+
+    <!-- Workload Undertaken Modal Dialog -->
+    <AppDialog
+      v-model="showWorkloadDialog"
+      :title="activeWorkloadRow ? `Edit Workload (${formatDialogDate(activeWorkloadRow)})` : 'Edit Workload for All Work Days'"
+      icon="edit_note"
+      max-width="520px"
+      :persistent="false"
+      body-class="q-pa-md q-gutter-y-md"
+      actions-class="q-px-md q-pb-md row items-center justify-between"
+    >
+      <div class="text-caption text-grey-8">
+        {{ activeWorkloadRow
+          ? 'Update the accomplishment description and optional quantity for this specific workday, or apply it across all workdays.'
+          : 'Update the default accomplishment workload undertaken for all working days in this period.' }}
+      </div>
+
+      <!-- Workload Text -->
+      <q-input
+        v-model="workloadForm.text"
+        outlined
+        dense
+        type="textarea"
+        rows="3"
+        label="Workload Undertaken *"
+        hint="Enter daily accomplishment or workload"
+        autofocus
+      />
+
+      <!-- Quantity (Optional) -->
+      <q-input
+        v-model="workloadForm.quantity"
+        outlined
+        dense
+        label="Quantity (Optional)"
+        hint="e.g. 1 report, 8 hrs, or leave blank"
+      />
+
+      <!-- Scope: Apply to all work days toggle (if row is active) -->
+      <div v-if="activeWorkloadRow" class="q-pt-xs">
+        <q-checkbox
+          v-model="workloadForm.applyToAll"
+          color="green-9"
+          label="Apply this workload to all work days this month"
+          class="text-weight-medium"
+        />
+      </div>
+
+      <template #actions="{ cancel }">
+        <q-btn
+          v-if="activeWorkloadRow && hasCustomDayOverride(activeWorkloadRow)"
+          flat
+          no-caps
+          color="grey-8"
+          icon="restart_alt"
+          label="Revert Day to Default"
+          @click="revertDayWorkload(activeWorkloadRow)"
+        />
+        <q-space v-else />
+        <div class="row q-gutter-x-sm">
+          <q-btn flat no-caps label="Cancel" @click="cancel" />
+          <q-btn
+            unelevated
+            no-caps
+            color="green-9"
+            label="Apply Workload"
+            class="text-weight-bold q-px-md"
+            @click="applyWorkload"
+          />
+        </div>
+      </template>
+    </AppDialog>
+
+    <!-- PRN Number Modal Dialog -->
+    <AppDialog
+      v-model="showPrnDialog"
+      title="Edit PRN Number"
+      icon="pin"
+      max-width="420px"
+      :persistent="false"
+      body-class="q-pa-md"
+      actions-class="q-px-md q-pb-md q-gutter-sm"
+      submit-label="Apply"
+      submit-color="green-9"
+      @submit="applyPrn"
+    >
+      <q-input
+        v-model="tempPrnNumber"
+        outlined
+        dense
+        label="PRN Number (Optional)"
+        hint="Optional PRN code"
+        autofocus
+        @keyup.enter="applyPrn"
+      />
+    </AppDialog>
 
     <!-- DTR Time Override Dialog -->
     <DtrOverrideDialog

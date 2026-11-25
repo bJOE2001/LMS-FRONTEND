@@ -285,50 +285,51 @@
     </div>
 
     <!-- Edit Profile Dialog -->
-    <q-dialog v-model="showEditDialog" persistent class="settings-edit-dialog">
-      <q-card class="settings-edit-card">
-        <q-card-section class="bg-primary text-white">
-          <div class="text-h6">Edit Profile</div>
-        </q-card-section>
-
-          <q-card-section class="q-gutter-y-md q-pt-lg">
-            <q-input
-            v-if="userInfo.fullNameEditable"
-            v-model="editForm.fullName"
-            label="Full Name"
-            outlined
-            dense
-          />
-          <q-banner
-            v-else-if="userInfo.role === 'admin'"
-            class="bg-blue-1 text-blue-9 rounded-borders"
-          >
-            <template #avatar>
-              <q-icon name="info" color="blue-8" />
-            </template>
-            Full name is based on your assigned employee record. Ask HR if this needs to be updated.
-          </q-banner>
-          <q-input
-            v-model="editForm.username"
-            label="Username"
-            outlined
-            dense
-          />
-          <q-input
-            v-if="userInfo.role === 'hr'"
-            v-model="editForm.position"
-            label="Position"
-            outlined
-            dense
-          />
-        </q-card-section>
-
-        <q-card-actions align="right" class="settings-edit-actions">
-          <q-btn flat label="Cancel" color="grey-7" v-close-popup />
-          <q-btn unelevated label="Save Changes" color="primary" :loading="editLoading" @click="handleUpdateProfile" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <AppDialog
+      v-model="showEditDialog"
+      title="Edit Profile"
+      header-color="primary"
+      max-width="400px"
+      dialog-class="settings-edit-dialog"
+      card-class="settings-edit-card rounded-borders"
+      body-class="q-gutter-y-md q-pt-lg q-px-md"
+      actions-class="settings-edit-actions"
+      :loading="editLoading"
+      cancel-color="grey-7"
+      submit-label="Save Changes"
+      submit-color="primary"
+      @submit="handleUpdateProfile"
+    >
+      <q-input
+        v-if="userInfo.fullNameEditable"
+        v-model="editForm.fullName"
+        label="Full Name"
+        outlined
+        dense
+      />
+      <q-banner
+        v-else-if="userInfo.role === 'admin'"
+        class="bg-blue-1 text-blue-9 rounded-borders"
+      >
+        <template #avatar>
+          <q-icon name="info" color="blue-8" />
+        </template>
+        Full name is based on your assigned employee record. Ask HR if this needs to be updated.
+      </q-banner>
+      <q-input
+        v-model="editForm.username"
+        label="Username"
+        outlined
+        dense
+      />
+      <q-input
+        v-if="userInfo.role === 'hr'"
+        v-model="editForm.position"
+        label="Position"
+        outlined
+        dense
+      />
+    </AppDialog>
   </q-page>
 </template>
 

@@ -148,16 +148,21 @@
         </template>
     </DataTableCard>
 
-    <q-dialog v-model="showCreateDialog" persistent>
-      <q-card style="width: 95vw; max-width: 720px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Create Account</div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="creatingAccount" v-close-popup />
-        </q-card-section>
-
-        <q-form ref="createFormRef" @submit.prevent="createAdminAccount">
-          <q-card-section class="q-pt-sm">
+    <AppDialog
+      ref="createFormRef"
+      v-model="showCreateDialog"
+      title="Create Account"
+      header-class="bg-white text-dark"
+      max-width="720px"
+      body-class="q-pt-sm q-px-md"
+      actions-class="q-pa-md q-gutter-sm"
+      is-form
+      :loading="creatingAccount"
+      cancel-color="grey-7"
+      submit-label="Create Account"
+      submit-color="primary"
+      @submit="createAdminAccount"
+    >
             <div class="row q-col-gutter-md">
               <div class="col-12">
                 <div class="row items-center q-gutter-x-lg q-gutter-y-sm">
@@ -288,33 +293,23 @@
                 </q-banner>
               </div>
             </div>
-          </q-card-section>
+    </AppDialog>
 
-          <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="creatingAccount" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              color="primary"
-              label="Create Account"
-              :loading="creatingAccount"
-              type="submit"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="showReactivateDialog" persistent>
-      <q-card style="width: 95vw; max-width: 640px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Reactivate Office Admin</div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="reactivatingAccount" v-close-popup />
-        </q-card-section>
-
-        <q-form ref="reactivateFormRef" @submit.prevent="submitReactivateAccount">
-          <q-card-section class="q-pt-sm">
+    <AppDialog
+      ref="reactivateFormRef"
+      v-model="showReactivateDialog"
+      title="Reactivate Office Admin"
+      header-class="bg-white text-dark"
+      max-width="640px"
+      body-class="q-pt-sm q-px-md"
+      actions-class="q-pa-md q-gutter-sm"
+      is-form
+      :loading="reactivatingAccount"
+      cancel-color="grey-7"
+      submit-label="Reactivate"
+      submit-color="positive"
+      @submit="submitReactivateAccount"
+    >
             <div class="row q-col-gutter-md">
               <div class="col-12">
                 <q-banner class="bg-green-1 text-green-10 rounded-borders">
@@ -362,22 +357,7 @@
                 />
               </div>
             </div>
-          </q-card-section>
-
-          <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="reactivatingAccount" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              color="positive"
-              label="Reactivate"
-              :loading="reactivatingAccount"
-              type="submit"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
+    </AppDialog>
   </q-page>
 </template>
 

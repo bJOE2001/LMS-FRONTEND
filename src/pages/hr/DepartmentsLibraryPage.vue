@@ -92,42 +92,30 @@
         </template>
     </DataTableCard>
 
-    <q-dialog v-model="showDialog" persistent>
-      <q-card style="width: 95vw; max-width: 520px" class="rounded-borders">
-        <q-card-section class="row items-center bg-green-9 text-white q-py-sm">
-          <div class="text-subtitle1 text-weight-bold">{{ dialogTitle }}</div>
-          <q-space />
-          <q-btn icon="close" flat round dense text-color="white" :disable="saving" v-close-popup />
-        </q-card-section>
-
-        <q-form ref="formRef" @submit.prevent="saveDepartment">
-          <q-card-section class="q-pt-md">
-            <q-input
-              v-model="form.name"
-              outlined
-              dense
-              autofocus
-              label="Office Name *"
-              :disable="saving"
-              :rules="[requiredRule('Office name')]"
-            />
-          </q-card-section>
-
-          <q-card-actions align="right" class="q-px-md q-pb-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="saving" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              color="green-9"
-              class="text-weight-bold q-px-md"
-              :label="dialogMode === 'edit' ? 'Update Office' : 'Create Office'"
-              :loading="saving"
-              type="submit"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
+    <AppDialog
+      ref="formRef"
+      v-model="showDialog"
+      :title="dialogTitle"
+      max-width="520px"
+      body-class="q-pt-md"
+      actions-class="q-px-md q-pb-md q-gutter-sm"
+      is-form
+      :loading="saving"
+      cancel-color="grey-7"
+      :submit-label="dialogMode === 'edit' ? 'Update Office' : 'Create Office'"
+      submit-color="green-9"
+      @submit="saveDepartment"
+    >
+      <q-input
+        v-model="form.name"
+        outlined
+        dense
+        autofocus
+        label="Office Name *"
+        :disable="saving"
+        :rules="[requiredRule('Office name')]"
+      />
+    </AppDialog>
   </component>
 </template>
 

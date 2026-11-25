@@ -165,82 +165,72 @@
     </DataTableCard>
 
     <!-- Assign Divisions Dialog -->
-    <q-dialog v-model="showAssignDialog" persistent>
-      <q-card style="width: 95vw; max-width: 580px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Assign Divisions to Office</div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="saving" v-close-popup />
-        </q-card-section>
+    <AppDialog
+      ref="assignFormRef"
+      v-model="showAssignDialog"
+      title="Assign Divisions to Office"
+      header-class="bg-white text-dark"
+      max-width="580px"
+      body-class="q-pt-md q-gutter-y-md"
+      actions-class="q-pa-md q-gutter-sm"
+      is-form
+      :loading="saving"
+      cancel-color="grey-7"
+      submit-label="Save Assignment"
+      submit-color="primary"
+      @submit="submitAssignment"
+    >
+      <!-- Main Office Select -->
+      <q-select
+        v-model="assignForm.main_department_id"
+        outlined
+        dense
+        emit-value
+        map-options
+        label="Main Office *"
+        :options="filteredMainOptions"
+        option-value="id"
+        option-label="name"
+        use-input
+        input-debounce="150"
+        :rules="[(val) => Boolean(val) || 'Main office is required.']"
+        :disable="saving"
+        @filter="filterMainOptions"
+      >
+        <template #no-option>
+          <q-item>
+            <q-item-section class="text-grey">No matching main offices found</q-item-section>
+          </q-item>
+        </template>
+      </q-select>
 
-        <q-form ref="assignFormRef" @submit.prevent="submitAssignment">
-          <q-card-section class="q-pt-md q-gutter-y-md">
-            <!-- Main Office Select -->
-            <q-select
-              v-model="assignForm.main_department_id"
-              outlined
-              dense
-              emit-value
-              map-options
-              label="Main Office *"
-              :options="filteredMainOptions"
-              option-value="id"
-              option-label="name"
-              use-input
-              input-debounce="150"
-              :rules="[(val) => Boolean(val) || 'Main office is required.']"
-              :disable="saving"
-              @filter="filterMainOptions"
-            >
-              <template #no-option>
-                <q-item>
-                  <q-item-section class="text-grey">No matching main offices found</q-item-section>
-                </q-item>
-              </template>
-            </q-select>
-
-            <!-- Divisions Multi-Select -->
-            <q-select
-              v-model="assignForm.division_ids"
-              outlined
-              dense
-              multiple
-              use-chips
-              emit-value
-              map-options
-              label="Select Divisions to Attach *"
-              :options="filteredDivisionOptions"
-              option-value="id"
-              option-label="name"
-              use-input
-              input-debounce="150"
-              :rules="[(val) => (Array.isArray(val) && val.length > 0) || 'Please select at least one division.']"
-              :disable="saving"
-              hint="Only offices that are not currently main offices or attached to another office are available."
-              @filter="filterDivisionOptions"
-            >
-              <template #no-option>
-                <q-item>
-                  <q-item-section class="text-grey">No available candidate divisions</q-item-section>
-                </q-item>
-              </template>
-            </q-select>
-          </q-card-section>
-
-          <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat no-caps label="Cancel" color="grey-7" :disable="saving" v-close-popup />
-            <q-btn
-              unelevated
-              no-caps
-              color="primary"
-              label="Save Assignment"
-              :loading="saving"
-              type="submit"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
+      <!-- Divisions Multi-Select -->
+      <q-select
+        v-model="assignForm.division_ids"
+        outlined
+        dense
+        multiple
+        use-chips
+        emit-value
+        map-options
+        label="Select Divisions to Attach *"
+        :options="filteredDivisionOptions"
+        option-value="id"
+        option-label="name"
+        use-input
+        input-debounce="150"
+        :rules="[(val) => (Array.isArray(val) && val.length > 0) || 'Please select at least one division.']"
+        :disable="saving"
+        hint="Only offices that are not currently main offices or attached to another office are available."
+        @filter="filterDivisionOptions"
+      >
+        <template #no-option>
+          <q-item>
+            <q-item-section class="text-grey">No available candidate divisions</q-item-section>
+          </q-item>
+        </template>
+      </q-select>
+    </AppDialog>
   </component>
 </template>
 

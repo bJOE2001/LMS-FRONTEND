@@ -1,16 +1,20 @@
 <template>
-  <q-dialog v-model="dialogModel" persistent>
-    <q-card style="width: 500px; max-width: 95vw;" class="rounded-borders">
-      <q-card-section class="bg-negative text-white row items-center justify-between q-py-sm">
-        <div class="row items-center text-subtitle1 text-weight-bold">
-          <q-icon :name="isEditMode ? 'edit' : 'timer_off'" class="q-mr-sm" size="sm" />
-          {{ isEditMode ? 'Edit Late Deduction' : 'Late Deduction' }}
-        </div>
-        <q-btn icon="close" flat round dense v-close-popup />
-      </q-card-section>
-
-      <q-form @submit="handleSubmit">
-        <q-card-section class="q-gutter-y-md q-pt-md">
+  <AppDialog
+    v-model="dialogModel"
+    :title="isEditMode ? 'Edit Late Deduction' : 'Late Deduction'"
+    :icon="isEditMode ? 'edit' : 'timer_off'"
+    header-color="negative"
+    max-width="500px"
+    body-class="q-gutter-y-md q-pt-md q-px-md"
+    actions-class="q-px-md q-pb-md q-gutter-sm"
+    is-form
+    :loading="submitting"
+    cancel-color="grey-7"
+    :submit-label="isEditMode ? 'Save Changes' : 'Deduct'"
+    :submit-icon="isEditMode ? 'save' : 'remove_circle_outline'"
+    submit-color="negative"
+    @submit="handleSubmit"
+  >
           <div class="q-mb-sm">
             <div class="text-weight-bold text-grey-8 q-mb-xs">Target Leave to Deduct</div>
             <q-option-group
@@ -130,21 +134,7 @@
             :placeholder="defaultParticularsPlaceholder"
             hint="Custom text for the Ledger Particulars column"
           />
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn flat label="Cancel" color="grey-7" v-close-popup :disable="submitting" />
-          <q-btn
-            type="submit"
-            color="negative"
-            :icon="isEditMode ? 'save' : 'remove_circle_outline'"
-            :label="isEditMode ? 'Save Changes' : 'Deduct'"
-            :loading="submitting"
-          />
-        </q-card-actions>
-      </q-form>
-    </q-card>
-  </q-dialog>
+  </AppDialog>
 </template>
 
 <script setup>

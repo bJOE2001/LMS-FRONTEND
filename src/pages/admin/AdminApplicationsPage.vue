@@ -1110,6 +1110,7 @@ const {
   getApplicationStatusColor,
   getApplicationStatusLabel,
   getEditRequestBadgeLabel,
+  getAdminLatestUpdateRequestStatus,
   hasApprovedEditRequest,
   hasApplicationEditRequest,
   isAdminEditUpdateRequest,

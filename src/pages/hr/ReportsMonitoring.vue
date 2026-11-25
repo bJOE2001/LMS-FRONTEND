@@ -172,83 +172,73 @@
       </q-card-section>
     </q-card>
 
-    <q-dialog v-model="showPrintDialog" persistent>
-      <q-card style="width: 95vw; max-width: 760px" class="rounded-borders">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Print Signatories</div>
-          <q-space />
-          <q-btn icon="close" flat round dense :disable="printingReport" v-close-popup />
-        </q-card-section>
-
-        <q-card-section class="q-pt-sm">
-          <div class="row q-col-gutter-md">
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.trim="printSignatories.preparedByName"
-                outlined
-                dense
-                label="PREPARED BY"
-              />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.trim="printSignatories.preparedByPosition"
-                outlined
-                dense
-                label="POSITION"
-              />
-            </div>
-
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.trim="printSignatories.reviewedByName"
-                outlined
-                dense
-                label="REVIEWED BY"
-              />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.trim="printSignatories.reviewedByPosition"
-                outlined
-                dense
-                label="POSITION"
-              />
-            </div>
-
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.trim="printSignatories.notedByName"
-                outlined
-                dense
-                label="NOTED BY"
-              />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.trim="printSignatories.notedByPosition"
-                outlined
-                dense
-                label="POSITION"
-              />
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md">
-          <q-btn flat no-caps color="grey-7" label="Cancel" :disable="printingReport" v-close-popup />
-          <q-btn
-            unelevated
-            no-caps
-            color="primary"
-            icon="print"
-            label="Print Report"
-            :loading="printingReport"
-            @click="confirmPrintReport"
+    <AppDialog
+      v-model="showPrintDialog"
+      title="Print Signatories"
+      header-class="bg-white text-dark"
+      max-width="760px"
+      body-class="q-pt-sm q-px-md"
+      actions-class="q-pa-md q-gutter-sm"
+      :loading="printingReport"
+      cancel-color="grey-7"
+      submit-label="Print Report"
+      submit-icon="print"
+      submit-color="primary"
+      @submit="confirmPrintReport"
+    >
+      <div class="row q-col-gutter-md">
+        <div class="col-12 col-md-6">
+          <q-input
+            v-model.trim="printSignatories.preparedByName"
+            outlined
+            dense
+            label="PREPARED BY"
           />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </div>
+        <div class="col-12 col-md-6">
+          <q-input
+            v-model.trim="printSignatories.preparedByPosition"
+            outlined
+            dense
+            label="POSITION"
+          />
+        </div>
+
+        <div class="col-12 col-md-6">
+          <q-input
+            v-model.trim="printSignatories.reviewedByName"
+            outlined
+            dense
+            label="REVIEWED BY"
+          />
+        </div>
+        <div class="col-12 col-md-6">
+          <q-input
+            v-model.trim="printSignatories.reviewedByPosition"
+            outlined
+            dense
+            label="POSITION"
+          />
+        </div>
+
+        <div class="col-12 col-md-6">
+          <q-input
+            v-model.trim="printSignatories.notedByName"
+            outlined
+            dense
+            label="NOTED BY"
+          />
+        </div>
+        <div class="col-12 col-md-6">
+          <q-input
+            v-model.trim="printSignatories.notedByPosition"
+            outlined
+            dense
+            label="POSITION"
+          />
+        </div>
+      </div>
+    </AppDialog>
   </q-page>
 </template>
 

@@ -1,6 +1,6 @@
 <template>
   <q-dialog :model-value="modelValue" persistent @update:model-value="onDialogModelUpdate">
-    <q-card style="min-width: 420px; max-width: 520px">
+    <q-card style="width: min(520px, 92vw); max-width: 92vw">
       <q-card-section class="row items-center">
         <q-icon :name="resultIcon" :color="resultIconColor" size="28px" class="q-mr-sm" />
         <div class="text-h6">Application {{ getActionResultLabel(actionResultType) }}</div>

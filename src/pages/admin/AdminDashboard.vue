@@ -599,7 +599,7 @@
 
     <!-- Action Result dialog -->
     <q-dialog v-model="showActionResultDialog" persistent>
-      <q-card style="min-width: 420px; max-width: 520px">
+      <q-card style="width: min(520px, 92vw); max-width: 92vw">
         <q-card-section class="row items-center">
           <q-icon
             :name="actionResultType === 'approved' ? 'check_circle' : 'cancel'"

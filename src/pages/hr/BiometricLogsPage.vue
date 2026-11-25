@@ -141,7 +141,7 @@ import { useDataTable } from 'src/composables/useDataTable'
 
 const $q = useQuasar()
 
-const actionTypeOptions = ['ALL', 'TRANSFER', 'REGISTRATION', 'ASSIGN', 'REMOVE']
+const actionTypeOptions = ['ALL', 'TRANSFER', 'REGISTRATION', 'REMOVE']
 const statusOptions = ['ALL', 'SUCCESS', 'FAILED', 'PENDING']
 
 const {
@@ -197,7 +197,7 @@ const columns = [
   { name: 'employee_control_no', label: 'Control No', align: 'left', field: 'employee_control_no' },
   { name: 'employee_name', label: 'Employee Name', align: 'left', field: 'employee_name' },
   { name: 'action_type', label: 'Action Type', align: 'left', field: 'action_type' },
-  { name: 'office_device', label: 'Office / Device', align: 'left', field: 'target_office_name' },
+  { name: 'office_device', label: 'Office / Device', align: 'left', field: 'to_office_name' },
   { name: 'status', label: 'Status', align: 'center', field: 'status' },
   { name: 'created_at', label: 'Date/Time', align: 'left', field: 'created_at' },
   { name: 'performed_by_name', label: 'Performed By', align: 'left', field: 'performed_by_name' },
@@ -206,7 +206,6 @@ const columns = [
 const ACTION_COLORS = {
   TRANSFER: 'blue-8',
   REGISTRATION: 'purple-8',
-  ASSIGN: 'teal-8',
   REMOVE: 'blue-grey-7',
 }
 
@@ -241,8 +240,8 @@ function buildOfficeDeviceEndpoint(row, side) {
 
 function getOfficeDeviceEndpoints(row) {
   return [
-    buildOfficeDeviceEndpoint(row, 'source'),
-    buildOfficeDeviceEndpoint(row, 'target'),
+    buildOfficeDeviceEndpoint(row, 'from'),
+    buildOfficeDeviceEndpoint(row, 'to'),
   ].filter(Boolean)
 }
 
