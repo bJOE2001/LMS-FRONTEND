@@ -1,6 +1,6 @@
 <template>
-  <DtrOverviewWorkspace
-    title="Employee DTR"
+  <AttendanceManagement
+    title="Daily Time Records"
     :readonly="true"
     :show-office-filter="true"
     :show-print="false"
@@ -9,5 +9,5 @@
 </template>
 
 <script setup>
-import DtrOverviewWorkspace from 'src/components/attendance/DtrOverviewWorkspace.vue'
+import AttendanceManagement from 'src/pages/admin/AttendanceManagement.vue'
 </script>

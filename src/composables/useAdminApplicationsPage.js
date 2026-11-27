@@ -3,6 +3,7 @@ import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
+import { openPdfLoadingTab } from 'src/utils/pdf-loading-tab'
 import {
   generateCocApplicationPdf,
   isReviewedCocApplicationPrintable,
@@ -6813,16 +6814,10 @@ export function useAdminApplicationsPage() {
       return
     }
 
-    const pdfWindow = window.open('', '_blank')
-    if (pdfWindow) {
-      try {
-        pdfWindow.document.title = 'Preparing Recall Form PDF...'
-        pdfWindow.document.body.innerHTML =
-          '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-      } catch {
-        // Ignore interim window rendering issues.
-      }
-    }
+    const pdfWindow = openPdfLoadingTab(
+      'Preparing Recall Form PDF...',
+      'Generating Recall Form PDF...',
+    )
 
     try {
       await printRecallFormForRequest(printData.application, printData.recallSelectedDates, {
@@ -6931,16 +6926,10 @@ export function useAdminApplicationsPage() {
       const refreshedApplication = resolveApp(applicationId) || application
       const shouldPrintNow = await confirmRecallFormPrinting(refreshedApplication)
       if (shouldPrintNow) {
-        const pdfWindow = window.open('', '_blank')
-        if (pdfWindow) {
-          try {
-            pdfWindow.document.title = 'Preparing Recall Form PDF...'
-            pdfWindow.document.body.innerHTML =
-              '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-          } catch {
-            // Ignore interim window rendering issues.
-          }
-        }
+        const pdfWindow = openPdfLoadingTab(
+          'Preparing Recall Form PDF...',
+          'Generating Recall Form PDF...',
+        )
         try {
           await printRecallFormForRequest(refreshedApplication, recallSelectedDates, {
             targetWindow: pdfWindow,
@@ -7013,16 +7002,12 @@ export function useAdminApplicationsPage() {
       showSignatoryPrintDialog.value = true
       return
     }
-    const pdfWindow = printOptions.targetWindow || window.open('', '_blank')
-    if (pdfWindow && !printOptions.targetWindow) {
-      try {
-        pdfWindow.document.title = 'Preparing PDF...'
-        pdfWindow.document.body.innerHTML =
-          '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-      } catch {
-        // Ignore interim window rendering issues.
-      }
-    }
+    const pdfWindow =
+      printOptions.targetWindow ||
+      openPdfLoadingTab(
+        cocApplication ? 'Preparing COC Form PDF...' : 'Preparing CS Form No. 6...',
+        cocApplication ? 'Generating COC Form PDF...' : 'Generating CS Form No. 6 PDF...',
+      )
     const targetApplicationId = String(
       app?.id ?? app?.application_id ?? app?.leave_application_id ?? '',
     ).trim()
@@ -7396,16 +7381,10 @@ export function useAdminApplicationsPage() {
     if (!target) return
     if (!forcePrint && !canPrintRequestChangesApplication(target)) return
 
-    const pdfWindow = window.open('', '_blank')
-    if (pdfWindow) {
-      try {
-        pdfWindow.document.title = 'Preparing PDF...'
-        pdfWindow.document.body.innerHTML =
-          '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-      } catch {
-        // Ignore interim window rendering issues.
-      }
-    }
+    const pdfWindow = openPdfLoadingTab(
+      'Preparing Request for Amendment PDF...',
+      'Generating Request for Amendment of Approved Leave PDF...',
+    )
 
     const printableApplication = await resolvePrintableLeaveApplicationForRequestChanges(target)
 

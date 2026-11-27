@@ -3,42 +3,81 @@
     :model-value="modelValue"
     persistent
     @update:model-value="val => $emit('update:modelValue', val)"
-    @keyup.enter="submitOverride"
+    @keyup.enter="onDialogEnter"
   >
     <q-card class="dtr-override-popup">
-      <!-- Title Bar: Solid Forest Green matching System Design -->
+      <!-- Title Bar: Solid Forest Green -->
       <div class="popup-title-bar row items-center no-wrap">
         <div class="row items-center q-gutter-x-xs no-wrap ellipsis">
-          <q-icon name="edit_calendar" size="18px" class="text-white q-mr-xs" />
+          <q-icon
+            name="edit_calendar"
+            size="18px"
+            class="text-white q-mr-xs"
+          />
           <span class="text-subtitle2 text-weight-bolder text-uppercase letter-spacing-1 text-white">
             {{ formattedDate }}
           </span>
+          <span v-if="dayOfWeek" class="text-caption text-weight-medium text-green-1">
+            ({{ dayOfWeek }})
+          </span>
           <span class="text-green-2 q-mx-xs">•</span>
           <span class="text-caption text-weight-bold text-green-1 ellipsis">
-            {{ activeSlotMeta.label }}
+            {{ activeScopeHeaderLabel }}
           </span>
         </div>
       </div>
 
-      <!-- Main Body: Two-Column Side-by-Side with Perfect Horizontal Alignment -->
+      <!-- Main Body: Scope-First Override Layout -->
       <q-card-section class="popup-body bg-white">
+        <!-- Apply Scope Selector (Single Slot vs Half-Day vs Whole-Day) -->
+        <div class="apply-scope-row q-mb-md">
+          <div class="section-title text-caption text-weight-bold text-grey-8 q-mb-xs">
+            Period
+          </div>
+          <q-option-group
+            v-model="applyScope"
+            type="radio"
+            inline
+            dense
+            color="green-9"
+            :options="applyScopeOptions"
+            class="apply-scope-radios"
+            @update:model-value="onScopeChanged"
+          />
+        </div>
+
+        <!-- Edge-case Guard: Selected period contains a protected biometric punch -->
+        <div
+          v-if="hasLockedBiometricSlot"
+          class="biometric-guard-note row items-start no-wrap q-gutter-x-sm q-mb-md"
+        >
+          <q-icon name="lock" size="16px" class="text-amber-9 q-mt-xs" />
+          <span class="text-caption text-amber-10 text-weight-medium">
+            This period includes a protected biometric punch and cannot be overwritten directly. Select a different period or request deletion on the biometric cell.
+          </span>
+        </div>
+
+        <!-- Standard Override Form -->
         <div class="row q-col-gutter-md items-start">
-          <!-- Left Column: Day + Time Input -->
-          <div class="col-12 col-sm-4">
+          <!-- Left Column: Time Input (Only when editing a single slot) -->
+          <div v-if="applyScope === 'single'" class="col-12 col-sm-4">
             <div class="column-header row items-center q-mb-xs">
-              <span class="day-label text-weight-bolder">{{ dayOfWeek }}</span>
+              <span class="section-title text-caption text-weight-bold text-grey-8">
+                Time ({{ activeSlotMeta.shortLabel }})
+              </span>
             </div>
             <q-input
               v-model="slotTime"
               dense
               outlined
               :placeholder="slotPlaceholder"
+              :disable="hasLockedBiometricSlot"
               class="popup-time-input font-mono"
               autofocus
             >
               <template #append>
                 <q-icon
-                  v-if="slotTime"
+                  v-if="slotTime && !hasLockedBiometricSlot"
                   name="clear"
                   size="14px"
                   class="cursor-pointer text-grey-5"
@@ -53,8 +92,8 @@
             </q-input>
           </div>
 
-          <!-- Right Column: Reason/Remarks Dropdown (Loaded from Remarks Library - Required) -->
-          <div class="col-12 col-sm-8">
+          <!-- Right / Full-Width Column: Reason/Remarks Dropdown (Loaded from Remarks Library - Required) -->
+          <div :class="applyScope === 'single' ? 'col-12 col-sm-8' : 'col-12'">
             <div class="column-header row items-center q-mb-xs">
               <span class="section-title text-caption text-weight-bold text-grey-8">
                 Reason / Remarks <span class="text-negative text-weight-bolder">*</span>
@@ -69,6 +108,7 @@
               map-options
               :options="remarkOptionsList"
               :loading="loadingRemarks"
+              :disable="hasLockedBiometricSlot"
               :rules="[val => !!val || 'Reason / Remarks is required']"
               lazy-rules="ondemand"
               hide-bottom-space
@@ -85,6 +125,7 @@
                   v-model="slotCustomRemark"
                   dense
                   outlined
+                  :disable="hasLockedBiometricSlot"
                   :rules="[val => !!(val && val.trim()) || 'Please specify remark']"
                   lazy-rules="ondemand"
                   hide-bottom-space
@@ -93,11 +134,19 @@
                 />
               </div>
             </transition>
+
+            <div
+              v-if="applyScope !== 'single'"
+              class="merged-hint row items-center no-wrap q-gutter-x-xs q-mt-sm"
+            >
+              <q-icon name="info_outline" size="14px" class="text-green-9" />
+              <span>{{ mergedHintText }}</span>
+            </div>
           </div>
         </div>
       </q-card-section>
 
-      <!-- Action Footer (Clean System Design) -->
+      <!-- Action Footer -->
       <div class="popup-footer row items-center justify-end q-gutter-x-sm bg-grey-1">
         <q-btn
           flat
@@ -114,6 +163,7 @@
           no-caps
           label="Save"
           class="save-btn text-weight-bold q-px-lg"
+          :disable="hasLockedBiometricSlot"
           :loading="submitting"
           @click="submitOverride"
         />
@@ -164,9 +214,18 @@ const selectRemarkRef = ref(null)
 const customRemarkRef = ref(null)
 
 const activeSlot = ref('am_arrival')
+const initialScope = ref('single')
+const applyScope = ref('single')
 const slotTime = ref('')
 const slotRemark = ref(null)
 const slotCustomRemark = ref('')
+
+const applyScopeOptions = [
+  { label: 'Selected Cell', value: 'single' },
+  { label: 'Morning (AM)', value: 'am' },
+  { label: 'Afternoon (PM)', value: 'pm' },
+  { label: 'Whole Day', value: 'whole' },
+]
 
 const slotTabs = [
   { key: 'am_arrival', label: 'Morning Arrival (A.M. In)', shortLabel: 'AM In' },
@@ -177,6 +236,26 @@ const slotTabs = [
 
 const activeSlotMeta = computed(() => {
   return slotTabs.find(s => s.key === activeSlot.value) || slotTabs[0]
+})
+
+const activeScopeHeaderLabel = computed(() => {
+  if (applyScope.value === 'whole') return 'Whole Day (All Slots)'
+  if (applyScope.value === 'am') return 'Whole Morning (AM In & Out)'
+  if (applyScope.value === 'pm') return 'Whole Afternoon (PM In & Out)'
+  return activeSlotMeta.value.label
+})
+
+const mergedHintText = computed(() => {
+  if (applyScope.value === 'whole') {
+    return 'Applies remark across all 4 merged slots for the whole day (no time entry).'
+  }
+  if (applyScope.value === 'am') {
+    return 'Applies remark across merged AM In & AM Out cells (no time entry).'
+  }
+  if (applyScope.value === 'pm') {
+    return 'Applies remark across merged PM In & PM Out cells (no time entry).'
+  }
+  return ''
 })
 
 // Dynamic options loaded from System Remarks Library (tblDtrRemarks) - strictly required remarks
@@ -237,9 +316,101 @@ const slotPlaceholder = computed(() => {
 })
 
 function onRemarkSelected(newRemark) {
-  if (newRemark && !slotTime.value) {
+  if (newRemark && applyScope.value === 'single' && !slotTime.value) {
     slotTime.value = getDefaultSlotTime(activeSlot.value)
   }
+}
+
+function onScopeChanged(scope) {
+  if (scope !== 'single') {
+    slotTime.value = ''
+  } else if (!slotTime.value) {
+    slotTime.value = formatTo12Hour(props.dtr?.[activeSlot.value]) || ''
+  }
+}
+
+function onDialogEnter(event) {
+  if (event?.target?.tagName === 'TEXTAREA') return
+  submitOverride()
+}
+
+function isSlotManuallyAdjusted(dtr, slotKey) {
+  if (!dtr || !dtr.is_adjusted) return false
+  const adjusted = dtr.adjusted_slots
+  if (Array.isArray(adjusted)) {
+    return adjusted.includes(slotKey)
+  }
+  if (adjusted && typeof adjusted === 'object') {
+    return Boolean(adjusted[slotKey])
+  }
+  return false
+}
+
+function isBiometricSlot(dtr, slotKey) {
+  return hasRealPunch(dtr?.[slotKey]) && !isSlotManuallyAdjusted(dtr, slotKey)
+}
+
+const targetSlots = computed(() => getSlotsForScope(applyScope.value, activeSlot.value))
+
+const lockedBiometricSlots = computed(() => {
+  return targetSlots.value.filter((s) => isBiometricSlot(props.dtr, s))
+})
+
+const hasLockedBiometricSlot = computed(() => lockedBiometricSlots.value.length > 0)
+
+function hasRealPunch(val) {
+  return Boolean(val && val !== '-' && val !== '—')
+}
+
+function getSlotNonTimeRemark(adjusted, slotKey) {
+  if (!adjusted || typeof adjusted !== 'object' || Array.isArray(adjusted)) return ''
+  const val = adjusted[slotKey]
+  return typeof val === 'string' && val.trim() !== '' && val !== 'TIME'
+    ? val.trim().toUpperCase()
+    : ''
+}
+
+function detectInitialScope(slotKey, dtr) {
+  const adjusted = dtr?.adjusted_slots
+  const amInRmk = getSlotNonTimeRemark(adjusted, 'am_arrival')
+  const amOutRmk = getSlotNonTimeRemark(adjusted, 'am_departure')
+  const pmInRmk = getSlotNonTimeRemark(adjusted, 'pm_arrival')
+  const pmOutRmk = getSlotNonTimeRemark(adjusted, 'pm_departure')
+
+  const amMerged =
+    !hasRealPunch(dtr?.am_arrival) &&
+    !hasRealPunch(dtr?.am_departure) &&
+    amInRmk !== '' &&
+    amInRmk === amOutRmk
+  const pmMerged =
+    !hasRealPunch(dtr?.pm_arrival) &&
+    !hasRealPunch(dtr?.pm_departure) &&
+    pmInRmk !== '' &&
+    pmInRmk === pmOutRmk
+
+  if (amMerged && pmMerged && amInRmk === pmInRmk) {
+    return 'whole'
+  }
+  if ((slotKey === 'am_arrival' || slotKey === 'am_departure') && amMerged) {
+    return 'am'
+  }
+  if ((slotKey === 'pm_arrival' || slotKey === 'pm_departure') && pmMerged) {
+    return 'pm'
+  }
+  return 'single'
+}
+
+function getSlotsForScope(scope, slotKey) {
+  if (scope === 'whole') {
+    return ['am_arrival', 'am_departure', 'pm_arrival', 'pm_departure']
+  }
+  if (scope === 'am') {
+    return ['am_arrival', 'am_departure']
+  }
+  if (scope === 'pm') {
+    return ['pm_arrival', 'pm_departure']
+  }
+  return [slotKey]
 }
 
 function formatTo12Hour(timeStr) {
@@ -260,7 +431,10 @@ function formatTo12Hour(timeStr) {
 }
 
 function syncSlotState(slotKey) {
-  slotTime.value = formatTo12Hour(props.dtr?.[slotKey]) || ''
+  const detectedScope = detectInitialScope(slotKey, props.dtr)
+  initialScope.value = detectedScope
+  applyScope.value = detectedScope
+  slotTime.value = detectedScope === 'single' ? (formatTo12Hour(props.dtr?.[slotKey]) || '') : ''
 
   const adjusted = props.dtr?.adjusted_slots
   if (adjusted && typeof adjusted === 'object' && !Array.isArray(adjusted)) {
@@ -349,6 +523,14 @@ function closeDialog() {
 
 async function submitOverride() {
   if (!props.controlNo || !props.date) return
+  if (hasLockedBiometricSlot.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Biometric punches cannot be modified or cleared directly. Submit a Delete Request instead.',
+      position: 'top',
+    })
+    return
+  }
 
   // Validation: Reason / Remarks is strictly required
   if (!slotRemark.value) {
@@ -395,25 +577,38 @@ async function submitOverride() {
 
     const timeVal = slotTime.value ? slotTime.value.trim() : null
     const slot = activeSlot.value
+    const slotSetters = {
+      am_arrival: (v) => { amArr = v },
+      am_departure: (v) => { amDep = v },
+      pm_arrival: (v) => { pmArr = v },
+      pm_departure: (v) => { pmDep = v },
+    }
+    const previousSlots = getSlotsForScope(initialScope.value, slot)
+    const targetSlots = getSlotsForScope(applyScope.value, slot)
 
-    if (finalRmk) {
+    if (initialScope.value !== applyScope.value) {
+      previousSlots.forEach((s) => {
+        if (!targetSlots.includes(s)) {
+          delete adjustedMap[s]
+          slotSetters[s](null)
+        }
+      })
+    }
+
+    if (applyScope.value !== 'single') {
+      targetSlots.forEach((s) => {
+        adjustedMap[s] = finalRmk
+        slotSetters[s](null)
+      })
+    } else if (finalRmk) {
       adjustedMap[slot] = finalRmk
-      if (slot === 'am_arrival') amArr = timeVal
-      if (slot === 'am_departure') amDep = timeVal
-      if (slot === 'pm_arrival') pmArr = timeVal
-      if (slot === 'pm_departure') pmDep = timeVal
+      slotSetters[slot](timeVal)
     } else if (timeVal) {
       adjustedMap[slot] = 'TIME'
-      if (slot === 'am_arrival') amArr = timeVal
-      if (slot === 'am_departure') amDep = timeVal
-      if (slot === 'pm_arrival') pmArr = timeVal
-      if (slot === 'pm_departure') pmDep = timeVal
+      slotSetters[slot](timeVal)
     } else {
       delete adjustedMap[slot]
-      if (slot === 'am_arrival') amArr = null
-      if (slot === 'am_departure') amDep = null
-      if (slot === 'pm_arrival') pmArr = null
-      if (slot === 'pm_departure') pmDep = null
+      slotSetters[slot](null)
     }
 
     const payload = {
@@ -455,25 +650,26 @@ async function submitOverride() {
 
 <style scoped>
 .dtr-override-popup {
-  width: 480px;
+  width: 530px;
   max-width: 95vw;
-  background-color: #ffffff;
+  background-color: transparent;
   color: #1e293b;
   border-radius: 6px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
   overflow: hidden;
-  border: 1px solid #cbd5e1;
+  border: none;
 }
 
 .popup-title-bar {
   background-color: #2e7d32; /* System Design Solid Forest Green */
   color: #ffffff;
-  padding: 8px 14px;
+  padding: 10px 16px;
+  border-radius: 6px 6px 0 0;
 }
 
 .popup-body {
   background-color: #ffffff;
-  padding: 16px;
+  padding: 16px 18px;
 }
 
 .popup-footer {
@@ -485,12 +681,6 @@ async function submitOverride() {
 .column-header {
   height: 24px;
   min-height: 24px;
-}
-
-.day-label {
-  font-size: 1.18rem;
-  color: #2e7d32; /* Forest Green matching brand typography */
-  line-height: 1.2;
 }
 
 .section-title {
@@ -520,6 +710,58 @@ async function submitOverride() {
   font-size: 0.95rem;
   font-weight: 500;
   color: #1e293b;
+}
+
+.apply-scope-row {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.apply-scope-radios {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.apply-scope-radios :deep(> div) {
+  margin-left: 0 !important;
+}
+
+.apply-scope-radios :deep(.q-radio__label) {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .apply-scope-radios {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+}
+
+.merged-hint {
+  font-size: 0.78rem;
+  color: #166534;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  line-height: 1.35;
+}
+
+.biometric-guard-note {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 9px 12px;
+  line-height: 1.35;
 }
 
 .save-btn {

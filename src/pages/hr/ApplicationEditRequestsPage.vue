@@ -1,8 +1,8 @@
 <template>
   <q-page class="q-pa-md hr-edit-requests-page">
-    <div class="hr-edit-requests-header q-mb-md">
-      <div>
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">HR Edit Requests</h1>
+    <div class="row items-center justify-between q-col-gutter-sm q-mb-lg">
+      <div class="col-auto">
+        <h1 class="text-h4 text-weight-bold q-ma-none text-dark">HR Edit Requests</h1>
       </div>
     </div>
 
@@ -15,10 +15,12 @@
 
     <DataFilterBar
       v-model:search="search"
-      search-label="Search employee, control no, leave type, requested by, or date"
-      search-placeholder="e.g. Mahusay, 011790, CTO Leave, hr4, Dec 22..."
+      search-placeholder="Search employee, control no, leave type, requested by, or date..."
       :debounce="250"
       search-class="col-12 col-sm-8 col-md-9"
+      :loading="loading && requests.length === 0"
+      :skeleton-filter-count="1"
+      :skeleton-has-action="false"
     >
       <div class="col-12 col-sm-4 col-md-3">
         <q-select
@@ -33,7 +35,11 @@
           options-dense
           label="Status"
           @update:model-value="fetchRequests"
-        />
+        >
+          <template #prepend>
+            <q-icon name="filter_list" color="grey-6" />
+          </template>
+        </q-select>
       </div>
     </DataFilterBar>
 
@@ -44,20 +50,22 @@
       row-key="id"
       :loading="loading"
       :rows-per-page-options="[10, 20, 50]"
-      card-class="hr-edit-table-card"
-      table-header-class="hr-edit-table-header"
       empty-icon="inbox"
       no-data-label="No edit requests found"
+      empty-subtext="There are no HR edit requests matching the selected filters."
     >
+      <template #body-cell-employee_control_no="props">
+        <q-td :props="props">
+          <code class="text-caption text-weight-bold text-dark">
+            {{ props.row.employee_control_no || '—' }}
+          </code>
+        </q-td>
+      </template>
+
       <template #body-cell-employee="props">
         <q-td :props="props" class="hr-edit-employee-cell">
-          <div class="min-width-0">
-            <div class="text-weight-bold text-grey-10 ellipsis">
-              {{ formatEmployeeName(props.row.employee_name) }}
-            </div>
-            <div class="text-caption text-grey-7 q-mt-xs hr-edit-mono">
-              {{ props.row.employee_control_no || 'N/A' }}
-            </div>
+          <div class="text-weight-medium text-dark ellipsis">
+            {{ formatEmployeeName(props.row.employee_name) }}
           </div>
         </q-td>
       </template>
@@ -65,16 +73,16 @@
       <template #body-cell-previous="props">
         <q-td :props="props" class="hr-edit-diff-cell">
           <template v-if="getPreviousSummary(props.row)">
-            <div class="text-weight-medium text-grey-9 ellipsis">
+            <div class="text-weight-medium text-dark ellipsis">
               {{ formatSelectedDates(getPreviousSummary(props.row).selectedDates) }}
             </div>
             <div class="row items-center q-gutter-xs no-wrap q-mt-xs">
-              <span class="hr-edit-credit-pill hr-edit-credit-pill--muted">
+              <q-badge color="grey-2" text-color="grey-8" class="font-mono text-weight-medium q-px-xs">
                 WP {{ formatDays(getPreviousSummary(props.row).deductibleDays) }}
-              </span>
-              <span class="hr-edit-credit-pill hr-edit-credit-pill--muted">
+              </q-badge>
+              <q-badge color="grey-2" text-color="grey-8" class="font-mono text-weight-medium q-px-xs">
                 W/oP {{ formatDays(getPreviousSummary(props.row).withoutPayDays) }}
-              </span>
+              </q-badge>
             </div>
           </template>
           <span v-else class="text-caption text-grey-6">Not recorded</span>
@@ -83,19 +91,20 @@
 
       <template #body-cell-requested="props">
         <q-td :props="props" class="hr-edit-diff-cell">
-          <div class="text-weight-bold text-grey-10 ellipsis">
+          <div class="text-weight-medium text-dark ellipsis">
             {{ formatSelectedDates(props.row.payload?.selected_dates) }}
           </div>
           <div class="row items-center q-gutter-xs no-wrap q-mt-xs">
-            <span class="hr-edit-credit-pill hr-edit-credit-pill--wp">
+            <q-badge color="green-1" text-color="green-10" class="font-mono text-weight-medium q-px-xs">
               WP {{ formatDays(props.row.payload?.deductible_days) }}
-            </span>
-            <span
-              class="hr-edit-credit-pill"
-              :class="Number(props.row.payload?.without_pay_days || 0) > 0 ? 'hr-edit-credit-pill--wop' : 'hr-edit-credit-pill--muted'"
+            </q-badge>
+            <q-badge
+              :color="Number(props.row.payload?.without_pay_days || 0) > 0 ? 'blue-1' : 'grey-2'"
+              :text-color="Number(props.row.payload?.without_pay_days || 0) > 0 ? 'blue-10' : 'grey-8'"
+              class="font-mono text-weight-medium q-px-xs"
             >
               W/oP {{ formatDays(props.row.payload?.without_pay_days) }}
-            </span>
+            </q-badge>
           </div>
         </q-td>
       </template>
@@ -103,7 +112,7 @@
       <template #body-cell-requested_by="props">
         <q-td :props="props" class="hr-edit-requester-cell">
           <div class="row items-center q-gutter-xs no-wrap">
-            <span class="text-weight-bold text-grey-9 ellipsis">
+            <span class="text-weight-medium text-dark ellipsis">
               {{ formatRequesterPrimary(props.row) }}
             </span>
             <q-icon
@@ -126,10 +135,12 @@
       <template #body-cell-status="props">
         <q-td :props="props" class="text-center">
           <div class="column items-center">
-            <span class="hr-edit-status-pill" :class="`hr-edit-status-pill--${getStatusKey(props.row.status)}`">
-              <q-icon :name="getStatusIcon(props.row.status)" size="14px" />
-              <span>{{ formatStatus(props.row.status) }}</span>
-            </span>
+            <q-badge
+              rounded
+              :class="['q-py-xs q-px-sm text-weight-bold', getStatusBadgeClass(props.row.status)]"
+            >
+              {{ formatStatus(props.row.status) }}
+            </q-badge>
             <div v-if="!isPendingRequest(props.row) && props.row.reviewed_by" class="text-caption text-grey-6 q-mt-xs">
               by {{ props.row.reviewed_by }}
             </div>
@@ -142,26 +153,25 @@
           <div class="row items-center justify-center no-wrap q-gutter-xs">
             <q-btn
               flat
-              dense
               round
+              dense
+              size="sm"
               icon="visibility"
               color="primary"
               aria-label="View edit request details"
-              class="hr-edit-action-btn"
               @click="openDetails(props.row)"
             >
               <q-tooltip>View Comparison</q-tooltip>
             </q-btn>
             <q-btn
               v-if="isPendingRequest(props.row)"
-              unelevated
-              dense
+              flat
               round
+              dense
               size="sm"
-              icon="check"
+              icon="check_circle_outline"
               color="positive"
               aria-label="Approve edit request"
-              class="hr-edit-action-btn"
               :loading="approveLoadingId === props.row.id"
               @click="openDecisionDialog('approve', props.row)"
             >
@@ -169,14 +179,13 @@
             </q-btn>
             <q-btn
               v-if="isPendingRequest(props.row)"
-              outline
-              dense
+              flat
               round
+              dense
               size="sm"
-              icon="close"
+              icon="cancel"
               color="negative"
               aria-label="Reject edit request"
-              class="hr-edit-action-btn"
               :loading="rejectLoadingId === props.row.id"
               @click="openDecisionDialog('reject', props.row)"
             >
@@ -205,19 +214,19 @@
           <div class="col-12 col-sm-4">
             <div class="hr-edit-detail-summary">
               <div class="hr-edit-detail-summary__label">Employee</div>
-              <div class="text-weight-bold text-grey-10">
+              <div class="text-weight-medium text-dark">
                 {{ formatEmployeeName(selectedRequest.employee_name) }}
               </div>
-              <div class="text-caption text-grey-7 hr-edit-mono">
+              <code class="text-caption text-grey-7">
                 {{ selectedRequest.employee_control_no || 'N/A' }}
-              </div>
+              </code>
             </div>
           </div>
 
           <div class="col-12 col-sm-4">
             <div class="hr-edit-detail-summary">
               <div class="hr-edit-detail-summary__label">Requested By</div>
-              <div class="text-weight-bold text-grey-10">
+              <div class="text-weight-medium text-dark">
                 {{ formatRequesterPrimary(selectedRequest) }}
               </div>
               <div class="text-caption text-grey-7">
@@ -231,10 +240,12 @@
             <div class="hr-edit-detail-summary">
               <div class="hr-edit-detail-summary__label">Status & Review</div>
               <div class="q-mt-xs">
-                <span class="hr-edit-status-pill" :class="`hr-edit-status-pill--${getStatusKey(selectedRequest.status)}`">
-                  <q-icon :name="getStatusIcon(selectedRequest.status)" size="14px" />
-                  <span>{{ formatStatus(selectedRequest.status) }}</span>
-                </span>
+                <q-badge
+                  rounded
+                  :class="['q-py-xs q-px-sm text-weight-bold', getStatusBadgeClass(selectedRequest.status)]"
+                >
+                  {{ formatStatus(selectedRequest.status) }}
+                </q-badge>
               </div>
               <div v-if="selectedRequest.reviewed_at" class="text-caption text-grey-7 q-mt-xs">
                 {{ selectedRequest.reviewed_by || 'HR Admin' }} • {{ formatDateTime(selectedRequest.reviewed_at) }}
@@ -247,13 +258,13 @@
           <div v-if="selectedRequest.requested_reason" class="col-12 col-md-6">
             <div class="hr-edit-note-box">
               <div class="hr-edit-detail-summary__label">Staff Request Reason</div>
-              <div class="text-body2 text-grey-9">{{ selectedRequest.requested_reason }}</div>
+              <div class="text-body2 text-dark">{{ selectedRequest.requested_reason }}</div>
             </div>
           </div>
           <div v-if="selectedRequest.review_remarks" class="col-12 col-md-6">
             <div class="hr-edit-note-box hr-edit-note-box--review">
               <div class="hr-edit-detail-summary__label">HR Admin Remarks</div>
-              <div class="text-body2 text-grey-9">{{ selectedRequest.review_remarks }}</div>
+              <div class="text-body2 text-dark">{{ selectedRequest.review_remarks }}</div>
             </div>
           </div>
         </div>
@@ -263,7 +274,7 @@
             <div class="hr-edit-compare-pane__header">
               <div>
                 <div class="hr-edit-compare-pane__eyebrow">Previous</div>
-                <div class="text-weight-bold text-grey-9">
+                <div class="text-weight-medium text-dark">
                   {{
                     selectedPreviousSummary
                       ? formatSelectedDates(selectedPreviousSummary.selectedDates)
@@ -272,12 +283,12 @@
                 </div>
               </div>
               <div v-if="selectedPreviousSummary" class="row q-gutter-xs no-wrap">
-                <span class="hr-edit-credit-pill hr-edit-credit-pill--muted">
+                <q-badge color="grey-2" text-color="grey-8" class="font-mono text-weight-medium q-px-xs">
                   WP {{ formatDays(selectedPreviousSummary.deductibleDays) }}
-                </span>
-                <span class="hr-edit-credit-pill hr-edit-credit-pill--muted">
+                </q-badge>
+                <q-badge color="grey-2" text-color="grey-8" class="font-mono text-weight-medium q-px-xs">
                   W/oP {{ formatDays(selectedPreviousSummary.withoutPayDays) }}
-                </span>
+                </q-badge>
               </div>
             </div>
 
@@ -290,11 +301,10 @@
               dense
               hide-bottom
               :pagination="{ rowsPerPage: 0 }"
-              table-header-class="hr-edit-table-header"
               class="hr-edit-details-table"
             >
               <template #body-cell-date="props">
-                <q-td :props="props" class="text-weight-bold text-grey-9">
+                <q-td :props="props" class="text-weight-medium text-dark">
                   {{ formatDate(props.row.dateKey) }}
                 </q-td>
               </template>
@@ -307,23 +317,24 @@
 
               <template #body-cell-payStatus="props">
                 <q-td :props="props">
-                  <span
-                    class="hr-edit-credit-pill"
-                    :class="props.row.payStatus === 'WOP' ? 'hr-edit-credit-pill--wop' : 'hr-edit-credit-pill--muted'"
+                  <q-badge
+                    :color="props.row.payStatus === 'WOP' ? 'blue-1' : 'grey-2'"
+                    :text-color="props.row.payStatus === 'WOP' ? 'blue-10' : 'grey-8'"
+                    class="font-mono text-weight-medium q-px-xs"
                   >
                     {{ props.row.payStatus }}
-                  </span>
+                  </q-badge>
                 </q-td>
               </template>
 
               <template #body-cell-withPayDays="props">
-                <q-td :props="props" class="text-weight-bold text-grey-8 hr-edit-mono">
+                <q-td :props="props" class="text-weight-medium text-grey-8 font-mono">
                   {{ formatDays(props.row.withPayDays) }}
                 </q-td>
               </template>
 
               <template #body-cell-withoutPayDays="props">
-                <q-td :props="props" class="text-weight-bold text-grey-8 hr-edit-mono">
+                <q-td :props="props" class="text-weight-medium text-grey-8 font-mono">
                   {{ formatDays(props.row.withoutPayDays) }}
                 </q-td>
               </template>
@@ -338,20 +349,21 @@
             <div class="hr-edit-compare-pane__header">
               <div>
                 <div class="hr-edit-compare-pane__eyebrow text-primary">Requested</div>
-                <div class="text-weight-bold text-grey-10">
+                <div class="text-weight-medium text-dark">
                   {{ formatSelectedDates(selectedRequest.payload?.selected_dates) }}
                 </div>
               </div>
               <div class="row q-gutter-xs no-wrap">
-                <span class="hr-edit-credit-pill hr-edit-credit-pill--wp">
+                <q-badge color="green-1" text-color="green-10" class="font-mono text-weight-medium q-px-xs">
                   WP {{ formatDays(selectedRequest.payload?.deductible_days) }}
-                </span>
-                <span
-                  class="hr-edit-credit-pill"
-                  :class="Number(selectedRequest.payload?.without_pay_days || 0) > 0 ? 'hr-edit-credit-pill--wop' : 'hr-edit-credit-pill--muted'"
+                </q-badge>
+                <q-badge
+                  :color="Number(selectedRequest.payload?.without_pay_days || 0) > 0 ? 'blue-1' : 'grey-2'"
+                  :text-color="Number(selectedRequest.payload?.without_pay_days || 0) > 0 ? 'blue-10' : 'grey-8'"
+                  class="font-mono text-weight-medium q-px-xs"
                 >
                   W/oP {{ formatDays(selectedRequest.payload?.without_pay_days) }}
-                </span>
+                </q-badge>
               </div>
             </div>
 
@@ -363,11 +375,10 @@
               dense
               hide-bottom
               :pagination="{ rowsPerPage: 0 }"
-              table-header-class="hr-edit-table-header"
               class="hr-edit-details-table"
             >
               <template #body-cell-date="props">
-                <q-td :props="props" class="text-weight-bold text-grey-9">
+                <q-td :props="props" class="text-weight-medium text-dark">
                   {{ formatDate(props.row.dateKey) }}
                 </q-td>
               </template>
@@ -380,23 +391,24 @@
 
               <template #body-cell-payStatus="props">
                 <q-td :props="props">
-                  <span
-                    class="hr-edit-credit-pill"
-                    :class="props.row.payStatus === 'WOP' ? 'hr-edit-credit-pill--wop' : 'hr-edit-credit-pill--wp'"
+                  <q-badge
+                    :color="props.row.payStatus === 'WOP' ? 'blue-1' : 'green-1'"
+                    :text-color="props.row.payStatus === 'WOP' ? 'blue-10' : 'green-10'"
+                    class="font-mono text-weight-medium q-px-xs"
                   >
                     {{ props.row.payStatus }}
-                  </span>
+                  </q-badge>
                 </q-td>
               </template>
 
               <template #body-cell-withPayDays="props">
-                <q-td :props="props" class="text-weight-bold text-green-9 hr-edit-mono">
+                <q-td :props="props" class="text-weight-medium text-green-9 font-mono">
                   {{ formatDays(props.row.withPayDays) }}
                 </q-td>
               </template>
 
               <template #body-cell-withoutPayDays="props">
-                <q-td :props="props" class="text-weight-bold text-blue-9 hr-edit-mono">
+                <q-td :props="props" class="text-weight-medium text-blue-9 font-mono">
                   {{ formatDays(props.row.withoutPayDays) }}
                 </q-td>
               </template>
@@ -503,6 +515,7 @@ const statusOptions = [
 ]
 
 const columns = [
+  { name: 'employee_control_no', label: 'Control No', field: 'employee_control_no', align: 'left', sortable: true },
   { name: 'employee', label: 'Employee', field: 'employee_name', align: 'left', sortable: true },
   { name: 'previous', label: 'Previous', field: 'id', align: 'left' },
   { name: 'requested', label: 'Requested', field: 'leave_type_name', align: 'left', sortable: true },
@@ -768,11 +781,11 @@ function getStatusKey(value) {
   return 'pending'
 }
 
-function getStatusIcon(value) {
-  const status = String(value || '').trim().toUpperCase()
-  if (status === 'APPROVED') return 'check_circle'
-  if (status === 'REJECTED') return 'cancel'
-  return 'schedule'
+function getStatusBadgeClass(value) {
+  const s = getStatusKey(value)
+  if (s === 'approved') return 'bg-green-1 text-green-10'
+  if (s === 'rejected') return 'bg-red-1 text-red-10'
+  return 'bg-amber-1 text-amber-10'
 }
 
 function formatStatus(value) {
@@ -863,28 +876,6 @@ async function rejectRequest(row, remarks = '') {
 </script>
 
 <style scoped>
-.hr-edit-requests-page {
-  color: #0f172a;
-}
-
-.hr-edit-requests-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.hr-edit-refresh-btn {
-  min-width: 108px;
-  border-radius: 8px;
-}
-
-.hr-edit-table-card {
-  border-radius: 10px;
-  overflow: hidden;
-}
-
 .hr-edit-employee-cell {
   min-width: 220px;
 }
@@ -897,91 +888,12 @@ async function rejectRequest(row, remarks = '') {
   min-width: 190px;
 }
 
-.hr-edit-mono {
-  font-variant-numeric: tabular-nums;
-}
-
-.hr-edit-credit-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.hr-edit-credit-pill--wp {
-  background: #ecfdf5;
-  color: #15803d;
-}
-
-.hr-edit-credit-pill--wop {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.hr-edit-credit-pill--muted {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.hr-edit-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.hr-edit-status-pill--pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.hr-edit-status-pill--approved {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.hr-edit-status-pill--rejected {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
 .hr-edit-actions-cell {
   min-width: 112px;
 }
 
-.hr-edit-action-btn {
-  cursor: pointer;
-  transition: transform 150ms ease, background-color 150ms ease;
-}
-
-.hr-edit-action-btn:hover {
-  transform: translateY(-1px);
-}
-
 .min-width-0 {
   min-width: 0;
-}
-
-.hr-edit-requests-page :deep(.hr-edit-table-header th) {
-  color: #334155;
-  font-size: 0.76rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: #f8fafc;
-}
-
-.hr-edit-requests-page :deep(.q-table tbody td) {
-  height: 68px;
-  vertical-align: middle;
 }
 
 .hr-edit-detail-summary {
@@ -1075,25 +987,38 @@ async function rejectRequest(row, remarks = '') {
   border-top: 1px solid #e2e8f0;
 }
 
+:global(body.body--dark) .hr-edit-detail-summary,
+:global(body.body--dark) .hr-edit-note-box,
+:global(body.body--dark) .hr-edit-compare-pane {
+  background: var(--dm-surface-2);
+  border-color: var(--dm-border);
+}
+
+:global(body.body--dark) .hr-edit-note-box--review,
+:global(body.body--dark) .hr-edit-compare-pane--requested {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+:global(body.body--dark) .hr-edit-detail-summary__label,
+:global(body.body--dark) .hr-edit-compare-pane__eyebrow {
+  color: var(--dm-text-muted);
+}
+
+:global(body.body--dark) .hr-edit-empty-pane,
+:global(body.body--dark) .hr-edit-details-table {
+  background: var(--dm-surface);
+  border-color: var(--dm-border);
+  color: var(--dm-text-secondary);
+}
+
+:global(body.body--dark) .hr-edit-dialog-actions {
+  border-top-color: var(--dm-border);
+}
+
 @media (max-width: 860px) {
   .hr-edit-side-by-side {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 720px) {
-  .hr-edit-refresh-btn {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hr-edit-action-btn {
-    transition: none;
-  }
-
-  .hr-edit-action-btn:hover {
-    transform: none;
   }
 }
 </style>

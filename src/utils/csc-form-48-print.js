@@ -1,3 +1,9 @@
+import pdfMake from 'pdfmake/build/pdfmake'
+import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { openPdfLoadingTab } from 'src/utils/pdf-loading-tab'
+
+pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts
+
 const CODE39_PATTERNS = {
   0: '000110100',
   1: '100100001',
@@ -45,373 +51,6 @@ const CODE39_PATTERNS = {
   '*': '010010100',
 }
 
-export const CSC_FORM_48_PRINT_STYLES = `
-  @page {
-    size: portrait;
-    margin: 5mm 6mm;
-  }
-  * {
-    box-sizing: border-box;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: #ffffff;
-    color: #000000;
-    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-  }
-  .no-print {
-    display: none !important;
-  }
-  .text-center {
-    text-align: center;
-  }
-  .text-weight-bold {
-    font-weight: 700;
-  }
-  .text-uppercase {
-    text-transform: uppercase;
-  }
-  .text-caption {
-    font-size: 7.5pt;
-  }
-  .font-mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-  .row {
-    display: flex;
-    flex-direction: row;
-  }
-  .items-center {
-    align-items: center;
-  }
-  .justify-between {
-    justify-content: space-between;
-  }
-  .q-mt-xs {
-    margin-top: 4px;
-  }
-  .csc-sheet-wrapper {
-    background: #ffffff;
-    padding: 0;
-    margin: 0 auto;
-    width: 100%;
-    max-width: 920px;
-  }
-  .csc-sheet-wrapper.single-centered-sheet {
-    max-width: 920px !important;
-    margin: 0 auto !important;
-  }
-  .single-left-layout .csc-header-band,
-  .single-left-layout .csc-footer-band {
-    display: flex !important;
-    width: 100% !important;
-  }
-  .single-left-layout .csc-panel-col {
-    width: 48% !important;
-    flex: 0 0 48% !important;
-  }
-  .single-left-layout .csc-master-table {
-    width: 48% !important;
-    margin-left: 0 !important;
-    margin-right: auto !important;
-  }
-  .csc-sheet-wrapper.has-page-break {
-    page-break-after: always;
-    break-after: page;
-  }
-  .dtr-dual-page-sheet {
-    width: 100%;
-    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-    color: #000000;
-    background: #ffffff;
-    page-break-inside: avoid;
-  }
-  .csc-header-band,
-  .csc-footer-band {
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    align-items: flex-end;
-  }
-  .csc-panel-col {
-    width: 48%;
-    flex: 0 0 48%;
-  }
-  .csc-panel-gutter {
-    width: 4%;
-    flex: 0 0 4%;
-  }
-  .csc-top-tag {
-    font-size: 8.5pt;
-    color: #000000;
-    line-height: 1.1;
-    margin-bottom: 4px;
-  }
-  .csc-main-title {
-    font-size: 10pt;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    line-height: 1.2;
-  }
-  .csc-identity-band {
-    margin-top: 12px;
-  }
-  .csc-name-underline {
-    width: 94%;
-    margin: 0 auto;
-    border-bottom: 1px solid #000000;
-    padding-bottom: 2px;
-    font-size: 10.5pt;
-    font-weight: 700;
-    line-height: 1.2;
-    min-height: 18px;
-  }
-  .csc-charges-underline {
-    width: 94%;
-    margin: 0 auto;
-    border-bottom: 1px solid #000000;
-    padding-bottom: 2px;
-    font-size: 8pt;
-    font-weight: 400;
-    text-transform: uppercase;
-    line-height: 1.2;
-    min-height: 18px;
-  }
-  .csc-sub-label {
-    font-size: 7.5pt;
-    letter-spacing: 0.5px;
-    color: #000000;
-    margin-top: 2px;
-  }
-  .csc-meta-band {
-    margin-top: 6px;
-    margin-bottom: 2px;
-    align-items: flex-start;
-  }
-  .csc-meta-line {
-    font-size: 8pt;
-    line-height: 1.3;
-  }
-  .csc-period-underline {
-    display: inline-block;
-    border-bottom: 1px solid #000000;
-    font-weight: 700;
-    line-height: 1.05;
-    padding: 0 12px 1px;
-    margin-left: 2px;
-  }
-  .csc-hours-statement {
-    font-size: 8pt;
-    line-height: 1.35;
-    margin-top: 1px;
-  }
-  .csc-hours-subline {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-  }
-  .csc-inline-rule {
-    display: inline-block;
-    width: 72px;
-    border-bottom: 1px solid #000000;
-    margin-left: 3px;
-    transform: translateY(1px);
-  }
-  .csc-prn-col {
-    padding-top: 14px;
-  }
-  .csc-prn-line {
-    font-size: 8pt;
-    line-height: 1.35;
-    padding-left: 14px;
-  }
-  .csc-prn-underline {
-    display: inline-block;
-    width: 240px;
-    border-bottom: 1px solid #000000;
-    margin-left: 4px;
-    line-height: 1.05;
-    transform: translateY(1px);
-  }
-  .csc-master-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 8pt;
-    table-layout: fixed;
-  }
-  .col-date {
-    width: 4.8%;
-  }
-  .col-punch {
-    width: 10.8%;
-  }
-  .col-single-date {
-    width: 10%;
-  }
-  .col-single-punch {
-    width: 22.5%;
-  }
-  .col-gutter {
-    width: 4%;
-  }
-  .col-workload {
-    width: 38.4%;
-  }
-  .col-quantity {
-    width: 9.6%;
-  }
-  .csc-master-table th,
-  .csc-master-table td {
-    padding: 0 2px;
-    height: 18px;
-    text-align: center;
-    vertical-align: middle;
-  }
-  .tr-am-pm th {
-    height: 15px;
-    border: none !important;
-    background: transparent !important;
-    font-size: 7.5pt;
-    font-weight: 700;
-    padding-bottom: 1px;
-  }
-  .tr-col-headers .th-boxed {
-    height: 20px;
-    background: #ffffff;
-    color: #000000;
-    font-weight: 700;
-    font-size: 7pt;
-    letter-spacing: -0.1px;
-    border: 1px solid #000000;
-  }
-  .csc-master-table tbody td {
-    border: 1px solid #000000;
-  }
-  .th-gutter,
-  .td-gutter {
-    border: none !important;
-    background: #ffffff !important;
-    padding: 0 !important;
-  }
-  .td-date {
-    font-weight: 400;
-    font-size: 8pt;
-  }
-  .td-date-weekend {
-    font-weight: 700;
-  }
-  .td-time {
-    font-size: 8pt;
-    font-weight: 400;
-    font-family: Arial, sans-serif;
-  }
-  .td-late-slot {
-    color: #c62828 !important;
-    font-weight: 700;
-  }
-  .td-dash {
-    color: #333333;
-    font-size: 8pt;
-    font-weight: 400;
-  }
-  .td-x {
-    color: #555555;
-    font-size: 7.5pt;
-    font-weight: 400;
-  }
-  .td-merged-status {
-    font-weight: 400;
-    font-size: 8pt;
-    text-transform: uppercase;
-  }
-  .td-spaced-day {
-    letter-spacing: 3px;
-    font-weight: 400;
-    font-size: 8pt;
-  }
-  .td-absent {
-    letter-spacing: 0.5px;
-    font-weight: 400;
-    font-size: 8pt;
-  }
-  .td-workload {
-    text-align: center;
-    font-size: 7.5pt;
-    font-weight: 400;
-    padding: 0 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .workload-text-span {
-    display: inline-block;
-    white-space: nowrap;
-  }
-  .td-quantity {
-    font-size: 8pt;
-  }
-  .csc-barcode-wrap {
-    width: 88%;
-    margin: 2px auto 2px;
-    text-align: center;
-  }
-  .csc-cert-statement {
-    font-size: 7pt;
-    line-height: 1.2;
-    text-align: left;
-    text-indent: 18px;
-  }
-  .csc-verify-band {
-    margin-top: 18px;
-    align-items: flex-start;
-  }
-  .csc-sig-line {
-    border-bottom: 1px solid #000000;
-    width: 92%;
-    margin: 0 auto 2px;
-  }
-  .csc-sig-caption {
-    font-size: 7.5pt;
-    line-height: 1.2;
-  }
-  .csc-incharge-band {
-    margin-top: 18px;
-    align-items: flex-end;
-  }
-  .csc-sig-name {
-    font-size: 8.5pt;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-  .csc-sig-title {
-    font-size: 8pt;
-    font-weight: 400;
-    line-height: 1.2;
-    margin-bottom: 2px;
-  }
-  .csc-incharge-line {
-    margin-top: 2px;
-  }
-  .csc-sig-sub {
-    font-size: 7.5pt;
-    line-height: 1.2;
-  }
-  .csc-summary-band {
-    margin-top: 2px;
-  }
-  .csc-summary-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    font-size: 7.5pt;
-    gap: 64px;
-  }
-`
-
 /**
  * Generate a Code 39 SVG barcode for the CSC Form 48 footer.
  */
@@ -445,111 +84,705 @@ export function generateCscBarcodeSvg(controlNumber) {
   return `<svg viewBox="0 0 ${Math.ceil(x)} ${barHeight}" preserveAspectRatio="none" style="width: 100%; height: ${barHeight}px; display: block; margin: 0 auto;">${rects.join('')}</svg>`
 }
 
-/**
- * Print the rendered CSC Form 48 container inside an isolated offscreen iframe.
- */
-export function printCscForm48({ element, employeeName = 'Employee', periodLabel = '' } = {}) {
-  if (!element) {
-    window.print()
-    return
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function extractCleanText(el) {
+  if (!el) return ''
+  const clone = el.cloneNode(true)
+  clone.querySelectorAll('.no-print, .q-icon').forEach((node) => node.remove())
+  return String(clone.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildPanelColumns(leftNode, rightNode, isSingleCentered) {
+  if (isSingleCentered) {
+    return {
+      columns: [
+        { width: 268, stack: [leftNode] },
+        { width: '*', text: '' },
+      ],
+    }
+  }
+  return {
+    columns: [
+      { width: 268, stack: [leftNode] },
+      { width: 23, text: '' },
+      { width: 268, stack: [rightNode || { text: '' }] },
+    ],
+  }
+}
+
+function buildUnderlineBlock(valueText, subLabelText, fontSize = 10, bold = true, uppercase = false) {
+  const display = uppercase ? String(valueText || '').toUpperCase() : String(valueText || '')
+  return {
+    margin: [8, 0, 8, 0],
+    stack: [
+      {
+        table: {
+          widths: ['*'],
+          body: [
+            [
+              {
+                text: display || ' ',
+                fontSize,
+                bold,
+                alignment: 'center',
+                border: [false, false, false, true],
+                margin: [0, 0, 0, 1],
+              },
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: () => 0.6,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 1,
+        },
+      },
+      {
+        text: subLabelText,
+        fontSize: 7.2,
+        alignment: 'center',
+        margin: [0, 1.5, 0, 0],
+      },
+    ],
+  }
+}
+
+function buildInlineRuleSvg(width = 62) {
+  return {
+    svg: `<svg width="${width}" height="6" viewBox="0 0 ${width} 6"><line x1="0" y1="5" x2="${width}" y2="5" stroke="#000000" stroke-width="0.6" /></svg>`,
+    width,
+    height: 6,
+  }
+}
+
+function buildMetaPanelBlock(colEl) {
+  if (!colEl) return { text: '' }
+  const prnLine = colEl.querySelector('.csc-prn-line')
+  if (prnLine) {
+    const prnValue = extractCleanText(prnLine.querySelector('.csc-prn-underline'))
+    return {
+      margin: [0, 14, 0, 0],
+      columns: [
+        { width: 26, text: 'PRN:', fontSize: 7.8, noWrap: true, margin: [0, 1, 2, 0] },
+        {
+          width: '*',
+          table: {
+            widths: ['*'],
+            body: [
+              [
+                {
+                  text: prnValue || ' ',
+                  fontSize: 7.8,
+                  bold: true,
+                  border: [false, false, false, true],
+                  margin: [2, 0, 2, 1],
+                },
+              ],
+            ],
+          },
+          layout: {
+            hLineWidth: () => 0.6,
+            vLineWidth: () => 0,
+            hLineColor: () => '#000000',
+            paddingLeft: () => 0,
+            paddingRight: () => 0,
+            paddingTop: () => 0,
+            paddingBottom: () => 0.5,
+          },
+        },
+      ],
+    }
   }
 
-  const existingFrame = document.getElementById('csc-form-48-print-iframe')
-  if (existingFrame) {
-    existingFrame.remove()
+  const periodText = extractCleanText(colEl.querySelector('.csc-period-underline'))
+  return {
+    stack: [
+      {
+        columns: [
+          { width: 'auto', text: 'For the month of ', fontSize: 7.8, margin: [0, 1, 4, 0] },
+          {
+            width: 'auto',
+            table: {
+              widths: ['auto'],
+              body: [
+                [
+                  {
+                    text: periodText || ' ',
+                    fontSize: 7.8,
+                    bold: true,
+                    border: [false, false, false, true],
+                    margin: [8, 0, 8, 0.5],
+                  },
+                ],
+              ],
+            },
+            layout: {
+              hLineWidth: () => 0.6,
+              vLineWidth: () => 0,
+              hLineColor: () => '#000000',
+              paddingLeft: () => 0,
+              paddingRight: () => 0,
+              paddingTop: () => 0,
+              paddingBottom: () => 0,
+            },
+          },
+        ],
+      },
+      {
+        text: 'Office Hours for Arrival (Regular Days) and',
+        fontSize: 7.8,
+        margin: [0, 2, 0, 0],
+      },
+      {
+        margin: [0, 1, 0, 0],
+        columns: [
+          { width: 'auto', text: 'Departure', fontSize: 7.8, noWrap: true, margin: [0, 0, 3, 0] },
+          { width: 48, ...buildInlineRuleSvg(48), margin: [0, 2, 0, 0] },
+          { width: 6, text: '' },
+          { width: 'auto', text: 'Saturday', fontSize: 7.8, noWrap: true, margin: [0, 0, 3, 0] },
+          { width: 48, ...buildInlineRuleSvg(48), margin: [0, 2, 0, 0] },
+        ],
+      },
+    ],
+  }
+}
+
+function buildMasterTableNode(tableEl, mode) {
+  if (!tableEl) return { text: '' }
+
+  let widths = [21, 57, 57, 57, 57, 23, 208, 52]
+  let gutterColIndex = 5
+  if (mode === 'single-centered') {
+    widths = [21, 57, 57, 57, 57]
+    gutterColIndex = -1
+  } else if (mode === 'bimonthly-side-by-side') {
+    widths = [21, 57, 57, 57, 57, 23, 21, 57, 57, 57, 57]
+    gutterColIndex = 5
   }
 
-  const iframe = document.createElement('iframe')
-  iframe.id = 'csc-form-48-print-iframe'
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  document.body.appendChild(iframe)
+  const body = []
+  let hasAmPmRow = false
 
-  const doc = iframe.contentWindow?.document
-  if (!doc) {
-    window.print()
-    return
+  const amPmRow = tableEl.querySelector('thead tr.tr-am-pm')
+  if (amPmRow) {
+    const pdfRow = []
+    amPmRow.querySelectorAll('th').forEach((th) => {
+      const colSpan = Math.max(1, Number(th.getAttribute('colspan') || 1))
+      const text = extractCleanText(th)
+      const cell = {
+        text,
+        fontSize: 7.5,
+        bold: true,
+        alignment: 'center',
+        border: [false, false, false, false],
+        margin: [0, 0, 0, 1.5],
+      }
+      if (colSpan > 1) cell.colSpan = colSpan
+      pdfRow.push(cell)
+      for (let i = 1; i < colSpan; i++) {
+        pdfRow.push({ text: '', border: [false, false, false, false] })
+      }
+    })
+    if (pdfRow.length === widths.length) {
+      body.push(pdfRow)
+      hasAmPmRow = true
+    }
   }
 
-  const titleSuffix = periodLabel ? ` (${periodLabel})` : ''
-  doc.open()
-  doc.write(`<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>CSC Form 48 - ${employeeName}${titleSuffix}</title>
-    <style>${CSC_FORM_48_PRINT_STYLES}</style>
-  </head>
-  <body>
-    ${element.innerHTML}
-  </body>
-</html>`)
-  doc.close()
+  const headerRow = tableEl.querySelector('thead tr.tr-col-headers')
+  if (headerRow) {
+    const pdfRow = []
+    headerRow.querySelectorAll('th').forEach((th) => {
+      const colSpan = Math.max(1, Number(th.getAttribute('colspan') || 1))
+      const isGutter = th.classList.contains('th-gutter')
+      const cellBorder = isGutter ? [false, false, false, false] : [true, true, true, true]
+      const cell = {
+        text: isGutter ? '' : extractCleanText(th),
+        fontSize: 6.8,
+        bold: true,
+        alignment: 'center',
+        border: cellBorder,
+        margin: [0, 2, 0, 2],
+      }
+      if (colSpan > 1) cell.colSpan = colSpan
+      pdfRow.push(cell)
+      for (let i = 1; i < colSpan; i++) {
+        pdfRow.push({ text: '', border: [...cellBorder] })
+      }
+    })
+    if (pdfRow.length === widths.length) {
+      body.push(pdfRow)
+    }
+  }
 
-  setTimeout(() => {
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-  }, 150)
+  tableEl.querySelectorAll('tbody tr').forEach((tr) => {
+    const pdfRow = []
+    tr.querySelectorAll('td').forEach((td) => {
+      const colSpan = Math.max(1, Number(td.getAttribute('colspan') || 1))
+      const isGutter = td.classList.contains('td-gutter')
+      const cellBorder = isGutter ? [false, false, false, false] : [true, true, true, true]
+
+      if (isGutter) {
+        pdfRow.push({ text: '', border: cellBorder })
+        for (let i = 1; i < colSpan; i++) {
+          pdfRow.push({ text: '', border: [...cellBorder] })
+        }
+        return
+      }
+
+      const rawText = extractCleanText(td)
+      const isWorkload = td.classList.contains('td-workload')
+      const isMergedStatus = td.classList.contains('td-merged-status')
+      const isLate = td.classList.contains('td-late-slot')
+      const isOverridden = td.classList.contains('td-overridden-slot')
+      const isWeekendDate = td.classList.contains('td-date-weekend')
+      const isDash = td.classList.contains('td-dash')
+      const isX = td.classList.contains('td-x')
+      const upperText = rawText.trim().toUpperCase()
+      const isWeekendLabel = (isMergedStatus || isWorkload) && (upperText === 'SATURDAY' || upperText === 'SUNDAY')
+
+      const cell = {
+        text: isMergedStatus && !isWorkload ? upperText : rawText,
+        fontSize: isX ? 7.4 : 8.2,
+        bold: isLate || isOverridden || isWeekendDate,
+        color: isLate ? '#c62828' : isX ? '#555555' : isDash ? '#333333' : '#000000',
+        alignment: 'center',
+        border: cellBorder,
+      }
+      if (isWeekendLabel) cell.characterSpacing = 2.2
+      if (colSpan > 1) cell.colSpan = colSpan
+      pdfRow.push(cell)
+      for (let i = 1; i < colSpan; i++) {
+        pdfRow.push({ text: '', border: [...cellBorder] })
+      }
+    })
+    if (pdfRow.length === widths.length) {
+      body.push(pdfRow)
+    }
+  })
+
+  const tableNode = {
+    margin: [0, 3, 0, 4],
+    table: {
+      widths,
+      dontBreakRows: true,
+      body,
+    },
+    layout: {
+      hLineWidth: (i) => (i === 0 && hasAmPmRow ? 0 : 0.45),
+      vLineWidth: () => 0.45,
+      hLineColor: () => '#000000',
+      vLineColor: () => '#000000',
+      paddingLeft: (i) => (i === gutterColIndex ? 0 : 1.5),
+      paddingRight: (i) => (i === gutterColIndex ? 0 : 1.5),
+      paddingTop: (rowIndex) => (rowIndex === 0 && hasAmPmRow ? 0.5 : 2.05),
+      paddingBottom: (rowIndex) => (rowIndex === 0 && hasAmPmRow ? 1 : 2.05),
+    },
+  }
+
+  if (mode === 'single-centered') {
+    return {
+      columns: [
+        { width: 268, stack: [tableNode] },
+        { width: '*', text: '' },
+      ],
+    }
+  }
+
+  return tableNode
+}
+
+function buildBarcodeCertBlock(colEl) {
+  if (!colEl) return { text: '' }
+  const stack = []
+  const svgEl = colEl.querySelector('.csc-barcode-wrap svg')
+  if (svgEl) {
+    const viewBox = svgEl.getAttribute('viewBox') || '0 0 218 22'
+    const cleanSvg = `<svg viewBox="${escapeHtml(viewBox)}" width="246" height="15" preserveAspectRatio="none">${svgEl.innerHTML}</svg>`
+    stack.push({
+      svg: cleanSvg,
+      width: 246,
+      height: 15,
+      alignment: 'center',
+      margin: [0, 1, 0, 3],
+    })
+  }
+
+  const certEl = colEl.querySelector('.csc-cert-statement')
+  if (certEl) {
+    stack.push({
+      text: extractCleanText(certEl),
+      fontSize: 7.2,
+      lineHeight: 1.2,
+      alignment: 'left',
+      leadingIndent: 14,
+      margin: [4, 0, 4, 0],
+    })
+  }
+
+  return stack.length > 0 ? { stack } : { text: '' }
+}
+
+function buildVerifyBlock(colEl) {
+  if (!colEl) return { text: '' }
+  const caption = extractCleanText(colEl.querySelector('.csc-sig-caption'))
+  if (!caption) return { text: '' }
+  return {
+    margin: [8, 22, 8, 0],
+    stack: [
+      {
+        table: {
+          widths: ['*'],
+          body: [[{ text: ' ', fontSize: 1, border: [false, false, false, true] }]],
+        },
+        layout: {
+          hLineWidth: () => 0.6,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+      },
+      {
+        text: caption,
+        fontSize: 7.2,
+        alignment: 'center',
+        margin: [0, 2.5, 0, 0],
+      },
+    ],
+  }
+}
+
+function buildInChargeBlock(colEl) {
+  if (!colEl) return { text: '' }
+  const sigName = extractCleanText(colEl.querySelector('.csc-sig-name'))
+  const sigTitle = extractCleanText(colEl.querySelector('.csc-sig-title'))
+  const sigSub = extractCleanText(colEl.querySelector('.csc-sig-sub')) || 'IN-CHARGE'
+
+  return {
+    margin: [8, 18, 8, 0],
+    stack: [
+      {
+        text: sigName || ' ',
+        fontSize: 8.4,
+        bold: true,
+        alignment: 'center',
+      },
+      {
+        table: {
+          widths: ['*'],
+          body: [
+            [
+              {
+                text: sigTitle || ' ',
+                fontSize: 7.6,
+                alignment: 'center',
+                border: [false, false, false, true],
+                margin: [0, 0, 0, 1],
+              },
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: () => 0.6,
+          vLineWidth: () => 0,
+          hLineColor: () => '#000000',
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+        },
+      },
+      {
+        text: sigSub,
+        fontSize: 7.2,
+        alignment: 'center',
+        margin: [0, 2, 0, 0],
+      },
+    ],
+  }
+}
+
+function buildSummaryRowBlock(colEl) {
+  if (!colEl) return { text: '' }
+  const spans = Array.from(colEl.querySelectorAll('span')).map((sp) => extractCleanText(sp)).filter(Boolean)
+  if (spans.length === 0) return { text: '' }
+  return {
+    margin: [6, 5, 0, 0],
+    columns: spans.map((label, idx) => ({
+      width: idx === 0 ? 120 : '*',
+      text: label,
+      fontSize: 7.5,
+    })),
+  }
+}
+
+function buildPdfSheetStack(sheetEl, isFirstPage) {
+  const dualSheet = sheetEl.querySelector('.dtr-dual-page-sheet') || sheetEl
+  const headerBands = Array.from(dualSheet.querySelectorAll('.csc-header-band'))
+  const footerBands = Array.from(dualSheet.querySelectorAll('.csc-footer-band'))
+  const tableEl = dualSheet.querySelector('table.csc-master-table')
+
+  const boxedHeaderCount = tableEl
+    ? tableEl.querySelectorAll('thead tr.tr-col-headers th.th-boxed').length
+    : 0
+  let mode = 'contractual'
+  if (dualSheet.classList.contains('single-left-layout') || boxedHeaderCount === 5) {
+    mode = 'single-centered'
+  } else if (boxedHeaderCount === 10) {
+    mode = 'bimonthly-side-by-side'
+  }
+  const isSingleCentered = mode === 'single-centered'
+
+  const stack = []
+
+  // Band 0: Form 48
+  const topCols = headerBands[0] ? Array.from(headerBands[0].querySelectorAll('.csc-panel-col')) : []
+  stack.push(
+    buildPanelColumns(
+      { text: extractCleanText(topCols[0]) || 'Form 48', fontSize: 8, margin: [0, 0, 0, 2] },
+      topCols[1] ? { text: extractCleanText(topCols[1]), fontSize: 8, margin: [0, 0, 0, 2] } : null,
+      isSingleCentered,
+    ),
+  )
+
+  // Band 1: DAILY TIME RECORD | ACCOMPLISHMENT REPORT
+  const titleCols = headerBands[1] ? Array.from(headerBands[1].querySelectorAll('.csc-panel-col')) : []
+  stack.push({
+    margin: [0, 0, 0, 8],
+    ...buildPanelColumns(
+      { text: extractCleanText(titleCols[0]) || 'DAILY TIME RECORD', fontSize: 10, bold: true, alignment: 'center' },
+      titleCols[1]
+        ? { text: extractCleanText(titleCols[1]), fontSize: 10, bold: true, alignment: 'center' }
+        : null,
+      isSingleCentered,
+    ),
+  })
+
+  // Band 2: Employee Name & Charges
+  const idCols = headerBands[2] ? Array.from(headerBands[2].querySelectorAll('.csc-panel-col')) : []
+  const leftName = extractCleanText(idCols[0]?.querySelector('.csc-name-underline'))
+  const leftSub = extractCleanText(idCols[0]?.querySelector('.csc-sub-label')) || 'NAME'
+  let rightIdNode = null
+  if (idCols[1]) {
+    const rightNameEl = idCols[1].querySelector('.csc-name-underline')
+    const rightChargesEl = idCols[1].querySelector('.csc-charges-underline')
+    const rightSub = extractCleanText(idCols[1].querySelector('.csc-sub-label'))
+    if (rightNameEl) {
+      rightIdNode = buildUnderlineBlock(extractCleanText(rightNameEl), rightSub || 'NAME', 10, true, false)
+    } else if (rightChargesEl) {
+      rightIdNode = buildUnderlineBlock(extractCleanText(rightChargesEl), rightSub || 'CHARGES', 7.8, false, true)
+    }
+  }
+  stack.push({
+    margin: [0, 0, 0, 4],
+    ...buildPanelColumns(
+      buildUnderlineBlock(leftName, leftSub, 10, true, false),
+      rightIdNode,
+      isSingleCentered,
+    ),
+  })
+
+  // Band 3: Month / Office Hours / PRN
+  const metaCols = headerBands[3] ? Array.from(headerBands[3].querySelectorAll('.csc-panel-col')) : []
+  stack.push({
+    margin: [0, 0, 0, 4],
+    ...buildPanelColumns(
+      buildMetaPanelBlock(metaCols[0]),
+      metaCols[1] ? buildMetaPanelBlock(metaCols[1]) : null,
+      isSingleCentered,
+    ),
+  })
+
+  // Master Table
+  stack.push(buildMasterTableNode(tableEl, mode))
+
+  // Footer Band 0: Barcode + Certification
+  const f0Cols = footerBands[0] ? Array.from(footerBands[0].querySelectorAll('.csc-panel-col')) : []
+  stack.push(
+    buildPanelColumns(
+      buildBarcodeCertBlock(f0Cols[0]),
+      f0Cols[1] ? buildBarcodeCertBlock(f0Cols[1]) : null,
+      isSingleCentered,
+    ),
+  )
+
+  // Footer Band 1: Verified / Prepared by
+  const f1Cols = footerBands[1] ? Array.from(footerBands[1].querySelectorAll('.csc-panel-col')) : []
+  stack.push(
+    buildPanelColumns(
+      buildVerifyBlock(f1Cols[0]),
+      f1Cols[1] ? buildVerifyBlock(f1Cols[1]) : null,
+      isSingleCentered,
+    ),
+  )
+
+  // Footer Band 2: In-Charge Signatory
+  const f2Cols = footerBands[2] ? Array.from(footerBands[2].querySelectorAll('.csc-panel-col')) : []
+  stack.push(
+    buildPanelColumns(
+      buildInChargeBlock(f2Cols[0]),
+      f2Cols[1] ? buildInChargeBlock(f2Cols[1]) : null,
+      isSingleCentered,
+    ),
+  )
+
+  // Footer Band 3: Summary Counters
+  const f3Cols = footerBands[3] ? Array.from(footerBands[3].querySelectorAll('.csc-panel-col')) : []
+  stack.push(
+    buildPanelColumns(
+      buildSummaryRowBlock(f3Cols[0]),
+      f3Cols[1] ? buildSummaryRowBlock(f3Cols[1]) : null,
+      isSingleCentered,
+    ),
+  )
+
+  return isFirstPage
+    ? { stack }
+    : { stack, pageBreak: 'before' }
+}
+
+function collectSheetElements(elementOrElements) {
+  const list = Array.isArray(elementOrElements) ? elementOrElements : [elementOrElements]
+  const sheets = []
+  list.forEach((el) => {
+    if (!el) return
+    if (el.classList?.contains('csc-sheet-wrapper')) {
+      sheets.push(el)
+      return
+    }
+    const nested = el.querySelectorAll?.('.csc-sheet-wrapper')
+    if (nested && nested.length > 0) {
+      nested.forEach((sheet) => sheets.push(sheet))
+    } else {
+      sheets.push(el)
+    }
+  })
+  return sheets
 }
 
 /**
- * Print multiple rendered CSC Form 48 containers inside an isolated offscreen iframe.
+ * Open a new browser tab synchronously before an async fetch so popup blockers allow it.
  */
-export function printBatchCscForm48({ elements = [], htmlContent = '', title = 'CSC Form 48 Batch' } = {}) {
-  const existingFrame = document.getElementById('csc-form-48-print-iframe')
-  if (existingFrame) {
-    existingFrame.remove()
-  }
+export function openCscForm48PrintTab(title = 'Preparing CSC Form 48...') {
+  return openPdfLoadingTab(title, 'Generating CSC Form No. 48 PDF...')
+}
 
-  const iframe = document.createElement('iframe')
-  iframe.id = 'csc-form-48-print-iframe'
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  document.body.appendChild(iframe)
-
-  const doc = iframe.contentWindow?.document
-  if (!doc) {
+function openCscForm48PdfBlob({ sheetElements, title, fileName = 'csc-form-48.pdf', targetWindow = null }) {
+  const sheets = collectSheetElements(sheetElements)
+  if (sheets.length === 0) {
+    if (targetWindow && !targetWindow.closed) {
+      targetWindow.close()
+    }
     window.print()
-    return
+    return Promise.resolve()
   }
 
-  let bodyHtml = htmlContent
-  if (!bodyHtml && elements.length > 0) {
-    bodyHtml = elements
-      .map((el, idx) => {
-        const isLast = idx === elements.length - 1
-        const breakClass = isLast ? '' : 'has-page-break'
-        const classNames = Array.from(el.classList).filter(c => c !== 'has-page-break').join(' ')
-        return `<div class="${classNames} ${breakClass}">${el.innerHTML}</div>`
-      })
-      .join('\n')
+  const printWin = targetWindow && !targetWindow.closed ? targetWindow : openCscForm48PrintTab(title)
+
+  const docDefinition = {
+    pageSize: 'LETTER',
+    pageOrientation: 'portrait',
+    pageMargins: [24, 18, 24, 18],
+    info: {
+      title: String(title || 'CSC Form 48'),
+    },
+    defaultStyle: {
+      fontSize: 7.8,
+      lineHeight: 1.05,
+      color: '#000000',
+    },
+    content: sheets.map((sheetEl, idx) => buildPdfSheetStack(sheetEl, idx === 0)),
   }
 
-  doc.open()
-  doc.write(`<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${title}</title>
-    <style>${CSC_FORM_48_PRINT_STYLES}</style>
-  </head>
-  <body>
-    ${bodyHtml}
-  </body>
-</html>`)
-  doc.close()
+  const pdfDocument = pdfMake.createPdf(docDefinition)
 
-  setTimeout(() => {
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-  }, 200)
+  return pdfDocument
+    .getBlob()
+    .then((blob) => {
+      const objectUrl = URL.createObjectURL(blob)
+
+      if (printWin && !printWin.closed) {
+        printWin.location.replace(objectUrl)
+      } else {
+        const opened = window.open(objectUrl, '_blank')
+        if (!opened) {
+          const anchor = document.createElement('a')
+          anchor.href = objectUrl
+          anchor.download = fileName
+          anchor.rel = 'noopener noreferrer'
+          document.body.appendChild(anchor)
+          anchor.click()
+          anchor.remove()
+        }
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    })
+    .catch((err) => {
+      if (printWin && !printWin.closed) {
+        printWin.close()
+      }
+      throw err
+    })
+}
+
+/**
+ * Generate a real application/pdf Blob for a single CSC Form 48 container and open it in a new tab.
+ */
+export function printCscForm48({
+  element,
+  employeeName = 'Employee',
+  periodLabel = '',
+  targetWindow = null,
+} = {}) {
+  if (!element) {
+    window.print()
+    return Promise.resolve()
+  }
+
+  const titleSuffix = periodLabel ? ` (${periodLabel})` : ''
+  const title = `CSC Form 48 - ${employeeName}${titleSuffix}`
+  const safeFile = `${title}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+
+  return openCscForm48PdfBlob({
+    sheetElements: element,
+    title,
+    fileName: safeFile,
+    targetWindow,
+  })
+}
+
+/**
+ * Generate a real application/pdf Blob for multiple CSC Form 48 containers and open it in a new tab.
+ */
+export function printBatchCscForm48({
+  elements = [],
+  title = 'CSC Form 48 Batch',
+  targetWindow = null,
+} = {}) {
+  const safeFile = `${title || 'CSC Form 48 Batch'}.pdf`.replace(/[\\/:*?"<>|]+/g, '_')
+  return openCscForm48PdfBlob({
+    sheetElements: elements,
+    title,
+    fileName: safeFile,
+    targetWindow,
+  })
 }
 

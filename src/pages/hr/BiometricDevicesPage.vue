@@ -281,7 +281,7 @@
       header-color="primary"
       max-width="520px"
       card-class="rounded-borders overflow-hidden"
-      body-class="q-pa-md dialog-form-body"
+      body-class="q-pa-md"
       actions-class="q-px-md q-py-sm bg-grey-1 dialog-footer q-gutter-sm"
       :loading="submittingDevice"
       cancel-color="grey-7"
@@ -289,7 +289,9 @@
       submit-color="primary"
       @submit="submitDeviceForm"
     >
-          <div class="row q-col-gutter-sm">
+      <div class="dialog-form-body">
+        <div>
+          <div class="row q-col-gutter-md">
             <div class="col-12 col-sm-6">
               <q-input
                 v-model="deviceForm.device_name"
@@ -315,9 +317,11 @@
               />
             </div>
           </div>
+        </div>
 
-          <!-- Connection Mode & Port (Port only needed for LAN socket polling) -->
-          <div class="row q-col-gutter-sm">
+        <!-- Connection Mode & Port (Port only needed for LAN socket polling) -->
+        <div>
+          <div class="row q-col-gutter-md">
             <div
               :class="deviceForm.communication_mode === 'LAN_POLL' ? 'col-12 col-sm-8' : 'col-12'"
             >
@@ -347,87 +351,89 @@
               />
             </div>
           </div>
+        </div>
 
-          <!-- Network IP Address (Only shown & required for direct LAN socket polling) -->
-          <div v-if="deviceForm.communication_mode === 'LAN_POLL'">
-            <q-input
-              v-model="deviceForm.ip_address"
-              outlined
-              dense
-              label="IP Address (Static LAN) *"
-              placeholder="e.g. 192.168.1.100"
-              :rules="[(val) => !!val || 'IP Address is required for LAN poll']"
-              hide-bottom-space
-            />
-          </div>
+        <!-- Network IP Address (Only shown & required for direct LAN socket polling) -->
+        <div v-if="deviceForm.communication_mode === 'LAN_POLL'">
+          <q-input
+            v-model="deviceForm.ip_address"
+            outlined
+            dense
+            label="IP Address (Static LAN) *"
+            placeholder="e.g. 192.168.1.100"
+            :rules="[(val) => !!val || 'IP Address is required for LAN poll']"
+            hide-bottom-space
+          />
+        </div>
 
-          <!-- Assigned Office Selection (Single-Line Trigger + Sticky In-Menu Search) -->
-          <div>
-            <q-select
-              v-model="deviceForm.department_id"
-              :options="filteredOfficeOptions"
-              emit-value
-              map-options
-              outlined
-              dense
-              options-dense
-              label="Assigned Office *"
-              :loading="loadingOffices"
-              :rules="[(val) => !!val || 'Assigned office is required']"
-              hide-bottom-space
-              @popup-show="officeSearchQuery = ''"
-              @update:model-value="onOfficeSelected"
-            >
-              <template #prepend>
-                <q-icon name="apartment" color="primary" />
-              </template>
-              <template #selected-item="scope">
-                <div class="ellipsis text-dark">
-                  {{ scope.opt.label || scope.opt }}
-                </div>
-              </template>
-              <template #before-options>
-                <div class="q-pa-sm bg-white sticky-office-search">
-                  <q-input
-                    v-model="officeSearchQuery"
-                    dense
-                    outlined
-                    clearable
-                    autofocus
-                    placeholder="Search office name or acronym..."
-                  >
-                    <template #prepend>
-                      <q-icon name="search" size="18px" color="grey-6" />
-                    </template>
-                  </q-input>
-                </div>
-                <q-separator />
-              </template>
-              <template #no-option>
-                <div class="q-pa-sm bg-white sticky-office-search">
-                  <q-input
-                    v-model="officeSearchQuery"
-                    dense
-                    outlined
-                    clearable
-                    autofocus
-                    placeholder="Search office name or acronym..."
-                  >
-                    <template #prepend>
-                      <q-icon name="search" size="18px" color="grey-6" />
-                    </template>
-                  </q-input>
-                </div>
-                <q-separator />
-                <q-item>
-                  <q-item-section class="text-grey-6 text-caption">
-                    No matching office found in library
-                  </q-item-section>
-                </q-item>
-              </template>
-            </q-select>
-          </div>
-        </AppDialog>
+        <!-- Assigned Office Selection (Single-Line Trigger + Sticky In-Menu Search) -->
+        <div>
+          <q-select
+            v-model="deviceForm.department_id"
+            :options="filteredOfficeOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            options-dense
+            label="Assigned Office *"
+            :loading="loadingOffices"
+            :rules="[(val) => !!val || 'Assigned office is required']"
+            hide-bottom-space
+            @popup-show="officeSearchQuery = ''"
+            @update:model-value="onOfficeSelected"
+          >
+            <template #prepend>
+              <q-icon name="apartment" color="primary" />
+            </template>
+            <template #selected-item="scope">
+              <div class="ellipsis text-dark">
+                {{ scope.opt.label || scope.opt }}
+              </div>
+            </template>
+            <template #before-options>
+              <div class="q-pa-sm bg-white sticky-office-search">
+                <q-input
+                  v-model="officeSearchQuery"
+                  dense
+                  outlined
+                  clearable
+                  autofocus
+                  placeholder="Search office name or acronym..."
+                >
+                  <template #prepend>
+                    <q-icon name="search" size="18px" color="grey-6" />
+                  </template>
+                </q-input>
+              </div>
+              <q-separator />
+            </template>
+            <template #no-option>
+              <div class="q-pa-sm bg-white sticky-office-search">
+                <q-input
+                  v-model="officeSearchQuery"
+                  dense
+                  outlined
+                  clearable
+                  autofocus
+                  placeholder="Search office name or acronym..."
+                >
+                  <template #prepend>
+                    <q-icon name="search" size="18px" color="grey-6" />
+                  </template>
+                </q-input>
+              </div>
+              <q-separator />
+              <q-item>
+                <q-item-section class="text-grey-6 text-caption">
+                  No matching office found in library
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
+        </div>
+      </div>
+    </AppDialog>
 
     <!-- Delete Confirmation Dialog -->
     <AppDialog
@@ -1200,7 +1206,7 @@ onUnmounted(() => {
 .dialog-form-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .dialog-footer {

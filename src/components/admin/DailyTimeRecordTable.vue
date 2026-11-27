@@ -9,8 +9,14 @@
             <div class="row items-center q-gutter-x-sm">
               <q-icon :name="showPrint ? 'print' : 'description'" color="green-9" size="22px" />
               <div>
-                <div class="text-subtitle2 text-weight-bold text-dark row items-center q-gutter-x-xs">
-                  <span>{{ isContractual ? 'CSC Form 48 & Accomplishment Report' : 'CSC Form 48 (Daily Time Record)' }}</span>
+                <div
+                  class="text-subtitle2 text-weight-bold text-dark row items-center q-gutter-x-xs"
+                >
+                  <span>{{
+                    isContractual
+                      ? 'CSC Form 48 & Accomplishment Report'
+                      : 'CSC Form 48 (Daily Time Record)'
+                  }}</span>
                   <q-badge
                     v-if="employeeEmploymentStatus"
                     :color="isContractual ? 'orange-9' : 'teal-8'"
@@ -31,17 +37,13 @@
                 class="custom-range-trigger row items-center no-wrap q-px-sm cursor-pointer rounded-borders"
               >
                 <q-icon name="date_range" size="16px" color="green-9" class="q-mr-xs" />
-                <span class="text-caption text-weight-bold text-dark">{{ customRangeDisplayLabel }}</span>
+                <span class="text-caption text-weight-bold text-dark">{{
+                  customRangeDisplayLabel
+                }}</span>
                 <q-icon name="arrow_drop_down" size="18px" color="grey-7" class="q-ml-xs" />
 
                 <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-date
-                    v-model="datePickerModel"
-                    range
-                    mask="YYYY-MM-DD"
-                    color="green-9"
-                    minimal
-                  >
+                  <q-date v-model="datePickerModel" range mask="YYYY-MM-DD" color="green-9" minimal>
                     <div class="row items-center justify-between q-gutter-x-sm">
                       <span class="text-caption text-grey-7">{{ customRangeDisplayLabel }}</span>
                       <q-btn
@@ -88,32 +90,10 @@
           'has-page-break': pairIdx < pairedSheets.length - 1,
         }"
       >
-        <!-- Multi-Sheet Screen Indicator Banner (Hidden on Print) -->
         <div
-          v-if="pairedSheets.length > 1"
-          class="no-print row items-center justify-between q-px-sm q-py-xs q-mb-sm bg-green-1 text-green-9 rounded-borders text-caption text-weight-bold"
+          class="dtr-dual-page-sheet"
+          :class="{ 'single-left-layout': pair.mode === 'single-centered' }"
         >
-          <span>
-            <q-icon name="description" size="15px" class="q-mr-xs" />
-            Sheet {{ pairIdx + 1 }} of {{ pairedSheets.length }}:
-            <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
-              {{ pair.leftSheet.periodDisplayLabel }} &amp; {{ pair.rightSheet.periodDisplayLabel }} (Side-by-Side)
-            </template>
-            <template v-else>
-              {{ pair.leftSheet.periodDisplayLabel }}, {{ pair.leftSheet.year }}
-            </template>
-          </span>
-          <span>
-            <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
-              Days: ~{{ pair.leftSheet.presentDaysCount }} + ~{{ pair.rightSheet.presentDaysCount }}
-            </template>
-            <template v-else>
-              No. of Day(s): ~{{ pair.leftSheet.presentDaysCount }}
-            </template>
-          </span>
-        </div>
-
-        <div class="dtr-dual-page-sheet" :class="{ 'single-left-layout': pair.mode === 'single-centered' }">
           <!-- ========================================================= -->
           <!-- TOP HEADERS: ROW-BY-ROW HORIZONTAL LOCK                   -->
           <!-- ========================================================= -->
@@ -135,7 +115,11 @@
               <div class="csc-panel-gutter"></div>
               <div class="csc-panel-col text-center">
                 <div class="csc-main-title">
-                  {{ pair.mode === 'bimonthly-side-by-side' ? 'DAILY TIME RECORD' : 'ACCOMPLISHMENT REPORT' }}
+                  {{
+                    pair.mode === 'bimonthly-side-by-side'
+                      ? 'DAILY TIME RECORD'
+                      : 'ACCOMPLISHMENT REPORT'
+                  }}
                 </div>
               </div>
             </template>
@@ -167,7 +151,9 @@
             <div class="csc-panel-col">
               <div class="csc-meta-line">
                 <span>For the month of </span>
-                <span class="csc-period-underline">{{ pair.leftSheet.periodDisplayLabel }}, {{ pair.leftSheet.year }}</span>
+                <span class="csc-period-underline"
+                  >{{ pair.leftSheet.periodDisplayLabel }}, {{ pair.leftSheet.year }}</span
+                >
               </div>
               <div class="csc-hours-statement">
                 <div>Office Hours for Arrival (Regular Days) and</div>
@@ -183,7 +169,9 @@
                 <template v-if="pair.mode === 'bimonthly-side-by-side' && pair.rightSheet">
                   <div class="csc-meta-line">
                     <span>For the month of </span>
-                    <span class="csc-period-underline">{{ pair.rightSheet.periodDisplayLabel }}, {{ pair.rightSheet.year }}</span>
+                    <span class="csc-period-underline"
+                      >{{ pair.rightSheet.periodDisplayLabel }}, {{ pair.rightSheet.year }}</span
+                    >
                   </div>
                   <div class="csc-hours-statement">
                     <div>Office Hours for Arrival (Regular Days) and</div>
@@ -201,8 +189,15 @@
                   >
                     <span>PRN:</span>
                     <span class="csc-prn-underline">{{ prnNumber || '' }}</span>
-                    <q-icon v-if="!readonly" name="edit" size="11px" class="q-ml-xs text-grey-5 no-print" />
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to edit PRN Number</q-tooltip>
+                    <q-icon
+                      v-if="!readonly"
+                      name="edit"
+                      size="11px"
+                      class="q-ml-xs text-grey-5 no-print"
+                    />
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to edit PRN Number</q-tooltip
+                    >
                   </div>
                 </template>
               </div>
@@ -214,11 +209,11 @@
           <!-- ========================================================= -->
           <table class="csc-master-table">
             <colgroup v-if="pair.mode === 'single-centered'">
-              <col class="col-single-date" style="width: 10%;" />
-              <col class="col-single-punch" style="width: 22.5%;" />
-              <col class="col-single-punch" style="width: 22.5%;" />
-              <col class="col-single-punch" style="width: 22.5%;" />
-              <col class="col-single-punch" style="width: 22.5%;" />
+              <col class="col-single-date" style="width: 10%" />
+              <col class="col-single-punch" style="width: 22.5%" />
+              <col class="col-single-punch" style="width: 22.5%" />
+              <col class="col-single-punch" style="width: 22.5%" />
+              <col class="col-single-punch" style="width: 22.5%" />
             </colgroup>
             <colgroup v-else-if="pair.mode === 'bimonthly-side-by-side'">
               <col class="col-date" />
@@ -284,10 +279,26 @@
                       @click="openBulkWorkloadDialog"
                     >
                       <span>WORKLOAD UNDERTAKEN</span>
-                      <q-icon v-if="!readonly" name="edit" size="11px" class="q-ml-xs no-print text-grey-4" />
-                      <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to edit workload for all work days</q-tooltip>
+                      <q-icon
+                        v-if="!readonly"
+                        name="edit"
+                        size="11px"
+                        class="q-ml-xs no-print text-grey-4"
+                      />
+                      <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                        >Click to edit workload for all work days</q-tooltip
+                      >
                     </th>
-                    <th class="th-boxed">QUANTITY</th>
+                    <th
+                      class="th-boxed"
+                      :class="{ 'clickable-workload-header': !readonly }"
+                      @click="openBulkQuantityDialog"
+                    >
+                      <span>QUANTITY</span>
+                      <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                        >Click to edit quantity for all work days</q-tooltip
+                      >
+                    </th>
                   </template>
                 </template>
               </tr>
@@ -336,10 +347,12 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     SATURDAY
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ row.dayNumber }})</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Saturday (Day {{ row.dayNumber }})</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -348,10 +361,12 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     SUNDAY
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ row.dayNumber }})</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Sunday (Day {{ row.dayNumber }})</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -360,10 +375,12 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     {{ row.customRemark }}
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Day {{ row.dayNumber }}</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -372,10 +389,12 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-absent td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     ABSENT
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Day {{ row.dayNumber }}</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -384,10 +403,12 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     {{ row.holidayName || 'HOLIDAY' }}
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ row.dayNumber }})</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Holiday (Day {{ row.dayNumber }})</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -396,10 +417,12 @@
                   <td
                     colspan="4"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }}</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Day {{ row.dayNumber }}</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -408,10 +431,12 @@
                   <td
                     colspan="2"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (AM Leave)</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Day {{ row.dayNumber }} (AM Leave)</q-tooltip
+                    >
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -420,10 +445,14 @@
                       'td-late-slot': isRowSlotLate(row, 'pm_arrival'),
                       'td-missing-slot': isRowSlotMissing(row, 'pm_arrival'),
                     }"
-                    @click="openTimeOverride(row, 'pm_arrival')"
+                    @click="openTimeOverride(row, 'pm_arrival', $event)"
                   >
                     {{ row.pmArrival }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'pm_arrival', 'PM In')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip
+                    >
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -431,10 +460,14 @@
                       'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure'),
                       'td-missing-slot': isRowSlotMissing(row, 'pm_departure'),
                     }"
-                    @click="openTimeOverride(row, 'pm_departure')"
+                    @click="openTimeOverride(row, 'pm_departure', $event)"
                   >
                     {{ row.pmDeparture }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'pm_departure', 'PM Out')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip
+                    >
                   </td>
                 </template>
 
@@ -447,10 +480,14 @@
                       'td-late-slot': isRowSlotLate(row, 'am_arrival'),
                       'td-missing-slot': isRowSlotMissing(row, 'am_arrival'),
                     }"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
                     {{ row.amArrival }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'am_arrival', 'AM In')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip
+                    >
                   </td>
                   <td
                     class="td-time td-time-clickable cursor-pointer"
@@ -458,69 +495,161 @@
                       'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure'),
                       'td-missing-slot': isRowSlotMissing(row, 'am_departure'),
                     }"
-                    @click="openTimeOverride(row, 'am_departure')"
+                    @click="openTimeOverride(row, 'am_departure', $event)"
                   >
                     {{ row.amDeparture }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'am_departure', 'AM Out')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip
+                    >
                   </td>
                   <td
                     colspan="2"
                     class="td-merged-status td-time-clickable cursor-pointer"
-                    @click="openTimeOverride(row, 'pm_arrival')"
+                    @click="openTimeOverride(row, 'pm_arrival', $event)"
                   >
                     {{ row.leaveLabel || 'ON LEAVE' }}
-                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ row.dayNumber }} (PM Leave)</q-tooltip>
+                    <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                      >Click to override time for Day {{ row.dayNumber }} (PM Leave)</q-tooltip
+                    >
+                  </td>
+                </template>
+
+                <!-- Whole-Day Merged Remark Override -->
+                <template v-else-if="row.mergedWholeDayRemark">
+                  <td
+                    colspan="4"
+                    class="td-merged-status td-overridden-slot td-time-clickable cursor-pointer"
+                    :class="{
+                      'td-pending-delete-slot': hasPendingDeleteForSlots(row, [
+                        'am_arrival',
+                        'am_departure',
+                        'pm_arrival',
+                        'pm_departure',
+                      ]),
+                    }"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
+                  >
+                    {{ row.mergedWholeDayRemark }}
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'am_arrival', 'Whole Day')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'am_arrival', 'Whole Day') }}</q-tooltip
+                    >
                   </td>
                 </template>
 
                 <!-- Regular Working Day with Punches or Slot Overrides -->
                 <template v-else>
                   <td
-                    class="td-time td-time-clickable cursor-pointer"
+                    v-if="row.mergedAmRemark"
+                    colspan="2"
+                    class="td-merged-status td-overridden-slot td-time-clickable cursor-pointer"
                     :class="{
-                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival'),
-                      'td-late-slot': isRowSlotLate(row, 'am_arrival'),
-                      'td-missing-slot': isRowSlotMissing(row, 'am_arrival'),
+                      'td-pending-delete-slot': hasPendingDeleteForSlots(row, [
+                        'am_arrival',
+                        'am_departure',
+                      ]),
                     }"
-                    @click="openTimeOverride(row, 'am_arrival')"
+                    @click="openTimeOverride(row, 'am_arrival', $event)"
                   >
-                    {{ row.amArrival }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip>
+                    {{ row.mergedAmRemark }}
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'am_arrival', 'AM')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'am_arrival', 'AM') }}</q-tooltip
+                    >
                   </td>
+                  <template v-else>
+                    <td
+                      class="td-time td-time-clickable cursor-pointer"
+                      :class="{
+                        'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_arrival'),
+                        'td-late-slot': isRowSlotLate(row, 'am_arrival'),
+                        'td-missing-slot': isRowSlotMissing(row, 'am_arrival'),
+                        'td-pending-delete-slot': hasPendingDeleteForSlot(row, 'am_arrival'),
+                      }"
+                      @click="openTimeOverride(row, 'am_arrival', $event)"
+                    >
+                      {{ row.amArrival }}
+                      <q-tooltip
+                        v-if="getSlotTooltip(row, 'am_arrival', 'AM In')"
+                        class="bg-dark text-white no-print"
+                        >{{ getSlotTooltip(row, 'am_arrival', 'AM In') }}</q-tooltip
+                      >
+                    </td>
+                    <td
+                      class="td-time td-time-clickable cursor-pointer"
+                      :class="{
+                        'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure'),
+                        'td-missing-slot': isRowSlotMissing(row, 'am_departure'),
+                        'td-pending-delete-slot': hasPendingDeleteForSlot(row, 'am_departure'),
+                      }"
+                      @click="openTimeOverride(row, 'am_departure', $event)"
+                    >
+                      {{ row.amDeparture }}
+                      <q-tooltip
+                        v-if="getSlotTooltip(row, 'am_departure', 'AM Out')"
+                        class="bg-dark text-white no-print"
+                        >{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip
+                      >
+                    </td>
+                  </template>
                   <td
-                    class="td-time td-time-clickable cursor-pointer"
+                    v-if="row.mergedPmRemark"
+                    colspan="2"
+                    class="td-merged-status td-overridden-slot td-time-clickable cursor-pointer"
                     :class="{
-                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'am_departure'),
-                      'td-missing-slot': isRowSlotMissing(row, 'am_departure'),
+                      'td-pending-delete-slot': hasPendingDeleteForSlots(row, [
+                        'pm_arrival',
+                        'pm_departure',
+                      ]),
                     }"
-                    @click="openTimeOverride(row, 'am_departure')"
+                    @click="openTimeOverride(row, 'pm_arrival', $event)"
                   >
-                    {{ row.amDeparture }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'am_departure', 'AM Out') }}</q-tooltip>
+                    {{ row.mergedPmRemark }}
+                    <q-tooltip
+                      v-if="getSlotTooltip(row, 'pm_arrival', 'PM')"
+                      class="bg-dark text-white no-print"
+                      >{{ getSlotTooltip(row, 'pm_arrival', 'PM') }}</q-tooltip
+                    >
                   </td>
-                  <td
-                    class="td-time td-time-clickable cursor-pointer"
-                    :class="{
-                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival'),
-                      'td-late-slot': isRowSlotLate(row, 'pm_arrival'),
-                      'td-missing-slot': isRowSlotMissing(row, 'pm_arrival'),
-                    }"
-                    @click="openTimeOverride(row, 'pm_arrival')"
-                  >
-                    {{ row.pmArrival }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip>
-                  </td>
-                  <td
-                    class="td-time td-time-clickable cursor-pointer"
-                    :class="{
-                      'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure'),
-                      'td-missing-slot': isRowSlotMissing(row, 'pm_departure'),
-                    }"
-                    @click="openTimeOverride(row, 'pm_departure')"
-                  >
-                    {{ row.pmDeparture }}
-                    <q-tooltip v-if="getSlotTooltip(row, 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip>
-                  </td>
+                  <template v-else>
+                    <td
+                      class="td-time td-time-clickable cursor-pointer"
+                      :class="{
+                        'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_arrival'),
+                        'td-late-slot': isRowSlotLate(row, 'pm_arrival'),
+                        'td-missing-slot': isRowSlotMissing(row, 'pm_arrival'),
+                        'td-pending-delete-slot': hasPendingDeleteForSlot(row, 'pm_arrival'),
+                      }"
+                      @click="openTimeOverride(row, 'pm_arrival', $event)"
+                    >
+                      {{ row.pmArrival }}
+                      <q-tooltip
+                        v-if="getSlotTooltip(row, 'pm_arrival', 'PM In')"
+                        class="bg-dark text-white no-print"
+                        >{{ getSlotTooltip(row, 'pm_arrival', 'PM In') }}</q-tooltip
+                      >
+                    </td>
+                    <td
+                      class="td-time td-time-clickable cursor-pointer"
+                      :class="{
+                        'td-overridden-slot': isRecordSlotAdjusted(row.record, 'pm_departure'),
+                        'td-missing-slot': isRowSlotMissing(row, 'pm_departure'),
+                        'td-pending-delete-slot': hasPendingDeleteForSlot(row, 'pm_departure'),
+                      }"
+                      @click="openTimeOverride(row, 'pm_departure', $event)"
+                    >
+                      {{ row.pmDeparture }}
+                      <q-tooltip
+                        v-if="getSlotTooltip(row, 'pm_departure', 'PM Out')"
+                        class="bg-dark text-white no-print"
+                        >{{ getSlotTooltip(row, 'pm_departure', 'PM Out') }}</q-tooltip
+                      >
+                    </td>
+                  </template>
                 </template>
 
                 <!-- ================= RIGHT SIDE CELLS (IF NOT SINGLE-CENTERED) ================= -->
@@ -533,8 +662,11 @@
                     <td
                       class="td-date"
                       :class="{
-                        'td-date-weekend': (pair.rightSheet.rows[rIdx].isSaturday || pair.rightSheet.rows[rIdx].isSunday) && pair.rightSheet.rows[rIdx].isInCutoff,
-                        'td-date-missing': pair.rightSheet.rows[rIdx].missingSlots?.length > 0
+                        'td-date-weekend':
+                          (pair.rightSheet.rows[rIdx].isSaturday ||
+                            pair.rightSheet.rows[rIdx].isSunday) &&
+                          pair.rightSheet.rows[rIdx].isInCutoff,
+                        'td-date-missing': pair.rightSheet.rows[rIdx].missingSlots?.length > 0,
                       }"
                     >
                       <span v-if="pair.rightSheet.rows[rIdx].isNonExistentDay">31</span>
@@ -558,26 +690,44 @@
                     </template>
 
                     <!-- Saturday -->
-                    <template v-else-if="pair.rightSheet.rows[rIdx].isSaturday && !pair.rightSheet.rows[rIdx].hasAnyPunch && !pair.rightSheet.rows[rIdx].isCustomRemark">
+                    <template
+                      v-else-if="
+                        pair.rightSheet.rows[rIdx].isSaturday &&
+                        !pair.rightSheet.rows[rIdx].hasAnyPunch &&
+                        !pair.rightSheet.rows[rIdx].isCustomRemark
+                      "
+                    >
                       <td
                         colspan="4"
                         class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         SATURDAY
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Saturday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Saturday (Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip
+                        >
                       </td>
                     </template>
 
                     <!-- Sunday -->
-                    <template v-else-if="pair.rightSheet.rows[rIdx].isSunday && !pair.rightSheet.rows[rIdx].hasAnyPunch && !pair.rightSheet.rows[rIdx].isCustomRemark">
+                    <template
+                      v-else-if="
+                        pair.rightSheet.rows[rIdx].isSunday &&
+                        !pair.rightSheet.rows[rIdx].hasAnyPunch &&
+                        !pair.rightSheet.rows[rIdx].isCustomRemark
+                      "
+                    >
                       <td
                         colspan="4"
                         class="td-merged-status td-spaced-day td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         SUNDAY
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Sunday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Sunday (Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip
+                        >
                       </td>
                     </template>
 
@@ -586,10 +736,13 @@
                       <td
                         colspan="4"
                         class="td-merged-status td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].customRemark }}
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip
+                        >
                       </td>
                     </template>
 
@@ -598,10 +751,13 @@
                       <td
                         colspan="4"
                         class="td-merged-status td-absent td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         ABSENT
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip
+                        >
                       </td>
                     </template>
 
@@ -610,10 +766,13 @@
                       <td
                         colspan="4"
                         class="td-merged-status td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].holidayName || 'HOLIDAY' }}
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Holiday (Day {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Holiday (Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }})</q-tooltip
+                        >
                       </td>
                     </template>
 
@@ -622,10 +781,13 @@
                       <td
                         colspan="4"
                         class="td-merged-status td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }}</q-tooltip
+                        >
                       </td>
                     </template>
 
@@ -634,33 +796,62 @@
                       <td
                         colspan="2"
                         class="td-merged-status td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (AM Leave)</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }} (AM Leave)</q-tooltip
+                        >
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
                         :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival'),
+                          'td-overridden-slot': isRecordSlotAdjusted(
+                            pair.rightSheet.rows[rIdx].record,
+                            'pm_arrival',
+                          ),
                           'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'pm_arrival'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_arrival'),
+                          'td-missing-slot': isRowSlotMissing(
+                            pair.rightSheet.rows[rIdx],
+                            'pm_arrival',
+                          ),
                         }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmArrival }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
+                        <q-tooltip
+                          v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')"
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')
+                          }}</q-tooltip
+                        >
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
                         :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_departure'),
+                          'td-overridden-slot': isRecordSlotAdjusted(
+                            pair.rightSheet.rows[rIdx].record,
+                            'pm_departure',
+                          ),
+                          'td-missing-slot': isRowSlotMissing(
+                            pair.rightSheet.rows[rIdx],
+                            'pm_departure',
+                          ),
                         }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].pmDeparture }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
+                        <q-tooltip
+                          v-if="
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')
+                          "
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')
+                          }}</q-tooltip
+                        >
                       </td>
                     </template>
 
@@ -669,84 +860,253 @@
                       <td
                         class="td-time td-time-clickable cursor-pointer"
                         :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival'),
+                          'td-overridden-slot': isRecordSlotAdjusted(
+                            pair.rightSheet.rows[rIdx].record,
+                            'am_arrival',
+                          ),
                           'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'am_arrival'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                          'td-missing-slot': isRowSlotMissing(
+                            pair.rightSheet.rows[rIdx],
+                            'am_arrival',
+                          ),
                         }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].amArrival }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
+                        <q-tooltip
+                          v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')"
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')
+                          }}</q-tooltip
+                        >
                       </td>
                       <td
                         class="td-time td-time-clickable cursor-pointer"
                         :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_departure'),
+                          'td-overridden-slot': isRecordSlotAdjusted(
+                            pair.rightSheet.rows[rIdx].record,
+                            'am_departure',
+                          ),
+                          'td-missing-slot': isRowSlotMissing(
+                            pair.rightSheet.rows[rIdx],
+                            'am_departure',
+                          ),
                         }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].amDeparture }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
+                        <q-tooltip
+                          v-if="
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')
+                          "
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')
+                          }}</q-tooltip
+                        >
                       </td>
                       <td
                         colspan="2"
                         class="td-merged-status td-time-clickable cursor-pointer"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival', $event)"
                       >
                         {{ pair.rightSheet.rows[rIdx].leaveLabel || 'ON LEAVE' }}
-                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to override time for Day {{ pair.rightSheet.rows[rIdx].dayNumber }} (PM Leave)</q-tooltip>
+                        <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                          >Click to override time for Day
+                          {{ pair.rightSheet.rows[rIdx].dayNumber }} (PM Leave)</q-tooltip
+                        >
+                      </td>
+                    </template>
+
+                    <!-- Whole-Day Merged Remark Override -->
+                    <template v-else-if="pair.rightSheet.rows[rIdx].mergedWholeDayRemark">
+                      <td
+                        colspan="4"
+                        class="td-merged-status td-overridden-slot td-time-clickable cursor-pointer"
+                        :class="{
+                          'td-pending-delete-slot': hasPendingDeleteForSlots(
+                            pair.rightSheet.rows[rIdx],
+                            ['am_arrival', 'am_departure', 'pm_arrival', 'pm_departure'],
+                          ),
+                        }"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
+                      >
+                        {{ pair.rightSheet.rows[rIdx].mergedWholeDayRemark }}
+                        <q-tooltip
+                          v-if="
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'Whole Day')
+                          "
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'Whole Day')
+                          }}</q-tooltip
+                        >
                       </td>
                     </template>
 
                     <!-- Regular Working Day with Punches or Slot Overrides -->
                     <template v-else>
                       <td
-                        class="td-time td-time-clickable cursor-pointer"
+                        v-if="pair.rightSheet.rows[rIdx].mergedAmRemark"
+                        colspan="2"
+                        class="td-merged-status td-overridden-slot td-time-clickable cursor-pointer"
                         :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_arrival'),
-                          'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'am_arrival'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                          'td-pending-delete-slot': hasPendingDeleteForSlots(
+                            pair.rightSheet.rows[rIdx],
+                            ['am_arrival', 'am_departure'],
+                          ),
                         }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
                       >
-                        {{ pair.rightSheet.rows[rIdx].amArrival }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In') }}</q-tooltip>
+                        {{ pair.rightSheet.rows[rIdx].mergedAmRemark }}
+                        <q-tooltip
+                          v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM')"
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM')
+                          }}</q-tooltip
+                        >
                       </td>
+                      <template v-else>
+                        <td
+                          class="td-time td-time-clickable cursor-pointer"
+                          :class="{
+                            'td-overridden-slot': isRecordSlotAdjusted(
+                              pair.rightSheet.rows[rIdx].record,
+                              'am_arrival',
+                            ),
+                            'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'am_arrival'),
+                            'td-missing-slot': isRowSlotMissing(
+                              pair.rightSheet.rows[rIdx],
+                              'am_arrival',
+                            ),
+                            'td-pending-delete-slot': hasPendingDeleteForSlot(
+                              pair.rightSheet.rows[rIdx],
+                              'am_arrival',
+                            ),
+                          }"
+                          @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_arrival', $event)"
+                        >
+                          {{ pair.rightSheet.rows[rIdx].amArrival }}
+                          <q-tooltip
+                            v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')"
+                            class="bg-dark text-white no-print"
+                            >{{
+                              getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_arrival', 'AM In')
+                            }}</q-tooltip
+                          >
+                        </td>
+                        <td
+                          class="td-time td-time-clickable cursor-pointer"
+                          :class="{
+                            'td-overridden-slot': isRecordSlotAdjusted(
+                              pair.rightSheet.rows[rIdx].record,
+                              'am_departure',
+                            ),
+                            'td-missing-slot': isRowSlotMissing(
+                              pair.rightSheet.rows[rIdx],
+                              'am_departure',
+                            ),
+                            'td-pending-delete-slot': hasPendingDeleteForSlot(
+                              pair.rightSheet.rows[rIdx],
+                              'am_departure',
+                            ),
+                          }"
+                          @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure', $event)"
+                        >
+                          {{ pair.rightSheet.rows[rIdx].amDeparture }}
+                          <q-tooltip
+                            v-if="
+                              getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')
+                            "
+                            class="bg-dark text-white no-print"
+                            >{{
+                              getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')
+                            }}</q-tooltip
+                          >
+                        </td>
+                      </template>
                       <td
-                        class="td-time td-time-clickable cursor-pointer"
+                        v-if="pair.rightSheet.rows[rIdx].mergedPmRemark"
+                        colspan="2"
+                        class="td-merged-status td-overridden-slot td-time-clickable cursor-pointer"
                         :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'am_departure'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'am_departure'),
+                          'td-pending-delete-slot': hasPendingDeleteForSlots(
+                            pair.rightSheet.rows[rIdx],
+                            ['pm_arrival', 'pm_departure'],
+                          ),
                         }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'am_departure')"
+                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival', $event)"
                       >
-                        {{ pair.rightSheet.rows[rIdx].amDeparture }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'am_departure', 'AM Out') }}</q-tooltip>
+                        {{ pair.rightSheet.rows[rIdx].mergedPmRemark }}
+                        <q-tooltip
+                          v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM')"
+                          class="bg-dark text-white no-print"
+                          >{{
+                            getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM')
+                          }}</q-tooltip
+                        >
                       </td>
-                      <td
-                        class="td-time td-time-clickable cursor-pointer"
-                        :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_arrival'),
-                          'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'pm_arrival'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_arrival'),
-                        }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival')"
-                      >
-                        {{ pair.rightSheet.rows[rIdx].pmArrival }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In') }}</q-tooltip>
-                      </td>
-                      <td
-                        class="td-time td-time-clickable cursor-pointer"
-                        :class="{
-                          'td-overridden-slot': isRecordSlotAdjusted(pair.rightSheet.rows[rIdx].record, 'pm_departure'),
-                          'td-missing-slot': isRowSlotMissing(pair.rightSheet.rows[rIdx], 'pm_departure'),
-                        }"
-                        @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure')"
-                      >
-                        {{ pair.rightSheet.rows[rIdx].pmDeparture }}
-                        <q-tooltip v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')" class="bg-dark text-white no-print">{{ getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out') }}</q-tooltip>
-                      </td>
+                      <template v-else>
+                        <td
+                          class="td-time td-time-clickable cursor-pointer"
+                          :class="{
+                            'td-overridden-slot': isRecordSlotAdjusted(
+                              pair.rightSheet.rows[rIdx].record,
+                              'pm_arrival',
+                            ),
+                            'td-late-slot': isRowSlotLate(pair.rightSheet.rows[rIdx], 'pm_arrival'),
+                            'td-missing-slot': isRowSlotMissing(
+                              pair.rightSheet.rows[rIdx],
+                              'pm_arrival',
+                            ),
+                            'td-pending-delete-slot': hasPendingDeleteForSlot(
+                              pair.rightSheet.rows[rIdx],
+                              'pm_arrival',
+                            ),
+                          }"
+                          @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_arrival', $event)"
+                        >
+                          {{ pair.rightSheet.rows[rIdx].pmArrival }}
+                          <q-tooltip
+                            v-if="getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')"
+                            class="bg-dark text-white no-print"
+                            >{{
+                              getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_arrival', 'PM In')
+                            }}</q-tooltip
+                          >
+                        </td>
+                        <td
+                          class="td-time td-time-clickable cursor-pointer"
+                          :class="{
+                            'td-overridden-slot': isRecordSlotAdjusted(
+                              pair.rightSheet.rows[rIdx].record,
+                              'pm_departure',
+                            ),
+                            'td-missing-slot': isRowSlotMissing(
+                              pair.rightSheet.rows[rIdx],
+                              'pm_departure',
+                            ),
+                            'td-pending-delete-slot': hasPendingDeleteForSlot(
+                              pair.rightSheet.rows[rIdx],
+                              'pm_departure',
+                            ),
+                          }"
+                          @click="openTimeOverride(pair.rightSheet.rows[rIdx], 'pm_departure', $event)"
+                        >
+                          {{ pair.rightSheet.rows[rIdx].pmDeparture }}
+                          <q-tooltip
+                            v-if="
+                              getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')
+                            "
+                            class="bg-dark text-white no-print"
+                            >{{
+                              getSlotTooltip(pair.rightSheet.rows[rIdx], 'pm_departure', 'PM Out')
+                            }}</q-tooltip
+                          >
+                        </td>
+                      </template>
                     </template>
                   </template>
 
@@ -763,24 +1123,36 @@
                       <span v-else-if="row.isSaturday" class="td-spaced-day">SATURDAY</span>
                       <span v-else-if="row.isSunday" class="td-spaced-day">SUNDAY</span>
                       <span v-else-if="row.isAbsent" class="td-absent">ABSENT</span>
-                      <span v-else-if="row.isHoliday">{{ row.holidayName || 'HOLIDAY' }}</span>
-                      <span v-else-if="row.isOnLeave">{{ row.leaveLabel || 'ON LEAVE' }}</span>
-                      <span v-else-if="row.isOnLeaveAm && !row.hasAnyPunch">{{ row.leaveLabel || 'ON LEAVE' }}</span>
-                      <span v-else-if="row.isOnLeavePm && !row.hasAnyPunch">{{ row.leaveLabel || 'ON LEAVE' }}</span>
+                      <span v-else-if="row.isHoliday">{{
+                        (row.holidayName || 'HOLIDAY').toUpperCase()
+                      }}</span>
+                      <span v-else-if="row.isOnLeave">{{
+                        (row.leaveLabel || 'ON LEAVE').toUpperCase()
+                      }}</span>
+                      <span v-else-if="row.isOnLeaveAm && !row.hasAnyPunch">{{
+                        (row.leaveLabel || 'ON LEAVE').toUpperCase()
+                      }}</span>
+                      <span v-else-if="row.isOnLeavePm && !row.hasAnyPunch">{{
+                        (row.leaveLabel || 'ON LEAVE').toUpperCase()
+                      }}</span>
                       <span v-else-if="row.hasWork" class="workload-text-span">
                         {{ getRowWorkload(row) }}
                       </span>
-                      <q-tooltip v-if="!readonly && row.hasWork" class="bg-dark text-white no-print">Click to edit workload for this day or all days</q-tooltip>
+                      <q-tooltip v-if="!readonly && row.hasWork" class="bg-dark text-white no-print"
+                        >Click to edit workload for this day or all days</q-tooltip
+                      >
                     </td>
                     <td
                       class="td-quantity"
                       :class="{
                         'td-quantity-clickable cursor-pointer': !readonly && row.hasWork,
                       }"
-                      @click="!readonly && row.hasWork ? openDayWorkloadDialog(row) : null"
+                      @click="!readonly && row.hasWork ? openDayQuantityDialog(row) : null"
                     >
                       <span v-if="row.hasWork">{{ getRowQuantity(row) }}</span>
-                      <q-tooltip v-if="!readonly && row.hasWork" class="bg-dark text-white no-print">Click to edit quantity</q-tooltip>
+                      <q-tooltip v-if="!readonly && row.hasWork" class="bg-dark text-white no-print"
+                        >Click to edit quantity</q-tooltip
+                      >
                     </td>
                   </template>
                 </template>
@@ -806,8 +1178,9 @@
                 <template v-if="pair.mode === 'bimonthly-side-by-side'">
                   <div class="csc-barcode-wrap" v-html="barcodeSvg"></div>
                   <div class="csc-cert-statement">
-                    I certify on my honor that the above is true and correct report of works performed,
-                    record of which was made daily at the time of arrival and departure from the office.
+                    I certify on my honor that the above is true and correct report of works
+                    performed, record of which was made daily at the time of arrival and departure
+                    from the office.
                   </div>
                 </template>
               </div>
@@ -825,7 +1198,11 @@
               <div class="csc-panel-col text-center">
                 <div class="csc-sig-line"></div>
                 <div class="csc-sig-caption">
-                  {{ pair.mode === 'bimonthly-side-by-side' ? 'Verified as to the prescribed office hours' : 'Prepared by' }}
+                  {{
+                    pair.mode === 'bimonthly-side-by-side'
+                      ? 'Verified as to the prescribed office hours'
+                      : 'Prepared by'
+                  }}
                 </div>
               </div>
             </template>
@@ -840,12 +1217,19 @@
             >
               <div class="csc-sig-name-wrap">
                 <div class="csc-sig-name">{{ inChargeName }}</div>
-                <q-icon v-if="!readonly" name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
+                <q-icon
+                  v-if="!readonly"
+                  name="edit"
+                  size="13px"
+                  class="csc-edit-hint no-print q-ml-xs"
+                />
               </div>
               <div class="csc-sig-title">{{ inChargeTitle }}</div>
               <div class="csc-sig-line csc-incharge-line"></div>
               <div class="csc-sig-sub">IN-CHARGE</div>
-              <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
+              <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                >Click to change In-Charge signatory</q-tooltip
+              >
             </div>
             <template v-if="pair.mode !== 'single-centered'">
               <div class="csc-panel-gutter"></div>
@@ -856,12 +1240,19 @@
               >
                 <div class="csc-sig-name-wrap">
                   <div class="csc-sig-name">{{ inChargeName }}</div>
-                  <q-icon v-if="!readonly" name="edit" size="13px" class="csc-edit-hint no-print q-ml-xs" />
+                  <q-icon
+                    v-if="!readonly"
+                    name="edit"
+                    size="13px"
+                    class="csc-edit-hint no-print q-ml-xs"
+                  />
                 </div>
                 <div class="csc-sig-title">{{ inChargeTitle }}</div>
                 <div class="csc-sig-line csc-incharge-line"></div>
                 <div class="csc-sig-sub">IN-CHARGE</div>
-                <q-tooltip v-if="!readonly" class="bg-dark text-white no-print">Click to change In-Charge signatory</q-tooltip>
+                <q-tooltip v-if="!readonly" class="bg-dark text-white no-print"
+                  >Click to change In-Charge signatory</q-tooltip
+                >
               </div>
             </template>
           </div>
@@ -896,42 +1287,12 @@
       body-class="q-pa-md q-gutter-y-md"
       actions-class="q-px-md q-pb-md row items-center justify-between"
     >
-      <div class="text-caption text-grey-8">
-        Select a Department Head from the list or manually type a custom signatory (e.g. Officer-in-Charge / OIC).
-      </div>
-
-      <!-- Quick Select Department Head -->
-      <q-select
-        v-if="departmentHeadsList.length > 0"
-        v-model="selectedHeadModel"
-        :options="departmentHeadsList"
-        option-label="label"
-        outlined
-        dense
-        label="Quick Select Department Head"
-        clearable
-        @update:model-value="onSelectDepartmentHead"
-      >
-        <template #prepend>
-          <q-icon name="account_circle" size="18px" color="green-9" />
-        </template>
-        <template #option="scope">
-          <q-item v-bind="scope.itemProps">
-            <q-item-section>
-              <q-item-label class="text-weight-bold">{{ scope.opt.name }}</q-item-label>
-              <q-item-label caption class="text-grey-7">{{ scope.opt.title }} • {{ scope.opt.department }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </template>
-      </q-select>
-
       <!-- Signatory Name -->
       <q-input
         v-model="tempInChargeName"
         outlined
         dense
         label="In-Charge Full Name *"
-        hint="Format: FIRSTNAME M.I. SURNAME"
         class="text-uppercase"
       />
 
@@ -940,8 +1301,7 @@
         v-model="tempInChargeTitle"
         outlined
         dense
-        label="Office / Designation / Title *"
-        hint="e.g. CICTMO HEAD, OIC - CITY ENGINEER, etc."
+        label="Designation *"
         class="text-uppercase"
       />
 
@@ -971,19 +1331,18 @@
     <!-- Workload Undertaken Modal Dialog -->
     <AppDialog
       v-model="showWorkloadDialog"
-      :title="activeWorkloadRow ? `Edit Workload (${formatDialogDate(activeWorkloadRow)})` : 'Edit Workload for All Work Days'"
+      :title="
+        activeWorkloadRow
+          ? `Edit Workload (${formatDialogDate(activeWorkloadRow)})`
+          : 'Edit Workload for All Work Days'
+      "
       icon="edit_note"
       max-width="520px"
       :persistent="false"
+      :loading="savingWorkload"
       body-class="q-pa-md q-gutter-y-md"
       actions-class="q-px-md q-pb-md row items-center justify-between"
     >
-      <div class="text-caption text-grey-8">
-        {{ activeWorkloadRow
-          ? 'Update the accomplishment description and optional quantity for this specific workday, or apply it across all workdays.'
-          : 'Update the default accomplishment workload undertaken for all working days in this period.' }}
-      </div>
-
       <!-- Workload Text -->
       <q-input
         v-model="workloadForm.text"
@@ -992,17 +1351,7 @@
         type="textarea"
         rows="3"
         label="Workload Undertaken *"
-        hint="Enter daily accomplishment or workload"
         autofocus
-      />
-
-      <!-- Quantity (Optional) -->
-      <q-input
-        v-model="workloadForm.quantity"
-        outlined
-        dense
-        label="Quantity (Optional)"
-        hint="e.g. 1 report, 8 hrs, or leave blank"
       />
 
       <!-- Scope: Apply to all work days toggle (if row is active) -->
@@ -1023,18 +1372,81 @@
           color="grey-8"
           icon="restart_alt"
           label="Revert Day to Default"
+          :disable="savingWorkload"
           @click="revertDayWorkload(activeWorkloadRow)"
         />
         <q-space v-else />
         <div class="row q-gutter-x-sm">
-          <q-btn flat no-caps label="Cancel" @click="cancel" />
+          <q-btn flat no-caps label="Cancel" :disable="savingWorkload" @click="cancel" />
           <q-btn
             unelevated
             no-caps
             color="green-9"
             label="Apply Workload"
             class="text-weight-bold q-px-md"
+            :loading="savingWorkload"
             @click="applyWorkload"
+          />
+        </div>
+      </template>
+    </AppDialog>
+
+    <!-- Quantity Modal Dialog -->
+    <AppDialog
+      v-model="showQuantityDialog"
+      :title="
+        activeQuantityRow
+          ? `Edit Quantity (${formatDialogDate(activeQuantityRow)})`
+          : 'Edit Quantity for All Work Days'
+      "
+      icon="format_list_numbered"
+      max-width="440px"
+      :persistent="false"
+      :loading="savingQuantity"
+      body-class="q-pa-md q-gutter-y-md"
+      actions-class="q-px-md q-pb-md row items-center justify-between"
+    >
+      <q-input
+        v-model="quantityForm.quantity"
+        outlined
+        dense
+        label="Quantity"
+        autofocus
+        @keyup.enter="applyQuantity"
+      />
+
+      <!-- Scope: Apply to all work days toggle (if row is active) -->
+      <div v-if="activeQuantityRow" class="q-pt-xs">
+        <q-checkbox
+          v-model="quantityForm.applyToAll"
+          color="green-9"
+          label="Apply this quantity to all work days this month"
+          class="text-weight-medium"
+        />
+      </div>
+
+      <template #actions="{ cancel }">
+        <q-btn
+          v-if="activeQuantityRow && hasCustomQuantityOverride(activeQuantityRow)"
+          flat
+          no-caps
+          color="grey-8"
+          icon="restart_alt"
+          label="Revert Day to Default"
+          :disable="savingQuantity"
+          @click="revertDayQuantity(activeQuantityRow)"
+        />
+        <q-space v-else />
+        <div class="row q-gutter-x-sm">
+          <q-btn flat no-caps label="Cancel" :disable="savingQuantity" @click="cancel" />
+          <q-btn
+            unelevated
+            no-caps
+            color="green-9"
+            label="Apply Quantity"
+            class="text-weight-bold q-px-md"
+            :loading="savingQuantity"
+            @click="applyQuantity"
           />
         </div>
       </template>
@@ -1058,11 +1470,46 @@
         outlined
         dense
         label="PRN Number (Optional)"
-        hint="Optional PRN code"
         autofocus
         @keyup.enter="applyPrn"
       />
     </AppDialog>
+
+    <!-- Compact Cell Action Popover (Edit Override vs Request Deletion) -->
+    <q-menu
+      v-model="showCellMenu"
+      :target="cellMenuTarget"
+      no-parent-event
+      anchor="bottom middle"
+      self="top middle"
+      :offset="[0, 4]"
+      class="dtr-cell-action-menu"
+    >
+      <div class="dtr-cell-menu-header text-caption text-weight-bold text-grey-8">
+        {{ cellMenuTitle }}
+      </div>
+      <q-separator />
+      <q-list dense separator style="min-width: 210px">
+        <q-item clickable v-close-popup @click="openOverrideDialogFromMenu">
+          <q-item-section avatar style="min-width: 30px; padding-right: 6px">
+            <q-icon name="edit_calendar" size="18px" color="green-9" />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label class="text-weight-medium text-dark">Edit Override</q-item-label>
+            <q-item-label caption>Change time or remark</q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item clickable v-close-popup @click="openDeleteRequestDialogFromMenu">
+          <q-item-section avatar style="min-width: 30px; padding-right: 6px">
+            <q-icon name="delete_outline" size="18px" color="negative" />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label class="text-weight-medium text-negative">Request Deletion</q-item-label>
+            <q-item-label caption>Submit for HR approval</q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </q-menu>
 
     <!-- DTR Time Override Dialog -->
     <DtrOverrideDialog
@@ -1074,13 +1521,30 @@
       :initial-slot="activeOverrideSlot"
       @saved="onOverrideSaved"
     />
+
+    <!-- DTR Delete Request Dialog -->
+    <DtrDeleteRequestDialog
+      v-model="showDeleteRequestDialog"
+      :control-no="controlNumber"
+      :employee-name="employeeDisplayName"
+      :date="activeOverrideDate"
+      :dtr="activeOverrideDtr"
+      :initial-slot="activeOverrideSlot"
+      :pending-delete-requests="pendingDeleteRequests"
+      @saved="onOverrideSaved"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
+import { api } from 'boot/axios'
 import { generateCscBarcodeSvg, printCscForm48 } from 'src/utils/csc-form-48-print'
 import DtrOverrideDialog from 'src/components/admin/DtrOverrideDialog.vue'
+import DtrDeleteRequestDialog from 'src/components/admin/DtrDeleteRequestDialog.vue'
+
+const $q = useQuasar()
 
 const MONTH_NAMES = [
   'JANUARY',
@@ -1138,22 +1602,126 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  pendingDeleteRequests: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const emit = defineEmits(['update:customDateRange', 'adjust', 'adjust-saved'])
 
-// Time Override Dialog State
+// Time Override & Delete Request Dialog State
 const showOverrideDialog = ref(false)
+const showDeleteRequestDialog = ref(false)
+const showCellMenu = ref(false)
+const cellMenuTarget = ref(false)
+const cellMenuTitle = ref('')
 const activeOverrideDate = ref('')
 const activeOverrideDtr = ref(null)
 const activeOverrideSlot = ref('am_arrival')
 
-function openTimeOverride(row, slotKey = 'am_arrival') {
+function hasRealPunchValue(val) {
+  const s = String(val ?? '').trim()
+  return s !== '' && s !== '-' && s !== '—'
+}
+
+function isRecordSlotBiometric(record, slotKey) {
+  return hasRealPunchValue(record?.[slotKey]) && !isRecordSlotAdjusted(record, slotKey)
+}
+
+function hasManualEntryInSlot(record, slotKey) {
+  return isRecordSlotAdjusted(record, slotKey) || Boolean(getSlotOverrideText(record, slotKey))
+}
+
+function getClickedCellSlots(row, slotKey) {
+  if (row?.mergedWholeDayRemark) {
+    return ['am_arrival', 'am_departure', 'pm_arrival', 'pm_departure']
+  }
+  if ((slotKey === 'am_arrival' || slotKey === 'am_departure') && row?.mergedAmRemark) {
+    return ['am_arrival', 'am_departure']
+  }
+  if ((slotKey === 'pm_arrival' || slotKey === 'pm_departure') && row?.mergedPmRemark) {
+    return ['pm_arrival', 'pm_departure']
+  }
+  return [slotKey]
+}
+
+function formatCellMenuTitle(row, slotKey, cellSlots) {
+  let dateLabel = row?.dateString || ''
+  try {
+    dateLabel = new Date(`${row.dateString}T00:00:00`).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    // Keep dateString fallback
+  }
+  if (cellSlots.length === 4) return `${dateLabel} • Whole Day`
+  if (cellSlots.length === 2) {
+    return slotKey.startsWith('am') ? `${dateLabel} • Morning (AM)` : `${dateLabel} • Afternoon (PM)`
+  }
+  const slotLabels = {
+    am_arrival: 'AM In',
+    am_departure: 'AM Out',
+    pm_arrival: 'PM In',
+    pm_departure: 'PM Out',
+  }
+  return `${dateLabel} • ${slotLabels[slotKey] || slotKey}`
+}
+
+function openOverrideDialogFromMenu() {
+  showCellMenu.value = false
+  showOverrideDialog.value = true
+}
+
+function openDeleteRequestDialogFromMenu() {
+  showCellMenu.value = false
+  showDeleteRequestDialog.value = true
+}
+
+function openTimeOverride(row, slotKey = 'am_arrival', event = null) {
   if (props.readonly) return
   if (!row || row.isNonExistentDay || !row.isInCutoff) return
+
+  const resolvedSlot = slotKey || 'am_arrival'
   activeOverrideDate.value = row.dateString
   activeOverrideDtr.value = row.record || null
-  activeOverrideSlot.value = slotKey || 'am_arrival'
+  activeOverrideSlot.value = resolvedSlot
+
+  const cellSlots = getClickedCellSlots(row, resolvedSlot)
+
+  // 1. Existing pending delete request -> open dedicated Delete Request dialog (status + Cancel Request)
+  if (hasPendingDeleteForSlots(row, cellSlots)) {
+    showCellMenu.value = false
+    showDeleteRequestDialog.value = true
+    return
+  }
+
+  // 2. Protected biometric punch -> open dedicated Delete Request dialog directly
+  if (cellSlots.some((s) => isRecordSlotBiometric(row.record, s))) {
+    showCellMenu.value = false
+    showDeleteRequestDialog.value = true
+    return
+  }
+
+  // 3. Manual override / remark -> show compact 2-choice popover anchored to cell
+  if (cellSlots.some((s) => hasManualEntryInSlot(row.record, s))) {
+    const targetEl = event?.currentTarget || event?.target
+    if (targetEl) {
+      cellMenuTitle.value = formatCellMenuTitle(row, resolvedSlot, cellSlots)
+      showCellMenu.value = false
+      cellMenuTarget.value = targetEl
+      nextTick(() => {
+        showCellMenu.value = true
+      })
+      return
+    }
+    showOverrideDialog.value = true
+    return
+  }
+
+  // 4. Empty cell -> open pure Override dialog directly
+  showCellMenu.value = false
   showOverrideDialog.value = true
 }
 
@@ -1166,30 +1734,90 @@ function onOverrideSaved(updatedDtr) {
 const localCustomRange = ref(null)
 const printAreaRef = ref(null)
 
-// Workload Management State
+// Workload & Quantity Management State
 const defaultWorkload = ref('')
 const customWorkloads = ref({})
+const defaultQuantity = ref('')
 const customQuantities = ref({})
+const savingWorkload = ref(false)
+const savingQuantity = ref(false)
+
+function pickMostFrequentValue(countsMap) {
+  let topValue = ''
+  let topCount = 0
+  countsMap.forEach((count, val) => {
+    if (count > topCount) {
+      topCount = count
+      topValue = val
+    }
+  })
+  return topValue
+}
+
+watch(
+  [() => props.records, () => props.employee?.control_no],
+  ([records]) => {
+    const nextWorkloads = {}
+    const nextQuantities = {}
+    const workloadCounts = new Map()
+    const quantityCounts = new Map()
+
+    if (Array.isArray(records)) {
+      records.forEach((rec) => {
+        if (!rec?.record_date) return
+        const wl = String(rec.workload_undertaken ?? '').trim()
+        const qty = String(rec.workload_quantity ?? '').trim()
+        if (wl) {
+          nextWorkloads[rec.record_date] = wl
+          workloadCounts.set(wl, (workloadCounts.get(wl) || 0) + 1)
+        }
+        if (qty) {
+          nextQuantities[rec.record_date] = qty
+          quantityCounts.set(qty, (quantityCounts.get(qty) || 0) + 1)
+        }
+      })
+    }
+
+    customWorkloads.value = nextWorkloads
+    customQuantities.value = nextQuantities
+    defaultWorkload.value = pickMostFrequentValue(workloadCounts)
+    defaultQuantity.value = pickMostFrequentValue(quantityCounts)
+  },
+  { immediate: true, deep: true },
+)
+
+function getWorkdayDates() {
+  const dates = []
+  ;(cscSheets.value || []).forEach((sheet) => {
+    ;(sheet.rows || []).forEach((r) => {
+      if (r.hasWork && r.dateString) {
+        dates.push(r.dateString)
+      }
+    })
+  })
+  return Array.from(new Set(dates))
+}
 
 function getRowWorkload(row) {
-  if (!row) return defaultWorkload.value
+  if (!row) return ''
   const dateKey = row.dateString || String(row.dayNumber)
-  if (customWorkloads.value[dateKey] !== undefined) {
-    return customWorkloads.value[dateKey]
-  }
-  return defaultWorkload.value
+  return customWorkloads.value[dateKey] ?? ''
 }
 
 function getRowQuantity(row) {
   if (!row) return ''
   const dateKey = row.dateString || String(row.dayNumber)
-  return customQuantities.value[dateKey] || ''
+  return customQuantities.value[dateKey] ?? ''
 }
 
 function hasCustomDayOverride(row) {
   if (!row) return false
-  const dateKey = row.dateString || String(row.dayNumber)
-  return customWorkloads.value[dateKey] !== undefined || Boolean(customQuantities.value[dateKey])
+  return getRowWorkload(row) !== defaultWorkload.value
+}
+
+function hasCustomQuantityOverride(row) {
+  if (!row) return false
+  return getRowQuantity(row) !== defaultQuantity.value
 }
 
 // Workload Dialog State & Handlers
@@ -1197,7 +1825,6 @@ const showWorkloadDialog = ref(false)
 const activeWorkloadRow = ref(null)
 const workloadForm = ref({
   text: '',
-  quantity: '',
   applyToAll: false,
 })
 
@@ -1216,59 +1843,223 @@ function formatDialogDate(row) {
 }
 
 function openDayWorkloadDialog(row) {
-  if (props.readonly) return
+  if (props.readonly || savingWorkload.value) return
   activeWorkloadRow.value = row
   workloadForm.value = {
     text: getRowWorkload(row),
-    quantity: getRowQuantity(row),
     applyToAll: false,
   }
   showWorkloadDialog.value = true
 }
 
 function openBulkWorkloadDialog() {
-  if (props.readonly) return
+  if (props.readonly || savingWorkload.value) return
   activeWorkloadRow.value = null
   workloadForm.value = {
     text: defaultWorkload.value,
-    quantity: '',
     applyToAll: true,
   }
   showWorkloadDialog.value = true
 }
 
-function applyWorkload() {
+async function applyWorkload() {
+  if (savingWorkload.value) return
   const text = workloadForm.value.text.trim()
-  const qty = workloadForm.value.quantity.trim()
+  const isBulk = workloadForm.value.applyToAll || !activeWorkloadRow.value
+  const dates = isBulk ? getWorkdayDates() : [activeWorkloadRow.value?.dateString].filter(Boolean)
 
-  if (workloadForm.value.applyToAll || !activeWorkloadRow.value) {
-    defaultWorkload.value = text
-    customWorkloads.value = {}
-  } else {
-    const dateKey = activeWorkloadRow.value.dateString || String(activeWorkloadRow.value.dayNumber)
-    customWorkloads.value = {
-      ...customWorkloads.value,
-      [dateKey]: text,
-    }
-    customQuantities.value = {
-      ...customQuantities.value,
-      [dateKey]: qty,
-    }
+  if (dates.length === 0 || !controlNumber.value) {
+    showWorkloadDialog.value = false
+    return
   }
 
-  showWorkloadDialog.value = false
+  savingWorkload.value = true
+  try {
+    const res = await api.post('/attendance/dtr/accomplishment', {
+      employee_control_no: controlNumber.value,
+      field: 'workload',
+      value: text || null,
+      dates,
+    })
+
+    const nextWorkloads = { ...customWorkloads.value }
+    dates.forEach((d) => {
+      if (text) nextWorkloads[d] = text
+      else delete nextWorkloads[d]
+    })
+    customWorkloads.value = nextWorkloads
+    if (isBulk) {
+      defaultWorkload.value = text
+    }
+
+    emit('adjust-saved', res.data)
+    $q.notify({
+      type: 'positive',
+      message: isBulk ? 'Workload saved for all work days.' : 'Workload saved.',
+      position: 'top',
+      timeout: 1500,
+    })
+    showWorkloadDialog.value = false
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to save workload.',
+      position: 'top',
+    })
+  } finally {
+    savingWorkload.value = false
+  }
 }
 
-function revertDayWorkload(row) {
-  if (!row) return
-  const dateKey = row.dateString || String(row.dayNumber)
-  const nextWorkloads = { ...customWorkloads.value }
-  const nextQuantities = { ...customQuantities.value }
-  delete nextWorkloads[dateKey]
-  delete nextQuantities[dateKey]
-  customWorkloads.value = nextWorkloads
-  customQuantities.value = nextQuantities
-  showWorkloadDialog.value = false
+async function revertDayWorkload(row) {
+  if (!row?.dateString || savingWorkload.value || !controlNumber.value) return
+  const targetVal = defaultWorkload.value.trim()
+
+  savingWorkload.value = true
+  try {
+    const res = await api.post('/attendance/dtr/accomplishment', {
+      employee_control_no: controlNumber.value,
+      field: 'workload',
+      value: targetVal || null,
+      dates: [row.dateString],
+    })
+
+    const nextWorkloads = { ...customWorkloads.value }
+    if (targetVal) nextWorkloads[row.dateString] = targetVal
+    else delete nextWorkloads[row.dateString]
+    customWorkloads.value = nextWorkloads
+
+    emit('adjust-saved', res.data)
+    $q.notify({
+      type: 'positive',
+      message: 'Workload reverted to default.',
+      position: 'top',
+      timeout: 1500,
+    })
+    showWorkloadDialog.value = false
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to revert workload.',
+      position: 'top',
+    })
+  } finally {
+    savingWorkload.value = false
+  }
+}
+
+// Quantity Dialog State & Handlers
+const showQuantityDialog = ref(false)
+const activeQuantityRow = ref(null)
+const quantityForm = ref({
+  quantity: '',
+  applyToAll: false,
+})
+
+function openDayQuantityDialog(row) {
+  if (props.readonly || savingQuantity.value) return
+  activeQuantityRow.value = row
+  quantityForm.value = {
+    quantity: getRowQuantity(row),
+    applyToAll: false,
+  }
+  showQuantityDialog.value = true
+}
+
+function openBulkQuantityDialog() {
+  if (props.readonly || savingQuantity.value) return
+  activeQuantityRow.value = null
+  quantityForm.value = {
+    quantity: defaultQuantity.value,
+    applyToAll: true,
+  }
+  showQuantityDialog.value = true
+}
+
+async function applyQuantity() {
+  if (savingQuantity.value) return
+  const qty = quantityForm.value.quantity.trim()
+  const isBulk = quantityForm.value.applyToAll || !activeQuantityRow.value
+  const dates = isBulk ? getWorkdayDates() : [activeQuantityRow.value?.dateString].filter(Boolean)
+
+  if (dates.length === 0 || !controlNumber.value) {
+    showQuantityDialog.value = false
+    return
+  }
+
+  savingQuantity.value = true
+  try {
+    const res = await api.post('/attendance/dtr/accomplishment', {
+      employee_control_no: controlNumber.value,
+      field: 'quantity',
+      value: qty || null,
+      dates,
+    })
+
+    const nextQuantities = { ...customQuantities.value }
+    dates.forEach((d) => {
+      if (qty) nextQuantities[d] = qty
+      else delete nextQuantities[d]
+    })
+    customQuantities.value = nextQuantities
+    if (isBulk) {
+      defaultQuantity.value = qty
+    }
+
+    emit('adjust-saved', res.data)
+    $q.notify({
+      type: 'positive',
+      message: isBulk ? 'Quantity saved for all work days.' : 'Quantity saved.',
+      position: 'top',
+      timeout: 1500,
+    })
+    showQuantityDialog.value = false
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to save quantity.',
+      position: 'top',
+    })
+  } finally {
+    savingQuantity.value = false
+  }
+}
+
+async function revertDayQuantity(row) {
+  if (!row?.dateString || savingQuantity.value || !controlNumber.value) return
+  const targetVal = defaultQuantity.value.trim()
+
+  savingQuantity.value = true
+  try {
+    const res = await api.post('/attendance/dtr/accomplishment', {
+      employee_control_no: controlNumber.value,
+      field: 'quantity',
+      value: targetVal || null,
+      dates: [row.dateString],
+    })
+
+    const nextQuantities = { ...customQuantities.value }
+    if (targetVal) nextQuantities[row.dateString] = targetVal
+    else delete nextQuantities[row.dateString]
+    customQuantities.value = nextQuantities
+
+    emit('adjust-saved', res.data)
+    $q.notify({
+      type: 'positive',
+      message: 'Quantity reverted to default.',
+      position: 'top',
+      timeout: 1500,
+    })
+    showQuantityDialog.value = false
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message || 'Failed to revert quantity.',
+      position: 'top',
+    })
+  } finally {
+    savingQuantity.value = false
+  }
 }
 const chargesDisplay = computed(() => {
   return String(props.employee?.charges || '').trim()
@@ -1290,7 +2081,7 @@ function applyPrn() {
 
 // In-Charge Signatory State (Defaults from Department Head in database)
 const inChargeName = ref('JOSEPH NELSON N. BRIONES')
-const inChargeTitle = ref('CICTMO HEAD')
+const inChargeTitle = ref('DEPARTMENT HEAD')
 
 function syncDefaultInCharge() {
   const defaultHead = props.employee?.in_charge
@@ -1305,42 +2096,25 @@ watch(
   () => {
     syncDefaultInCharge()
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // In-Charge Dialog State & Handlers
 const showInChargeDialog = ref(false)
-const selectedHeadModel = ref(null)
 const tempInChargeName = ref('')
 const tempInChargeTitle = ref('')
-
-const departmentHeadsList = computed(() => {
-  const heads = Array.isArray(props.departmentHeads) ? props.departmentHeads : []
-  return heads.map((h) => ({
-    ...h,
-    label: `${h.name} (${h.title})`,
-  }))
-})
 
 function openInChargeDialog() {
   if (props.readonly) return
   tempInChargeName.value = inChargeName.value
   tempInChargeTitle.value = inChargeTitle.value
-  selectedHeadModel.value = null
   showInChargeDialog.value = true
-}
-
-function onSelectDepartmentHead(head) {
-  if (!head) return
-  tempInChargeName.value = head.name
-  tempInChargeTitle.value = head.title
 }
 
 function resetToDefaultInCharge() {
   const defaultHead = props.employee?.in_charge
   tempInChargeName.value = defaultHead?.name || 'JOSEPH NELSON N. BRIONES'
-  tempInChargeTitle.value = defaultHead?.title || 'CICTMO HEAD'
-  selectedHeadModel.value = null
+  tempInChargeTitle.value = defaultHead?.title || 'DEPARTMENT HEAD'
 }
 
 function applyInCharge() {
@@ -1407,7 +2181,7 @@ watch(
     if (newY && newM && (newY !== oldY || newM !== oldM) && props.customDateRange === null) {
       localCustomRange.value = buildDefaultRange()
     }
-  }
+  },
 )
 
 const customRangeDisplayLabel = computed(() => {
@@ -1481,7 +2255,11 @@ function isRecordSlotAdjusted(record, slotKey) {
  */
 function getSlotOverrideText(record, slotKey) {
   if (!record) return ''
-  if (record.adjusted_slots && typeof record.adjusted_slots === 'object' && !Array.isArray(record.adjusted_slots)) {
+  if (
+    record.adjusted_slots &&
+    typeof record.adjusted_slots === 'object' &&
+    !Array.isArray(record.adjusted_slots)
+  ) {
     const val = record.adjusted_slots[slotKey]
     if (typeof val === 'string' && val.trim() !== '' && val !== 'TIME') {
       return val.trim()
@@ -1489,13 +2267,23 @@ function getSlotOverrideText(record, slotKey) {
     return ''
   }
 
-  const rawStatus = String(record.status || '').toUpperCase().trim()
-  const rawRemark = String(record.adjustment_remarks || '').toUpperCase().trim()
+  const rawStatus = String(record.status || '')
+    .toUpperCase()
+    .trim()
+  const rawRemark = String(record.adjustment_remarks || '')
+    .toUpperCase()
+    .trim()
 
-  const isAdjustedSlot = Array.isArray(record.adjusted_slots) && record.adjusted_slots.includes(slotKey)
+  const isAdjustedSlot =
+    Array.isArray(record.adjusted_slots) && record.adjusted_slots.includes(slotKey)
 
   if (isAdjustedSlot) {
-    if (rawRemark === 'O.B.' || rawRemark === 'OFFICIAL BUSINESS' || rawStatus === 'OFFICIAL_BUSINESS' || rawStatus === 'O.B.') {
+    if (
+      rawRemark === 'O.B.' ||
+      rawRemark === 'OFFICIAL BUSINESS' ||
+      rawStatus === 'OFFICIAL_BUSINESS' ||
+      rawStatus === 'O.B.'
+    ) {
       return 'O.B.'
     }
     if (rawRemark === 'O.F.' || rawRemark === 'ON FIELD' || rawStatus === 'O.F.') {
@@ -1509,7 +2297,12 @@ function getSlotOverrideText(record, slotKey) {
 
   // If whole-record status is O.B. or O.F. without any slot-level mapping
   if (!record.adjusted_slots) {
-    if (rawStatus === 'OFFICIAL_BUSINESS' || rawStatus === 'O.B.' || rawRemark === 'O.B.' || rawRemark === 'OFFICIAL BUSINESS') {
+    if (
+      rawStatus === 'OFFICIAL_BUSINESS' ||
+      rawStatus === 'O.B.' ||
+      rawRemark === 'O.B.' ||
+      rawRemark === 'OFFICIAL BUSINESS'
+    ) {
       return 'O.B.'
     }
     if (rawStatus === 'O.F.' || rawRemark === 'O.F.' || rawRemark === 'ON FIELD') {
@@ -1550,7 +2343,15 @@ function computeRowMissingSlots(row) {
   if (!row || row.isNonExistentDay || !row.isInCutoff) return []
   if (row.isSaturday && !row.hasAnyPunch && !row.isCustomRemark) return []
   if (row.isSunday && !row.hasAnyPunch && !row.isCustomRemark) return []
-  if (row.isCustomRemark || row.isAbsent || row.isHoliday || row.isOnLeave) return []
+  if (
+    row.isCustomRemark ||
+    row.isAbsent ||
+    row.isHoliday ||
+    row.isOnLeave ||
+    row.mergedWholeDayRemark
+  ) {
+    return []
+  }
 
   const missing = []
   if (row.isOnLeaveAm) {
@@ -1600,16 +2401,23 @@ function parseTimeToMinutes(timeStr) {
 function getSlotLateMinutes(row, slotKey) {
   if (slotKey !== 'am_arrival' && slotKey !== 'pm_arrival') return 0
   if (!row || !row.isInCutoff || row.isNonExistentDay) return 0
-  if (row.isWeekend || row.isAbsent || row.isHoliday || row.isOnLeave || row.isCustomRemark) return 0
+  if (row.isWeekend || row.isAbsent || row.isHoliday || row.isOnLeave || row.isCustomRemark)
+    return 0
 
   const record = row.record
   if (!record) return 0
-  if (record.late_minutes !== undefined && record.late_minutes !== null && Number(record.late_minutes) <= 0) {
+  if (
+    record.late_minutes !== undefined &&
+    record.late_minutes !== null &&
+    Number(record.late_minutes) <= 0
+  ) {
     return 0
   }
 
   if (record.is_adjusted) {
-    const adjReason = String(record.adjustment_reason || '').toUpperCase().trim()
+    const adjReason = String(record.adjustment_reason || '')
+      .toUpperCase()
+      .trim()
     if (WAIVED_LATE_REASONS.has(adjReason)) return 0
   }
 
@@ -1635,32 +2443,81 @@ function isRowSlotLate(row, slotKey) {
   return getSlotLateMinutes(row, slotKey) > 0
 }
 
+function hasPendingDeleteForSlots(row, slotKeys) {
+  if (!row?.dateString || !Array.isArray(props.pendingDeleteRequests) || props.pendingDeleteRequests.length === 0) {
+    return false
+  }
+  const keySet = new Set(slotKeys)
+  return props.pendingDeleteRequests.some((req) => {
+    if (String(req.record_date || '').slice(0, 10) !== row.dateString) return false
+    if (String(req.status || 'pending').toLowerCase() !== 'pending') return false
+    const reqSlots = Array.isArray(req.slots) ? req.slots : []
+    return reqSlots.some((s) => keySet.has(s))
+  })
+}
+
+function hasPendingDeleteForSlot(row, slotKey) {
+  return hasPendingDeleteForSlots(row, [slotKey])
+}
+
 function getSlotTooltip(row, slotKey, slotLabel) {
   const isReadonly = props.readonly
+  const pendingSuffix = hasPendingDeleteForSlot(row, slotKey)
+    ? ' (Delete request pending HR approval)'
+    : ''
   if (isRowSlotMissing(row, slotKey)) {
-    return isReadonly
-      ? `Missing punch — Day ${row.dayNumber} (${slotLabel})`
-      : `Missing punch — Day ${row.dayNumber} (${slotLabel}). Click to edit.`
+    return (
+      (isReadonly
+        ? `Missing punch — Day ${row.dayNumber} (${slotLabel})`
+        : `Missing punch — Day ${row.dayNumber} (${slotLabel}). Click to edit.`) + pendingSuffix
+    )
   }
   const lateMins = getSlotLateMinutes(row, slotKey)
   if (lateMins > 0) {
-    return isReadonly
-      ? `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}).`
-      : `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}). Click to override.`
+    return (
+      (isReadonly
+        ? `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}).`
+        : `LATE (+${lateMins}m) — Day ${row.dayNumber} (${slotLabel}). Click to override.`) +
+      pendingSuffix
+    )
   }
   const slotText = getSlotOverrideText(row?.record, slotKey)
   if (slotText) {
-    return isReadonly
-      ? `Day ${row.dayNumber} ${slotLabel}: ${slotText}`
-      : `Day ${row.dayNumber} ${slotLabel}: ${slotText} (Click to override)`
+    return (
+      (isReadonly
+        ? `Day ${row.dayNumber} ${slotLabel}: ${slotText}`
+        : `Day ${row.dayNumber} ${slotLabel}: ${slotText} (Click to override)`) + pendingSuffix
+    )
   }
   if (isRecordSlotAdjusted(row?.record, slotKey)) {
-    const reason = row.record?.adjustment_remarks || row.record?.adjustment_reason || 'Manually Adjusted'
-    return isReadonly
-      ? `Day ${row.dayNumber} ${slotLabel}: ${reason}`
-      : `Day ${row.dayNumber} ${slotLabel}: ${reason} (Click to edit)`
+    const reason =
+      row.record?.adjustment_remarks || row.record?.adjustment_reason || 'Manually Adjusted'
+    return (
+      (isReadonly
+        ? `Day ${row.dayNumber} ${slotLabel}: ${reason}`
+        : `Day ${row.dayNumber} ${slotLabel}: ${reason} (Click to edit)`) + pendingSuffix
+    )
+  }
+  if (pendingSuffix) {
+    return `Day ${row.dayNumber} ${slotLabel}${pendingSuffix}`
   }
   return isReadonly ? '' : `Click to override time for Day ${row.dayNumber} (${slotLabel})`
+}
+
+/**
+ * Return shared remark label when both slots in a half-day have no time punches
+ * and carry the exact same non-TIME override remark.
+ */
+function resolveHalfDaySlotRemark(record, slotA, slotB) {
+  if (!record) return ''
+  const punchA = record[slotA] && record[slotA] !== '-' && record[slotA] !== '—'
+  const punchB = record[slotB] && record[slotB] !== '-' && record[slotB] !== '—'
+  if (punchA || punchB) return ''
+  const textA = getSlotOverrideText(record, slotA)
+  const textB = getSlotOverrideText(record, slotB)
+  if (!textA || !textB) return ''
+  if (textA.toUpperCase() !== textB.toUpperCase()) return ''
+  return textA
 }
 
 /**
@@ -1691,6 +2548,9 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
         isOnLeavePm: false,
         isCustomRemark: false,
         customRemark: '',
+        mergedAmRemark: '',
+        mergedPmRemark: '',
+        mergedWholeDayRemark: '',
         hasWork: false,
         amArrival: '',
         amDeparture: '',
@@ -1715,7 +2575,7 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
     const record = recordsMap.get(dateStr) || null
 
     const hasAnyPunch = Boolean(
-      record?.am_arrival || record?.am_departure || record?.pm_arrival || record?.pm_departure
+      record?.am_arrival || record?.am_departure || record?.pm_arrival || record?.pm_departure,
     )
 
     let isAbsent = false
@@ -1728,21 +2588,32 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
     let holidayName = ''
     let leaveLabel = ''
 
-    const rawStatus = String(record?.status || '').toUpperCase().trim()
-    const rawRemark = String(record?.adjustment_remarks || '').toUpperCase().trim()
+    const rawStatus = String(record?.status || '')
+      .toUpperCase()
+      .trim()
+    const rawRemark = String(record?.adjustment_remarks || '')
+      .toUpperCase()
+      .trim()
 
-    const isCellLevelOverride = ['O.B.', 'O.F.', 'OFFICIAL BUSINESS', 'ON FIELD'].includes(rawStatus)
-      || ['O.B.', 'O.F.', 'OFFICIAL BUSINESS', 'ON FIELD'].includes(rawRemark)
-      || (record?.adjusted_slots && typeof record.adjusted_slots === 'object' && !Array.isArray(record.adjusted_slots))
+    const isCellLevelOverride =
+      ['O.B.', 'O.F.', 'OFFICIAL BUSINESS', 'ON FIELD'].includes(rawStatus) ||
+      ['O.B.', 'O.F.', 'OFFICIAL BUSINESS', 'ON FIELD'].includes(rawRemark) ||
+      (record?.adjusted_slots &&
+        typeof record.adjusted_slots === 'object' &&
+        !Array.isArray(record.adjusted_slots))
 
     if (isInCutoff) {
       if (rawStatus === 'HOLIDAY' || record?.is_holiday) {
         isHoliday = true
         holidayName = record?.remarks || record?.adjustment_remarks || 'HOLIDAY'
-      } else if (rawStatus === 'ON_LEAVE' || rawStatus === 'ON_LEAVE_AM' || rawStatus === 'ON_LEAVE_PM') {
+      } else if (
+        rawStatus === 'ON_LEAVE' ||
+        rawStatus === 'ON_LEAVE_AM' ||
+        rawStatus === 'ON_LEAVE_PM'
+      ) {
         const leaveCode = String(record?.leave_type_code || '').trim()
         const codeDisplay = leaveCode ? `ON LEAVE (${leaveCode})` : 'ON LEAVE'
-        leaveLabel = (record?.remarks && record.remarks !== 'ON LEAVE') ? record.remarks : codeDisplay
+        leaveLabel = record?.remarks && record.remarks !== 'ON LEAVE' ? record.remarks : codeDisplay
 
         if (rawStatus === 'ON_LEAVE') {
           isOnLeave = true
@@ -1751,7 +2622,10 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
         } else if (rawStatus === 'ON_LEAVE_PM') {
           isOnLeavePm = true
         }
-      } else if (!isCellLevelOverride && (rawStatus === 'RESTDAY' || (rawRemark && !hasAnyPunch && rawStatus !== 'ABSENT'))) {
+      } else if (
+        !isCellLevelOverride &&
+        (rawStatus === 'RESTDAY' || (rawRemark && !hasAnyPunch && rawStatus !== 'ABSENT'))
+      ) {
         isCustomRemark = true
         customRemark = record?.adjustment_remarks || record?.status || ''
       } else if (!isWeekend) {
@@ -1767,12 +2641,60 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
       }
     }
 
-    const hasWork = isInCutoff && !isWeekend && !isAbsent && !isOnLeave && !isHoliday && !isCustomRemark
+    const hasWork =
+      isInCutoff && !isWeekend && !isAbsent && !isOnLeave && !isHoliday && !isCustomRemark
 
-    const amArrival = formatSlotPunch(record?.am_arrival, record, 'am_arrival', hasWork, hasAnyPunch)
-    const amDeparture = formatSlotPunch(record?.am_departure, record, 'am_departure', hasWork, hasAnyPunch)
-    const pmArrival = formatSlotPunch(record?.pm_arrival, record, 'pm_arrival', hasWork, hasAnyPunch)
-    const pmDeparture = formatSlotPunch(record?.pm_departure, record, 'pm_departure', hasWork, hasAnyPunch)
+    const amArrival = formatSlotPunch(
+      record?.am_arrival,
+      record,
+      'am_arrival',
+      hasWork,
+      hasAnyPunch,
+    )
+    const amDeparture = formatSlotPunch(
+      record?.am_departure,
+      record,
+      'am_departure',
+      hasWork,
+      hasAnyPunch,
+    )
+    const pmArrival = formatSlotPunch(
+      record?.pm_arrival,
+      record,
+      'pm_arrival',
+      hasWork,
+      hasAnyPunch,
+    )
+    const pmDeparture = formatSlotPunch(
+      record?.pm_departure,
+      record,
+      'pm_departure',
+      hasWork,
+      hasAnyPunch,
+    )
+
+    const canMergeRemarks =
+      isInCutoff &&
+      !isWeekend &&
+      !isAbsent &&
+      !isHoliday &&
+      !isOnLeave &&
+      !isOnLeaveAm &&
+      !isOnLeavePm &&
+      !isCustomRemark
+
+    const mergedAmRemark = canMergeRemarks
+      ? resolveHalfDaySlotRemark(record, 'am_arrival', 'am_departure')
+      : ''
+    const mergedPmRemark = canMergeRemarks
+      ? resolveHalfDaySlotRemark(record, 'pm_arrival', 'pm_departure')
+      : ''
+    const mergedWholeDayRemark =
+      mergedAmRemark &&
+      mergedPmRemark &&
+      mergedAmRemark.toUpperCase() === mergedPmRemark.toUpperCase()
+        ? mergedAmRemark
+        : ''
 
     const rowObj = {
       dayNumber: d,
@@ -1792,6 +2714,9 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
       leaveLabel,
       isCustomRemark,
       customRemark,
+      mergedAmRemark,
+      mergedPmRemark,
+      mergedWholeDayRemark,
       hasWork,
       amArrival,
       amDeparture,
@@ -1805,7 +2730,12 @@ function buildSheetForMonth(year, month, startDay, endDay, recordsMap) {
   }
 
   const presentDaysCount = rows.filter(
-    (r) => r.isInCutoff && !r.isWeekend && !r.isAbsent && !r.isNonExistentDay && (r.hasWork || r.isOnLeaveAm || r.isOnLeavePm)
+    (r) =>
+      r.isInCutoff &&
+      !r.isWeekend &&
+      !r.isAbsent &&
+      !r.isNonExistentDay &&
+      (r.hasWork || r.isOnLeaveAm || r.isOnLeavePm),
   ).length
 
   const totalLateMinutes = rows
@@ -1875,12 +2805,16 @@ const isContractual = computed(() => {
   if (props.employee?.is_contractual !== undefined) {
     return Boolean(props.employee.is_contractual)
   }
-  const status = String(props.employee?.employment_status || props.employee?.status || '').toUpperCase().trim()
-  return status === 'CONTRACTUAL'
+  const status = String(props.employee?.employment_status || props.employee?.status || '')
+    .toUpperCase()
+    .trim()
+  return status === 'CONTRACTUAL' || status === 'HONORARIUM'
 })
 
 const employeeEmploymentStatus = computed(() => {
-  return String(props.employee?.employment_status || props.employee?.status || '').toUpperCase().trim()
+  return String(props.employee?.employment_status || props.employee?.status || '')
+    .toUpperCase()
+    .trim()
 })
 
 const pairedSheets = computed(() => {
@@ -1898,12 +2832,14 @@ const pairedSheets = computed(() => {
 
   // Non-contractual:
   if (sheets.length === 1) {
-    return [{
-      key: `single-${sheets[0].key || 0}`,
-      mode: 'single-centered',
-      leftSheet: sheets[0],
-      rightSheet: null,
-    }]
+    return [
+      {
+        key: `single-${sheets[0].key || 0}`,
+        mode: 'single-centered',
+        leftSheet: sheets[0],
+        rightSheet: null,
+      },
+    ]
   }
 
   // 2 or more months covered for non-contractual: pair them up 2-by-2 side-by-side
@@ -1912,7 +2848,7 @@ const pairedSheets = computed(() => {
     const left = sheets[i]
     const right = sheets[i + 1] || null
     pairs.push({
-      key: `bimonthly-${left.key || i}-${right ? (right.key || (i + 1)) : 'single'}`,
+      key: `bimonthly-${left.key || i}-${right ? right.key || i + 1 : 'single'}`,
       mode: right ? 'bimonthly-side-by-side' : 'single-centered',
       leftSheet: left,
       rightSheet: right,
@@ -1979,6 +2915,10 @@ defineExpose({
   margin: 0 auto;
 }
 
+.csc-sheet-wrapper + .csc-sheet-wrapper {
+  margin-top: 16px;
+}
+
 .single-left-layout .csc-header-band,
 .single-left-layout .csc-footer-band {
   display: flex;
@@ -2006,7 +2946,7 @@ defineExpose({
 
 .dtr-dual-page-sheet {
   width: 100%;
-  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
   color: #000000;
   background: #ffffff;
 }
@@ -2255,13 +3195,27 @@ defineExpose({
   font-weight: 700;
 }
 
+.td-pending-delete-slot {
+  background-color: #fffbeb !important;
+  box-shadow: inset 0 0 0 1.5px #d97706 !important;
+}
+
 @media print {
+  .csc-sheet-wrapper + .csc-sheet-wrapper {
+    margin-top: 0;
+  }
+
   .td-overridden-slot {
     color: #000000 !important;
   }
 
   .td-late-slot {
     color: #c62828 !important;
+  }
+
+  .td-pending-delete-slot {
+    background-color: transparent !important;
+    box-shadow: none !important;
   }
 }
 
@@ -2281,6 +3235,10 @@ defineExpose({
   font-weight: 400;
   font-size: 8pt;
   text-transform: uppercase;
+}
+
+.td-merged-status.td-overridden-slot {
+  font-weight: 700;
 }
 
 .td-spaced-day {
@@ -2437,7 +3395,9 @@ defineExpose({
 .td-time-clickable {
   position: relative;
   user-select: none;
-  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  transition:
+    background-color 0.15s ease-in-out,
+    color 0.15s ease-in-out;
 }
 
 .td-time-clickable:hover {
@@ -2487,5 +3447,10 @@ defineExpose({
 .dtr-container.is-readonly .td-missing-slot:hover {
   background-color: #fff1f2 !important;
   outline: none !important;
+}
+
+.dtr-cell-menu-header {
+  padding: 6px 12px;
+  background-color: #f8fafc;
 }
 </style>

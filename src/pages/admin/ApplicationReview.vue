@@ -89,6 +89,7 @@ import { useLeaveStore } from 'stores/leave-store'
 import StatusBadge from 'components/StatusBadge.vue'
 import PrintLeaveApplicationSignatoryDialog from 'src/components/admin/PrintLeaveApplicationSignatoryDialog.vue'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
+import { openPdfLoadingTab } from 'src/utils/pdf-loading-tab'
 import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
 import { api } from 'src/boot/axios'
 
@@ -164,15 +165,12 @@ async function printApplication(options = {}) {
     return
   }
 
-  const pdfWindow = options.targetWindow || window.open('', '_blank')
-  if (pdfWindow && !options.targetWindow) {
-    try {
-      pdfWindow.document.title = 'Preparing PDF...'
-      pdfWindow.document.body.innerHTML = '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-    } catch {
-      // Ignore interim window rendering issues.
-    }
-  }
+  const pdfWindow =
+    options.targetWindow ||
+    openPdfLoadingTab(
+      cocApplication ? 'Preparing COC Form PDF...' : 'Preparing CS Form No. 6...',
+      cocApplication ? 'Generating COC Form PDF...' : 'Generating CS Form No. 6 PDF...',
+    )
 
   let printableApplication = application.value
   const targetApplicationId = String(application.value?.id ?? '').trim()

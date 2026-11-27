@@ -654,6 +654,7 @@ import { useAdminDashboardStore } from 'stores/admin-dashboard-store'
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import { generateLeaveFormPdf } from 'src/utils/leave-form-pdf'
+import { openPdfLoadingTab } from 'src/utils/pdf-loading-tab'
 import { generateCocApplicationPdf, isReviewedCocApplicationPrintable } from 'src/utils/coc-form-pdf'
 import { resolveApiErrorMessage } from 'src/utils/http-error-message'
 import { useAuthStore } from 'stores/auth-store'
@@ -3256,15 +3257,12 @@ async function printApplication(app, printOptions = {}) {
     return
   }
 
-  const pdfWindow = printOptions.targetWindow || window.open('', '_blank')
-  if (pdfWindow && !printOptions.targetWindow) {
-    try {
-      pdfWindow.document.title = 'Preparing PDF...'
-      pdfWindow.document.body.innerHTML = '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-    } catch {
-      // Ignore interim window rendering issues.
-    }
-  }
+  const pdfWindow =
+    printOptions.targetWindow ||
+    openPdfLoadingTab(
+      cocApplication ? 'Preparing COC Form PDF...' : 'Preparing CS Form No. 6...',
+      cocApplication ? 'Generating COC Form PDF...' : 'Generating CS Form No. 6 PDF...',
+    )
   const targetApplicationId = String(
     app?.id ?? app?.application_id ?? app?.leave_application_id ?? '',
   ).trim()

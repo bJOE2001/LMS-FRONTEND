@@ -15,7 +15,7 @@ function formatEmploymentStatus(status) {
   const s = String(status).toUpperCase().trim()
   if (s === 'CASUAL') return 'Casual'
   if (s === 'REGULAR') return 'Permanent'
-  if (s === 'CONTRACTUAL') return 'Job Order'
+  if (s === 'CONTRACTUAL') return 'Contractual'
   if (s === 'CO-TERMINOUS') return 'Co-terminous'
   if (s === 'ELECTIVE') return 'Elective'
   if (s === 'HONORARIUM') return 'Honorarium'
@@ -117,7 +117,7 @@ export const useAttendanceStore = defineStore('attendance', () => {
     ]
 
     if (counts['CONTRACTUAL']) {
-      baseOptions.push({ label: `Job Order (${counts['CONTRACTUAL']})`, value: 'CONTRACTUAL' })
+      baseOptions.push({ label: `Contractual (${counts['CONTRACTUAL']})`, value: 'CONTRACTUAL' })
     }
     if (counts['CO-TERMINOUS']) {
       baseOptions.push({ label: `Co-terminous (${counts['CO-TERMINOUS']})`, value: 'CO-TERMINOUS' })
@@ -426,6 +426,41 @@ export const useAttendanceStore = defineStore('attendance', () => {
     }
   }
 
+  // ─── DTR Delete Requests State ───────────────────────────────────────
+  const pendingDtrDeleteCount = ref(0)
+
+  async function fetchDtrDeleteRequests(params = {}) {
+    const res = await api.get('/attendance/dtr/delete-requests', { params })
+    if (typeof res.data?.pending_count === 'number') {
+      pendingDtrDeleteCount.value = res.data.pending_count
+    }
+    return res.data
+  }
+
+  async function submitDtrDeleteRequest(payload) {
+    const res = await api.post('/attendance/dtr/delete-requests', payload)
+    return res.data
+  }
+
+  async function cancelDtrDeleteRequest(id) {
+    const res = await api.post(`/attendance/dtr/delete-requests/${id}/cancel`)
+    return res.data
+  }
+
+  async function approveDtrDeleteRequest(id, hrRemarks = '') {
+    const res = await api.post(`/attendance/dtr/delete-requests/${id}/approve`, {
+      hr_remarks: hrRemarks || null,
+    })
+    return res.data
+  }
+
+  async function rejectDtrDeleteRequest(id, hrRemarks) {
+    const res = await api.post(`/attendance/dtr/delete-requests/${id}/reject`, {
+      hr_remarks: hrRemarks,
+    })
+    return res.data
+  }
+
   return {
     // State
     selectedDate,
@@ -454,6 +489,8 @@ export const useAttendanceStore = defineStore('attendance', () => {
     batchDepartmentHeads,
     batchLoading,
     batchErrorMessage,
+    // DTR Delete Requests
+    pendingDtrDeleteCount,
     // Getters
     hasActiveFilters,
     employmentStatusOptions,
@@ -477,6 +514,11 @@ export const useAttendanceStore = defineStore('attendance', () => {
     clearSelectedEmployees,
     removeEmployeeFromBatch,
     updateEmployeeDtrInOverview,
+    fetchDtrDeleteRequests,
+    submitDtrDeleteRequest,
+    cancelDtrDeleteRequest,
+    approveDtrDeleteRequest,
+    rejectDtrDeleteRequest,
   }
 })
 

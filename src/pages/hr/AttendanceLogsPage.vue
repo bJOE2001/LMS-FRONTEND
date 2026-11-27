@@ -3,7 +3,7 @@
     <!-- Page Header -->
     <div class="row justify-between items-center q-col-gutter-sm q-mb-lg">
       <div class="col-auto">
-        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Punch Logs</h1>
+        <h1 class="text-h4 text-weight-bold q-mt-none q-mb-xs">Attendance Logs</h1>
       </div>
       <div class="col-12 col-sm-auto">
         <HeaderDateRangePicker

@@ -122,7 +122,7 @@
                   <q-item-section avatar class="min-avatar">
                     <q-icon name="receipt_long" size="18px" />
                   </q-item-section>
-                  <q-item-section class="nav-sub-label">Enrollment Logs</q-item-section>
+                  <q-item-section class="nav-sub-label">Biometric Logs</q-item-section>
                 </q-item>
                 <q-item
                   clickable
@@ -135,7 +135,7 @@
                   <q-item-section avatar class="min-avatar">
                     <q-icon name="schedule" size="18px" />
                   </q-item-section>
-                  <q-item-section class="nav-sub-label">Punch Logs</q-item-section>
+                  <q-item-section class="nav-sub-label">Attendance Logs</q-item-section>
                 </q-item>
                 <q-item
                   clickable
@@ -148,7 +148,25 @@
                   <q-item-section avatar class="min-avatar">
                     <q-icon name="event_note" size="18px" />
                   </q-item-section>
-                  <q-item-section class="nav-sub-label">Employee DTR</q-item-section>
+                  <q-item-section class="nav-sub-label">Daily Time Records</q-item-section>
+                </q-item>
+                <q-item
+                  clickable
+                  :active="route.path === '/hr/dtr-delete-requests'"
+                  active-class="nav-sub-item-active text-white text-weight-bold"
+                  to="/hr/dtr-delete-requests"
+                  class="q-mb-xs rounded-borders nav-sub-item"
+                  dense
+                >
+                  <q-item-section avatar class="min-avatar">
+                    <q-icon name="delete_sweep" size="18px" />
+                  </q-item-section>
+                  <q-item-section class="nav-sub-label">DTR Delete Requests</q-item-section>
+                  <q-item-section v-if="attendanceStore.pendingDtrDeleteCount > 0" side>
+                    <q-badge color="amber-8" text-color="dark" rounded class="text-weight-bold">
+                      {{ attendanceStore.pendingDtrDeleteCount }}
+                    </q-badge>
+                  </q-item-section>
                 </q-item>
               </q-list>
             </q-expansion-item>
@@ -371,6 +389,7 @@ import { useAuthStore } from 'stores/auth-store'
 import { useNotificationStore } from 'stores/notification-store'
 import { useHrDashboardStore } from 'stores/hr-dashboard-store'
 import { useAdminDashboardStore } from 'stores/admin-dashboard-store'
+import { useAttendanceStore } from 'stores/attendance-store'
 import { api } from 'boot/axios'
 import NotificationPanel from 'components/NotificationPanel.vue'
 import { hrUserHasModuleAccess } from 'src/utils/hr-module-access'
@@ -383,6 +402,7 @@ const authStore = useAuthStore()
 const notifStore = useNotificationStore()
 const hrDashboardStore = useHrDashboardStore()
 const adminDashboardStore = useAdminDashboardStore()
+const attendanceStore = useAttendanceStore()
 
 const leftDrawer = ref($q.screen.gt.sm)
 const logoutDialog = ref(false)
@@ -422,6 +442,11 @@ onMounted(async () => {
     }
   }
   notifStore.fetchUnreadCount()
+  if (authStore.user?.role === 'hr' && canAccessHrModule('employee_management')) {
+    attendanceStore.fetchDtrDeleteRequests({ status: 'pending' }).catch(() => {
+      // Ignore badge fetch errors on layout initialization
+    })
+  }
   nextTick(() => {
     setTimeout(() => {
       layoutReady.value = true
@@ -498,7 +523,8 @@ const isHrLeaveRouteActive = computed(() => {
 const isBioManagementRoute = (path) =>
   path.startsWith('/hr/biometric-') ||
   path.startsWith('/hr/attendance-logs') ||
-  path.startsWith('/hr/dtr')
+  path.startsWith('/hr/dtr') ||
+  path.startsWith('/hr/dtr-delete-requests')
 
 const hrLeaveMenuExpanded = ref(false)
 const biometricMenuExpanded = ref(isBioManagementRoute(route.path))

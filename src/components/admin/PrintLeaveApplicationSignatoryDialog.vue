@@ -127,6 +127,7 @@ import { ref, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { resolveDefaultRecommendationSignatory } from 'src/utils/leave-form-pdf'
+import { openPdfLoadingTab } from 'src/utils/pdf-loading-tab'
 
 const $q = useQuasar()
 
@@ -292,16 +293,10 @@ function handlePrintClick() {
   }
 
   // Open the blank PDF target window immediately within this direct user gesture
-  const pdfWindow = window.open('', '_blank')
-  if (pdfWindow) {
-    try {
-      pdfWindow.document.title = 'Preparing PDF...'
-      pdfWindow.document.body.innerHTML =
-        '<div style="font-family: Roboto, -apple-system, Helvetica Neue, Arial, sans-serif; padding: 24px;">Preparing PDF...</div>'
-    } catch {
-      // Ignore interim window write errors
-    }
-  }
+  const pdfWindow = openPdfLoadingTab(
+    'Preparing CS Form No. 6...',
+    'Generating CS Form No. 6 PDF...',
+  )
 
   let override = null
   if (signatoryMode.value === 'custom' && selectedEmployee.value) {

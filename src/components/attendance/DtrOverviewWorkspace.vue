@@ -1216,7 +1216,7 @@ function formatEmploymentStatus(status) {
   const s = String(status).toUpperCase().trim()
   if (s === 'CASUAL') return 'Casual'
   if (s === 'REGULAR') return 'Permanent'
-  if (s === 'CONTRACTUAL') return 'Job Order'
+  if (s === 'CONTRACTUAL') return 'Contractual'
   if (s === 'CO-TERMINOUS') return 'Co-terminous'
   if (s === 'ELECTIVE') return 'Elective'
   if (s === 'HONORARIUM') return 'Honorarium'
@@ -1237,7 +1237,7 @@ const employmentStatusOptions = computed(() => {
   ]
 
   if (counts['CONTRACTUAL']) {
-    baseOptions.push({ label: `Job Order (${counts['CONTRACTUAL']})`, value: 'CONTRACTUAL' })
+    baseOptions.push({ label: `Contractual (${counts['CONTRACTUAL']})`, value: 'CONTRACTUAL' })
   }
   if (counts['CO-TERMINOUS']) {
     baseOptions.push({ label: `Co-terminous (${counts['CO-TERMINOUS']})`, value: 'CO-TERMINOUS' })
@@ -1449,7 +1449,7 @@ function isEmployeeContractual(emp) {
     return Boolean(emp.is_contractual)
   }
   const status = String(emp.employment_status || emp.status || '').toUpperCase().trim()
-  if (status === 'CONTRACTUAL') return true
+  if (status === 'CONTRACTUAL' || status === 'HONORARIUM') return true
   const designation = String(emp.designation || '').toUpperCase()
   return designation.includes('JOB ORDER') || designation.includes('CONTRACTUAL')
 }
